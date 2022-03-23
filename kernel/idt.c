@@ -1,0 +1,154 @@
+#include "asm_wrapper.h"
+#include "kprintf.h"
+#include "system.h"
+
+typedef struct idt_descriptor {
+    uint16_t base_lo;
+    uint16_t segment_selector;
+    uint8_t reserved;
+    uint8_t flags;
+    uint16_t base_hi;
+} __attribute__((packed)) idt_descriptor;
+
+typedef struct idt_pointer {
+    uint16_t limit;
+    uint32_t base;
+} __attribute__((packed)) idt_pointer;
+
+#define NUM_IDT_ENTRIES 256
+static idt_descriptor idt[NUM_IDT_ENTRIES];
+static idt_pointer idtr;
+interrupt_handler_fn interrupt_handlers[NUM_IDT_ENTRIES];
+
+void idt_register_interrupt_handler(uint8_t num, interrupt_handler_fn handler) {
+    interrupt_handlers[num] = handler;
+}
+
+void isr_handler(registers* regs) {
+    interrupt_handler_fn handler = interrupt_handlers[regs->num];
+    if (handler) {
+        handler(regs);
+        return;
+    }
+
+    kprintf("Unhandled interrupt: %u\n", regs->num);
+    dump_registers(regs);
+    KPANIC("Unhandled interrupt");
+}
+
+void idt_set_user_callable(uint8_t idx) { idt[idx].flags |= 0x60; }
+
+void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
+
+void idt_set_gate(uint8_t idx, uint32_t base, uint16_t segment_selector,
+                  uint8_t flags) {
+    idt_descriptor* entry = idt + idx;
+
+    entry->base_lo = base & 0xffff;
+    entry->base_hi = (base >> 16) & 0xffff;
+
+    entry->segment_selector = segment_selector;
+    entry->reserved = 0;
+    entry->flags = flags;
+}
+
+#define DEFINE_ISR_WITHOUT_ERROR_CODE(num)                                     \
+    void isr##num(void);                                                       \
+    __asm__("isr" #num ":\n"                                                   \
+            "cli\n"                                                            \
+            "pushl $0\n"                                                       \
+            "pushl $" #num "\n"                                                \
+            "jmp isr_common_stub");
+
+#define DEFINE_ISR_WITH_ERROR_CODE(num)                                        \
+    void isr##num(void);                                                       \
+    __asm__("isr" #num ":\n"                                                   \
+            "cli\n"                                                            \
+            "pushl $" #num "\n"                                                \
+            "jmp isr_common_stub");
+
+#define DEFINE_EXCEPTION(num, msg)                                             \
+    static void handle_exception##num(registers* regs) {                       \
+        kprintf("Exception #" #num ": " msg "\n");                             \
+        dump_registers(regs);                                                  \
+        KPANIC("Exception");                                                   \
+    }
+
+#define DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(num, msg)                          \
+    DEFINE_ISR_WITHOUT_ERROR_CODE(num)                                         \
+    DEFINE_EXCEPTION(num, msg)
+
+#define DEFINE_EXCEPTION_WITH_ERROR_CODE(num, msg)                             \
+    DEFINE_ISR_WITH_ERROR_CODE(num)                                            \
+    DEFINE_EXCEPTION(num, msg)
+
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(0, "Divide-by-zero error")
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(1, "Debug")
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(2, "Non-maskable interrupt")
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(3, "Breakpoint")
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(4, "Overflow")
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(5, "Bound range exceeded")
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(6, "Invalid opcode")
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(7, "Device not available")
+DEFINE_EXCEPTION_WITH_ERROR_CODE(8, "Double fault")
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(9, "Coprocessor segment overrun")
+DEFINE_EXCEPTION_WITH_ERROR_CODE(10, "Invalid TSS")
+DEFINE_EXCEPTION_WITH_ERROR_CODE(11, "Segment not present")
+DEFINE_EXCEPTION_WITH_ERROR_CODE(12, "Stack-segment fault")
+DEFINE_EXCEPTION_WITH_ERROR_CODE(13, "General protection fault")
+
+DEFINE_ISR_WITH_ERROR_CODE(14)
+static void handle_exception14(registers* regs) {
+    uint32_t present = regs->err_code & 0x1;
+    uint32_t write = regs->err_code & 0x2;
+    uint32_t user = regs->err_code & 0x4;
+
+    kprintf("Page fault! (%s%s%s) at 0x%x\n",
+            present ? "page-protection " : "non-present ",
+            write ? "write " : "read ", user ? "user-mode" : "kernel-mode",
+            read_cr2());
+    dump_registers(regs);
+    KPANIC("Page fault");
+}
+
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(15, "Unknown")
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(16, "x87 floating-point exception")
+
+#define ISR_STUBS_DEFINE
+#include "isr_stubs.inc"
+#undef ISR_STUBS_DEFINE
+
+void idt_init(void) {
+    idtr.limit = NUM_IDT_ENTRIES * sizeof(idt_descriptor) - 1;
+    idtr.base = (uint32_t)&idt;
+
+#define REGISTER_ISR(num) idt_set_gate(num, (uint32_t)isr##num, 0x08, 0x8e)
+
+#define REGISTER_EXCEPTION(num)                                                \
+    REGISTER_ISR(num);                                                         \
+    idt_register_interrupt_handler(num, handle_exception##num);
+
+    REGISTER_EXCEPTION(0);
+    REGISTER_EXCEPTION(1);
+    REGISTER_EXCEPTION(2);
+    REGISTER_EXCEPTION(3);
+    REGISTER_EXCEPTION(4);
+    REGISTER_EXCEPTION(5);
+    REGISTER_EXCEPTION(6);
+    REGISTER_EXCEPTION(7);
+    REGISTER_EXCEPTION(8);
+    REGISTER_EXCEPTION(9);
+    REGISTER_EXCEPTION(10);
+    REGISTER_EXCEPTION(11);
+    REGISTER_EXCEPTION(12);
+    REGISTER_EXCEPTION(13);
+    REGISTER_EXCEPTION(14);
+    REGISTER_EXCEPTION(15);
+    REGISTER_EXCEPTION(16);
+
+#define ISR_STUBS_REGISTER
+#include "isr_stubs.inc"
+#undef ISR_STUBS_REGISTER
+
+    idt_flush();
+}

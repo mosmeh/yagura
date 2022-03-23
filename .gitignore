@@ -1,0 +1,5 @@
+compile_flags.txt
+**/*.o
+kernel/kernel
+tool/mkfs
+initrd
