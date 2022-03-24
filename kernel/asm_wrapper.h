@@ -76,10 +76,7 @@ static inline void delay(uint32_t usec) {
     }
 }
 
-static inline noreturn void hlt(void) {
-    __asm__ volatile("hlt");
-    __builtin_unreachable();
-}
+static inline void hlt(void) { __asm__ volatile("hlt"); }
 
 static inline noreturn void ud2(void) {
     __asm__ volatile("ud2");

@@ -6,7 +6,6 @@
 #include "mem.h"
 #include "system.h"
 #include <common/string.h>
-#include <stdbool.h>
 
 #define USERLAND_HEAP_START 0x100000
 

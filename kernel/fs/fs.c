@@ -4,7 +4,6 @@
 #include <kernel/kprintf.h>
 #include <kernel/string.h>
 #include <kernel/system.h>
-#include <stdbool.h>
 
 uint32_t fs_read(fs_node* node, off_t offset, size_t size, void* buffer) {
     if (!node->read)
@@ -59,7 +58,7 @@ static vfs_node* find_child_by_name(vfs_node* node, const char* name) {
     if (!child)
         return NULL;
 
-    while (true) {
+    for (;;) {
         if (!strcmp(child->name, name))
             return child;
 
@@ -101,7 +100,7 @@ void vfs_mount(char* path, fs_node* fs) {
 
     vfs_node* node = &root;
     char* component = split_path + 1;
-    while (true) {
+    for (;;) {
         KASSERT(component < split_path + path_len);
         vfs_node* child = find_child_by_name(node, component);
         if (!child)

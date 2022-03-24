@@ -8,7 +8,6 @@
 #include <common/extra.h>
 #include <common/string.h>
 #include <common/syscall.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdnoreturn.h>
 
@@ -28,7 +27,7 @@ static uintptr_t sys_yield(void) {
 noreturn static uintptr_t sys_halt(void) {
     kprintf("System halted\n");
     cli();
-    while (true)
+    for (;;)
         hlt();
 }
 

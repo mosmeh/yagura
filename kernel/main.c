@@ -8,7 +8,6 @@
 #include "serial.h"
 #include "system.h"
 #include <common/types.h>
-#include <stdbool.h>
 #include <userland/stdlib.h>
 #include <userland/syscall.h>
 
@@ -129,8 +128,8 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     kprintf("\x1b[32mInitialization done\x1b[m\n");
 
     pid_t ret = process_spawn_kernel_process(kernel_process_entry);
-    kprintf("[%d] I'm now the idle process ret=%d\n", process_get_pid(), ret);
+    kprintf("[%d] I'm the first process ret=%d\n", process_get_pid(), ret);
 
-    while (true)
+    for (;;)
         pause();
 }
