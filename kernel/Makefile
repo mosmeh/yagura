@@ -18,11 +18,12 @@ KERNEL_OBJS := \
 	pit.o \
 	mem.o \
 	kmalloc.o \
-	string.o \
-	serial.o \
-	kprintf.o \
 	process.o \
 	syscall.o \
+	string.o \
+	lock.o \
+	serial.o \
+	kprintf.o \
 	fs/fs.o \
 	fs/initrd.o
 

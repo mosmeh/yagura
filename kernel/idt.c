@@ -1,13 +1,17 @@
 #include "asm_wrapper.h"
+#include "interrupts.h"
 #include "kprintf.h"
 #include "system.h"
 
 typedef struct idt_descriptor {
-    uint16_t base_lo;
-    uint16_t segment_selector;
-    uint8_t reserved;
-    uint8_t flags;
-    uint16_t base_hi;
+    uint16_t base_lo : 16;
+    uint16_t segment_selector : 16;
+    uint8_t reserved1 : 8;
+    uint8_t gate_type : 4;
+    bool reserved2 : 1;
+    uint8_t dpl : 2;
+    bool present : 1;
+    uint16_t base_hi : 16;
 } __attribute__((packed)) idt_descriptor;
 
 typedef struct idt_pointer {
@@ -36,26 +40,32 @@ void isr_handler(registers* regs) {
     KPANIC("Unhandled interrupt");
 }
 
-void idt_set_user_callable(uint8_t idx) { idt[idx].flags |= 0x60; }
-
-void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
-
 void idt_set_gate(uint8_t idx, uint32_t base, uint16_t segment_selector,
-                  uint8_t flags) {
+                  uint8_t gate_type, uint8_t dpl) {
     idt_descriptor* entry = idt + idx;
 
     entry->base_lo = base & 0xffff;
     entry->base_hi = (base >> 16) & 0xffff;
 
     entry->segment_selector = segment_selector;
-    entry->reserved = 0;
-    entry->flags = flags;
+    entry->gate_type = gate_type & 0xf;
+    entry->dpl = dpl & 3;
+    entry->present = true;
+
+    entry->reserved1 = entry->reserved2 = 0;
 }
+
+void idt_set_gate_user_callable(uint8_t idx) {
+    idt_descriptor* entry = idt + idx;
+    entry->gate_type = TRAP_GATE32;
+    entry->dpl = 3;
+}
+
+void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
 
 #define DEFINE_ISR_WITHOUT_ERROR_CODE(num)                                     \
     void isr##num(void);                                                       \
     __asm__("isr" #num ":\n"                                                   \
-            "cli\n"                                                            \
             "pushl $0\n"                                                       \
             "pushl $" #num "\n"                                                \
             "jmp isr_common_stub");
@@ -63,7 +73,6 @@ void idt_set_gate(uint8_t idx, uint32_t base, uint16_t segment_selector,
 #define DEFINE_ISR_WITH_ERROR_CODE(num)                                        \
     void isr##num(void);                                                       \
     __asm__("isr" #num ":\n"                                                   \
-            "cli\n"                                                            \
             "pushl $" #num "\n"                                                \
             "jmp isr_common_stub");
 
@@ -122,7 +131,8 @@ void idt_init(void) {
     idtr.limit = NUM_IDT_ENTRIES * sizeof(idt_descriptor) - 1;
     idtr.base = (uint32_t)&idt;
 
-#define REGISTER_ISR(num) idt_set_gate(num, (uint32_t)isr##num, 0x08, 0x8e)
+#define REGISTER_ISR(num)                                                      \
+    idt_set_gate(num, (uint32_t)isr##num, 0x8, INTERRUPT_GATE32, 0)
 
 #define REGISTER_EXCEPTION(num)                                                \
     REGISTER_ISR(num);                                                         \

@@ -1,6 +1,7 @@
 #include "mem.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
+#include "kernel/interrupts.h"
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "multiboot.h"
@@ -36,8 +37,12 @@ static size_t physical_page_bitmap_find_first_set(void) {
 }
 
 static uintptr_t alloc_physical_page(void) {
+    bool int_flag = push_cli();
+
     size_t first_set = physical_page_bitmap_find_first_set();
     physical_page_bitmap_clear(first_set);
+
+    pop_cli(int_flag);
     return first_set * PAGE_SIZE;
 }
 

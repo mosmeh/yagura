@@ -1,17 +1,24 @@
 #include "kmalloc.h"
 #include "boot_defs.h"
+#include "lock.h"
 #include "mem.h"
 #include "system.h"
 #include <common/extra.h>
 #include <common/string.h>
 #include <stdalign.h>
 
+static mutex lock;
+
 // kernel heap starts right after the quickmap page
 static uintptr_t heap_ptr = KERNEL_VADDR + 1024 * PAGE_SIZE;
+
+void kmalloc_init(void) { mutex_init(&lock); }
 
 void* kaligned_alloc(size_t alignment, size_t size) {
     if (size == 0)
         return NULL;
+
+    mutex_lock(&lock);
 
     uintptr_t aligned_ptr = round_up(heap_ptr, alignment);
     uintptr_t next_ptr = aligned_ptr + size;
@@ -21,6 +28,8 @@ void* kaligned_alloc(size_t alignment, size_t size) {
     memset((void*)aligned_ptr, 0, size);
 
     heap_ptr = next_ptr;
+
+    mutex_unlock(&lock);
     return (void*)aligned_ptr;
 }
 

@@ -6,7 +6,8 @@
 #define SYSCALL_VECTOR 0x81
 
 #define NUM_SYSCALLS SYS_LAST
-enum syscall {
+
+enum {
     SYS_EXIT,
     SYS_FORK,
     SYS_GETPID,

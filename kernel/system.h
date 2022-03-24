@@ -20,20 +20,8 @@ typedef struct registers {
 
 void dump_registers(const registers*);
 
-#define IRQ0 0x20
-
 void gdt_init(void);
-void idt_init(void);
-void irq_init(void);
 void pit_init(uint32_t freq);
 void syscall_init(void);
 
 void gdt_set_kernel_stack(uintptr_t stack_top);
-
-typedef void (*interrupt_handler_fn)(registers*);
-
-void idt_set_gate(uint8_t idx, uint32_t base, uint16_t segment_selector,
-                  uint8_t flags);
-void idt_register_interrupt_handler(uint8_t num, interrupt_handler_fn handler);
-void idt_set_user_callable(uint8_t idx);
-void idt_flush(void);

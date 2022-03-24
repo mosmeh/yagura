@@ -1,27 +1,19 @@
 #include "kprintf.h"
 #include "asm_wrapper.h"
+#include "interrupts.h"
 #include "serial.h"
 #include <common/string.h>
 
-int kputchar(int c) {
-    uint32_t eflags = read_eflags();
-    cli();
-    serial_write(SERIAL_COM1, c);
-    if (eflags & 0x200)
-        sti();
-    return c;
-}
-
 int kputs(const char* str) {
-    uint32_t eflags = read_eflags();
-    cli();
+    bool int_flag = push_cli();
+
     int i = 0;
     while (*str) {
-        kputchar(*str++);
+        serial_write(SERIAL_COM1, *str++);
         ++i;
     }
-    if (eflags & 0x200)
-        sti();
+
+    pop_cli(int_flag);
     return i;
 }
 

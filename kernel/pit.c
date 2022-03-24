@@ -1,4 +1,5 @@
 #include "asm_wrapper.h"
+#include "interrupts.h"
 #include "process.h"
 
 #define TIMER0_CTL 0x40
@@ -9,6 +10,7 @@
 
 static void pit_handler(registers* regs) {
     (void)regs;
+    KASSERT(!interrupts_enabled());
     process_switch();
 }
 

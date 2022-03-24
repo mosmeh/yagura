@@ -21,7 +21,7 @@ pid_t fork(void) { return invoke_syscall(SYS_FORK, 0, 0, 0); }
 
 pid_t getpid(void) { return invoke_syscall(SYS_GETPID, 0, 0, 0); }
 
-void yield(void) { invoke_syscall(SYS_YIELD, 0, 0, 0); }
+void sched_yield(void) { invoke_syscall(SYS_YIELD, 0, 0, 0); }
 
 void halt(void) { invoke_syscall(SYS_HALT, 0, 0, 0); }
 

@@ -1,6 +1,7 @@
 #include "asm_wrapper.h"
 #include "boot_defs.h"
 #include "fs/fs.h"
+#include "interrupts.h"
 #include "kprintf.h"
 #include "mem.h"
 #include "process.h"
@@ -38,7 +39,7 @@ static uintptr_t sys_mmap(const mmap_params* params) {
     KASSERT(params->fd == 0);
     KASSERT(params->offset == 0);
 
-    uintptr_t current_ptr = process_current()->next_vaddr;
+    uintptr_t current_ptr = current->heap_next_vaddr;
     uintptr_t aligned_ptr = round_up(current_ptr, PAGE_SIZE);
     uintptr_t next_ptr = aligned_ptr + params->length;
     KASSERT(next_ptr <= USER_STACK_BASE - PAGE_SIZE);
@@ -49,7 +50,7 @@ static uintptr_t sys_mmap(const mmap_params* params) {
     mem_map_virtual_addr_range_to_any_pages(aligned_ptr, next_ptr, flags);
     memset((void*)aligned_ptr, 0, params->length);
 
-    process_current()->next_vaddr = next_ptr;
+    current->heap_next_vaddr = next_ptr;
     return aligned_ptr;
 }
 
@@ -62,21 +63,21 @@ static uintptr_t sys_open(const char* pathname, int flags) {
 }
 
 static uintptr_t sys_close(int fd) {
-    file_description* entry = process_current()->fd_table.entries + fd;
+    file_description* entry = current->fd_table.entries + fd;
     fs_close(entry->node);
     process_free_file_descriptor(fd);
     return 0;
 }
 
 static uintptr_t sys_read(int fd, void* buf, size_t count) {
-    file_description* entry = process_current()->fd_table.entries + fd;
+    file_description* entry = current->fd_table.entries + fd;
     size_t nread = fs_read(entry->node, entry->offset, count, buf);
     entry->offset += nread;
     return nread;
 }
 
 static uintptr_t sys_write(int fd, const void* buf, size_t count) {
-    file_description* entry = process_current()->fd_table.entries + fd;
+    file_description* entry = current->fd_table.entries + fd;
     size_t nwrittern = fs_write(entry->node, entry->offset, count, buf);
     entry->offset += nwrittern;
     return nwrittern;
@@ -88,6 +89,7 @@ static syscall_handler_fn syscall_handlers[NUM_SYSCALLS] = {
     sys_puts, sys_open, sys_close,  sys_read,  sys_write};
 
 static void syscall_handler(registers* regs) {
+    KASSERT(interrupts_enabled());
     KASSERT(regs->eax < NUM_SYSCALLS);
 
     syscall_handler_fn handler = syscall_handlers[regs->eax];
@@ -101,6 +103,6 @@ static void syscall_handler(registers* regs) {
 
 void syscall_init(void) {
     idt_register_interrupt_handler(SYSCALL_VECTOR, syscall_handler);
-    idt_set_user_callable(SYSCALL_VECTOR);
+    idt_set_gate_user_callable(SYSCALL_VECTOR);
     idt_flush();
 }

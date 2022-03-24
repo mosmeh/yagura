@@ -1,6 +1,8 @@
 #include "asm_wrapper.h"
 #include "boot_defs.h"
 #include "fs/fs.h"
+#include "interrupts.h"
+#include "kmalloc.h"
 #include "kprintf.h"
 #include "mem.h"
 #include "multiboot.h"
@@ -108,6 +110,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     const multiboot_info_t* mb_info =
         (const multiboot_info_t*)(mb_info_paddr + KERNEL_VADDR);
     mem_init(mb_info);
+    kmalloc_init();
 
     vfs_init();
     const multiboot_module_t* first_mod =
@@ -130,6 +133,5 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     pid_t ret = process_spawn_kernel_process(kernel_process_entry);
     kprintf("[%d] I'm the first process ret=%d\n", process_get_pid(), ret);
 
-    for (;;)
-        pause();
+    process_exit(0);
 }

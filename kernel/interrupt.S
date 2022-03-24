@@ -54,5 +54,4 @@ return_to_userland:
   popa
 
   addl $8, %esp # pop err_code and num
-  sti
   iret

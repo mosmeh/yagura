@@ -12,7 +12,7 @@ noreturn void exit(int status);
 pid_t fork(void);
 pid_t getpid(void);
 
-void yield(void);
+void sched_yield(void);
 void halt(void);
 
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,

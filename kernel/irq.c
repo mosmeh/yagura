@@ -1,4 +1,5 @@
 #include "asm_wrapper.h"
+#include "interrupts.h"
 #include "system.h"
 #include <common/extra.h>
 
@@ -31,7 +32,6 @@ static void remap_pic(void) {
 #define DEFINE_IRQ(num)                                                        \
     void irq##num(void);                                                       \
     __asm__("irq" #num ":\n"                                                   \
-            "cli\n"                                                            \
             "pushl $0\n"                                                       \
             "pushl $" STRINGIFY(IRQ0 + num) "\n"                               \
                                             "jmp irq_common_stub");
@@ -69,7 +69,8 @@ void irq_handler(registers* regs) {
 void irq_init(void) {
     remap_pic();
 
-#define REGISTER_IRQ(num) idt_set_gate(IRQ0 + num, (uint32_t)irq##num, 8, 0x8e)
+#define REGISTER_IRQ(num)                                                      \
+    idt_set_gate(IRQ0 + num, (uint32_t)irq##num, 0x8, INTERRUPT_GATE32, 0)
 
     REGISTER_IRQ(0);
     REGISTER_IRQ(1);

@@ -1,40 +1,57 @@
 #include "process.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
+#include "kernel/interrupts.h"
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "mem.h"
 #include "system.h"
 #include <common/string.h>
+#include <stdatomic.h>
 
 #define USERLAND_HEAP_START 0x100000
 
-static process* current;
+process* current;
 static process* queue;
-static pid_t next_pid = 0;
+static process* idle;
+static atomic_int next_pid;
 
 static process* queue_pop(void) {
-    if (!queue)
-        return NULL;
+    bool int_flag = push_cli();
 
     process* p = queue;
-    queue = p->next;
-    p->next = NULL;
+    if (p) {
+        queue = p->next;
+        p->next = NULL;
+    } else {
+        p = idle;
+    }
+
+    pop_cli(int_flag);
     return p;
 }
 
 static void queue_push(process* p) {
+    bool int_flag = push_cli();
+
     p->next = NULL;
 
     if (!queue) {
         queue = p;
-        return;
+        goto queue_push_cleanup;
     }
 
     process* it = queue;
     while (it->next)
         it = it->next;
     it->next = p;
+
+queue_push_cleanup:
+    pop_cli(int_flag);
+}
+
+static pid_t get_next_pid(void) {
+    return atomic_fetch_add_explicit(&next_pid, 1, memory_order_acq_rel);
 }
 
 static file_descriptor_table create_fd_table(void) {
@@ -50,30 +67,52 @@ static file_descriptor_table clone_fd_table(const file_descriptor_table* from) {
     return table;
 }
 
+static process* create_kernel_process(void (*entry_point)(void)) {
+    process* p = (process*)kmalloc(sizeof(process));
+    p->id = next_pid++;
+    p->pd_paddr = mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
+    p->heap_next_vaddr = USERLAND_HEAP_START;
+    p->fd_table = create_fd_table();
+    p->next = NULL;
+
+    p->eip = (uintptr_t)entry_point;
+    p->stack_top = (uintptr_t)kmalloc(STACK_SIZE) + STACK_SIZE;
+    p->esp = p->ebp = p->stack_top;
+
+    return p;
+}
+
+static noreturn void do_idle(void) {
+    for (;;) {
+        KASSERT(interrupts_enabled());
+        hlt();
+    }
+}
+
 extern unsigned char stack_top[];
 
 void process_init(void) {
-    cli();
+    atomic_init(&next_pid, 0);
 
     uintptr_t pd_paddr =
         mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
     mem_switch_page_directory(pd_paddr);
 
     current = (process*)kmalloc(sizeof(process));
-    current->id = next_pid++;
+    current->id = get_next_pid();
     current->esp = current->ebp = current->eip = 0;
     current->pd_paddr = pd_paddr;
     current->stack_top = (uintptr_t)stack_top;
-    current->next_vaddr = USERLAND_HEAP_START;
+    current->heap_next_vaddr = USERLAND_HEAP_START;
     current->fd_table = create_fd_table();
     current->next = NULL;
 
-    sti();
+    idle = create_kernel_process(do_idle);
 }
 
-process* process_current(void) { return (process*)current; }
-
 static noreturn void switch_to_next_process(void) {
+    cli();
+
     current = queue_pop();
     KASSERT(current);
 
@@ -85,6 +124,7 @@ static noreturn void switch_to_next_process(void) {
                      "mov %1, %%esp\n"
                      "mov %2, %%ebp\n"
                      "mov $1, %%eax;\n"
+                     "sti\n"
                      "jmp *%%ebx"
                      :
                      : "r"(current->eip), "r"(current->esp), "r"(current->ebp)
@@ -93,33 +133,33 @@ static noreturn void switch_to_next_process(void) {
 }
 
 void process_switch(void) {
+    cli();
     KASSERT(current);
 
-    uint32_t eip = read_eip();
-    if (eip == 1)
-        return;
+    if (current != idle) {
+        uint32_t eip = read_eip();
+        if (eip == 1)
+            return;
 
-    uint32_t esp, ebp;
-    __asm__ volatile("mov %%esp, %0" : "=r"(esp));
-    __asm__ volatile("mov %%ebp, %0" : "=r"(ebp));
+        uint32_t esp, ebp;
+        __asm__ volatile("mov %%esp, %0" : "=r"(esp));
+        __asm__ volatile("mov %%ebp, %0" : "=r"(ebp));
 
-    current->eip = eip;
-    current->esp = esp;
-    current->ebp = ebp;
+        current->eip = eip;
+        current->esp = esp;
+        current->ebp = ebp;
 
-    queue_push(current);
+        queue_push(current);
+    }
 
     switch_to_next_process();
 }
 
-// spawns a process without parent
 pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
-    cli();
-
     process* p = (process*)kmalloc(sizeof(process));
     p->id = next_pid++;
     p->pd_paddr = mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
-    p->next_vaddr = USERLAND_HEAP_START;
+    p->heap_next_vaddr = USERLAND_HEAP_START;
     p->fd_table = create_fd_table();
     p->next = NULL;
 
@@ -129,13 +169,10 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
 
     queue_push(p);
 
-    sti();
     return p->id;
 }
 
 noreturn void process_enter_userland(void (*entry_point)(void)) {
-    cli();
-
     gdt_set_kernel_stack(current->stack_top);
     mem_map_virtual_addr_range_to_any_pages(USER_STACK_BASE, USER_STACK_TOP,
                                             MEM_WRITE | MEM_USER);
@@ -164,8 +201,6 @@ void return_to_userland(registers);
 
 // for syscall
 pid_t process_userland_fork(registers* regs) {
-    cli();
-
     uintptr_t pd_paddr =
         mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
 
@@ -173,7 +208,7 @@ pid_t process_userland_fork(registers* regs) {
     p->id = next_pid++;
     p->pd_paddr = pd_paddr;
     p->stack_top = (uintptr_t)kmalloc(STACK_SIZE) + STACK_SIZE;
-    p->next_vaddr = current->next_vaddr;
+    p->heap_next_vaddr = current->heap_next_vaddr;
     p->fd_table = clone_fd_table(&current->fd_table);
     p->next = NULL;
 
@@ -188,7 +223,6 @@ pid_t process_userland_fork(registers* regs) {
 
     queue_push(p);
 
-    sti();
     return p->id;
 }
 

@@ -12,14 +12,15 @@ typedef struct process {
     uint32_t esp, ebp, eip;
     uintptr_t pd_paddr;
     uintptr_t stack_top;
-    uintptr_t next_vaddr;
+    uintptr_t heap_next_vaddr;
     file_descriptor_table fd_table;
     struct process* next; // queue
 } process;
 
+extern process* current;
+
 void process_init(void);
 
-process* process_current(void);
 pid_t process_get_pid(void);
 
 void process_switch(void);
