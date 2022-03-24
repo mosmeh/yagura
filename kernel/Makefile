@@ -30,7 +30,6 @@ COMMON_OBJS := ../common/string.o
 
 USERLAND_OBJS := \
 	../userland/syscall.o \
-	../userland/invoke_syscall.o \
 	../userland/stdlib.o
 
 OBJS := $(KERNEL_OBJS) $(COMMON_OBJS) $(USERLAND_OBJS)

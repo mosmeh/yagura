@@ -40,9 +40,3 @@ typedef struct mmap_params {
     int fd;
     off_t offset;
 } mmap_params;
-
-typedef struct rw_params {
-    int fd;
-    void* buf;
-    size_t count;
-} rw_params;

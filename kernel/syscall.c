@@ -69,18 +69,16 @@ static uintptr_t sys_close(int fd) {
     return 0;
 }
 
-static uintptr_t sys_read(const rw_params* params) {
-    file_description* entry = process_current()->fd_table.entries + params->fd;
-    size_t nread =
-        fs_read(entry->node, entry->offset, params->count, params->buf);
+static uintptr_t sys_read(int fd, void* buf, size_t count) {
+    file_description* entry = process_current()->fd_table.entries + fd;
+    size_t nread = fs_read(entry->node, entry->offset, count, buf);
     entry->offset += nread;
     return nread;
 }
 
-static uintptr_t sys_write(const rw_params* params) {
-    file_description* entry = process_current()->fd_table.entries + params->fd;
-    size_t nwrittern =
-        fs_write(entry->node, entry->offset, params->count, params->buf);
+static uintptr_t sys_write(int fd, const void* buf, size_t count) {
+    file_description* entry = process_current()->fd_table.entries + fd;
+    size_t nwrittern = fs_write(entry->node, entry->offset, count, buf);
     entry->offset += nwrittern;
     return nwrittern;
 }
@@ -96,9 +94,10 @@ static void syscall_handler(registers* regs) {
     syscall_handler_fn handler = syscall_handlers[regs->eax];
     KASSERT(handler);
 
-    uintptr_t ret =
-        regs->eax == SYS_FORK ? handler(regs) : handler(regs->edx, regs->ecx);
-    regs->eax = ret;
+    if (regs->eax == SYS_FORK)
+        regs->eax = handler(regs);
+    else
+        regs->eax = handler(regs->edx, regs->ecx, regs->ebx);
 }
 
 void syscall_init(void) {

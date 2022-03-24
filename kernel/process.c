@@ -38,22 +38,6 @@ static void queue_push(process* p) {
     it->next = p;
 }
 
-static void queue_delete(process* p) {
-    if (p == queue) {
-        queue = p->next;
-        return;
-    }
-
-    process* prev = NULL;
-    process* cur = queue;
-    while (cur != p && cur->next) {
-        prev = cur;
-        cur = cur->next;
-    }
-    if (cur == p)
-        prev->next = p->next;
-}
-
 static file_descriptor_table create_fd_table(void) {
     file_descriptor_table table;
     table.entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
@@ -90,7 +74,7 @@ void process_init(void) {
 
 process* process_current(void) { return (process*)current; }
 
-static void switch_to_next_process(void) {
+static noreturn void switch_to_next_process(void) {
     current = queue_pop();
     KASSERT(current);
 
@@ -110,8 +94,7 @@ static void switch_to_next_process(void) {
 }
 
 void process_switch(void) {
-    if (!current)
-        return;
+    KASSERT(current);
 
     uint32_t eip = read_eip();
     if (eip == 1)
@@ -128,19 +111,15 @@ void process_switch(void) {
     queue_push(current);
 
     switch_to_next_process();
-    KUNREACHABLE();
 }
 
 // spawns a process without parent
 pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
     cli();
 
-    uintptr_t pd_paddr =
-        mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
-
     process* p = (process*)kmalloc(sizeof(process));
     p->id = next_pid++;
-    p->pd_paddr = pd_paddr;
+    p->pd_paddr = mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
     p->next_vaddr = USERLAND_HEAP_START;
     p->fd_table = create_fd_table();
     p->next = NULL;
@@ -204,9 +183,9 @@ pid_t process_userland_fork(registers* regs) {
 
     // push the argument of return_to_userland()
     p->esp -= sizeof(registers);
-    registers* new_regs = (registers*)p->esp;
-    *new_regs = *regs;
-    new_regs->eax = 0; // fork() returns 0 in the child
+    registers* child_regs = (registers*)p->esp;
+    *child_regs = *regs;
+    child_regs->eax = 0; // fork() returns 0 in the child
 
     queue_push(p);
 
@@ -217,12 +196,7 @@ pid_t process_userland_fork(registers* regs) {
 noreturn void process_exit(int status) {
     kprintf("\x1b[34mProcess #%d exited with status %d\x1b[m\n", current->id,
             status);
-
-    queue_delete(current);
     switch_to_next_process();
-
-    while (true)
-        pause();
 }
 
 pid_t process_get_pid(void) { return current->id; }

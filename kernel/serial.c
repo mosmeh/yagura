@@ -59,7 +59,7 @@ static uint32_t serial_device_read(fs_node* node, off_t offset, size_t size,
 }
 
 static uint32_t serial_device_write(fs_node* node, off_t offset, size_t size,
-                                    void* buffer) {
+                                    const void* buffer) {
     (void)offset;
     char* chars = (char*)buffer;
     for (size_t i = 0; i < size; ++i)

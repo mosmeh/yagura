@@ -13,7 +13,8 @@ uint32_t fs_read(fs_node* node, off_t offset, size_t size, void* buffer) {
     return node->read(node, offset, size, buffer);
 }
 
-uint32_t fs_write(fs_node* node, off_t offset, size_t size, void* buffer) {
+uint32_t fs_write(fs_node* node, off_t offset, size_t size,
+                  const void* buffer) {
     if (!node->write)
         return 0;
 
