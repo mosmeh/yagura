@@ -35,18 +35,15 @@ static void queue_push(process* p) {
     bool int_flag = push_cli();
 
     p->next = NULL;
-
-    if (!queue) {
+    if (queue) {
+        process* it = queue;
+        while (it->next)
+            it = it->next;
+        it->next = p;
+    } else {
         queue = p;
-        goto queue_push_cleanup;
     }
 
-    process* it = queue;
-    while (it->next)
-        it = it->next;
-    it->next = p;
-
-queue_push_cleanup:
     pop_cli(int_flag);
 }
 

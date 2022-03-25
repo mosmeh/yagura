@@ -9,6 +9,7 @@
 #include "process.h"
 #include "serial.h"
 #include "system.h"
+#include <common/string.h>
 #include <common/types.h>
 #include <userland/stdlib.h>
 #include <userland/syscall.h>
@@ -40,6 +41,7 @@ static noreturn void userland_entry(void) {
     size_t sum = 0;
     for (size_t i = 0; i < len; ++i)
         sum += buf[i];
+    free(&ctx, buf);
     printf("[%d] sum=%u\n", pid, sum);
 
     for (int i = 0; i < 5; ++i)
@@ -67,7 +69,9 @@ static noreturn void userland_entry2(void) {
     dump_file("/foo/bar/baz/foo.txt");
 
     int fd = open("/dev/ttyS1", 0);
-    write(fd, "hello\n", 6);
+    char buf[1024];
+    int len = sprintf(buf, "[%d] hello, COM2\n", getpid());
+    write(fd, buf, len);
     close(fd);
 
     exit(123);

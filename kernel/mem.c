@@ -1,9 +1,9 @@
 #include "mem.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
-#include "kernel/interrupts.h"
 #include "kmalloc.h"
 #include "kprintf.h"
+#include "lock.h"
 #include "multiboot.h"
 #include "system.h"
 #include <common/extra.h>
@@ -16,6 +16,7 @@
 
 static size_t physical_page_bitmap_len;
 static uint32_t physical_page_bitmap[PHYSICAL_PAGE_BITMAP_MAX_LEN];
+static mutex physical_page_lock;
 
 static void physical_page_bitmap_set(size_t i) {
     KASSERT((i >> 5) < physical_page_bitmap_len);
@@ -37,12 +38,12 @@ static size_t physical_page_bitmap_find_first_set(void) {
 }
 
 static uintptr_t alloc_physical_page(void) {
-    bool int_flag = push_cli();
+    mutex_lock(&physical_page_lock);
 
     size_t first_set = physical_page_bitmap_find_first_set();
     physical_page_bitmap_clear(first_set);
 
-    pop_cli(int_flag);
+    mutex_unlock(&physical_page_lock);
     return first_set * PAGE_SIZE;
 }
 
@@ -326,4 +327,6 @@ void mem_init(const multiboot_info_t* mb_info) {
     KASSERT(physical_page_bitmap_len <= PHYSICAL_PAGE_BITMAP_MAX_LEN);
 
     set_bits_for_available_physical_pages(mb_info, lower_bound, upper_bound);
+
+    mutex_init(&physical_page_lock);
 }

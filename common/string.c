@@ -113,12 +113,20 @@ static void itoa(int value, char* str, int radix) {
     }
 }
 
-int vsnprintf(char* ret, size_t size, const char* format, va_list args) {
+int sprintf(char* buffer, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = vsnprintf(buffer, SIZE_MAX, format, args);
+    va_end(args);
+    return ret;
+}
+
+int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
     size_t idx = 0;
     char ch;
     while ((ch = *format++) != 0) {
         if (ch != '%') {
-            ret[idx++] = ch;
+            buffer[idx++] = ch;
             if (idx >= size)
                 goto too_long;
             continue;
@@ -141,19 +149,19 @@ int vsnprintf(char* ret, size_t size, const char* format, va_list args) {
         case 'd':
         case 'u':
         case 'x': {
-            char buf[20];
-            itoa(va_arg(args, int), buf, ch == 'x' ? 16 : 10);
+            char num_buf[20];
+            itoa(va_arg(args, int), num_buf, ch == 'x' ? 16 : 10);
 
-            size_t len = strlen(buf);
+            size_t len = strlen(num_buf);
             if (pad_len > len) {
                 for (size_t i = 0; i < pad_len - len; ++i) {
-                    ret[idx++] = pad0 ? '0' : ' ';
+                    buffer[idx++] = pad0 ? '0' : ' ';
                     if (idx >= size)
                         goto too_long;
                 }
             }
             for (size_t i = 0; i < len; ++i) {
-                ret[idx++] = buf[i];
+                buffer[idx++] = num_buf[i];
                 if (idx >= size)
                     goto too_long;
             }
@@ -165,14 +173,14 @@ int vsnprintf(char* ret, size_t size, const char* format, va_list args) {
             if (!str)
                 str = "(null)";
             while (*str) {
-                ret[idx++] = *str++;
+                buffer[idx++] = *str++;
                 if (idx >= size)
                     goto too_long;
             }
             break;
         }
         default:
-            ret[idx++] = '?';
+            buffer[idx++] = '?';
             if (idx >= size)
                 goto too_long;
             break;
@@ -180,7 +188,7 @@ int vsnprintf(char* ret, size_t size, const char* format, va_list args) {
     }
 
 too_long:
-    ret[idx < size ? idx : size - 1] = '\0';
+    buffer[idx < size ? idx : size - 1] = '\0';
     return idx;
 }
 

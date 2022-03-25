@@ -16,6 +16,7 @@ size_t strnlen(const char* str, size_t n);
 char* strcpy(char* dest, const char* src);
 char* strncpy(char* dest, const char* src, size_t n);
 
-int vsnprintf(char* ret, size_t size, const char* format, va_list args);
+int sprintf(char* buffer, const char* format, ...);
+int vsnprintf(char* buffer, size_t size, const char* format, va_list args);
 
 void str_replace_char(char* str, char from, char to);
