@@ -6,7 +6,11 @@
 
 #define PATH_SEPARATOR '/'
 
-enum fs_node_type { FS_FILE, FS_DIRECTORY, FS_CHARDEVICE, FS_BLOCKDEVICE };
+#define O_RDONLY 0x1
+#define O_WRONLY 0x2
+#define O_RDWR (O_RDONLY | O_WRONLY)
+
+enum fs_node_type { FS_FILE, FS_DIRECTORY, FS_CHAR_DEVICE, FS_BLOCK_DEVICE };
 
 typedef struct dirent {
     char* name;
@@ -34,12 +38,12 @@ typedef struct fs_node {
     char* name;
 } fs_node;
 
-ssize_t fs_read(fs_node* node, off_t offset, size_t size, void* buffer);
-ssize_t fs_write(fs_node* node, off_t offset, size_t size, const void* buffer);
-void fs_open(fs_node* node, int flags);
-void fs_close(fs_node* node);
-dirent* fs_readdir(fs_node* node, size_t index);
-fs_node* fs_finddir(fs_node* node, const char* name);
+ssize_t fs_read(fs_node*, off_t offset, size_t size, void* buffer);
+ssize_t fs_write(fs_node*, off_t offset, size_t size, const void* buffer);
+void fs_open(fs_node*, int flags);
+void fs_close(fs_node*);
+dirent* fs_readdir(fs_node*, size_t index);
+fs_node* fs_finddir(fs_node*, const char* name);
 
 void vfs_init(void);
 void vfs_mount(char* path, fs_node* fs);

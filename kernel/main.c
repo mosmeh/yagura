@@ -51,7 +51,7 @@ static noreturn void userland_entry(void) {
 }
 
 static void dump_file(const char* filename) {
-    int fd = open(filename, 0);
+    int fd = open(filename, O_RDWR);
     printf("fd = %d\n", fd);
     size_t buflen = 1024;
     char buf[buflen];
@@ -68,7 +68,7 @@ static noreturn void userland_entry2(void) {
     dump_file("/hello.txt");
     dump_file("/foo/bar/baz/foo.txt");
 
-    int fd = open("/dev/ttyS1", 0);
+    int fd = open("/dev/ttyS1", O_RDWR);
     char buf[1024];
     int len = sprintf(buf, "[%d] hello, COM2\n", getpid());
     write(fd, buf, len);

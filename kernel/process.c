@@ -242,13 +242,13 @@ noreturn void process_exit(int status) {
 pid_t process_get_pid(void) { return current->id; }
 
 int process_alloc_file_descriptor(fs_node* node) {
-    file_description* entry = current->fd_table.entries;
-    for (int i = 0; i < FD_TABLE_CAPACITY; ++i, ++entry) {
-        if (entry->node)
+    file_description* desc = current->fd_table.entries;
+    for (int i = 0; i < FD_TABLE_CAPACITY; ++i, ++desc) {
+        if (desc->node)
             continue;
 
-        entry->node = node;
-        entry->offset = 0;
+        desc->node = node;
+        desc->offset = 0;
         return i;
     }
     return -EMFILE;
@@ -258,12 +258,12 @@ int process_free_file_descriptor(int fd) {
     if (fd >= FD_TABLE_CAPACITY)
         return -EBADF;
 
-    file_description* entry = current->fd_table.entries + fd;
-    if (!entry->node)
+    file_description* desc = current->fd_table.entries + fd;
+    if (!desc->node)
         return -EBADF;
 
-    entry->node = NULL;
-    entry->offset = 0;
+    desc->node = NULL;
+    desc->offset = 0;
     return 0;
 }
 
@@ -271,9 +271,9 @@ file_description* process_get_file_description(int fd) {
     if (fd >= FD_TABLE_CAPACITY)
         return NULL;
 
-    file_description* entry = current->fd_table.entries + fd;
-    if (!entry->node)
+    file_description* desc = current->fd_table.entries + fd;
+    if (!desc->node)
         return NULL;
 
-    return entry;
+    return desc;
 }

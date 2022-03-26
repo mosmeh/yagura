@@ -73,8 +73,12 @@ fs_node* serial_device_create(uint16_t port) {
         return NULL;
 
     memset(node, 0, sizeof(fs_node));
+
     node->name = kstrdup("serial_device");
-    node->flags = FS_CHARDEVICE;
+    if (!node->name)
+        return NULL;
+
+    node->flags = FS_CHAR_DEVICE;
     node->inode = port;
     node->read = serial_device_read;
     node->write = serial_device_write;

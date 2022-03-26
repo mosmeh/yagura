@@ -61,6 +61,9 @@ static uintptr_t sys_mmap(const mmap_params* params) {
 static uintptr_t sys_puts(const char* str) { return kputs(str); }
 
 static uintptr_t sys_open(const char* pathname, int flags) {
+    if (flags != O_RDWR)
+        return -ENOTSUP;
+
     fs_node* node = vfs_find_by_pathname(pathname);
     if (!node)
         return -ENOENT;
@@ -70,31 +73,31 @@ static uintptr_t sys_open(const char* pathname, int flags) {
 }
 
 static uintptr_t sys_close(int fd) {
-    file_description* entry = process_get_file_description(fd);
-    if (!entry)
+    file_description* desc = process_get_file_description(fd);
+    if (!desc)
         return -EBADF;
 
-    fs_close(entry->node);
+    fs_close(desc->node);
     return process_free_file_descriptor(fd);
 }
 
 static uintptr_t sys_read(int fd, void* buf, size_t count) {
-    file_description* entry = process_get_file_description(fd);
-    if (!entry)
+    file_description* desc = process_get_file_description(fd);
+    if (!desc)
         return -EBADF;
 
-    size_t nread = fs_read(entry->node, entry->offset, count, buf);
-    entry->offset += nread;
+    size_t nread = fs_read(desc->node, desc->offset, count, buf);
+    desc->offset += nread;
     return nread;
 }
 
 static uintptr_t sys_write(int fd, const void* buf, size_t count) {
-    file_description* entry = process_get_file_description(fd);
-    if (!entry)
+    file_description* desc = process_get_file_description(fd);
+    if (!desc)
         return -EBADF;
 
-    size_t nwrittern = fs_write(entry->node, entry->offset, count, buf);
-    entry->offset += nwrittern;
+    size_t nwrittern = fs_write(desc->node, desc->offset, count, buf);
+    desc->offset += nwrittern;
     return nwrittern;
 }
 
@@ -107,6 +110,12 @@ static syscall_handler_fn syscall_handlers[NUM_SYSCALLS + 1] = {
         NULL};
 
 static void syscall_handler(registers* regs) {
+    KASSERT((regs->cs & 3) == 3);
+    KASSERT((regs->ds & 3) == 3);
+    KASSERT((regs->es & 3) == 3);
+    KASSERT((regs->fs & 3) == 3);
+    KASSERT((regs->gs & 3) == 3);
+    KASSERT((regs->user_ss & 3) == 3);
     KASSERT(interrupts_enabled());
 
     if (regs->eax >= NUM_SYSCALLS) {

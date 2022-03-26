@@ -60,8 +60,15 @@ void initrd_init(uintptr_t paddr) {
 
 fs_node* initrd_create(void) {
     fs_node* root = kmalloc(sizeof(fs_node));
+    if (!root)
+        return NULL;
+
     memset(root, 0, sizeof(fs_node));
+
     root->name = kstrdup("initrd");
+    if (!root->name)
+        return NULL;
+
     root->flags = FS_DIRECTORY;
     root->readdir = initrd_readdir;
     root->finddir = initrd_finddir;
