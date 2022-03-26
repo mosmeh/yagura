@@ -72,7 +72,7 @@ static process* create_kernel_process(void (*entry_point)(void)) {
         return NULL;
 
     p->id = next_pid++;
-    p->pd_paddr = mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
+    p->pd_paddr = mem_clone_current_page_directory_and_get_physical_addr();
     p->heap_next_vaddr = USERLAND_HEAP_START;
     p->fd_table = create_fd_table();
     p->next = NULL;
@@ -97,7 +97,7 @@ void process_init(void) {
     atomic_init(&next_pid, 0);
 
     uintptr_t pd_paddr =
-        mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
+        mem_clone_current_page_directory_and_get_physical_addr();
     mem_switch_page_directory(pd_paddr);
 
     current = kmalloc(sizeof(process));
@@ -163,8 +163,13 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
     if (!p)
         return -ENOMEM;
 
+    uintptr_t pd_paddr =
+        mem_clone_current_page_directory_and_get_physical_addr();
+    if ((int)pd_paddr < 0 && (int)pd_paddr > -EMAXERRNO)
+        return pd_paddr;
+
     p->id = next_pid++;
-    p->pd_paddr = mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
+    p->pd_paddr = pd_paddr;
     p->heap_next_vaddr = USERLAND_HEAP_START;
     p->fd_table = create_fd_table();
     p->next = NULL;
@@ -208,12 +213,14 @@ void return_to_userland(registers);
 
 // for syscall
 pid_t process_userland_fork(registers* regs) {
-    uintptr_t pd_paddr =
-        mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
-
     process* p = kmalloc(sizeof(process));
     if (!p)
         return -ENOMEM;
+
+    uintptr_t pd_paddr =
+        mem_clone_current_page_directory_and_get_physical_addr();
+    if ((int)pd_paddr < 0 && (int)pd_paddr > -EMAXERRNO)
+        return pd_paddr;
 
     p->id = next_pid++;
     p->pd_paddr = pd_paddr;

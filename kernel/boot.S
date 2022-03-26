@@ -11,13 +11,6 @@
   .long FLAGS
   .long CHECKSUM
 
-  // MULTIBOOT_MEMORY_INFO
-  .long 0 // header_addr
-  .long 0 // load_addr
-  .long 0 // load_end_addr
-  .long 0 // bss_end_addr
-  .long 0 // entry_addr
-
   .section .init_text, "a"
   .globl _start
 _start:

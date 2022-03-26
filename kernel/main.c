@@ -107,16 +107,17 @@ static noreturn void userland_entry2(void) {
     exit(123);
 }
 
-static void kernel_process_entry2(void) {
+static noreturn void kernel_process_entry2(void) {
     uint32_t esp;
     __asm__ volatile("mov %%esp, %0" : "=r"(esp));
     kprintf("[%d] I'm a brand new kernel process esp=0x%x\n", process_get_pid(),
             esp);
     kprintf("[%d] Entering userland...\n");
     process_enter_userland(userland_entry2);
+    process_exit(1);
 }
 
-static void kernel_process_entry(void) {
+static noreturn void kernel_process_entry(void) {
     pid_t pid = process_get_pid();
     uint32_t esp;
     __asm__ volatile("mov %%esp, %0" : "=r"(esp));
@@ -124,6 +125,7 @@ static void kernel_process_entry(void) {
     process_spawn_kernel_process(kernel_process_entry2);
     kprintf("[%d] Entering userland...\n");
     process_enter_userland(userland_entry);
+    process_exit(1);
 }
 
 extern unsigned char kernel_end[];

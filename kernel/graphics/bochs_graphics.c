@@ -49,16 +49,17 @@ static void write_reg(uint16_t index, uint16_t data) {
 }
 
 static void set_resolution(size_t width, size_t height) {
+    const size_t bits_per_pixel = 32;
     framebuffer_width = MIN(width, VBE_DISPI_MAX_XRES);
     framebuffer_height = MIN(height, VBE_DISPI_MAX_YRES);
-    framebuffer_pitch = framebuffer_width * 32;
+    framebuffer_pitch = framebuffer_width * bits_per_pixel;
 
     write_reg(VBE_DISPI_INDEX_ENABLE, VBE_DISPI_DISABLED);
     write_reg(VBE_DISPI_INDEX_XRES, framebuffer_width);
     write_reg(VBE_DISPI_INDEX_YRES, framebuffer_height);
     write_reg(VBE_DISPI_INDEX_VIRT_WIDTH, framebuffer_width);
     write_reg(VBE_DISPI_INDEX_VIRT_HEIGHT, framebuffer_height);
-    write_reg(VBE_DISPI_INDEX_BPP, 32);
+    write_reg(VBE_DISPI_INDEX_BPP, bits_per_pixel);
     write_reg(VBE_DISPI_INDEX_ENABLE,
               VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED);
 }
