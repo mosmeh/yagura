@@ -22,7 +22,8 @@ void* kaligned_alloc(size_t alignment, size_t size) {
 
     uintptr_t aligned_ptr = round_up(heap_ptr, alignment);
     uintptr_t next_ptr = aligned_ptr + size;
-    KASSERT(next_ptr <= 0xffc00000); // last 4MiB is for recursive mapping
+    if (next_ptr > 0xffc00000) // last 4MiB is for recursive mapping
+        return NULL;
 
     mem_map_virtual_addr_range_to_any_pages(aligned_ptr, next_ptr, MEM_WRITE);
     memset((void*)aligned_ptr, 0, size);
@@ -39,12 +40,18 @@ void* kmalloc(size_t size) {
 
 char* kstrdup(const char* src) {
     char* buf = kmalloc(strlen(src) * sizeof(char));
+    if (!buf)
+        return NULL;
+
     strcpy(buf, src);
     return buf;
 }
 
 char* kstrndup(const char* src, size_t n) {
     char* buf = kmalloc(strnlen(src, n) * sizeof(char));
+    if (!buf)
+        return NULL;
+
     strncpy(buf, src, n);
     return buf;
 }

@@ -8,8 +8,8 @@ static const initrd_file_header* file_headers;
 static fs_node* file_nodes;
 static uintptr_t file_start;
 
-static uint32_t initrd_read(fs_node* node, off_t offset, size_t size,
-                            void* buffer) {
+static ssize_t initrd_read(fs_node* node, off_t offset, size_t size,
+                           void* buffer) {
     const initrd_file_header* header = file_headers + node->inode;
     if (offset > header->length)
         return 0;

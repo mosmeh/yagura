@@ -114,8 +114,10 @@ static void unquickmap(void) {
 
 static page_table* clone_page_table(const volatile page_table* src,
                                     uintptr_t src_vaddr) {
-    page_table* dst =
-        (page_table*)kaligned_alloc(PAGE_SIZE, sizeof(page_table));
+    page_table* dst = kaligned_alloc(PAGE_SIZE, sizeof(page_table));
+    if (!dst)
+        return NULL;
+
     for (size_t i = 0; i < 1024; ++i) {
         if (!src->entries[i].present) {
             dst->entries[i].raw = 0;
@@ -247,8 +249,9 @@ uintptr_t mem_get_physical_addr(uintptr_t vaddr) {
 
 page_directory* mem_clone_page_directory(void) {
     volatile page_directory* src = mem_current_page_directory();
-    page_directory* dst =
-        (page_directory*)kaligned_alloc(PAGE_SIZE, sizeof(page_directory));
+    page_directory* dst = kaligned_alloc(PAGE_SIZE, sizeof(page_directory));
+    if (!dst)
+        return NULL;
 
     // userland
     for (size_t i = 0; i < KERNEL_PDE_IDX; ++i) {

@@ -96,7 +96,7 @@ static void itoa(int value, char* str, int radix) {
     }
 
     do {
-        int mod = uvalue % radix;
+        unsigned mod = uvalue % radix;
         *c++ = (mod < 10) ? mod + '0' : mod - 10 + 'a';
     } while (uvalue /= radix);
 

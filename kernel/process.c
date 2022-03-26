@@ -6,6 +6,7 @@
 #include "kprintf.h"
 #include "mem.h"
 #include "system.h"
+#include <common/errno.h>
 #include <common/string.h>
 #include <stdatomic.h>
 
@@ -65,7 +66,10 @@ static file_descriptor_table clone_fd_table(const file_descriptor_table* from) {
 }
 
 static process* create_kernel_process(void (*entry_point)(void)) {
-    process* p = (process*)kmalloc(sizeof(process));
+    process* p = kmalloc(sizeof(process));
+    if (!p)
+        return NULL;
+
     p->id = next_pid++;
     p->pd_paddr = mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
     p->heap_next_vaddr = USERLAND_HEAP_START;
@@ -95,7 +99,7 @@ void process_init(void) {
         mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
     mem_switch_page_directory(pd_paddr);
 
-    current = (process*)kmalloc(sizeof(process));
+    current = kmalloc(sizeof(process));
     current->id = get_next_pid();
     current->esp = current->ebp = current->eip = 0;
     current->pd_paddr = pd_paddr;
@@ -103,6 +107,8 @@ void process_init(void) {
     current->heap_next_vaddr = USERLAND_HEAP_START;
     current->fd_table = create_fd_table();
     current->next = NULL;
+
+    gdt_set_kernel_stack(current->stack_top);
 
     idle = create_kernel_process(do_idle);
 }
@@ -114,7 +120,6 @@ static noreturn void switch_to_next_process(void) {
     KASSERT(current);
 
     mem_switch_page_directory(current->pd_paddr);
-
     gdt_set_kernel_stack(current->stack_top);
 
     __asm__ volatile("mov %0, %%ebx\n"
@@ -153,7 +158,10 @@ void process_switch(void) {
 }
 
 pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
-    process* p = (process*)kmalloc(sizeof(process));
+    process* p = kmalloc(sizeof(process));
+    if (!p)
+        return -ENOMEM;
+
     p->id = next_pid++;
     p->pd_paddr = mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
     p->heap_next_vaddr = USERLAND_HEAP_START;
@@ -170,7 +178,6 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
 }
 
 noreturn void process_enter_userland(void (*entry_point)(void)) {
-    gdt_set_kernel_stack(current->stack_top);
     mem_map_virtual_addr_range_to_any_pages(USER_STACK_BASE, USER_STACK_TOP,
                                             MEM_WRITE | MEM_USER);
 
@@ -201,7 +208,10 @@ pid_t process_userland_fork(registers* regs) {
     uintptr_t pd_paddr =
         mem_get_physical_addr((uintptr_t)mem_clone_page_directory());
 
-    process* p = (process*)kmalloc(sizeof(process));
+    process* p = kmalloc(sizeof(process));
+    if (!p)
+        return -ENOMEM;
+
     p->id = next_pid++;
     p->pd_paddr = pd_paddr;
     p->stack_top = (uintptr_t)kmalloc(STACK_SIZE) + STACK_SIZE;
@@ -241,12 +251,29 @@ int process_alloc_file_descriptor(fs_node* node) {
         entry->offset = 0;
         return i;
     }
-    KPANIC("Too many open files");
+    return -EMFILE;
 }
 
-void process_free_file_descriptor(int fd) {
+int process_free_file_descriptor(int fd) {
+    if (fd >= FD_TABLE_CAPACITY)
+        return -EBADF;
+
     file_description* entry = current->fd_table.entries + fd;
-    KASSERT(entry->node);
+    if (!entry->node)
+        return -EBADF;
+
     entry->node = NULL;
     entry->offset = 0;
+    return 0;
+}
+
+file_description* process_get_file_description(int fd) {
+    if (fd >= FD_TABLE_CAPACITY)
+        return NULL;
+
+    file_description* entry = current->fd_table.entries + fd;
+    if (!entry->node)
+        return NULL;
+
+    return entry;
 }

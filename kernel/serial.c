@@ -48,8 +48,8 @@ void serial_write(uint16_t port, char c) {
     write_char(port, c);
 }
 
-static uint32_t serial_device_read(fs_node* node, off_t offset, size_t size,
-                                   void* buffer) {
+static ssize_t serial_device_read(fs_node* node, off_t offset, size_t size,
+                                  void* buffer) {
     (void)node;
     (void)offset;
     (void)size;
@@ -58,8 +58,8 @@ static uint32_t serial_device_read(fs_node* node, off_t offset, size_t size,
     return 0;
 }
 
-static uint32_t serial_device_write(fs_node* node, off_t offset, size_t size,
-                                    const void* buffer) {
+static ssize_t serial_device_write(fs_node* node, off_t offset, size_t size,
+                                   const void* buffer) {
     (void)offset;
     char* chars = (char*)buffer;
     for (size_t i = 0; i < size; ++i)
@@ -69,6 +69,9 @@ static uint32_t serial_device_write(fs_node* node, off_t offset, size_t size,
 
 fs_node* serial_device_create(uint16_t port) {
     fs_node* node = kmalloc(sizeof(fs_node));
+    if (!node)
+        return NULL;
+
     memset(node, 0, sizeof(fs_node));
     node->name = kstrdup("serial_device");
     node->flags = FS_CHARDEVICE;

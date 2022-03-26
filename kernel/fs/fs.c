@@ -3,16 +3,16 @@
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
 #include <kernel/system.h>
+#include <stdbool.h>
 
-uint32_t fs_read(fs_node* node, off_t offset, size_t size, void* buffer) {
+ssize_t fs_read(fs_node* node, off_t offset, size_t size, void* buffer) {
     if (!node->read)
         return 0;
 
     return node->read(node, offset, size, buffer);
 }
 
-uint32_t fs_write(fs_node* node, off_t offset, size_t size,
-                  const void* buffer) {
+ssize_t fs_write(fs_node* node, off_t offset, size_t size, const void* buffer) {
     if (!node->write)
         return 0;
 
@@ -84,8 +84,12 @@ static void append_child(vfs_node* node, vfs_node* new_child) {
 
 void vfs_init(void) { root.name = "(root)"; }
 
+static bool is_absolute_path(const char* path) {
+    return path[0] == PATH_SEPARATOR;
+}
+
 void vfs_mount(char* path, fs_node* fs) {
-    KASSERT(path[0] == PATH_SEPARATOR);
+    KASSERT(is_absolute_path(path));
 
     size_t path_len = strlen(path);
     if (path_len == 1) {
@@ -120,17 +124,15 @@ void vfs_mount(char* path, fs_node* fs) {
 }
 
 fs_node* vfs_find_by_pathname(const char* pathname) {
-    if (pathname[0] != PATH_SEPARATOR) {
+    if (!is_absolute_path(pathname))
         KUNIMPLEMENTED();
-    }
-    char* canonicalized_pathname = (char*)pathname;
 
-    size_t path_len = strlen(canonicalized_pathname);
+    size_t path_len = strlen(pathname);
     if (path_len == 1) {
         return root.fs;
     }
 
-    char* split_pathname = canonicalized_pathname;
+    char* split_pathname = kstrdup(pathname);
     str_replace_char(split_pathname, PATH_SEPARATOR, '\0');
 
     // find a file system having the longest common prefix between their mount
@@ -149,7 +151,8 @@ fs_node* vfs_find_by_pathname(const char* pathname) {
     fs_node* fnode = vnode->fs;
     while (component < split_pathname + path_len) {
         fs_node* child = fs_finddir(fnode, component);
-        KASSERT(child);
+        if (!child)
+            return NULL;
 
         fnode = child;
         component += strlen(component) + 1;

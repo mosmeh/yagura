@@ -6,6 +6,7 @@
 #include "mem.h"
 #include "process.h"
 #include "system.h"
+#include <common/errno.h>
 #include <common/extra.h>
 #include <common/string.h>
 #include <common/syscall.h>
@@ -33,16 +34,19 @@ noreturn static uintptr_t sys_halt(void) {
 }
 
 static uintptr_t sys_mmap(const mmap_params* params) {
-    KASSERT(params->addr == NULL);
-    KASSERT(params->length > 0);
-    KASSERT(params->flags == (MAP_PRIVATE | MAP_ANONYMOUS));
-    KASSERT(params->fd == 0);
-    KASSERT(params->offset == 0);
+    if (params->length == 0)
+        return -EINVAL;
+
+    if (params->addr != NULL ||
+        params->flags != (MAP_PRIVATE | MAP_ANONYMOUS) || params->fd != 0 ||
+        params->offset != 0)
+        return -ENOTSUP;
 
     uintptr_t current_ptr = current->heap_next_vaddr;
     uintptr_t aligned_ptr = round_up(current_ptr, PAGE_SIZE);
     uintptr_t next_ptr = aligned_ptr + params->length;
-    KASSERT(next_ptr <= USER_STACK_BASE - PAGE_SIZE);
+    if (next_ptr > USER_STACK_BASE - PAGE_SIZE)
+        return -ENOMEM;
 
     uint32_t flags = MEM_USER;
     if (params->prot & PROT_WRITE)
@@ -58,26 +62,37 @@ static uintptr_t sys_puts(const char* str) { return kputs(str); }
 
 static uintptr_t sys_open(const char* pathname, int flags) {
     fs_node* node = vfs_find_by_pathname(pathname);
+    if (!node)
+        return -ENOENT;
+
     fs_open(node, flags);
     return process_alloc_file_descriptor(node);
 }
 
 static uintptr_t sys_close(int fd) {
-    file_description* entry = current->fd_table.entries + fd;
+    file_description* entry = process_get_file_description(fd);
+    if (!entry)
+        return -EBADF;
+
     fs_close(entry->node);
-    process_free_file_descriptor(fd);
-    return 0;
+    return process_free_file_descriptor(fd);
 }
 
 static uintptr_t sys_read(int fd, void* buf, size_t count) {
-    file_description* entry = current->fd_table.entries + fd;
+    file_description* entry = process_get_file_description(fd);
+    if (!entry)
+        return -EBADF;
+
     size_t nread = fs_read(entry->node, entry->offset, count, buf);
     entry->offset += nread;
     return nread;
 }
 
 static uintptr_t sys_write(int fd, const void* buf, size_t count) {
-    file_description* entry = current->fd_table.entries + fd;
+    file_description* entry = process_get_file_description(fd);
+    if (!entry)
+        return -EBADF;
+
     size_t nwrittern = fs_write(entry->node, entry->offset, count, buf);
     entry->offset += nwrittern;
     return nwrittern;
@@ -93,7 +108,11 @@ static syscall_handler_fn syscall_handlers[NUM_SYSCALLS + 1] = {
 
 static void syscall_handler(registers* regs) {
     KASSERT(interrupts_enabled());
-    KASSERT(regs->eax < NUM_SYSCALLS);
+
+    if (regs->eax >= NUM_SYSCALLS) {
+        regs->eax = -ENOSYS;
+        return;
+    }
 
     syscall_handler_fn handler = syscall_handlers[regs->eax];
     KASSERT(handler);

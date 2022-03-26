@@ -13,9 +13,9 @@ typedef struct dirent {
     uint32_t ino;
 } dirent;
 
-typedef uint32_t (*read_fn)(fs_node*, off_t offset, size_t size, void* buffer);
-typedef uint32_t (*write_fn)(fs_node*, off_t offset, size_t size,
-                             const void* buffer);
+typedef ssize_t (*read_fn)(fs_node*, off_t offset, size_t size, void* buffer);
+typedef ssize_t (*write_fn)(fs_node*, off_t offset, size_t size,
+                            const void* buffer);
 typedef void (*open_fn)(fs_node*, int flags);
 typedef void (*close_fn)(fs_node*);
 typedef struct dirent* (*readdir_fn)(fs_node*, size_t index);
@@ -34,8 +34,8 @@ typedef struct fs_node {
     char* name;
 } fs_node;
 
-uint32_t fs_read(fs_node* node, off_t offset, size_t size, void* buffer);
-uint32_t fs_write(fs_node* node, off_t offset, size_t size, const void* buffer);
+ssize_t fs_read(fs_node* node, off_t offset, size_t size, void* buffer);
+ssize_t fs_write(fs_node* node, off_t offset, size_t size, const void* buffer);
 void fs_open(fs_node* node, int flags);
 void fs_close(fs_node* node);
 dirent* fs_readdir(fs_node* node, size_t index);

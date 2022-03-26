@@ -14,9 +14,14 @@ noreturn void panic(const char* message, const char* file, size_t line) {
 #define MALLOC_HEAP_SIZE 0x100000
 
 void malloc_init(malloc_ctx* ctx) {
-    ctx->heap_start = ctx->ptr =
-        (uintptr_t)mmap(NULL, MALLOC_HEAP_SIZE, PROT_READ | PROT_WRITE,
-                        MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+    void* heap = mmap(NULL, MALLOC_HEAP_SIZE, PROT_READ | PROT_WRITE,
+                      MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
+    if (heap == MAP_FAILED) {
+        ctx->heap_start = 0;
+        ctx->ptr = UINTPTR_MAX;
+    } else {
+        ctx->heap_start = ctx->ptr = (uintptr_t)heap;
+    }
     ctx->num_allocs = 0;
 }
 
@@ -26,7 +31,9 @@ void* aligned_alloc(malloc_ctx* ctx, size_t alignment, size_t size) {
 
     uintptr_t aligned_ptr = round_up(ctx->ptr, alignment);
     uintptr_t next_ptr = aligned_ptr + size;
-    ASSERT(next_ptr <= ctx->heap_start + MALLOC_HEAP_SIZE);
+    if (next_ptr > ctx->heap_start + MALLOC_HEAP_SIZE)
+        return NULL;
+
     memset((void*)aligned_ptr, 0, size);
 
     ctx->ptr = next_ptr;

@@ -36,6 +36,8 @@ enum {
 #define MAP_ANONYMOUS 0x4
 #define MAP_ANON MAP_ANONYMOUS
 
+#define MAP_FAILED ((void*)-1)
+
 typedef struct mmap_params {
     void* addr;
     size_t length;

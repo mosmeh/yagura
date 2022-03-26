@@ -31,4 +31,5 @@ noreturn void process_enter_userland(void (*entry_point)(void));
 pid_t process_userland_fork(registers*);
 
 int process_alloc_file_descriptor(fs_node*);
-void process_free_file_descriptor(int);
+int process_free_file_descriptor(int fd);
+file_description* process_get_file_description(int fd);
