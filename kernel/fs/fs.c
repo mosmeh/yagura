@@ -1,4 +1,5 @@
 #include "fs.h"
+#include <common/errno.h>
 #include <common/string.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
@@ -41,6 +42,22 @@ fs_node* fs_finddir(fs_node* node, const char* name) {
         return NULL;
 
     return node->finddir(node, name);
+}
+
+uintptr_t fs_mmap(fs_node* node, uintptr_t vaddr, size_t length, int prot,
+                  off_t offset) {
+    if (!node->mmap)
+        return -ENODEV;
+
+    return node->mmap(node, vaddr, length, prot, offset);
+}
+
+int fs_ioctl(fs_node* node, int request, void* argp) {
+    if (!node->ioctl)
+        return -ENOTTY;
+
+    node->ioctl(node, request, argp);
+    return 0;
 }
 
 typedef struct vfs_node {

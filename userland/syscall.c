@@ -57,3 +57,7 @@ ssize_t read(int fd, void* buf, size_t count) {
 ssize_t write(int fd, const void* buf, size_t count) {
     return syscall(SYS_write, fd, (uintptr_t)buf, count);
 }
+
+int ioctl(int fd, int request, void* argp) {
+    return syscall(SYS_ioctl, fd, request, (uintptr_t)argp);
+}

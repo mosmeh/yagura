@@ -27,8 +27,10 @@ void process_switch(void);
 pid_t process_spawn_kernel_process(void (*entry_point)(void));
 noreturn void process_exit(int status);
 
-noreturn void process_enter_userland(void (*entry_point)(void));
+int process_enter_userland(void (*entry_point)(void));
 pid_t process_userland_fork(registers*);
+
+uintptr_t process_alloc_virtual_address_range(uintptr_t size);
 
 int process_alloc_file_descriptor(fs_node*);
 int process_free_file_descriptor(int fd);

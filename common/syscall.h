@@ -16,7 +16,8 @@
     F(open)                                                                    \
     F(close)                                                                   \
     F(read)                                                                    \
-    F(write)
+    F(write)                                                                   \
+    F(ioctl)
 
 enum {
 #define DEFINE_ITEM(name) SYS_##name,
@@ -25,15 +26,12 @@ enum {
         NUM_SYSCALLS
 };
 
-#define PROT_EXEC 0x1
 #define PROT_READ 0x2
 #define PROT_WRITE 0x4
-#define PROT_NONE 0
 
-#define MAP_SHARED 1
-#define MAP_PRIVATE 2
-
-#define MAP_ANONYMOUS 0x4
+#define MAP_SHARED 0x1
+#define MAP_PRIVATE 0x2
+#define MAP_ANONYMOUS 0x8
 #define MAP_ANON MAP_ANONYMOUS
 
 #define MAP_FAILED ((void*)-1)

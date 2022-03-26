@@ -24,6 +24,9 @@ typedef void (*open_fn)(fs_node*, int flags);
 typedef void (*close_fn)(fs_node*);
 typedef struct dirent* (*readdir_fn)(fs_node*, size_t index);
 typedef fs_node* (*finddir_fn)(fs_node*, const char* name);
+typedef uintptr_t (*mmap_fn)(fs_node*, uintptr_t virtual_addr, size_t length,
+                             int prot, off_t offset);
+typedef int (*ioctl_fn)(fs_node*, int request, void* argp);
 
 typedef struct fs_node {
     uint32_t flags;
@@ -35,6 +38,8 @@ typedef struct fs_node {
     close_fn close;
     readdir_fn readdir;
     finddir_fn finddir;
+    mmap_fn mmap;
+    ioctl_fn ioctl;
     char* name;
 } fs_node;
 
@@ -44,6 +49,9 @@ void fs_open(fs_node*, int flags);
 void fs_close(fs_node*);
 dirent* fs_readdir(fs_node*, size_t index);
 fs_node* fs_finddir(fs_node*, const char* name);
+uintptr_t fs_mmap(fs_node*, uintptr_t virtual_addr, size_t length, int prot,
+                  off_t offset);
+int fs_ioctl(fs_node*, int request, void* argp);
 
 void vfs_init(void);
 void vfs_mount(char* path, fs_node* fs);

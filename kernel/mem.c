@@ -6,8 +6,10 @@
 #include "lock.h"
 #include "multiboot.h"
 #include "system.h"
+#include <common/errno.h>
 #include <common/extra.h>
 #include <common/string.h>
+#include <common/syscall.h>
 #include <stdalign.h>
 #include <stdbool.h>
 
@@ -88,14 +90,19 @@ typedef struct page_table {
     alignas(PAGE_SIZE) page_table_entry entries[1024];
 } page_table;
 
-volatile page_directory* mem_current_page_directory(void) {
+static volatile page_directory* current_page_directory(void) {
     return (volatile page_directory*)0xfffff000;
+}
+
+static volatile page_table* get_page_table(size_t pd_idx) {
+    KASSERT(pd_idx < 1024);
+    return (volatile page_table*)(0xffc00000 + PAGE_SIZE * pd_idx);
 }
 
 // temporarily maps a physical page to the fixed virtual address,
 // which is at the final page of the kernel page directory
 static uintptr_t quickmap(uintptr_t paddr, uint32_t flags) {
-    volatile page_table* pt = mem_get_page_table(KERNEL_PDE_IDX);
+    volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
     volatile page_table_entry* pte = pt->entries + 1023;
     KASSERT(pte->raw == 0);
     pte->raw = paddr | flags;
@@ -105,7 +112,7 @@ static uintptr_t quickmap(uintptr_t paddr, uint32_t flags) {
 }
 
 static void unquickmap(void) {
-    volatile page_table* pt = mem_get_page_table(KERNEL_PDE_IDX);
+    volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
     volatile page_table_entry* pte = pt->entries + 1023;
     KASSERT(pte->present);
     pte->raw = 0;
@@ -135,15 +142,54 @@ static page_table* clone_page_table(const volatile page_table* src,
     return dst;
 }
 
+static volatile page_table* get_or_create_page_table(uintptr_t vaddr) {
+    size_t pd_idx = vaddr >> 22;
+
+    volatile page_directory_entry* pde =
+        current_page_directory()->entries + pd_idx;
+    bool created = false;
+    if (!pde->present) {
+        pde->raw = alloc_physical_page();
+        pde->present = pde->write = pde->user = true;
+        flush_tlb();
+        created = true;
+    }
+
+    volatile page_table* pt = get_page_table(vaddr >> 22);
+    if (created)
+        memset((void*)pt, 0, sizeof(page_table));
+
+    return pt;
+}
+
 static volatile page_table_entry* get_pte(uintptr_t vaddr) {
     size_t pd_idx = vaddr >> 22;
     volatile page_directory_entry* pde =
-        mem_current_page_directory()->entries + pd_idx;
+        current_page_directory()->entries + pd_idx;
     if (!pde->present)
         return NULL;
 
-    volatile page_table* pt = mem_get_page_table(pd_idx);
+    volatile page_table* pt = get_page_table(pd_idx);
     return pt->entries + ((vaddr >> 12) & 0x3ff);
+}
+
+static void map_page_anywhere_if_needed(uintptr_t vaddr, uint32_t flags) {
+    volatile page_table* pt = get_or_create_page_table(vaddr);
+    volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
+    if (!pte->present) {
+        pte->raw = alloc_physical_page() | flags;
+        pte->present = true;
+        flush_tlb();
+    }
+}
+
+static void map_page_at_fixed_physical_addr(uintptr_t vaddr, uintptr_t paddr,
+                                            uint32_t flags) {
+    volatile page_table* pt = get_or_create_page_table(vaddr);
+    volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
+    pte->raw = paddr | flags;
+    pte->present = true;
+    flush_tlb();
 }
 
 extern unsigned char kernel_end[];
@@ -233,12 +279,7 @@ set_bits_for_available_physical_pages(const multiboot_info_t* mb_info,
 void mem_switch_page_directory(uintptr_t paddr) {
     __asm__ volatile("mov %0, %%cr3" ::"r"(paddr));
     KASSERT(paddr ==
-            mem_get_physical_addr((uintptr_t)mem_current_page_directory()));
-}
-
-volatile page_table* mem_get_page_table(size_t pd_idx) {
-    KASSERT(pd_idx < 1024);
-    return (volatile page_table*)(0xffc00000 + PAGE_SIZE * pd_idx);
+            mem_get_physical_addr((uintptr_t)current_page_directory()));
 }
 
 uintptr_t mem_get_physical_addr(uintptr_t vaddr) {
@@ -248,7 +289,7 @@ uintptr_t mem_get_physical_addr(uintptr_t vaddr) {
 }
 
 page_directory* mem_clone_page_directory(void) {
-    volatile page_directory* src = mem_current_page_directory();
+    volatile page_directory* src = current_page_directory();
     page_directory* dst = kaligned_alloc(PAGE_SIZE, sizeof(page_directory));
     if (!dst)
         return NULL;
@@ -259,7 +300,7 @@ page_directory* mem_clone_page_directory(void) {
             dst->entries[i].raw = 0;
             continue;
         }
-        volatile page_table* pt = mem_get_page_table(i);
+        volatile page_table* pt = get_page_table(i);
         uintptr_t cloned_pt_vaddr =
             (uintptr_t)clone_page_table(pt, i * 0x400000);
         dst->entries[i].raw =
@@ -280,44 +321,9 @@ page_directory* mem_clone_page_directory(void) {
     return dst;
 }
 
-volatile page_table_entry* mem_map_virtual_addr_to_any_page(uintptr_t vaddr,
-                                                            uint32_t flags) {
-    size_t pd_idx = vaddr >> 22;
-    volatile page_directory_entry* pde =
-        mem_current_page_directory()->entries + pd_idx;
-    bool new_page_table = false;
-    if (!pde->present) {
-        pde->raw = alloc_physical_page();
-        pde->present = pde->write = pde->user = true;
-        new_page_table = true;
-        flush_tlb();
-    }
-
-    volatile page_table* pt = mem_get_page_table(pd_idx);
-    if (new_page_table)
-        memset((void*)pt, 0, sizeof(page_table));
-    volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
-    if (!pte->present) {
-        pte->raw = alloc_physical_page() | flags;
-        pte->present = true;
-        flush_tlb();
-    }
-
-    return pte;
-}
-
-void mem_map_virtual_addr_range_to_any_pages(uintptr_t start, uintptr_t end,
-                                             uint32_t flags) {
-    uintptr_t page_start = round_down(start, PAGE_SIZE);
-    uintptr_t page_end = round_down(end - 1, PAGE_SIZE);
-
-    for (uintptr_t vaddr = page_start; vaddr <= page_end; vaddr += PAGE_SIZE)
-        mem_map_virtual_addr_to_any_page(vaddr, flags);
-}
-
 void mem_init(const multiboot_info_t* mb_info) {
     kprintf("Kernel page directory: P0x%x\n",
-            mem_get_physical_addr((uintptr_t)mem_current_page_directory()));
+            mem_get_physical_addr((uintptr_t)current_page_directory()));
 
     uintptr_t lower_bound, upper_bound;
     get_available_physical_addr_bounds(mb_info, &lower_bound, &upper_bound);
@@ -334,4 +340,33 @@ void mem_init(const multiboot_info_t* mb_info) {
     set_bits_for_available_physical_pages(mb_info, lower_bound, upper_bound);
 
     mutex_init(&physical_page_lock);
+}
+
+int mem_map_to_private_anonymous_region(uintptr_t vaddr, uintptr_t size,
+                                        uint16_t flags) {
+    if ((vaddr % PAGE_SIZE) || (size % PAGE_SIZE))
+        return -EINVAL;
+
+    for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE)
+        map_page_anywhere_if_needed(vaddr + offset, flags);
+
+    return 0;
+}
+
+int mem_map_to_shared_physical_range(uintptr_t vaddr, uintptr_t paddr,
+                                     uintptr_t size, uint16_t flags) {
+    if ((vaddr % PAGE_SIZE) || (paddr % PAGE_SIZE) || (size % PAGE_SIZE))
+        return -EINVAL;
+
+    for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE)
+        map_page_at_fixed_physical_addr(vaddr + offset, paddr + offset, flags);
+
+    return 0;
+}
+
+uint16_t mem_prot_to_flags(int prot) {
+    uint32_t flags = MEM_USER;
+    if (prot & PROT_WRITE)
+        flags |= MEM_WRITE;
+    return flags;
 }

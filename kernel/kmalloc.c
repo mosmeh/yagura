@@ -25,7 +25,12 @@ void* kaligned_alloc(size_t alignment, size_t size) {
     if (next_ptr > 0xffc00000) // last 4MiB is for recursive mapping
         return NULL;
 
-    mem_map_virtual_addr_range_to_any_pages(aligned_ptr, next_ptr, MEM_WRITE);
+    uintptr_t region_vaddr = round_down(aligned_ptr, PAGE_SIZE);
+    uintptr_t region_size = round_up(next_ptr, PAGE_SIZE) - region_vaddr;
+    if (mem_map_to_private_anonymous_region(region_vaddr, region_size,
+                                            MEM_WRITE) < 0)
+        return NULL;
+
     memset((void*)aligned_ptr, 0, size);
 
     heap_ptr = next_ptr;

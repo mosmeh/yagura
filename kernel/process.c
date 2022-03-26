@@ -7,6 +7,7 @@
 #include "mem.h"
 #include "system.h"
 #include <common/errno.h>
+#include <common/extra.h>
 #include <common/string.h>
 #include <stdatomic.h>
 
@@ -177,9 +178,11 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
     return p->id;
 }
 
-noreturn void process_enter_userland(void (*entry_point)(void)) {
-    mem_map_virtual_addr_range_to_any_pages(USER_STACK_BASE, USER_STACK_TOP,
-                                            MEM_WRITE | MEM_USER);
+int process_enter_userland(void (*entry_point)(void)) {
+    int rc = mem_map_to_private_anonymous_region(USER_STACK_BASE, STACK_SIZE,
+                                                 MEM_WRITE | MEM_USER);
+    if (rc < 0)
+        return rc;
 
     __asm__ volatile("movw $0x23, %%ax\n"
                      "movw %%ax, %%ds\n"
@@ -240,6 +243,17 @@ noreturn void process_exit(int status) {
 }
 
 pid_t process_get_pid(void) { return current->id; }
+
+uintptr_t process_alloc_virtual_address_range(uintptr_t size) {
+    uintptr_t current_ptr = current->heap_next_vaddr;
+    uintptr_t aligned_ptr = round_up(current_ptr, PAGE_SIZE);
+    uintptr_t next_ptr = aligned_ptr + size;
+    if (next_ptr > USER_STACK_BASE - PAGE_SIZE)
+        return -ENOMEM;
+
+    current->heap_next_vaddr = next_ptr;
+    return aligned_ptr;
+}
 
 int process_alloc_file_descriptor(fs_node* node) {
     file_description* desc = current->fd_table.entries;

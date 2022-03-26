@@ -25,7 +25,8 @@ KERNEL_OBJS := \
 	pci.o \
 	kprintf.o \
 	fs/fs.o \
-	fs/initrd.o
+	fs/initrd.o \
+	graphics/bochs_graphics.o
 
 COMMON_OBJS := ../common/string.o
 

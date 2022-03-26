@@ -34,28 +34,41 @@ noreturn static uintptr_t sys_halt(void) {
 }
 
 static uintptr_t sys_mmap(const mmap_params* params) {
-    if (params->length == 0)
+    if (params->length == 0 || params->offset < 0 ||
+        !((params->flags & MAP_PRIVATE) ^ (params->flags & MAP_SHARED)))
         return -EINVAL;
 
-    if (params->addr != NULL ||
-        params->flags != (MAP_PRIVATE | MAP_ANONYMOUS) || params->fd != 0 ||
-        params->offset != 0)
+    if (params->addr || !(params->prot & PROT_READ) || params->offset != 0)
         return -ENOTSUP;
 
-    uintptr_t current_ptr = current->heap_next_vaddr;
-    uintptr_t aligned_ptr = round_up(current_ptr, PAGE_SIZE);
-    uintptr_t next_ptr = aligned_ptr + params->length;
-    if (next_ptr > USER_STACK_BASE - PAGE_SIZE)
-        return -ENOMEM;
+    uintptr_t vaddr = process_alloc_virtual_address_range(params->length);
+    if ((int)vaddr < 0 && (int)vaddr > -EMAXERRNO)
+        return vaddr;
 
-    uint32_t flags = MEM_USER;
-    if (params->prot & PROT_WRITE)
-        flags |= MEM_WRITE;
-    mem_map_virtual_addr_range_to_any_pages(aligned_ptr, next_ptr, flags);
-    memset((void*)aligned_ptr, 0, params->length);
+    if (params->flags & MAP_ANONYMOUS) {
+        if (params->flags & MAP_SHARED)
+            return -ENOTSUP;
 
-    current->heap_next_vaddr = next_ptr;
-    return aligned_ptr;
+        int rc = mem_map_to_private_anonymous_region(
+            vaddr, params->length, mem_prot_to_flags(params->prot));
+        if (rc < 0)
+            return rc;
+
+        memset((void*)vaddr, 0, params->length);
+        return vaddr;
+    }
+
+    if (params->flags & MAP_PRIVATE)
+        return -ENOTSUP;
+
+    file_description* desc = process_get_file_description(params->fd);
+    if (!desc)
+        return -EBADF;
+    if (desc->node->flags == FS_DIRECTORY)
+        return -ENODEV;
+
+    return fs_mmap(desc->node, vaddr, params->length, params->prot,
+                   params->offset);
 }
 
 static uintptr_t sys_puts(const char* str) { return kputs(str); }
@@ -99,6 +112,14 @@ static uintptr_t sys_write(int fd, const void* buf, size_t count) {
     size_t nwrittern = fs_write(desc->node, desc->offset, count, buf);
     desc->offset += nwrittern;
     return nwrittern;
+}
+
+static uintptr_t sys_ioctl(int fd, int request, void* argp) {
+    file_description* desc = process_get_file_description(fd);
+    if (!desc)
+        return -EBADF;
+
+    return fs_ioctl(desc->node, request, argp);
 }
 
 typedef uintptr_t (*syscall_handler_fn)();
