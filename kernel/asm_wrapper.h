@@ -55,6 +55,10 @@ static inline void write_cr4(uint32_t value) {
 
 static inline void flush_tlb(void) { write_cr3(read_cr3()); }
 
+static inline void flush_tlb_single(uintptr_t vaddr) {
+    __asm__ volatile("invlpg (%0)" ::"r"(vaddr) : "memory");
+}
+
 static inline uint8_t in8(uint16_t port) {
     uint8_t rv;
     __asm__ volatile("inb %1, %0" : "=a"(rv) : "dN"(port));

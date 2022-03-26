@@ -99,16 +99,19 @@ static volatile page_table* get_page_table(size_t pd_idx) {
     return (volatile page_table*)(0xffc00000 + PAGE_SIZE * pd_idx);
 }
 
-// temporarily maps a physical page to the fixed virtual address,
+// quickmap temporarily maps a physical page to the fixed virtual address,
 // which is at the final page of the kernel page directory
+
+#define QUICKMAP_VADDR (KERNEL_VADDR + PAGE_SIZE * 1023)
+
 static uintptr_t quickmap(uintptr_t paddr, uint32_t flags) {
     volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
     volatile page_table_entry* pte = pt->entries + 1023;
     KASSERT(pte->raw == 0);
     pte->raw = paddr | flags;
     pte->present = true;
-    flush_tlb();
-    return KERNEL_VADDR + PAGE_SIZE * 1023;
+    flush_tlb_single(QUICKMAP_VADDR);
+    return QUICKMAP_VADDR;
 }
 
 static void unquickmap(void) {
@@ -116,7 +119,7 @@ static void unquickmap(void) {
     volatile page_table_entry* pte = pt->entries + 1023;
     KASSERT(pte->present);
     pte->raw = 0;
-    flush_tlb();
+    flush_tlb_single(QUICKMAP_VADDR);
 }
 
 static page_table* clone_page_table(const volatile page_table* src,
@@ -151,8 +154,13 @@ static volatile page_table* get_or_create_page_table(uintptr_t vaddr) {
     if (!pde->present) {
         pde->raw = alloc_physical_page();
         pde->present = pde->write = pde->user = true;
-        flush_tlb();
         created = true;
+
+        uintptr_t ptr = vaddr;
+        for (size_t i = 0; i < 1024; ++i) {
+            flush_tlb_single(ptr);
+            ptr += PAGE_SIZE;
+        }
     }
 
     volatile page_table* pt = get_page_table(vaddr >> 22);
@@ -179,7 +187,7 @@ static void map_page_anywhere_if_needed(uintptr_t vaddr, uint32_t flags) {
     if (!pte->present) {
         pte->raw = alloc_physical_page() | flags;
         pte->present = true;
-        flush_tlb();
+        flush_tlb_single(vaddr);
     }
 }
 
@@ -189,7 +197,7 @@ static void map_page_at_fixed_physical_addr(uintptr_t vaddr, uintptr_t paddr,
     volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
     pte->raw = paddr | flags;
     pte->present = true;
-    flush_tlb();
+    flush_tlb_single(vaddr);
 }
 
 extern unsigned char kernel_end[];
