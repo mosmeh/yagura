@@ -117,13 +117,12 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     kmalloc_init();
 
     vfs_init();
-    const multiboot_module_t* first_mod =
+    const multiboot_module_t* initrd_mod =
         (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
+    initrd_init(initrd_mod->mod_start + KERNEL_VADDR);
 
-    fs_node* initrd = initrd_create(first_mod->mod_start + KERNEL_VADDR);
-    vfs_mount("/", initrd);
-    vfs_mount("/foo/bar/baz", initrd);
-
+    vfs_mount("/", initrd_create());
+    vfs_mount("/foo/bar/baz", initrd_create());
     vfs_mount("/dev/ttyS0", serial_device_create(SERIAL_COM1));
     vfs_mount("/dev/ttyS1", serial_device_create(SERIAL_COM2));
     vfs_mount("/dev/ttyS2", serial_device_create(SERIAL_COM3));

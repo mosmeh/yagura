@@ -1,7 +1,6 @@
 #pragma once
 
 #include <kernel/fs/fs.h>
-#include <kernel/system.h>
 #include <stdnoreturn.h>
 
 #define USER_STACK_BASE (KERNEL_VADDR - STACK_SIZE)

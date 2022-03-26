@@ -5,8 +5,7 @@
 #include <stdint.h>
 #include <stdnoreturn.h>
 
-uintptr_t invoke_syscall(uint32_t num, uintptr_t arg1, uintptr_t arg2,
-                         uintptr_t arg3);
+uintptr_t syscall(uint32_t num, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3);
 
 noreturn void exit(int status);
 pid_t fork(void);

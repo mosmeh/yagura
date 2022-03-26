@@ -29,29 +29,32 @@ static void remap_pic(void) {
     out8(PIC2_DATA, 0);
 }
 
+#define ENUMERATE_IRQS(F)                                                      \
+    F(0)                                                                       \
+    F(1)                                                                       \
+    F(2)                                                                       \
+    F(3)                                                                       \
+    F(4)                                                                       \
+    F(5)                                                                       \
+    F(6)                                                                       \
+    F(7)                                                                       \
+    F(8)                                                                       \
+    F(9)                                                                       \
+    F(10)                                                                      \
+    F(11)                                                                      \
+    F(12)                                                                      \
+    F(13)                                                                      \
+    F(14)                                                                      \
+    F(15)
+
 #define DEFINE_IRQ(num)                                                        \
     void irq##num(void);                                                       \
     __asm__("irq" #num ":\n"                                                   \
             "pushl $0\n"                                                       \
             "pushl $" STRINGIFY(IRQ0 + num) "\n"                               \
                                             "jmp irq_common_stub");
-
-DEFINE_IRQ(0)
-DEFINE_IRQ(1)
-DEFINE_IRQ(2)
-DEFINE_IRQ(3)
-DEFINE_IRQ(4)
-DEFINE_IRQ(5)
-DEFINE_IRQ(6)
-DEFINE_IRQ(7)
-DEFINE_IRQ(8)
-DEFINE_IRQ(9)
-DEFINE_IRQ(10)
-DEFINE_IRQ(11)
-DEFINE_IRQ(12)
-DEFINE_IRQ(13)
-DEFINE_IRQ(14)
-DEFINE_IRQ(15)
+ENUMERATE_IRQS(DEFINE_IRQ)
+#undef DEFINE_IRQ
 
 extern interrupt_handler_fn interrupt_handlers[256];
 
@@ -70,24 +73,9 @@ void irq_init(void) {
     remap_pic();
 
 #define REGISTER_IRQ(num)                                                      \
-    idt_set_gate(IRQ0 + num, (uint32_t)irq##num, 0x8, INTERRUPT_GATE32, 0)
-
-    REGISTER_IRQ(0);
-    REGISTER_IRQ(1);
-    REGISTER_IRQ(2);
-    REGISTER_IRQ(3);
-    REGISTER_IRQ(4);
-    REGISTER_IRQ(5);
-    REGISTER_IRQ(6);
-    REGISTER_IRQ(7);
-    REGISTER_IRQ(8);
-    REGISTER_IRQ(9);
-    REGISTER_IRQ(10);
-    REGISTER_IRQ(11);
-    REGISTER_IRQ(12);
-    REGISTER_IRQ(13);
-    REGISTER_IRQ(14);
-    REGISTER_IRQ(15);
+    idt_set_gate(IRQ0 + num, (uint32_t)irq##num, 0x8, INTERRUPT_GATE32, 0);
+    ENUMERATE_IRQS(REGISTER_IRQ)
+#undef REGISTER_IRQ
 
     idt_flush();
 }

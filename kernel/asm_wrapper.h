@@ -61,12 +61,28 @@ static inline uint8_t in8(uint16_t port) {
     return rv;
 }
 
+static inline uint16_t in16(uint16_t port) {
+    uint16_t rv;
+    __asm__ volatile("inw %1, %0" : "=a"(rv) : "dN"(port));
+    return rv;
+}
+
+static inline uint32_t in32(uint16_t port) {
+    uint32_t rv;
+    __asm__ volatile("inl %1, %0" : "=a"(rv) : "dN"(port));
+    return rv;
+}
+
 static inline void out8(uint16_t port, uint8_t data) {
     __asm__ volatile("outb %1, %0" : : "dN"(port), "a"(data));
 }
 
 static inline void out16(uint16_t port, uint16_t data) {
     __asm__ volatile("outw %1, %0" : : "dN"(port), "a"(data));
+}
+
+static inline void out32(uint16_t port, uint32_t data) {
+    __asm__ volatile("outl %1, %0" : : "dN"(port), "a"(data));
 }
 
 static inline void delay(uint32_t usec) {

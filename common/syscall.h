@@ -5,21 +5,24 @@
 
 #define SYSCALL_VECTOR 0x81
 
-#define NUM_SYSCALLS SYS_LAST
+#define ENUMERATE_SYSCALLS(F)                                                  \
+    F(exit)                                                                    \
+    F(fork)                                                                    \
+    F(getpid)                                                                  \
+    F(yield)                                                                   \
+    F(halt)                                                                    \
+    F(mmap)                                                                    \
+    F(puts)                                                                    \
+    F(open)                                                                    \
+    F(close)                                                                   \
+    F(read)                                                                    \
+    F(write)
 
 enum {
-    SYS_EXIT,
-    SYS_FORK,
-    SYS_GETPID,
-    SYS_YIELD,
-    SYS_HALT,
-    SYS_MMAP,
-    SYS_PUTS,
-    SYS_OPEN,
-    SYS_CLOSE,
-    SYS_READ,
-    SYS_WRITE,
-    SYS_LAST
+#define DEFINE_ITEM(name) SYS_##name,
+    ENUMERATE_SYSCALLS(DEFINE_ITEM)
+#undef DEFINE_ITEM
+        NUM_SYSCALLS
 };
 
 #define PROT_EXEC 0x1

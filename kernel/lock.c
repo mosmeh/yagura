@@ -1,6 +1,7 @@
 #include "lock.h"
 #include "interrupts.h"
 #include "process.h"
+#include "system.h"
 
 void mutex_init(mutex* m) {
     m->holder = NULL;
@@ -35,13 +36,9 @@ void mutex_unlock(mutex* m) {
                                                     memory_order_acq_rel,
                                                     memory_order_acquire)) {
             KASSERT(m->holder == current);
-            KASSERT(m->level);
-            --m->level;
-            if (m->level) {
-                atomic_store_explicit(&m->lock, false, memory_order_release);
-                return;
-            }
-            m->holder = NULL;
+            KASSERT(m->level > 0);
+            if (--m->level == 0)
+                m->holder = NULL;
             atomic_store_explicit(&m->lock, false, memory_order_release);
             return;
         }

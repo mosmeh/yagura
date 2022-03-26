@@ -1,9 +1,8 @@
 #pragma once
 
-#include "asm_wrapper.h"
 #include "forward.h"
-#include "system.h"
 #include <stdatomic.h>
+#include <stdint.h>
 
 typedef struct mutex {
     volatile process* holder;

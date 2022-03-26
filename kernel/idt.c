@@ -1,5 +1,6 @@
 #include "asm_wrapper.h"
 #include "interrupts.h"
+#include "isr_stubs.h"
 #include "kprintf.h"
 #include "system.h"
 
@@ -123,9 +124,9 @@ static void handle_exception14(registers* regs) {
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(15, "Unknown")
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(16, "x87 floating-point exception")
 
-#define ISR_STUBS_DEFINE
-#include "isr_stubs.inc"
-#undef ISR_STUBS_DEFINE
+#define DEFINE_ISR_STUB(num) DEFINE_ISR_WITHOUT_ERROR_CODE(num)
+ENUMERATE_ISR_STUBS(DEFINE_ISR_STUB)
+#undef DEFINE_ISR_STUB
 
 void idt_init(void) {
     idtr.limit = NUM_IDT_ENTRIES * sizeof(idt_descriptor) - 1;
@@ -156,9 +157,9 @@ void idt_init(void) {
     REGISTER_EXCEPTION(15);
     REGISTER_EXCEPTION(16);
 
-#define ISR_STUBS_REGISTER
-#include "isr_stubs.inc"
-#undef ISR_STUBS_REGISTER
+#define REGISTER_ISR_STUB(num) REGISTER_ISR(num);
+    ENUMERATE_ISR_STUBS(REGISTER_ISR_STUB)
+#undef REGISTER_ISR_STUB
 
     idt_flush();
 }

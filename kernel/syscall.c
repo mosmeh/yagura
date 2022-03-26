@@ -84,9 +84,12 @@ static uintptr_t sys_write(int fd, const void* buf, size_t count) {
 }
 
 typedef uintptr_t (*syscall_handler_fn)();
-static syscall_handler_fn syscall_handlers[NUM_SYSCALLS] = {
-    sys_exit, sys_fork, sys_getpid, sys_yield, sys_halt, sys_mmap,
-    sys_puts, sys_open, sys_close,  sys_read,  sys_write};
+
+static syscall_handler_fn syscall_handlers[NUM_SYSCALLS + 1] = {
+#define SYSCALL_HANDLER(name) sys_##name,
+    ENUMERATE_SYSCALLS(SYSCALL_HANDLER)
+#undef SYSCALL_HANDLER
+        NULL};
 
 static void syscall_handler(registers* regs) {
     KASSERT(interrupts_enabled());
@@ -95,7 +98,7 @@ static void syscall_handler(registers* regs) {
     syscall_handler_fn handler = syscall_handlers[regs->eax];
     KASSERT(handler);
 
-    if (regs->eax == SYS_FORK)
+    if (regs->eax == SYS_fork)
         regs->eax = handler(regs);
     else
         regs->eax = handler(regs->edx, regs->ecx, regs->ebx);

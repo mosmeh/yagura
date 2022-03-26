@@ -3,7 +3,6 @@
 #include <common/types.h>
 #include <kernel/forward.h>
 #include <stddef.h>
-#include <stdint.h>
 
 #define PATH_SEPARATOR '/'
 
@@ -57,4 +56,5 @@ typedef struct file_descriptor_table {
     file_description* entries;
 } file_descriptor_table;
 
-fs_node* initrd_create(uintptr_t addr);
+void initrd_init(uintptr_t paddr);
+fs_node* initrd_create(void);

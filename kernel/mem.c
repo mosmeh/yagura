@@ -146,9 +146,9 @@ static volatile page_table_entry* get_pte(uintptr_t vaddr) {
 
 extern unsigned char kernel_end[];
 
-static void get_heap_mem_bounds(const multiboot_info_t* mb_info,
-                                uintptr_t* lower_bound,
-                                uintptr_t* upper_bound) {
+static void get_available_physical_addr_bounds(const multiboot_info_t* mb_info,
+                                               uintptr_t* lower_bound,
+                                               uintptr_t* upper_bound) {
     *lower_bound = (uintptr_t)kernel_end - KERNEL_VADDR;
 
     if (mb_info->flags & MULTIBOOT_INFO_MODS) {
@@ -317,7 +317,9 @@ void mem_init(const multiboot_info_t* mb_info) {
             mem_get_physical_addr((uintptr_t)mem_current_page_directory()));
 
     uintptr_t lower_bound, upper_bound;
-    get_heap_mem_bounds(mb_info, &lower_bound, &upper_bound);
+    get_available_physical_addr_bounds(mb_info, &lower_bound, &upper_bound);
+    kprintf("Available physical memory address space: P0x%x - P0x%x\n",
+            lower_bound, upper_bound);
 
     // In the current setup, kernel image (including 1MiB offset) has to fit in
     // single page table (< 4MiB), and last page is reserved for quickmap

@@ -70,7 +70,7 @@ static uint32_t serial_device_write(fs_node* node, off_t offset, size_t size,
 fs_node* serial_device_create(uint16_t port) {
     fs_node* node = kmalloc(sizeof(fs_node));
     memset(node, 0, sizeof(fs_node));
-    node->name = kstrdup("serial");
+    node->name = kstrdup("serial_device");
     node->flags = FS_CHARDEVICE;
     node->inode = port;
     node->read = serial_device_read;

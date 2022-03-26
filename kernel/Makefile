@@ -20,9 +20,9 @@ KERNEL_OBJS := \
 	kmalloc.o \
 	process.o \
 	syscall.o \
-	string.o \
 	lock.o \
 	serial.o \
+	pci.o \
 	kprintf.o \
 	fs/fs.o \
 	fs/initrd.o

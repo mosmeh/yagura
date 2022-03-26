@@ -1,6 +1,7 @@
 #include "asm_wrapper.h"
 #include "interrupts.h"
 #include "process.h"
+#include "system.h"
 
 #define TIMER0_CTL 0x40
 #define TIMER0_SELECT 0x00

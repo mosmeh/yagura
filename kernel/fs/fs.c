@@ -2,7 +2,6 @@
 #include <common/string.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
-#include <kernel/string.h>
 #include <kernel/system.h>
 
 uint32_t fs_read(fs_node* node, off_t offset, size_t size, void* buffer) {

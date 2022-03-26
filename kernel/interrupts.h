@@ -3,7 +3,6 @@
 #include "forward.h"
 #include "kernel/asm_wrapper.h"
 #include <stdbool.h>
-#include <stdint.h>
 
 #define IRQ0 0x20
 

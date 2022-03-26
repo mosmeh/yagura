@@ -2,9 +2,7 @@
 #include <common/initrd.h>
 #include <common/string.h>
 #include <kernel/kmalloc.h>
-#include <kernel/string.h>
 
-static fs_node* root;
 static size_t num_files;
 static const initrd_file_header* file_headers;
 static fs_node* file_nodes;
@@ -41,19 +39,12 @@ static fs_node* initrd_finddir(fs_node* node, const char* name) {
     return NULL;
 }
 
-fs_node* initrd_create(uintptr_t addr) {
-    const initrd_header* header = (const initrd_header*)addr;
+void initrd_init(uintptr_t paddr) {
+    const initrd_header* header = (const initrd_header*)paddr;
     num_files = header->num_files;
-    file_headers = (const initrd_file_header*)(addr + sizeof(initrd_header));
+    file_headers = (const initrd_file_header*)(paddr + sizeof(initrd_header));
     file_start =
-        addr + sizeof(initrd_header) + num_files * sizeof(initrd_file_header);
-
-    root = kmalloc(sizeof(fs_node));
-    memset(root, 0, sizeof(fs_node));
-    root->name = kstrdup("initrd");
-    root->flags = FS_DIRECTORY;
-    root->readdir = initrd_readdir;
-    root->finddir = initrd_finddir;
+        paddr + sizeof(initrd_header) + num_files * sizeof(initrd_file_header);
 
     file_nodes = kmalloc(num_files * sizeof(fs_node));
     for (size_t i = 0; i < num_files; ++i) {
@@ -65,6 +56,15 @@ fs_node* initrd_create(uintptr_t addr) {
         node->inode = i;
         node->read = initrd_read;
     }
+}
+
+fs_node* initrd_create(void) {
+    fs_node* root = kmalloc(sizeof(fs_node));
+    memset(root, 0, sizeof(fs_node));
+    root->name = kstrdup("initrd");
+    root->flags = FS_DIRECTORY;
+    root->readdir = initrd_readdir;
+    root->finddir = initrd_finddir;
 
     return root;
 }
