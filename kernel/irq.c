@@ -19,8 +19,8 @@
 static void remap_pic(void) {
     out8(PIC1_CMD, ICW1_INIT | ICW1_ICW4);
     out8(PIC2_CMD, ICW1_INIT | ICW1_ICW4);
-    out8(PIC1_DATA, IRQ0);
-    out8(PIC2_DATA, IRQ0 + NUM_IRQS_PER_PIC);
+    out8(PIC1_DATA, IRQ(0));
+    out8(PIC2_DATA, IRQ(NUM_IRQS_PER_PIC));
     out8(PIC1_DATA, 4);
     out8(PIC2_DATA, 2);
     out8(PIC1_DATA, ICW4_8086);
@@ -51,8 +51,8 @@ static void remap_pic(void) {
     void irq##num(void);                                                       \
     __asm__("irq" #num ":\n"                                                   \
             "pushl $0\n"                                                       \
-            "pushl $" STRINGIFY(IRQ0 + num) "\n"                               \
-                                            "jmp irq_common_stub");
+            "pushl $" STRINGIFY(IRQ(num)) "\n"                                 \
+                                          "jmp irq_common_stub");
 ENUMERATE_IRQS(DEFINE_IRQ)
 #undef DEFINE_IRQ
 
@@ -73,7 +73,7 @@ void irq_init(void) {
     remap_pic();
 
 #define REGISTER_IRQ(num)                                                      \
-    idt_set_gate(IRQ0 + num, (uint32_t)irq##num, 0x8, INTERRUPT_GATE32, 0);
+    idt_set_gate(IRQ(num), (uint32_t)irq##num, 0x8, INTERRUPT_GATE32, 0);
     ENUMERATE_IRQS(REGISTER_IRQ)
 #undef REGISTER_IRQ
 

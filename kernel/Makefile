@@ -22,6 +22,7 @@ KERNEL_OBJS := \
 	syscall.o \
 	lock.o \
 	serial.o \
+	ps2_mouse.o \
 	pci.o \
 	kprintf.o \
 	fs/fs.o \

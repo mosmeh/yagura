@@ -27,5 +27,5 @@ void pit_init(uint32_t freq) {
     out8(TIMER0_CTL, TIMER0_SELECT | WRITE_WORD | MODE_SQUARE_WAVE);
     out8(TIMER0_CTL, div & 0xff);
     out8(TIMER0_CTL, div >> 8);
-    idt_register_interrupt_handler(IRQ0, pit_handler);
+    idt_register_interrupt_handler(IRQ(0), pit_handler);
 }

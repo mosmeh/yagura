@@ -4,7 +4,7 @@
 #include "kernel/asm_wrapper.h"
 #include <stdbool.h>
 
-#define IRQ0 0x20
+#define IRQ(i) (0x20 + i)
 
 void idt_init(void);
 void irq_init(void);
