@@ -1,9 +1,9 @@
 #include "asm_wrapper.h"
 #include "boot_defs.h"
 #include "fs/fs.h"
+#include "graphics.h"
 #include "hid.h"
 #include "interrupts.h"
-#include "kernel/graphics/graphics.h"
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "mem.h"
@@ -67,7 +67,7 @@ static noreturn void userland_entry2(void) {
     int fb_fd = open("/dev/fb0", O_RDWR);
     ASSERT(fb_fd >= 0);
     fb_info info;
-    ASSERT(ioctl(fb_fd, FBIOGET_RESOLUTION, &info) >= 0);
+    ASSERT(ioctl(fb_fd, FBIOGET_INFO, &info) >= 0);
     uint32_t* fb =
         (uint32_t*)mmap(NULL, info.pitch * info.height, PROT_READ | PROT_WRITE,
                         MAP_SHARED, fb_fd, 0);

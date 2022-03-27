@@ -3,6 +3,7 @@
 #include "hid.h"
 #include "kernel/interrupts.h"
 #include "kmalloc.h"
+#include "lock.h"
 #include "system.h"
 #include <common/string.h>
 
@@ -42,6 +43,7 @@ static size_t state = 0;
 static mouse_packet queue[QUEUE_SIZE];
 static size_t queue_head = 0;
 static size_t queue_tail = 0;
+static mutex queue_lock;
 
 static void irq_handler(registers* reg) {
     (void)reg;
@@ -91,6 +93,8 @@ void ps2_mouse_init(void) {
     write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
 
     idt_register_interrupt_handler(IRQ(12), irq_handler);
+
+    mutex_init(&queue_lock);
 }
 
 static ssize_t ps2_mouse_device_read(fs_node* node, off_t offset, size_t size,
@@ -100,6 +104,8 @@ static ssize_t ps2_mouse_device_read(fs_node* node, off_t offset, size_t size,
 
     size_t nread = 0;
     mouse_packet* out = (mouse_packet*)buffer;
+
+    mutex_lock(&queue_lock);
     while (size > 0) {
         if (queue_head == queue_tail || size < sizeof(mouse_packet))
             break;
@@ -108,6 +114,8 @@ static ssize_t ps2_mouse_device_read(fs_node* node, off_t offset, size_t size,
         size -= sizeof(mouse_packet);
         queue_head = (queue_head + 1) % QUEUE_SIZE;
     }
+    mutex_unlock(&queue_lock);
+
     return nread;
 }
 

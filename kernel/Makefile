@@ -25,9 +25,9 @@ KERNEL_OBJS := \
 	ps2_mouse.o \
 	pci.o \
 	kprintf.o \
+	bochs_graphics.o \
 	fs/fs.o \
-	fs/initrd.o \
-	graphics/bochs_graphics.o
+	fs/initrd.o
 
 COMMON_OBJS := ../common/string.o
 

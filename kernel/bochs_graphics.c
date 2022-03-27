@@ -1,5 +1,6 @@
 #include "graphics.h"
 #include "kernel/mem.h"
+#include "lock.h"
 #include <common/errno.h>
 #include <common/extra.h>
 #include <common/string.h>
@@ -30,6 +31,7 @@
 
 static uintptr_t fb_addr;
 static fb_info info;
+static mutex lock;
 
 static void pci_enumeration_callback(uint8_t bus, uint8_t slot,
                                      uint8_t function, uint16_t vendor_id,
@@ -70,6 +72,7 @@ void bochs_graphics_init(void) {
     KASSERT(fb_addr);
     kprintf("Found framebuffer at 0x%x\n", fb_addr);
     configure(640, 480, 32);
+    mutex_init(&lock);
 }
 
 static uintptr_t bochs_graphics_mmap(fs_node* node, uintptr_t vaddr,
@@ -87,14 +90,18 @@ static int bochs_graphics_ioctl(fs_node* node, int request, void* argp) {
     (void)node;
 
     switch (request) {
-    case FBIOGET_RESOLUTION: {
+    case FBIOGET_INFO: {
+        mutex_lock(&lock);
         *(fb_info*)argp = info;
+        mutex_unlock(&lock);
         return 0;
     }
-    case FBIOSET_RESOLUTION: {
+    case FBIOSET_INFO: {
         fb_info* request = (fb_info*)argp;
+        mutex_lock(&lock);
         configure(request->width, request->height, request->bpp);
         *(fb_info*)argp = info;
+        mutex_unlock(&lock);
         return 0;
     }
     }

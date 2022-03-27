@@ -3,7 +3,7 @@
 #include <kernel/forward.h>
 #include <stddef.h>
 
-enum { FBIOGET_RESOLUTION, FBIOSET_RESOLUTION };
+enum { FBIOGET_INFO, FBIOSET_INFO };
 
 typedef struct fb_info {
     size_t width;
