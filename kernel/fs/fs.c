@@ -116,6 +116,7 @@ void vfs_mount(char* path, fs_node* fs) {
     }
 
     char* split_path = kstrdup(path);
+    KASSERT(split_path);
     str_replace_char(split_path, PATH_SEPARATOR, '\0');
 
     vfs_node* node = &root;
@@ -131,7 +132,9 @@ void vfs_mount(char* path, fs_node* fs) {
 
     while (component < split_path + path_len) {
         vfs_node* child = kmalloc(sizeof(vfs_node));
+        KASSERT(child);
         child->name = kstrdup(component);
+        KASSERT(child->name);
         append_child(node, child);
         node = child;
         component += strlen(component) + 1;
@@ -150,6 +153,7 @@ fs_node* vfs_find_by_pathname(const char* pathname) {
     }
 
     char* split_pathname = kstrdup(pathname);
+    KASSERT(split_pathname);
     str_replace_char(split_pathname, PATH_SEPARATOR, '\0');
 
     // find a file system having the longest common prefix between their mount
@@ -175,4 +179,24 @@ fs_node* vfs_find_by_pathname(const char* pathname) {
         component += strlen(component) + 1;
     }
     return fnode;
+}
+
+int file_descriptor_table_init(file_descriptor_table* table) {
+    table->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
+    if (!table->entries)
+        return -ENOMEM;
+
+    memset(table->entries, 0, FD_TABLE_CAPACITY * sizeof(file_description));
+    return 0;
+}
+
+int file_descriptor_table_clone_from(file_descriptor_table* to,
+                                     const file_descriptor_table* from) {
+    to->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
+    if (!to->entries)
+        return -ENOMEM;
+
+    memcpy(to->entries, from->entries,
+           FD_TABLE_CAPACITY * sizeof(file_description));
+    return 0;
 }

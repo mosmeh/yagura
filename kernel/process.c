@@ -1,6 +1,7 @@
 #include "process.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
+#include "kernel/fs/fs.h"
 #include "kernel/interrupts.h"
 #include "kmalloc.h"
 #include "kprintf.h"
@@ -52,32 +53,27 @@ static pid_t get_next_pid(void) {
     return atomic_fetch_add_explicit(&next_pid, 1, memory_order_acq_rel);
 }
 
-static file_descriptor_table create_fd_table(void) {
-    file_descriptor_table table;
-    table.entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
-    return table;
-}
-
-static file_descriptor_table clone_fd_table(const file_descriptor_table* from) {
-    file_descriptor_table table = create_fd_table();
-    memcpy(table.entries, from->entries,
-           FD_TABLE_CAPACITY * sizeof(file_description));
-    return table;
-}
-
 static process* create_kernel_process(void (*entry_point)(void)) {
     process* p = kmalloc(sizeof(process));
     if (!p)
         return NULL;
 
     p->id = next_pid++;
-    p->pd_paddr = mem_clone_current_page_directory_and_get_physical_addr();
     p->heap_next_vaddr = USERLAND_HEAP_START;
-    p->fd_table = create_fd_table();
+    p->eip = (uintptr_t)entry_point;
     p->next = NULL;
 
-    p->eip = (uintptr_t)entry_point;
-    p->stack_top = (uintptr_t)kmalloc(STACK_SIZE) + STACK_SIZE;
+    p->pd_paddr = mem_clone_current_page_directory_and_get_physical_addr();
+    if (addr_is_error(p->pd_paddr))
+        return NULL;
+
+    if (file_descriptor_table_init(&p->fd_table) < 0)
+        return NULL;
+
+    void* stack = kmalloc(STACK_SIZE);
+    if (!stack)
+        return NULL;
+    p->stack_top = (uintptr_t)stack + STACK_SIZE;
     p->esp = p->ebp = p->stack_top;
 
     return p;
@@ -97,15 +93,17 @@ void process_init(void) {
 
     uintptr_t pd_paddr =
         mem_clone_current_page_directory_and_get_physical_addr();
+    KASSERT(!addr_is_error(pd_paddr));
     mem_switch_page_directory(pd_paddr);
 
     current = kmalloc(sizeof(process));
+    KASSERT(current);
     current->id = get_next_pid();
     current->esp = current->ebp = current->eip = 0;
     current->pd_paddr = pd_paddr;
     current->stack_top = (uintptr_t)stack_top;
     current->heap_next_vaddr = USERLAND_HEAP_START;
-    current->fd_table = create_fd_table();
+    KASSERT(file_descriptor_table_init(&current->fd_table) >= 0);
     current->next = NULL;
 
     gdt_set_kernel_stack(current->stack_top);
@@ -170,11 +168,17 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
     p->id = next_pid++;
     p->pd_paddr = pd_paddr;
     p->heap_next_vaddr = USERLAND_HEAP_START;
-    p->fd_table = create_fd_table();
+    p->eip = (uintptr_t)entry_point;
     p->next = NULL;
 
-    p->eip = (uintptr_t)entry_point;
-    p->stack_top = (uintptr_t)kmalloc(STACK_SIZE) + STACK_SIZE;
+    int rc = file_descriptor_table_init(&p->fd_table);
+    if (rc < 0)
+        return rc;
+
+    void* stack = kmalloc(STACK_SIZE);
+    if (!stack)
+        return -ENOMEM;
+    p->stack_top = (uintptr_t)stack + STACK_SIZE;
     p->esp = p->ebp = p->stack_top;
 
     queue_push(p);
@@ -223,12 +227,18 @@ pid_t process_userland_fork(registers* regs) {
 
     p->id = next_pid++;
     p->pd_paddr = pd_paddr;
-    p->stack_top = (uintptr_t)kmalloc(STACK_SIZE) + STACK_SIZE;
+    p->eip = (uintptr_t)return_to_userland;
     p->heap_next_vaddr = current->heap_next_vaddr;
-    p->fd_table = clone_fd_table(&current->fd_table);
     p->next = NULL;
 
-    p->eip = (uintptr_t)return_to_userland;
+    int rc = file_descriptor_table_clone_from(&p->fd_table, &current->fd_table);
+    if (rc < 0)
+        return rc;
+
+    void* stack = kmalloc(STACK_SIZE);
+    if (!stack)
+        return -ENOMEM;
+    p->stack_top = (uintptr_t)stack + STACK_SIZE;
     p->esp = p->ebp = p->stack_top;
 
     // push the argument of return_to_userland()

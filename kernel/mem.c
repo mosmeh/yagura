@@ -303,11 +303,15 @@ uintptr_t mem_clone_current_page_directory_and_get_physical_addr(void) {
             dst->entries[i].raw = 0;
             continue;
         }
+
         volatile page_table* pt = get_page_table(i);
-        uintptr_t cloned_pt_vaddr =
-            (uintptr_t)clone_page_table(pt, i * 0x400000);
-        dst->entries[i].raw = (uintptr_t)get_physical_addr(cloned_pt_vaddr) |
-                              (src->entries[i].raw & 0xfff);
+        page_table* cloned_pt = clone_page_table(pt, i * 0x400000);
+        if (!cloned_pt)
+            return -ENOMEM;
+
+        dst->entries[i].raw =
+            (uintptr_t)get_physical_addr((uintptr_t)cloned_pt) |
+            (src->entries[i].raw & 0xfff);
     }
 
     // kernel

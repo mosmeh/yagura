@@ -67,18 +67,19 @@ static void configure(size_t width, size_t height, size_t bpp) {
 
 void bochs_graphics_init(void) {
     pci_enumerate(pci_enumeration_callback);
-    if (fb_addr) {
-        kprintf("Found framebuffer at 0x%x\n", fb_addr);
-        configure(640, 480, 32);
-    }
+    KASSERT(fb_addr);
+    kprintf("Found framebuffer at 0x%x\n", fb_addr);
+    configure(640, 480, 32);
 }
 
 static uintptr_t bochs_graphics_mmap(fs_node* node, uintptr_t vaddr,
                                      size_t length, int prot, off_t offset) {
     (void)node;
     (void)offset;
-    mem_map_to_shared_physical_range(vaddr, fb_addr, length,
-                                     mem_prot_to_flags(prot));
+    int rc = mem_map_to_shared_physical_range(vaddr, fb_addr, length,
+                                              mem_prot_to_flags(prot));
+    if (rc < 0)
+        return rc;
     return vaddr;
 }
 

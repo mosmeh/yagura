@@ -16,12 +16,8 @@ noreturn void panic(const char* message, const char* file, size_t line) {
 void malloc_init(malloc_ctx* ctx) {
     void* heap = mmap(NULL, MALLOC_HEAP_SIZE, PROT_READ | PROT_WRITE,
                       MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-    if (heap == MAP_FAILED) {
-        ctx->heap_start = 0;
-        ctx->ptr = UINTPTR_MAX;
-    } else {
-        ctx->heap_start = ctx->ptr = (uintptr_t)heap;
-    }
+    ASSERT(heap != MAP_FAILED);
+    ctx->heap_start = ctx->ptr = (uintptr_t)heap;
     ctx->num_allocs = 0;
 }
 

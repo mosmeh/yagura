@@ -68,5 +68,9 @@ typedef struct file_descriptor_table {
     file_description* entries;
 } file_descriptor_table;
 
+int file_descriptor_table_init(file_descriptor_table*);
+int file_descriptor_table_clone_from(file_descriptor_table* to,
+                                     const file_descriptor_table* from);
+
 void initrd_init(uintptr_t paddr);
 fs_node* initrd_create(void);

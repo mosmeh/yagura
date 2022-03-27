@@ -2,6 +2,7 @@
 #include <common/initrd.h>
 #include <common/string.h>
 #include <kernel/kmalloc.h>
+#include <kernel/system.h>
 
 static size_t num_files;
 static const initrd_file_header* file_headers;
@@ -27,6 +28,7 @@ static dirent* initrd_readdir(fs_node* node, size_t index) {
         return NULL;
     fs_node* n = file_nodes + index;
     dent.name = kstrdup(n->name);
+    KASSERT(dent.name);
     dent.ino = n->inode;
     return &dent;
 }
@@ -47,10 +49,12 @@ void initrd_init(uintptr_t paddr) {
         paddr + sizeof(initrd_header) + num_files * sizeof(initrd_file_header);
 
     file_nodes = kmalloc(num_files * sizeof(fs_node));
+    KASSERT(file_nodes);
     for (size_t i = 0; i < num_files; ++i) {
         fs_node* node = file_nodes + i;
         memset(node, 0, sizeof(fs_node));
         node->name = kstrndup(file_headers[i].name, 128);
+        KASSERT(node->name);
         node->flags = FS_FILE;
         node->length = file_headers[i].length;
         node->inode = i;
