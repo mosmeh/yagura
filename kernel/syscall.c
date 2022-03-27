@@ -6,7 +6,6 @@
 #include "mem.h"
 #include "process.h"
 #include "system.h"
-#include <common/errno.h>
 #include <common/extra.h>
 #include <common/string.h>
 #include <common/syscall.h>
@@ -41,8 +40,10 @@ static uintptr_t sys_mmap(const mmap_params* params) {
     if (params->addr || !(params->prot & PROT_READ) || params->offset != 0)
         return -ENOTSUP;
 
-    uintptr_t vaddr = process_alloc_virtual_address_range(params->length);
-    if ((int)vaddr < 0 && (int)vaddr > -EMAXERRNO)
+    size_t length = round_up(params->length, PAGE_SIZE);
+
+    uintptr_t vaddr = process_alloc_virtual_address_range(length);
+    if (addr_is_error(vaddr))
         return vaddr;
 
     if (params->flags & MAP_ANONYMOUS) {
@@ -50,11 +51,11 @@ static uintptr_t sys_mmap(const mmap_params* params) {
             return -ENOTSUP;
 
         int rc = mem_map_to_private_anonymous_region(
-            vaddr, params->length, mem_prot_to_flags(params->prot));
+            vaddr, length, mem_prot_to_flags(params->prot));
         if (rc < 0)
             return rc;
 
-        memset((void*)vaddr, 0, params->length);
+        memset((void*)vaddr, 0, length);
         return vaddr;
     }
 
@@ -67,8 +68,7 @@ static uintptr_t sys_mmap(const mmap_params* params) {
     if (desc->node->flags == FS_DIRECTORY)
         return -ENODEV;
 
-    return fs_mmap(desc->node, vaddr, params->length, params->prot,
-                   params->offset);
+    return fs_mmap(desc->node, vaddr, length, params->prot, params->offset);
 }
 
 static uintptr_t sys_puts(const char* str) { return kputs(str); }
@@ -109,9 +109,9 @@ static uintptr_t sys_write(int fd, const void* buf, size_t count) {
     if (!desc)
         return -EBADF;
 
-    size_t nwrittern = fs_write(desc->node, desc->offset, count, buf);
-    desc->offset += nwrittern;
-    return nwrittern;
+    size_t nwritten = fs_write(desc->node, desc->offset, count, buf);
+    desc->offset += nwritten;
+    return nwritten;
 }
 
 static uintptr_t sys_ioctl(int fd, int request, void* argp) {

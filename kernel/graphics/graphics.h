@@ -5,11 +5,12 @@
 
 enum { FBIOGET_RESOLUTION, FBIOSET_RESOLUTION };
 
-typedef struct fb_resolution {
+typedef struct fb_info {
     size_t width;
     size_t height;
     size_t pitch;
-} fb_resolution;
+    size_t bpp;
+} fb_info;
 
 void bochs_graphics_init(void);
 fs_node* bochs_graphics_device_create(void);

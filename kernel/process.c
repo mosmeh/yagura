@@ -6,7 +6,6 @@
 #include "kprintf.h"
 #include "mem.h"
 #include "system.h"
-#include <common/errno.h>
 #include <common/extra.h>
 #include <common/string.h>
 #include <stdatomic.h>
@@ -165,7 +164,7 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
 
     uintptr_t pd_paddr =
         mem_clone_current_page_directory_and_get_physical_addr();
-    if ((int)pd_paddr < 0 && (int)pd_paddr > -EMAXERRNO)
+    if (addr_is_error(pd_paddr))
         return pd_paddr;
 
     p->id = next_pid++;
@@ -219,7 +218,7 @@ pid_t process_userland_fork(registers* regs) {
 
     uintptr_t pd_paddr =
         mem_clone_current_page_directory_and_get_physical_addr();
-    if ((int)pd_paddr < 0 && (int)pd_paddr > -EMAXERRNO)
+    if (addr_is_error(pd_paddr))
         return pd_paddr;
 
     p->id = next_pid++;

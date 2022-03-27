@@ -1,5 +1,7 @@
 #pragma once
 
+#include "errno.h"
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -19,4 +21,8 @@ static inline uintptr_t round_down(uintptr_t x, size_t align) {
 
 static inline size_t div_ceil(size_t lhs, size_t rhs) {
     return (lhs + rhs - 1) / rhs;
+}
+
+static inline bool addr_is_error(uintptr_t addr) {
+    return -EMAXERRNO < (int)addr && (int)addr < 0;
 }

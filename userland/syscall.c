@@ -1,5 +1,4 @@
 #include "syscall.h"
-#include <common/errno.h>
 #include <common/extra.h>
 #include <common/syscall.h>
 
@@ -36,10 +35,10 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd,
     params.fd = fd;
     params.offset = offset;
 
-    uintptr_t rc = syscall(SYS_mmap, (uintptr_t)&params, 0, 0);
-    if ((int)rc < 0 && (int)rc > -EMAXERRNO)
+    uintptr_t ret = syscall(SYS_mmap, (uintptr_t)&params, 0, 0);
+    if (addr_is_error(ret))
         return MAP_FAILED;
-    return (void*)rc;
+    return (void*)ret;
 }
 
 int puts(const char* str) { return syscall(SYS_puts, (uintptr_t)str, 0, 0); }

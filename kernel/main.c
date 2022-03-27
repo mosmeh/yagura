@@ -79,27 +79,31 @@ static noreturn void userland_entry2(void) {
     }
     {
         int fd = open("/dev/fb0", O_RDWR);
-        fb_resolution r;
+        fb_info info;
         {
-            ioctl(fd, FBIOGET_RESOLUTION, &r);
-            printf("FB get: %ux%u (pitch=%u)\n", r.width, r.height, r.pitch);
+            ioctl(fd, FBIOGET_RESOLUTION, &info);
+            printf("FB get: %ux%u (bpp=%u, pitch=%u)\n", info.width,
+                   info.height, info.bpp, info.pitch);
         }
         {
-            r.width = 10000;
-            r.height = 10000;
-            ioctl(fd, FBIOSET_RESOLUTION, &r);
-            printf("FB set: %ux%u (pitch=%u)\n", r.width, r.height, r.pitch);
+            info.width = 600;
+            info.height = 600;
+            printf("FB attempt to set: %ux%u (bpp=%u, pitch=%u)\n", info.width,
+                   info.height, info.bpp, info.pitch);
+            ioctl(fd, FBIOSET_RESOLUTION, &info);
+            printf("FB set: %ux%u (bpp=%u, pitch=%u)\n", info.width,
+                   info.height, info.bpp, info.pitch);
         }
         {
             uint32_t* fb =
-                (uint32_t*)mmap(NULL, r.pitch * r.height,
+                (uint32_t*)mmap(NULL, info.pitch * info.height,
                                 PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
             ASSERT(fb != MAP_FAILED);
-            for (size_t y = 0; y < r.height; ++y)
-                for (size_t x = 0; x < r.width; ++x)
-                    fb[x + r.width * y] =
-                        ((255999 * x / (r.width - 1) / 1000) << 16) +
-                        ((255999 * y / (r.height - 1) / 1000) << 8) + 0x3f;
+            for (size_t y = 0; y < info.height; ++y)
+                for (size_t x = 0; x < info.width; ++x)
+                    fb[x + info.width * y] =
+                        ((255999 * x / (info.width - 1) / 1000) << 16) +
+                        ((255999 * y / (info.height - 1) / 1000) << 8) + 0x3f;
         }
         close(fd);
     }

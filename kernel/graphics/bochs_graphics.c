@@ -6,11 +6,9 @@
 #include <kernel/asm_wrapper.h>
 #include <kernel/fs/fs.h>
 #include <kernel/kmalloc.h>
+#include <kernel/kprintf.h>
 #include <kernel/pci.h>
 #include <kernel/system.h>
-
-#define VBE_DISPI_MAX_XRES 1024
-#define VBE_DISPI_MAX_YRES 768
 
 #define VBE_DISPI_IOPORT_INDEX 0x01ce
 #define VBE_DISPI_IOPORT_DATA 0x01cf
@@ -30,17 +28,20 @@
 #define VBE_DISPI_ENABLED 0x01
 #define VBE_DISPI_LFB_ENABLED 0x40
 
-static uintptr_t framebuffer_addr;
-static size_t framebuffer_width;
-static size_t framebuffer_height;
-static size_t framebuffer_pitch;
+static uintptr_t fb_addr;
+static fb_info info;
 
 static void pci_enumeration_callback(uint8_t bus, uint8_t slot,
                                      uint8_t function, uint16_t vendor_id,
                                      uint16_t device_id) {
     if ((vendor_id == 0x1234 && device_id == 0x1111) |
         (vendor_id == 0x80ee && device_id == 0xbeef))
-        framebuffer_addr = pci_get_bar0(bus, slot, function) & 0xfffffff0;
+        fb_addr = pci_get_bar0(bus, slot, function) & 0xfffffff0;
+}
+
+static uint16_t read_reg(uint16_t index) {
+    out16(VBE_DISPI_IOPORT_INDEX, index);
+    return in16(VBE_DISPI_IOPORT_DATA);
 }
 
 static void write_reg(uint16_t index, uint16_t data) {
@@ -48,33 +49,35 @@ static void write_reg(uint16_t index, uint16_t data) {
     out16(VBE_DISPI_IOPORT_DATA, data);
 }
 
-static void set_resolution(size_t width, size_t height) {
-    const size_t bits_per_pixel = 32;
-    framebuffer_width = MIN(width, VBE_DISPI_MAX_XRES);
-    framebuffer_height = MIN(height, VBE_DISPI_MAX_YRES);
-    framebuffer_pitch = framebuffer_width * bits_per_pixel;
-
+static void configure(size_t width, size_t height, size_t bpp) {
     write_reg(VBE_DISPI_INDEX_ENABLE, VBE_DISPI_DISABLED);
-    write_reg(VBE_DISPI_INDEX_XRES, framebuffer_width);
-    write_reg(VBE_DISPI_INDEX_YRES, framebuffer_height);
-    write_reg(VBE_DISPI_INDEX_VIRT_WIDTH, framebuffer_width);
-    write_reg(VBE_DISPI_INDEX_VIRT_HEIGHT, framebuffer_height);
-    write_reg(VBE_DISPI_INDEX_BPP, bits_per_pixel);
+    write_reg(VBE_DISPI_INDEX_XRES, width);
+    write_reg(VBE_DISPI_INDEX_YRES, height);
+    write_reg(VBE_DISPI_INDEX_VIRT_WIDTH, width);
+    write_reg(VBE_DISPI_INDEX_VIRT_HEIGHT, height);
+    write_reg(VBE_DISPI_INDEX_BPP, bpp);
     write_reg(VBE_DISPI_INDEX_ENABLE,
               VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED);
+
+    info.width = read_reg(VBE_DISPI_INDEX_XRES);
+    info.height = read_reg(VBE_DISPI_INDEX_YRES);
+    info.bpp = read_reg(VBE_DISPI_INDEX_BPP);
+    info.pitch = info.width * (info.bpp / 8);
 }
 
 void bochs_graphics_init(void) {
     pci_enumerate(pci_enumeration_callback);
-    if (framebuffer_addr)
-        set_resolution(640, 480);
+    if (fb_addr) {
+        kprintf("Found framebuffer at 0x%x\n", fb_addr);
+        configure(640, 480, 32);
+    }
 }
 
 static uintptr_t bochs_graphics_mmap(fs_node* node, uintptr_t vaddr,
                                      size_t length, int prot, off_t offset) {
     (void)node;
     (void)offset;
-    mem_map_to_shared_physical_range(vaddr, framebuffer_addr, length,
+    mem_map_to_shared_physical_range(vaddr, fb_addr, length,
                                      mem_prot_to_flags(prot));
     return vaddr;
 }
@@ -84,19 +87,13 @@ static int bochs_graphics_ioctl(fs_node* node, int request, void* argp) {
 
     switch (request) {
     case FBIOGET_RESOLUTION: {
-        fb_resolution* r = (fb_resolution*)argp;
-        r->width = framebuffer_width;
-        r->height = framebuffer_height;
-        r->pitch = framebuffer_pitch;
+        *(fb_info*)argp = info;
         return 0;
     }
     case FBIOSET_RESOLUTION: {
-        fb_resolution* r = (fb_resolution*)argp;
-        set_resolution(MIN(r->width, VBE_DISPI_MAX_XRES),
-                       MIN(r->height, VBE_DISPI_MAX_YRES));
-        r->width = framebuffer_width;
-        r->height = framebuffer_height;
-        r->pitch = framebuffer_pitch;
+        fb_info* request = (fb_info*)argp;
+        configure(request->width, request->height, request->bpp);
+        *(fb_info*)argp = info;
         return 0;
     }
     }
