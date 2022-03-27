@@ -181,20 +181,20 @@ static uintptr_t get_physical_addr(uintptr_t vaddr) {
     return (pte->raw & ~0xfff) | (vaddr & 0xfff);
 }
 
-static void map_page_anywhere_if_needed(uintptr_t vaddr, uint32_t flags) {
+static void map_page_anywhere(uintptr_t vaddr, uint32_t flags) {
     volatile page_table* pt = get_or_create_page_table(vaddr);
     volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
-    if (!pte->present) {
-        pte->raw = alloc_physical_page() | flags;
-        pte->present = true;
-        flush_tlb_single(vaddr);
-    }
+    KASSERT(!pte->present);
+    pte->raw = alloc_physical_page() | flags;
+    pte->present = true;
+    flush_tlb_single(vaddr);
 }
 
 static void map_page_at_fixed_physical_addr(uintptr_t vaddr, uintptr_t paddr,
                                             uint32_t flags) {
     volatile page_table* pt = get_or_create_page_table(vaddr);
     volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
+    KASSERT(!pte->present);
     pte->raw = paddr | flags;
     pte->present = true;
     flush_tlb_single(vaddr);
@@ -354,7 +354,7 @@ int mem_map_to_private_anonymous_region(uintptr_t vaddr, uintptr_t size,
         return -EINVAL;
 
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE)
-        map_page_anywhere_if_needed(vaddr + offset, flags);
+        map_page_anywhere(vaddr + offset, flags);
 
     return 0;
 }

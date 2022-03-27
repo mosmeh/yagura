@@ -11,8 +11,12 @@ static mutex lock;
 
 // kernel heap starts right after the quickmap page
 static uintptr_t heap_ptr = KERNEL_VADDR + 1024 * PAGE_SIZE;
+static uintptr_t current_page_start;
 
-void kmalloc_init(void) { mutex_init(&lock); }
+void kmalloc_init(void) {
+    mutex_init(&lock);
+    current_page_start = heap_ptr;
+}
 
 void* kaligned_alloc(size_t alignment, size_t size) {
     if (size == 0)
@@ -25,17 +29,21 @@ void* kaligned_alloc(size_t alignment, size_t size) {
     if (next_ptr > 0xffc00000) // last 4MiB is for recursive mapping
         return NULL;
 
-    uintptr_t region_vaddr = round_down(aligned_ptr, PAGE_SIZE);
-    uintptr_t region_size = round_up(next_ptr, PAGE_SIZE) - region_vaddr;
-    if (mem_map_to_private_anonymous_region(region_vaddr, region_size,
+    uintptr_t region_start =
+        MAX(current_page_start, round_down(aligned_ptr, PAGE_SIZE));
+    uintptr_t region_end = round_up(next_ptr, PAGE_SIZE);
+    uintptr_t region_size = region_end - region_start;
+
+    if (mem_map_to_private_anonymous_region(region_start, region_size,
                                             MEM_WRITE) < 0)
         return NULL;
 
-    memset((void*)aligned_ptr, 0, size);
+    current_page_start = region_end;
 
     heap_ptr = next_ptr;
-
     mutex_unlock(&lock);
+
+    memset((void*)aligned_ptr, 0, size);
     return (void*)aligned_ptr;
 }
 
