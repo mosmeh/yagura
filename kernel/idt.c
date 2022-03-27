@@ -124,16 +124,14 @@ static void handle_exception14(registers* regs) {
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(15, "Unknown")
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(16, "x87 floating-point exception")
 
-#define DEFINE_ISR_STUB(num) DEFINE_ISR_WITHOUT_ERROR_CODE(num)
-ENUMERATE_ISR_STUBS(DEFINE_ISR_STUB)
-#undef DEFINE_ISR_STUB
+ENUMERATE_ISR_STUBS(DEFINE_ISR_WITHOUT_ERROR_CODE)
 
 void idt_init(void) {
     idtr.limit = NUM_IDT_ENTRIES * sizeof(idt_descriptor) - 1;
     idtr.base = (uint32_t)&idt;
 
 #define REGISTER_ISR(num)                                                      \
-    idt_set_gate(num, (uint32_t)isr##num, 0x8, INTERRUPT_GATE32, 0)
+    idt_set_gate(num, (uint32_t)isr##num, 0x8, INTERRUPT_GATE32, 0);
 
 #define REGISTER_EXCEPTION(num)                                                \
     REGISTER_ISR(num);                                                         \
@@ -157,9 +155,7 @@ void idt_init(void) {
     REGISTER_EXCEPTION(15);
     REGISTER_EXCEPTION(16);
 
-#define REGISTER_ISR_STUB(num) REGISTER_ISR(num);
-    ENUMERATE_ISR_STUBS(REGISTER_ISR_STUB)
-#undef REGISTER_ISR_STUB
+    ENUMERATE_ISR_STUBS(REGISTER_ISR)
 
     idt_flush();
 }

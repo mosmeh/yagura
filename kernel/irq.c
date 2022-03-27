@@ -59,6 +59,8 @@ ENUMERATE_IRQS(DEFINE_IRQ)
 extern interrupt_handler_fn interrupt_handlers[256];
 
 void irq_handler(registers* regs) {
+    KASSERT(!interrupts_enabled());
+
     if (regs->num >= NUM_IRQS_PER_PIC)
         out8(PIC2_CMD, PIC_EOI);
 
