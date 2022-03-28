@@ -1,7 +1,8 @@
 #include "syscall.h"
-#include <common/err.h>
 #include <common/extra.h>
-#include <common/syscall.h>
+#include <kernel/api/err.h>
+#include <kernel/api/mman.h>
+#include <kernel/api/syscall.h>
 
 uintptr_t syscall(uint32_t num, uintptr_t arg1, uintptr_t arg2,
                   uintptr_t arg3) {

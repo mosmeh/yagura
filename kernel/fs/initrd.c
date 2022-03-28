@@ -1,7 +1,8 @@
 #include "fs.h"
-#include <common/err.h>
 #include <common/initrd.h>
 #include <common/string.h>
+#include <kernel/api/dirent.h>
+#include <kernel/api/err.h>
 #include <kernel/kmalloc.h>
 #include <kernel/panic.h>
 

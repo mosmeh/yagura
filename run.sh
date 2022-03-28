@@ -23,7 +23,8 @@ QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
 "${QEMU_BIN}" -kernel "${KERNEL}" \
 	-initrd "${INITRD}" \
 	-d guest_errors \
-	-nographic -no-reboot \
+	-no-reboot \
+	-nographic \
 	-serial stdio -serial stdio -serial stdio -serial stdio \
 	-chardev stdio,mux=on,id=char0 -mon chardev=char0,mode=readline -s \
 	"${QEMU_VIRT_TECH_ARGS[@]}"

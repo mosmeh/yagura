@@ -33,6 +33,7 @@ KERNEL_OBJS := \
 COMMON_OBJS := ../common/string.o
 
 USERLAND_OBJS := \
+	../userland/main.o \
 	../userland/syscall.o \
 	../userland/stdlib.o
 

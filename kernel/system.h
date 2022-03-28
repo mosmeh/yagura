@@ -1,5 +1,6 @@
 #pragma once
 
+#include "forward.h"
 #include <stdint.h>
 
 typedef struct registers {
@@ -16,3 +17,9 @@ void pit_init(uint32_t freq);
 void syscall_init(void);
 
 void gdt_set_kernel_stack(uintptr_t stack_top);
+
+void ps2_mouse_init(void);
+fs_node* ps2_mouse_device_create(void);
+
+void bochs_graphics_init(void);
+fs_node* bochs_graphics_device_create(void);

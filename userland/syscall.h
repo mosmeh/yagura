@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common/types.h>
+#include <kernel/api/types.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdnoreturn.h>

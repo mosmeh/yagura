@@ -1,13 +1,14 @@
+#include "api/err.h"
+#include "api/fb.h"
 #include "asm_wrapper.h"
 #include "fs/fs.h"
-#include "graphics.h"
 #include "kernel/mem.h"
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "lock.h"
 #include "panic.h"
 #include "pci.h"
-#include <common/err.h>
+#include "system.h"
 #include <common/string.h>
 
 #define VBE_DISPI_IOPORT_INDEX 0x01ce

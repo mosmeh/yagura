@@ -1,11 +1,11 @@
+#include "api/err.h"
+#include "api/hid.h"
 #include "asm_wrapper.h"
 #include "fs/fs.h"
-#include "hid.h"
 #include "kernel/interrupts.h"
 #include "kmalloc.h"
 #include "lock.h"
 #include "panic.h"
-#include <common/err.h>
 #include <common/string.h>
 
 #define PS2_DATA 0x60

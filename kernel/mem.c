@@ -1,4 +1,7 @@
 #include "mem.h"
+#include "api/err.h"
+#include "api/mman.h"
+#include "api/syscall.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
 #include "kmalloc.h"
@@ -6,10 +9,8 @@
 #include "lock.h"
 #include "multiboot.h"
 #include "panic.h"
-#include <common/err.h>
 #include <common/extra.h>
 #include <common/string.h>
-#include <common/syscall.h>
 #include <stdalign.h>
 #include <stdbool.h>
 

@@ -1,4 +1,5 @@
 #include "process.h"
+#include "api/err.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
 #include "kernel/fs/fs.h"
@@ -8,7 +9,6 @@
 #include "mem.h"
 #include "panic.h"
 #include "system.h"
-#include <common/err.h>
 #include <common/extra.h>
 #include <common/string.h>
 #include <stdatomic.h>

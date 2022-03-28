@@ -1,6 +1,10 @@
+#include "api/syscall.h"
+#include "api/err.h"
+#include "api/errno.h"
+#include "api/fcntl.h"
+#include "api/mman.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
-#include "common/errno.h"
 #include "fs/fs.h"
 #include "interrupts.h"
 #include "kmalloc.h"
@@ -9,10 +13,8 @@
 #include "panic.h"
 #include "process.h"
 #include "system.h"
-#include <common/err.h>
 #include <common/extra.h>
 #include <common/string.h>
-#include <common/syscall.h>
 #include <stdint.h>
 #include <stdnoreturn.h>
 

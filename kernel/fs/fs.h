@@ -1,16 +1,10 @@
 #pragma once
 
-#include <common/types.h>
+#include <kernel/api/types.h>
 #include <kernel/forward.h>
 #include <stddef.h>
 
 #define PATH_SEPARATOR '/'
-
-#define O_RDONLY 0x1
-#define O_WRONLY 0x2
-#define O_RDWR (O_RDONLY | O_WRONLY)
-#define O_CREAT 0x8
-#define O_EXCL 0x10
 
 enum fs_node_type { FS_INODE, FS_DIRECTORY, FS_CHAR_DEVICE, FS_BLOCK_DEVICE };
 
@@ -28,13 +22,6 @@ typedef struct file_descriptor_table {
 int file_descriptor_table_init(file_descriptor_table*);
 int file_descriptor_table_clone_from(file_descriptor_table* to,
                                      const file_descriptor_table* from);
-
-typedef struct dirent {
-    uint32_t type;
-    ino_t ino;
-    size_t record_len;
-    char name[];
-} dirent;
 
 typedef fs_node* (*lookup_fn)(fs_node*, const char* name);
 typedef void (*open_fn)(fs_node*, int flags);

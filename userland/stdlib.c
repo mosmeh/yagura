@@ -2,7 +2,8 @@
 #include "syscall.h"
 #include <common/extra.h>
 #include <common/string.h>
-#include <common/syscall.h>
+#include <kernel/api/mman.h>
+#include <kernel/api/syscall.h>
 #include <stdalign.h>
 #include <stdint.h>
 
