@@ -1,28 +1,60 @@
 #include "fs.h"
+#include "kernel/api/errno.h"
 #include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/api/stat.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
 #include <kernel/panic.h>
 #include <stdbool.h>
 
+int file_descriptor_table_init(file_descriptor_table* table) {
+    table->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
+    if (!table->entries)
+        return -ENOMEM;
+
+    memset(table->entries, 0, FD_TABLE_CAPACITY * sizeof(file_description));
+    return 0;
+}
+
+int file_descriptor_table_clone_from(file_descriptor_table* to,
+                                     const file_descriptor_table* from) {
+    to->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
+    if (!to->entries)
+        return -ENOMEM;
+
+    memcpy(to->entries, from->entries,
+           FD_TABLE_CAPACITY * sizeof(file_description));
+    return 0;
+}
+
 fs_node* fs_lookup(fs_node* node, const char* name) {
-    if (!node->lookup || node->type != DT_DIR)
+    if (!node->lookup || !S_ISDIR(node->mode))
         return ERR_PTR(-ENOTDIR);
     return node->lookup(node, name);
 }
 
-void fs_open(fs_node* node, int flags) {
-    if (node->open)
-        node->open(node, flags);
+fs_node* fs_create_child(fs_node* node, const char* name, mode_t mode) {
+    if (!node->create_child || !S_ISDIR(node->mode))
+        return ERR_PTR(-ENOTDIR);
+    if (!(mode & S_IFMT))
+        mode |= S_IFREG;
+    return node->create_child(node, name, mode);
 }
 
-void fs_close(file_description* desc) {
+int fs_open(fs_node* node, int flags, mode_t mode) {
+    if (node->open)
+        return node->open(node, flags, mode);
+    return 0;
+}
+
+int fs_close(file_description* desc) {
     fs_node* node = desc->node;
     if (node->close)
-        node->close(desc);
+        return node->close(desc);
+    return 0;
 }
 
 ssize_t fs_read(file_description* desc, void* buffer, size_t size) {
@@ -57,7 +89,7 @@ int fs_ioctl(file_description* desc, int request, void* argp) {
 
 long fs_readdir(file_description* desc, void* dirp, unsigned int count) {
     fs_node* node = desc->node;
-    if (!node->readdir || node->type != DT_DIR)
+    if (!node->readdir || !S_ISDIR(node->mode))
         return -ENOTDIR;
     return node->readdir(desc, dirp, count);
 }
@@ -145,23 +177,12 @@ void vfs_mount(char* path, fs_node* fs) {
     kprintf("Mounted \"%s\" at %s\n", fs->name, path);
 }
 
-fs_node* vfs_open(const char* pathname, int flags) {
+fs_node* vfs_open(const char* pathname, int flags, mode_t mode) {
+    if (!is_absolute_path(pathname))
+        return ERR_PTR(-ENOTSUP);
     if ((flags & O_RDWR) != O_RDWR)
         return ERR_PTR(-ENOTSUP);
-
-    fs_node* node = vfs_lookup(pathname);
-    if (IS_OK(node))
-        return node;
-    if (!(flags & O_CREAT) || PTR_ERR(node) != -ENOENT)
-        return node;
-
-    // TODO: create
-    KUNIMPLEMENTED();
-    return node;
-}
-
-fs_node* vfs_lookup(const char* pathname) {
-    if (!is_absolute_path(pathname))
+    if ((flags & O_CREAT) && (mode != 0777))
         return ERR_PTR(-ENOTSUP);
 
     size_t path_len = strlen(pathname);
@@ -181,7 +202,6 @@ fs_node* vfs_lookup(const char* pathname) {
         vfs_node* child = find_child_by_name(vnode, component);
         if (!child)
             break;
-
         vnode = child;
         component += strlen(component) + 1;
     }
@@ -189,31 +209,46 @@ fs_node* vfs_lookup(const char* pathname) {
     fs_node* fnode = vnode->fs;
     while (component < split_pathname + path_len) {
         fs_node* child = fs_lookup(fnode, component);
-        if (IS_ERR(child))
+        if (IS_ERR(child)) {
+            if ((PTR_ERR(child) == -ENOENT) && (flags & O_CREAT) &&
+                component + strlen(component) + 1 >=
+                    split_pathname + path_len) {
+                fnode = fs_create_child(fnode, component, mode);
+                break;
+            }
             return child;
+        }
 
         fnode = child;
         component += strlen(component) + 1;
     }
+
+    if (flags & O_EXCL)
+        return ERR_PTR(-EEXIST);
+
+    int rc = fs_open(fnode, flags, mode);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
+
     return fnode;
 }
 
-int file_descriptor_table_init(file_descriptor_table* table) {
-    table->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
-    if (!table->entries)
-        return -ENOMEM;
-
-    memset(table->entries, 0, FD_TABLE_CAPACITY * sizeof(file_description));
-    return 0;
-}
-
-int file_descriptor_table_clone_from(file_descriptor_table* to,
-                                     const file_descriptor_table* from) {
-    to->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
-    if (!to->entries)
-        return -ENOMEM;
-
-    memcpy(to->entries, from->entries,
-           FD_TABLE_CAPACITY * sizeof(file_description));
-    return 0;
+uint8_t mode_to_dirent_type(mode_t mode) {
+    switch (mode & S_IFMT) {
+    case S_IFDIR:
+        return DT_DIR;
+    case S_IFCHR:
+        return DT_CHR;
+    case S_IFBLK:
+        return DT_BLK;
+    case S_IFREG:
+        return DT_REG;
+    case S_IFIFO:
+        return DT_FIFO;
+    case S_IFLNK:
+        return DT_LNK;
+    case S_IFSOCK:
+        return DT_SOCK;
+    }
+    KUNREACHABLE();
 }

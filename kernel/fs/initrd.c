@@ -3,6 +3,7 @@
 #include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
+#include <kernel/api/stat.h>
 #include <kernel/kmalloc.h>
 #include <kernel/panic.h>
 
@@ -13,9 +14,9 @@ static fs_node* file_nodes;
 
 static ssize_t initrd_read(file_description* desc, void* buffer, size_t size) {
     const initrd_file_header* header = file_headers + desc->node->ino;
-    if (desc->offset > header->length)
+    if ((size_t)desc->offset >= header->length)
         return 0;
-    if (desc->offset + size > header->length)
+    if (desc->offset + size >= header->length)
         size = header->length - desc->offset;
 
     memcpy(buffer,
@@ -45,7 +46,7 @@ long initrd_readdir(file_description* desc, void* dirp, unsigned int count) {
             break;
 
         dirent* dent = (dirent*)buf;
-        dent->type = node->type;
+        dent->type = mode_to_dirent_type(node->mode);
         dent->ino = node->ino;
         dent->record_len = size;
         strcpy(dent->name, node->name);
@@ -73,7 +74,7 @@ void initrd_init(uintptr_t addr) {
         memset(node, 0, sizeof(fs_node));
         node->name = kstrndup(file_headers[i].name, 128);
         KASSERT(node->name);
-        node->type = DT_REG;
+        node->mode = S_IFREG;
         node->read = initrd_read;
         node->ino = i;
     }
@@ -90,7 +91,7 @@ fs_node* initrd_create(void) {
     if (!root->name)
         return ERR_PTR(-ENOMEM);
 
-    root->type = DT_DIR;
+    root->mode = S_IFDIR;
     root->lookup = initrd_lookup;
     root->readdir = initrd_readdir;
 

@@ -64,27 +64,63 @@ static noreturn void child_process_entry(void) {
     exit(0);
 }
 
+static void list_dir(malloc_ctx* ctx, const char* path) {
+    int fd = open(path, O_RDWR);
+    ASSERT(IS_OK(fd));
+    uintptr_t buf = (uintptr_t)malloc(ctx, 1024);
+    ASSERT(buf);
+    ssize_t nread = syscall(SYS_getdents, fd, buf, 1024);
+    ASSERT(IS_OK(nread));
+    for (size_t pos = 0; pos < (size_t)nread;) {
+        dirent* dent = (dirent*)(buf + pos);
+        printf("name=_%s_ type=%u ino=%u\n", dent->name, dent->type, dent->ino);
+        pos += dent->record_len;
+    }
+    free(ctx, (void*)buf);
+    ASSERT(IS_OK(close(fd)));
+}
+
+static int create_file(const char* pathname) {
+    int fd = open(pathname, O_RDWR | O_CREAT, 0777);
+    if (IS_ERR(fd))
+        return fd;
+    return close(fd);
+}
+
 int userland_main(void) {
     pid_t ret = fork();
     ASSERT(IS_OK(ret));
     if (ret == 0)
         child_process_entry();
 
-    read_file("/hello.txt");
-    read_file("/foo/bar/baz/foo.txt");
-
     malloc_ctx ctx;
     malloc_init(&ctx);
-    int fd_dir = open("/", O_RDWR);
-    uintptr_t dirs_buf = (uintptr_t)malloc(&ctx, 1024);
-    ASSERT(dirs_buf);
-    ssize_t nread = syscall(SYS_getdents, fd_dir, dirs_buf, 1024);
-    ASSERT(IS_OK(nread));
-    for (size_t pos = 0; pos < (size_t)nread;) {
-        dirent* dent = (dirent*)(dirs_buf + pos);
-        printf("name=_%s_ type=%u ino=%u\n", dent->name, dent->type, dent->ino);
-        pos += dent->record_len;
+    ASSERT(IS_OK(create_file("/tmp/aoo")));
+    ASSERT(IS_OK(create_file("/tmp/eeee")));
+    ASSERT(create_file("/tmp/eeee/aa") == -ENOTDIR);
+    ASSERT(create_file("/tmp/aa/gew") == -ENOENT);
+    {
+        int fd_new = open("/tmp/hoge", O_RDWR | O_CREAT, 0777);
+        ASSERT(IS_OK(fd_new));
+        char buf[1024];
+        int len = sprintf(buf, "foobar");
+        for (int i = 0; i < 2; ++i)
+            ASSERT(IS_OK(write(fd_new, buf, len)));
+        ASSERT(IS_OK(close(fd_new)));
     }
+    {
+        int fd_new = open("/tmp/hoge", O_RDWR);
+        ASSERT(IS_OK(fd_new));
+        char buf[1024];
+        ASSERT(IS_OK(read(fd_new, buf, 1024)));
+        ASSERT(IS_OK(close(fd_new)));
+        printf("%s\n", buf);
+    }
+    list_dir(&ctx, "/tmp/");
+
+    read_file("/hello.txt");
+    read_file("/foo/bar/baz/foo.txt");
+    list_dir(&ctx, "/");
 
     int fd = open("/dev/ttyS1", O_RDWR);
     ASSERT(IS_OK(fd));

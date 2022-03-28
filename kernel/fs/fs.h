@@ -10,7 +10,7 @@
 
 typedef struct file_description {
     fs_node* node;
-    uint32_t offset;
+    off_t offset;
 } file_description;
 
 typedef struct file_descriptor_table {
@@ -22,9 +22,10 @@ int file_descriptor_table_clone_from(file_descriptor_table* to,
                                      const file_descriptor_table* from);
 
 typedef fs_node* (*lookup_fn)(fs_node*, const char* name);
-typedef void (*open_fn)(fs_node*, int flags);
+typedef fs_node* (*create_child_fn)(fs_node*, const char* name, mode_t mode);
+typedef int (*open_fn)(fs_node*, int flags, mode_t mode);
 
-typedef void (*close_fn)(file_description*);
+typedef int (*close_fn)(file_description*);
 typedef ssize_t (*read_fn)(file_description*, void* buffer, size_t count);
 typedef ssize_t (*write_fn)(file_description*, const void* buffer,
                             size_t count);
@@ -36,6 +37,7 @@ typedef long (*readdir_fn)(file_description*, void* dirp, unsigned int count);
 typedef struct fs_node {
     char* name;
     lookup_fn lookup;
+    create_child_fn create_child;
     open_fn open;
     close_fn close;
     read_fn read;
@@ -43,17 +45,19 @@ typedef struct fs_node {
     mmap_fn mmap;
     ioctl_fn ioctl;
     readdir_fn readdir;
-    uint8_t type;
+    mode_t mode;
     union {
         ino_t ino;
         uint32_t device;
+        void* ptr;
     };
 } fs_node;
 
 fs_node* fs_lookup(fs_node*, const char* name);
-void fs_open(fs_node*, int flags);
+fs_node* fs_create_child(fs_node*, const char* name, mode_t mode);
+int fs_open(fs_node*, int flags, mode_t mode);
 
-void fs_close(file_description*);
+int fs_close(file_description*);
 ssize_t fs_read(file_description*, void* buffer, size_t size);
 ssize_t fs_write(file_description*, const void* buffer, size_t size);
 uintptr_t fs_mmap(file_description*, uintptr_t addr, size_t length, int prot,
@@ -63,8 +67,11 @@ long fs_readdir(file_description*, void* dirp, unsigned int count);
 
 void vfs_init(void);
 void vfs_mount(char* path, fs_node* fs);
-fs_node* vfs_open(const char* pathname, int flags);
-fs_node* vfs_lookup(const char* pathname);
+fs_node* vfs_open(const char* pathname, int flags, mode_t mode);
+
+uint8_t mode_to_dirent_type(mode_t);
 
 void initrd_init(uintptr_t addr);
 fs_node* initrd_create(void);
+
+fs_node* tmpfs_create(void);

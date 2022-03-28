@@ -377,8 +377,8 @@ void mem_init(const multiboot_info_t* mb_info) {
 
 int mem_map_to_private_anonymous_region(uintptr_t vaddr, uintptr_t size,
                                         uint16_t flags) {
-    if ((vaddr % PAGE_SIZE) || (size % PAGE_SIZE))
-        return -EINVAL;
+    KASSERT((vaddr % PAGE_SIZE) == 0);
+    KASSERT((size % PAGE_SIZE) == 0);
 
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
         int rc = map_page_anywhere(vaddr + offset, flags);
@@ -391,8 +391,9 @@ int mem_map_to_private_anonymous_region(uintptr_t vaddr, uintptr_t size,
 
 int mem_map_to_shared_physical_range(uintptr_t vaddr, uintptr_t paddr,
                                      uintptr_t size, uint16_t flags) {
-    if ((vaddr % PAGE_SIZE) || (paddr % PAGE_SIZE) || (size % PAGE_SIZE))
-        return -EINVAL;
+    KASSERT((vaddr % PAGE_SIZE) == 0);
+    KASSERT((paddr % PAGE_SIZE) == 0);
+    KASSERT((size % PAGE_SIZE) == 0);
 
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
         int rc = map_page_at_fixed_physical_addr(vaddr + offset, paddr + offset,

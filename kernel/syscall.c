@@ -1,9 +1,9 @@
 #include "api/syscall.h"
-#include "api/dirent.h"
 #include "api/err.h"
 #include "api/errno.h"
 #include "api/fcntl.h"
 #include "api/mman.h"
+#include "api/stat.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
 #include "fs/fs.h"
@@ -72,7 +72,7 @@ static uintptr_t sys_mmap(const mmap_params* params) {
     file_description* desc = process_get_file_description(params->fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    if (desc->node->type == DT_DIR)
+    if (S_ISDIR(desc->node->mode))
         return -ENODEV;
 
     return fs_mmap(desc, vaddr, length, params->prot, params->offset);
@@ -80,11 +80,10 @@ static uintptr_t sys_mmap(const mmap_params* params) {
 
 static uintptr_t sys_puts(const char* str) { return kputs(str); }
 
-static uintptr_t sys_open(const char* pathname, int flags) {
-    fs_node* node = vfs_open(pathname, flags);
+static uintptr_t sys_open(const char* pathname, int flags, unsigned mode) {
+    fs_node* node = vfs_open(pathname, flags, mode);
     if (IS_ERR(node))
         return PTR_ERR(node);
-    fs_open(node, flags);
     return process_alloc_file_descriptor(node);
 }
 
@@ -92,7 +91,11 @@ static uintptr_t sys_close(int fd) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    fs_close(desc);
+
+    int rc = fs_close(desc);
+    if (IS_ERR(rc))
+        return rc;
+
     return process_free_file_descriptor(fd);
 }
 

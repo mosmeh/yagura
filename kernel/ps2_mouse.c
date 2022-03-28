@@ -1,6 +1,6 @@
-#include "api/dirent.h"
 #include "api/err.h"
 #include "api/hid.h"
+#include "api/stat.h"
 #include "asm_wrapper.h"
 #include "fs/fs.h"
 #include "kernel/interrupts.h"
@@ -131,7 +131,7 @@ fs_node* ps2_mouse_device_create(void) {
     if (!node->name)
         return ERR_PTR(-ENOMEM);
 
-    node->type = DT_CHR;
+    node->mode = S_IFCHR;
     node->read = ps2_mouse_device_read;
     return node;
 }

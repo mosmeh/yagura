@@ -19,7 +19,7 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd,
 
 int puts(const char* str);
 
-int open(const char* pathname, int flags);
+int open(const char* pathname, int flags, ...);
 int close(int fd);
 ssize_t read(int fd, void* buf, size_t count);
 ssize_t write(int fd, const void* buf, size_t count);

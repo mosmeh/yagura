@@ -28,7 +28,8 @@ KERNEL_OBJS := \
 	kprintf.o \
 	bochs_graphics.o \
 	fs/fs.o \
-	fs/initrd.o
+	fs/initrd.o \
+	fs/tmpfs.o
 
 COMMON_OBJS := ../common/string.o
 

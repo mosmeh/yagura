@@ -57,13 +57,14 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     initrd_init(initrd_mod->mod_start + KERNEL_VADDR);
 
     vfs_mount("/", initrd_create());
-    vfs_mount("/foo/bar/baz", initrd_create());
     vfs_mount("/dev/ttyS0", serial_device_create(SERIAL_COM1));
     vfs_mount("/dev/ttyS1", serial_device_create(SERIAL_COM2));
     vfs_mount("/dev/ttyS2", serial_device_create(SERIAL_COM3));
     vfs_mount("/dev/ttyS3", serial_device_create(SERIAL_COM4));
     vfs_mount("/dev/fb0", bochs_graphics_device_create());
     vfs_mount("/dev/psaux", ps2_mouse_device_create());
+    vfs_mount("/tmp", tmpfs_create());
+    vfs_mount("/foo/bar/baz", initrd_create());
 
     syscall_init();
     process_init();

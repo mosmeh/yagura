@@ -1,8 +1,10 @@
 #include "syscall.h"
 #include <common/extra.h>
 #include <kernel/api/err.h>
+#include <kernel/api/fcntl.h>
 #include <kernel/api/mman.h>
 #include <kernel/api/syscall.h>
+#include <stdarg.h>
 
 uintptr_t syscall(uint32_t num, uintptr_t arg1, uintptr_t arg2,
                   uintptr_t arg3) {
@@ -45,8 +47,15 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd,
 
 int puts(const char* str) { return syscall(SYS_puts, (uintptr_t)str, 0, 0); }
 
-int open(const char* pathname, int flags) {
-    return syscall(SYS_open, (uintptr_t)pathname, flags, 0);
+int open(const char* pathname, int flags, ...) {
+    unsigned mode = 0;
+    if (flags & O_CREAT) {
+        va_list args;
+        va_start(args, flags);
+        mode = va_arg(args, unsigned);
+        va_end(args);
+    }
+    return syscall(SYS_open, (uintptr_t)pathname, flags, mode);
 }
 
 int close(int fd) { return syscall(SYS_close, fd, 0, 0); }
