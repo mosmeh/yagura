@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/forward.h>
+#include "forward.h"
 #include <stddef.h>
 
 enum { FBIOGET_INFO, FBIOSET_INFO };

@@ -1,8 +1,9 @@
 #include "serial.h"
 #include "asm_wrapper.h"
 #include "kmalloc.h"
+#include "panic.h"
 #include "string.h"
-#include "system.h"
+#include <common/err.h>
 #include <common/string.h>
 #include <common/types.h>
 #include <kernel/fs/fs.h>
@@ -27,10 +28,10 @@ static bool serial_enable_port(uint16_t port) {
 }
 
 void serial_init(void) {
-    serial_enable_port(SERIAL_COM1);
-    serial_enable_port(SERIAL_COM2);
-    serial_enable_port(SERIAL_COM3);
-    serial_enable_port(SERIAL_COM4);
+    KASSERT(serial_enable_port(SERIAL_COM1));
+    KASSERT(serial_enable_port(SERIAL_COM2));
+    KASSERT(serial_enable_port(SERIAL_COM3));
+    KASSERT(serial_enable_port(SERIAL_COM4));
 }
 
 static bool is_transmit_empty(uint16_t port) { return in8(port + 5) & 0x20; }
@@ -69,13 +70,13 @@ static ssize_t serial_device_write(file_description* desc, const void* buffer,
 fs_node* serial_device_create(uint16_t port) {
     fs_node* node = kmalloc(sizeof(fs_node));
     if (!node)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     memset(node, 0, sizeof(fs_node));
 
     node->name = kstrdup("serial_device");
     if (!node->name)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     node->type = FS_CHAR_DEVICE;
     node->read = serial_device_read;

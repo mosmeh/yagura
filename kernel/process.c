@@ -6,7 +6,9 @@
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "mem.h"
+#include "panic.h"
 #include "system.h"
+#include <common/err.h>
 #include <common/extra.h>
 #include <common/string.h>
 #include <stdatomic.h>
@@ -56,7 +58,7 @@ static pid_t get_next_pid(void) {
 static process* create_kernel_process(void (*entry_point)(void)) {
     process* p = kmalloc(sizeof(process));
     if (!p)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     p->id = next_pid++;
     p->heap_next_vaddr = USERLAND_HEAP_START;
@@ -64,15 +66,16 @@ static process* create_kernel_process(void (*entry_point)(void)) {
     p->next = NULL;
 
     p->pd_paddr = mem_clone_current_page_directory_and_get_physical_addr();
-    if (addr_is_error(p->pd_paddr))
-        return NULL;
+    if (IS_ERR(p->pd_paddr))
+        return ERR_CAST(p->pd_paddr);
 
-    if (file_descriptor_table_init(&p->fd_table) < 0)
-        return NULL;
+    int rc = file_descriptor_table_init(&p->fd_table);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
 
     void* stack = kmalloc(STACK_SIZE);
     if (!stack)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
     p->stack_top = (uintptr_t)stack + STACK_SIZE;
     p->esp = p->ebp = p->stack_top;
 
@@ -93,7 +96,7 @@ void process_init(void) {
 
     uintptr_t pd_paddr =
         mem_clone_current_page_directory_and_get_physical_addr();
-    KASSERT(!addr_is_error(pd_paddr));
+    KASSERT(IS_OK(pd_paddr));
     mem_switch_page_directory(pd_paddr);
 
     current = kmalloc(sizeof(process));
@@ -103,12 +106,13 @@ void process_init(void) {
     current->pd_paddr = pd_paddr;
     current->stack_top = (uintptr_t)stack_top;
     current->heap_next_vaddr = USERLAND_HEAP_START;
-    KASSERT(file_descriptor_table_init(&current->fd_table) >= 0);
+    KASSERT(IS_OK(file_descriptor_table_init(&current->fd_table)));
     current->next = NULL;
 
     gdt_set_kernel_stack(current->stack_top);
 
     idle = create_kernel_process(do_idle);
+    KASSERT(IS_OK(idle));
 }
 
 static noreturn void switch_to_next_process(void) {
@@ -162,7 +166,7 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
 
     uintptr_t pd_paddr =
         mem_clone_current_page_directory_and_get_physical_addr();
-    if (addr_is_error(pd_paddr))
+    if (IS_ERR(pd_paddr))
         return pd_paddr;
 
     p->id = next_pid++;
@@ -172,7 +176,7 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
     p->next = NULL;
 
     int rc = file_descriptor_table_init(&p->fd_table);
-    if (rc < 0)
+    if (IS_ERR(rc))
         return rc;
 
     void* stack = kmalloc(STACK_SIZE);
@@ -189,7 +193,7 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
 int process_enter_userland(void (*entry_point)(void)) {
     int rc = mem_map_to_private_anonymous_region(USER_STACK_BASE, STACK_SIZE,
                                                  MEM_WRITE | MEM_USER);
-    if (rc < 0)
+    if (IS_ERR(rc))
         return rc;
 
     __asm__ volatile("movw $0x23, %%ax\n"
@@ -222,7 +226,7 @@ pid_t process_userland_fork(registers* regs) {
 
     uintptr_t pd_paddr =
         mem_clone_current_page_directory_and_get_physical_addr();
-    if (addr_is_error(pd_paddr))
+    if (IS_ERR(pd_paddr))
         return pd_paddr;
 
     p->id = next_pid++;
@@ -232,7 +236,7 @@ pid_t process_userland_fork(registers* regs) {
     p->next = NULL;
 
     int rc = file_descriptor_table_clone_from(&p->fd_table, &current->fd_table);
-    if (rc < 0)
+    if (IS_ERR(rc))
         return rc;
 
     void* stack = kmalloc(STACK_SIZE);
@@ -299,11 +303,11 @@ int process_free_file_descriptor(int fd) {
 
 file_description* process_get_file_description(int fd) {
     if (fd >= FD_TABLE_CAPACITY)
-        return NULL;
+        return ERR_PTR(-EBADF);
 
     file_description* desc = current->fd_table.entries + fd;
     if (!desc->node)
-        return NULL;
+        return ERR_PTR(-EBADF);
 
     return desc;
 }

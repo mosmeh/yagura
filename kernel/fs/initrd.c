@@ -1,8 +1,9 @@
 #include "fs.h"
+#include <common/err.h>
 #include <common/initrd.h>
 #include <common/string.h>
 #include <kernel/kmalloc.h>
-#include <kernel/system.h>
+#include <kernel/panic.h>
 
 static uintptr_t initrd_addr;
 static const initrd_header* header;
@@ -15,10 +16,12 @@ static ssize_t initrd_read(file_description* desc, void* buffer, size_t size) {
         return 0;
     if (desc->offset + size > header->length)
         size = header->length - desc->offset;
+
     memcpy(buffer,
            (void*)(uintptr_t)(initrd_addr + header->offset + desc->offset),
            size);
     desc->offset += size;
+
     return size;
 }
 
@@ -27,7 +30,7 @@ static fs_node* initrd_lookup(fs_node* node, const char* name) {
     for (size_t i = 0; i < header->num_files; ++i)
         if (!strcmp(name, file_nodes[i].name))
             return file_nodes + i;
-    return NULL;
+    return ERR_PTR(-ENOENT);
 }
 
 long initrd_readdir(file_description* desc, void* dirp, unsigned int count) {
@@ -52,6 +55,8 @@ long initrd_readdir(file_description* desc, void* dirp, unsigned int count) {
         count -= size;
     }
 
+    if (nread == 0)
+        return -EINVAL;
     return nread;
 }
 
@@ -76,13 +81,13 @@ void initrd_init(uintptr_t addr) {
 fs_node* initrd_create(void) {
     fs_node* root = kmalloc(sizeof(fs_node));
     if (!root)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     memset(root, 0, sizeof(fs_node));
 
     root->name = kstrdup("initrd");
     if (!root->name)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     root->type = FS_DIRECTORY;
     root->lookup = initrd_lookup;

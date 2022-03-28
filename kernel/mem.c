@@ -5,8 +5,8 @@
 #include "kprintf.h"
 #include "lock.h"
 #include "multiboot.h"
-#include "system.h"
-#include <common/errno.h>
+#include "panic.h"
+#include <common/err.h>
 #include <common/extra.h>
 #include <common/string.h>
 #include <common/syscall.h>
@@ -30,19 +30,24 @@ static void physical_page_bitmap_clear(size_t i) {
     physical_page_bitmap[i >> 5] &= ~(1 << (i & 31));
 }
 
-static size_t physical_page_bitmap_find_first_set(void) {
+static ssize_t physical_page_bitmap_find_first_set(void) {
     for (size_t i = 0; i < physical_page_bitmap_len; ++i) {
         int b = __builtin_ffs(physical_page_bitmap[i]);
         if (b > 0) // b == 0 if physical_page_bitmap[i] == 0
             return (i << 5) | (b - 1);
     }
-    KPANIC("Out of physical memory");
+    return -ENOMEM;
 }
 
 static uintptr_t alloc_physical_page(void) {
     mutex_lock(&physical_page_lock);
 
-    size_t first_set = physical_page_bitmap_find_first_set();
+    ssize_t first_set = physical_page_bitmap_find_first_set();
+    if (IS_ERR(first_set)) {
+        mutex_unlock(&physical_page_lock);
+        return first_set;
+    }
+
     physical_page_bitmap_clear(first_set);
 
     mutex_unlock(&physical_page_lock);
@@ -126,7 +131,7 @@ static page_table* clone_page_table(const volatile page_table* src,
                                     uintptr_t src_vaddr) {
     page_table* dst = kaligned_alloc(PAGE_SIZE, sizeof(page_table));
     if (!dst)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     for (size_t i = 0; i < 1024; ++i) {
         if (!src->entries[i].present) {
@@ -135,6 +140,9 @@ static page_table* clone_page_table(const volatile page_table* src,
         }
 
         uintptr_t dst_physical_addr = alloc_physical_page();
+        if (IS_ERR(dst_physical_addr))
+            return ERR_CAST(dst_physical_addr);
+
         dst->entries[i].raw = dst_physical_addr | (src->entries[i].raw & 0xfff);
 
         uintptr_t mapped_dst_page = quickmap(dst_physical_addr, MEM_WRITE);
@@ -153,6 +161,9 @@ static volatile page_table* get_or_create_page_table(uintptr_t vaddr) {
     bool created = false;
     if (!pde->present) {
         pde->raw = alloc_physical_page();
+        if (IS_ERR(pde->raw))
+            return ERR_CAST(pde->raw);
+
         pde->present = pde->write = pde->user = true;
         created = true;
     }
@@ -181,23 +192,38 @@ static uintptr_t get_physical_addr(uintptr_t vaddr) {
     return (pte->raw & ~0xfff) | (vaddr & 0xfff);
 }
 
-static void map_page_anywhere(uintptr_t vaddr, uint32_t flags) {
+static int map_page_anywhere(uintptr_t vaddr, uint32_t flags) {
     volatile page_table* pt = get_or_create_page_table(vaddr);
+    if (IS_ERR(pt))
+        return PTR_ERR(pt);
+
     volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
     KASSERT(!pte->present);
-    pte->raw = alloc_physical_page() | flags;
+
+    uintptr_t physical_page_addr = alloc_physical_page();
+    if (IS_ERR(physical_page_addr))
+        return physical_page_addr;
+
+    pte->raw = physical_page_addr | flags;
     pte->present = true;
+
     flush_tlb_single(vaddr);
+    return 0;
 }
 
-static void map_page_at_fixed_physical_addr(uintptr_t vaddr, uintptr_t paddr,
-                                            uint32_t flags) {
+static int map_page_at_fixed_physical_addr(uintptr_t vaddr, uintptr_t paddr,
+                                           uint32_t flags) {
     volatile page_table* pt = get_or_create_page_table(vaddr);
+    if (IS_ERR(pt))
+        return PTR_ERR(pt);
+
     volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
     KASSERT(!pte->present);
     pte->raw = paddr | flags;
     pte->present = true;
     flush_tlb_single(vaddr);
+
+    return 0;
 }
 
 extern unsigned char kernel_end[];
@@ -306,8 +332,8 @@ uintptr_t mem_clone_current_page_directory_and_get_physical_addr(void) {
 
         volatile page_table* pt = get_page_table(i);
         page_table* cloned_pt = clone_page_table(pt, i * 0x400000);
-        if (!cloned_pt)
-            return -ENOMEM;
+        if (IS_ERR(cloned_pt))
+            return PTR_ERR(cloned_pt);
 
         dst->entries[i].raw =
             (uintptr_t)get_physical_addr((uintptr_t)cloned_pt) |
@@ -353,8 +379,11 @@ int mem_map_to_private_anonymous_region(uintptr_t vaddr, uintptr_t size,
     if ((vaddr % PAGE_SIZE) || (size % PAGE_SIZE))
         return -EINVAL;
 
-    for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE)
-        map_page_anywhere(vaddr + offset, flags);
+    for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
+        int rc = map_page_anywhere(vaddr + offset, flags);
+        if (IS_ERR(rc))
+            return rc;
+    }
 
     return 0;
 }
@@ -364,8 +393,12 @@ int mem_map_to_shared_physical_range(uintptr_t vaddr, uintptr_t paddr,
     if ((vaddr % PAGE_SIZE) || (paddr % PAGE_SIZE) || (size % PAGE_SIZE))
         return -EINVAL;
 
-    for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE)
-        map_page_at_fixed_physical_addr(vaddr + offset, paddr + offset, flags);
+    for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
+        int rc = map_page_at_fixed_physical_addr(vaddr + offset, paddr + offset,
+                                                 flags);
+        if (IS_ERR(rc))
+            return rc;
+    }
 
     return 0;
 }

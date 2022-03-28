@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include <common/err.h>
 #include <common/extra.h>
 #include <common/syscall.h>
 
@@ -36,7 +37,7 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd,
     params.offset = offset;
 
     uintptr_t ret = syscall(SYS_mmap, (uintptr_t)&params, 0, 0);
-    if (addr_is_error(ret))
+    if (IS_ERR(ret))
         return MAP_FAILED;
     return (void*)ret;
 }

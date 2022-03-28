@@ -9,6 +9,8 @@
 #define O_RDONLY 0x1
 #define O_WRONLY 0x2
 #define O_RDWR (O_RDONLY | O_WRONLY)
+#define O_CREAT 0x8
+#define O_EXCL 0x10
 
 enum fs_node_type { FS_INODE, FS_DIRECTORY, FS_CHAR_DEVICE, FS_BLOCK_DEVICE };
 
@@ -76,7 +78,8 @@ long fs_readdir(file_description*, void* dirp, unsigned int count);
 
 void vfs_init(void);
 void vfs_mount(char* path, fs_node* fs);
-fs_node* vfs_find_node_by_pathname(const char* pathname);
+fs_node* vfs_open(const char* pathname, int flags);
+fs_node* vfs_lookup(const char* pathname);
 
 void initrd_init(uintptr_t addr);
 fs_node* initrd_create(void);

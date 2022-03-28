@@ -12,6 +12,7 @@ KERNEL_OBJS := \
 	interrupt.o \
 	main.o \
 	system.o \
+	panic.o \
 	gdt.o \
 	idt.o \
 	irq.o \

@@ -1,15 +1,14 @@
 #include "fs.h"
-#include <common/errno.h>
+#include <common/err.h>
 #include <common/string.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
-#include <kernel/system.h>
+#include <kernel/panic.h>
 #include <stdbool.h>
 
 fs_node* fs_lookup(fs_node* node, const char* name) {
-    if (!node->lookup)
-        return NULL;
-    KASSERT(node->type == FS_DIRECTORY);
+    if (!node->lookup || node->type != FS_DIRECTORY)
+        return ERR_PTR(-ENOTDIR);
     return node->lookup(node, name);
 }
 
@@ -144,17 +143,32 @@ void vfs_mount(char* path, fs_node* fs) {
     kprintf("Mounted \"%s\" at %s\n", fs->name, path);
 }
 
-fs_node* vfs_find_node_by_pathname(const char* pathname) {
+fs_node* vfs_open(const char* pathname, int flags) {
+    if ((flags & O_RDWR) != O_RDWR)
+        return ERR_PTR(-ENOTSUP);
+
+    fs_node* node = vfs_lookup(pathname);
+    if (IS_OK(node))
+        return node;
+    if (!(flags & O_CREAT) || PTR_ERR(node) != -ENOENT)
+        return node;
+
+    // TODO: create
+    KUNIMPLEMENTED();
+    return node;
+}
+
+fs_node* vfs_lookup(const char* pathname) {
     if (!is_absolute_path(pathname))
-        KUNIMPLEMENTED();
+        return ERR_PTR(-ENOTSUP);
 
     size_t path_len = strlen(pathname);
-    if (path_len == 1) {
+    if (path_len == 1)
         return root.fs;
-    }
 
     char* split_pathname = kstrdup(pathname);
-    KASSERT(split_pathname);
+    if (!split_pathname)
+        return ERR_PTR(-ENOMEM);
     str_replace_char(split_pathname, PATH_SEPARATOR, '\0');
 
     // find a file system having the longest common prefix between their mount
@@ -173,8 +187,8 @@ fs_node* vfs_find_node_by_pathname(const char* pathname) {
     fs_node* fnode = vnode->fs;
     while (component < split_pathname + path_len) {
         fs_node* child = fs_lookup(fnode, component);
-        if (!child)
-            return NULL;
+        if (IS_ERR(child))
+            return child;
 
         fnode = child;
         component += strlen(component) + 1;

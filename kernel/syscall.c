@@ -1,11 +1,15 @@
 #include "asm_wrapper.h"
 #include "boot_defs.h"
+#include "common/errno.h"
 #include "fs/fs.h"
 #include "interrupts.h"
+#include "kmalloc.h"
 #include "kprintf.h"
 #include "mem.h"
+#include "panic.h"
 #include "process.h"
 #include "system.h"
+#include <common/err.h>
 #include <common/extra.h>
 #include <common/string.h>
 #include <common/syscall.h>
@@ -43,7 +47,7 @@ static uintptr_t sys_mmap(const mmap_params* params) {
     size_t length = round_up(params->length, PAGE_SIZE);
 
     uintptr_t vaddr = process_alloc_virtual_address_range(length);
-    if (addr_is_error(vaddr))
+    if (IS_ERR(vaddr))
         return vaddr;
 
     if (params->flags & MAP_ANONYMOUS) {
@@ -52,7 +56,7 @@ static uintptr_t sys_mmap(const mmap_params* params) {
 
         int rc = mem_map_to_private_anonymous_region(
             vaddr, length, mem_prot_to_flags(params->prot));
-        if (rc < 0)
+        if (IS_ERR(rc))
             return rc;
 
         memset((void*)vaddr, 0, length);
@@ -63,8 +67,8 @@ static uintptr_t sys_mmap(const mmap_params* params) {
         return -ENOTSUP;
 
     file_description* desc = process_get_file_description(params->fd);
-    if (!desc)
-        return -EBADF;
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
     if (desc->node->type == FS_DIRECTORY)
         return -ENODEV;
 
@@ -74,55 +78,46 @@ static uintptr_t sys_mmap(const mmap_params* params) {
 static uintptr_t sys_puts(const char* str) { return kputs(str); }
 
 static uintptr_t sys_open(const char* pathname, int flags) {
-    if (flags != O_RDWR)
-        return -ENOTSUP;
-
-    fs_node* node = vfs_find_node_by_pathname(pathname);
-    if (!node)
-        return -ENOENT;
-
+    fs_node* node = vfs_open(pathname, flags);
+    if (IS_ERR(node))
+        return PTR_ERR(node);
     fs_open(node, flags);
     return process_alloc_file_descriptor(node);
 }
 
 static uintptr_t sys_close(int fd) {
     file_description* desc = process_get_file_description(fd);
-    if (!desc)
-        return -EBADF;
-
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
     fs_close(desc);
     return process_free_file_descriptor(fd);
 }
 
 static uintptr_t sys_read(int fd, void* buf, size_t count) {
     file_description* desc = process_get_file_description(fd);
-    if (!desc)
-        return -EBADF;
-
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
     return fs_read(desc, buf, count);
 }
 
 static uintptr_t sys_write(int fd, const void* buf, size_t count) {
     file_description* desc = process_get_file_description(fd);
-    if (!desc)
-        return -EBADF;
-
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
     return fs_write(desc, buf, count);
 }
 
 static uintptr_t sys_ioctl(int fd, int request, void* argp) {
     file_description* desc = process_get_file_description(fd);
-    if (!desc)
-        return -EBADF;
-
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
     return fs_ioctl(desc, request, argp);
 }
 
 static uintptr_t sys_getdents(int fd, void* dirp, size_t count) {
     file_description* desc = process_get_file_description(fd);
-    if (!desc)
-        return -EBADF;
-
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
     return fs_readdir(desc, dirp, count);
 }
 

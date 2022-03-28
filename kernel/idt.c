@@ -2,6 +2,7 @@
 #include "interrupts.h"
 #include "isr_stubs.h"
 #include "kprintf.h"
+#include "panic.h"
 #include "system.h"
 
 typedef struct idt_descriptor {

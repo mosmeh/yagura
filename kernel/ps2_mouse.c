@@ -4,7 +4,8 @@
 #include "kernel/interrupts.h"
 #include "kmalloc.h"
 #include "lock.h"
-#include "system.h"
+#include "panic.h"
+#include <common/err.h>
 #include <common/string.h>
 
 #define PS2_DATA 0x60
@@ -121,13 +122,13 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
 fs_node* ps2_mouse_device_create(void) {
     fs_node* node = kmalloc(sizeof(fs_node));
     if (!node)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     memset(node, 0, sizeof(fs_node));
 
     node->name = kstrdup("ps2_mouse_device");
     if (!node->name)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     node->type = FS_CHAR_DEVICE;
     node->read = ps2_mouse_device_read;

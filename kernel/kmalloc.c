@@ -3,6 +3,7 @@
 #include "lock.h"
 #include "mem.h"
 #include "system.h"
+#include <common/err.h>
 #include <common/extra.h>
 #include <common/string.h>
 #include <stdalign.h>
@@ -34,8 +35,9 @@ void* kaligned_alloc(size_t alignment, size_t size) {
     uintptr_t region_end = round_up(next_ptr, PAGE_SIZE);
     uintptr_t region_size = region_end - region_start;
 
-    if (mem_map_to_private_anonymous_region(region_start, region_size,
-                                            MEM_WRITE) < 0)
+    int rc = mem_map_to_private_anonymous_region(region_start, region_size,
+                                                 MEM_WRITE);
+    if (IS_ERR(rc))
         return NULL;
 
     current_page_start = region_end;
@@ -52,19 +54,23 @@ void* kmalloc(size_t size) {
 }
 
 char* kstrdup(const char* src) {
-    char* buf = kmalloc(strlen(src) * sizeof(char));
+    size_t len = strlen(src);
+    char* buf = kmalloc((len + 1) * sizeof(char));
     if (!buf)
         return NULL;
 
-    strcpy(buf, src);
+    memcpy(buf, src, len);
+    buf[len] = '\0';
     return buf;
 }
 
 char* kstrndup(const char* src, size_t n) {
-    char* buf = kmalloc(strnlen(src, n) * sizeof(char));
+    size_t len = strnlen(src, n);
+    char* buf = kmalloc((len + 1) * sizeof(char));
     if (!buf)
         return NULL;
 
-    strncpy(buf, src, n);
+    memcpy(buf, src, len);
+    buf[len] = '\0';
     return buf;
 }

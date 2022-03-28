@@ -1,15 +1,14 @@
+#include "asm_wrapper.h"
+#include "fs/fs.h"
 #include "graphics.h"
 #include "kernel/mem.h"
+#include "kmalloc.h"
+#include "kprintf.h"
 #include "lock.h"
-#include <common/errno.h>
-#include <common/extra.h>
+#include "panic.h"
+#include "pci.h"
+#include <common/err.h>
 #include <common/string.h>
-#include <kernel/asm_wrapper.h>
-#include <kernel/fs/fs.h>
-#include <kernel/kmalloc.h>
-#include <kernel/kprintf.h>
-#include <kernel/pci.h>
-#include <kernel/system.h>
 
 #define VBE_DISPI_IOPORT_INDEX 0x01ce
 #define VBE_DISPI_IOPORT_DATA 0x01cf
@@ -81,7 +80,7 @@ static uintptr_t bochs_graphics_mmap(file_description* desc, uintptr_t vaddr,
     (void)offset;
     int rc = mem_map_to_shared_physical_range(vaddr, fb_addr, length,
                                               mem_prot_to_flags(prot));
-    if (rc < 0)
+    if (IS_ERR(rc))
         return rc;
     return vaddr;
 }
@@ -113,13 +112,13 @@ static int bochs_graphics_ioctl(file_description* desc, int request,
 fs_node* bochs_graphics_device_create(void) {
     fs_node* node = kmalloc(sizeof(fs_node));
     if (!node)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     memset(node, 0, sizeof(fs_node));
 
     node->name = kstrdup("bochs_graphics_device");
     if (!node->name)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     node->type = FS_BLOCK_DEVICE;
     node->mmap = bochs_graphics_mmap;

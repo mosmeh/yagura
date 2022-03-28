@@ -1,5 +1,6 @@
 #include "asm_wrapper.h"
 #include "interrupts.h"
+#include "panic.h"
 #include "system.h"
 #include <common/extra.h>
 

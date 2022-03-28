@@ -8,9 +8,11 @@
 #include "kprintf.h"
 #include "mem.h"
 #include "multiboot.h"
+#include "panic.h"
 #include "process.h"
 #include "serial.h"
 #include "system.h"
+#include <common/err.h>
 #include <common/extra.h>
 #include <common/string.h>
 #include <common/syscall.h>
@@ -20,12 +22,12 @@
 
 static noreturn void userland_entry(void) {
     pid_t pid_before = getpid();
-    ASSERT(pid_before >= 0);
+    ASSERT(IS_OK(pid_before));
 
     pid_t ret = fork();
-    ASSERT(ret >= 0);
+    ASSERT(IS_OK(ret));
     pid_t pid_after = getpid();
-    ASSERT(pid_after >= 0);
+    ASSERT(IS_OK(pid_after));
 
     if (ret == 0) {
         ASSERT(pid_after > pid_before);
@@ -48,14 +50,14 @@ static noreturn void userland_entry(void) {
 
 static void read_file(const char* filename) {
     int fd = open(filename, O_RDWR);
-    ASSERT(fd >= 0);
+    ASSERT(IS_OK(fd));
     const size_t size = 1024;
     char buf1[size];
     ssize_t nread = read(fd, buf1, size);
-    ASSERT(nread >= 0);
+    ASSERT(IS_OK(nread));
 
     int fd2 = open(filename, O_RDWR);
-    ASSERT(fd2 >= 0);
+    ASSERT(IS_OK(fd2));
     char buf2[size];
     size_t pos = 0;
     for (;;) {
@@ -65,8 +67,8 @@ static void read_file(const char* filename) {
         pos += nread;
     }
 
-    ASSERT(close(fd) >= 0);
-    ASSERT(close(fd2) >= 0);
+    ASSERT(IS_OK(close(fd)));
+    ASSERT(IS_OK(close(fd2)));
 
     ASSERT(!strcmp(buf1, buf2));
 }
@@ -81,7 +83,7 @@ static noreturn void userland_entry2(void) {
     uintptr_t dirs_buf = (uintptr_t)malloc(&ctx, 1024);
     ASSERT(dirs_buf);
     ssize_t nread = syscall(SYS_getdents, fd_dir, dirs_buf, 1024);
-    ASSERT(nread >= 0);
+    ASSERT(IS_OK(nread));
     for (size_t pos = 0; pos < (size_t)nread;) {
         dirent* dent = (dirent*)(dirs_buf + pos);
         printf("name=_%s_ type=%u ino=%u\n", dent->name, dent->type, dent->ino);
@@ -89,13 +91,13 @@ static noreturn void userland_entry2(void) {
     }
 
     int fd = open("/dev/ttyS1", O_RDWR);
-    ASSERT(fd >= 0);
-    ASSERT(close(fd) >= 0);
+    ASSERT(IS_OK(fd));
+    ASSERT(IS_OK(close(fd)));
 
     int fb_fd = open("/dev/fb0", O_RDWR);
-    ASSERT(fb_fd >= 0);
+    ASSERT(IS_OK(fb_fd));
     fb_info info;
-    ASSERT(ioctl(fb_fd, FBIOGET_INFO, &info) >= 0);
+    ASSERT(IS_OK(ioctl(fb_fd, FBIOGET_INFO, &info)));
     uint32_t* fb =
         (uint32_t*)mmap(NULL, info.pitch * info.height, PROT_READ | PROT_WRITE,
                         MAP_SHARED, fb_fd, 0);
@@ -121,8 +123,8 @@ static noreturn void userland_entry2(void) {
             (packet.buttons & MOUSE_BUTTON_LEFT) ? 0xff0000 : 0xffffff;
     }
 
-    ASSERT(close(fb_fd) >= 0);
-    ASSERT(close(ps_fd) >= 0);
+    ASSERT(IS_OK(close(fb_fd)));
+    ASSERT(IS_OK(close(ps_fd)));
 
     exit(123);
 }
@@ -134,7 +136,7 @@ static noreturn void kernel_process_entry2(void) {
 
 static noreturn void kernel_process_entry(void) {
     pid_t pid = process_get_pid();
-    KASSERT(pid >= 0);
+    KASSERT(IS_OK(pid));
     process_spawn_kernel_process(kernel_process_entry2);
     process_enter_userland(userland_entry);
     process_exit(1);
@@ -182,8 +184,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     pit_init(UINT32_MAX);
     kprintf("\x1b[32mInitialization done\x1b[m\n");
 
-    pid_t ret = process_spawn_kernel_process(kernel_process_entry);
-    KASSERT(ret >= 0);
+    KASSERT(IS_OK(process_spawn_kernel_process(kernel_process_entry)));
 
     process_exit(0);
 }
