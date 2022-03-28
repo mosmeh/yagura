@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kernel/api/socket.h>
 #include <kernel/api/types.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -24,3 +25,9 @@ int close(int fd);
 ssize_t read(int fd, void* buf, size_t count);
 ssize_t write(int fd, const void* buf, size_t count);
 int ioctl(int fd, int request, void* argp);
+
+int socket(int domain, int type, int protocol);
+int bind(int sockfd, const sockaddr* addr, socklen_t addrlen);
+int listen(int sockfd, int backlog);
+int accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen);
+int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen);

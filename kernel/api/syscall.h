@@ -18,7 +18,12 @@
     F(read)                                                                    \
     F(write)                                                                   \
     F(ioctl)                                                                   \
-    F(getdents)
+    F(getdents)                                                                \
+    F(socket)                                                                  \
+    F(bind)                                                                    \
+    F(listen)                                                                  \
+    F(accept)                                                                  \
+    F(connect)
 
 enum {
 #define DEFINE_ITEM(name) SYS_##name,

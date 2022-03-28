@@ -71,3 +71,23 @@ ssize_t write(int fd, const void* buf, size_t count) {
 int ioctl(int fd, int request, void* argp) {
     return syscall(SYS_ioctl, fd, request, (uintptr_t)argp);
 }
+
+int socket(int domain, int type, int protocol) {
+    return syscall(SYS_socket, domain, type, protocol);
+}
+
+int bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
+    return syscall(SYS_bind, sockfd, (uintptr_t)addr, addrlen);
+}
+
+int listen(int sockfd, int backlog) {
+    return syscall(SYS_listen, sockfd, backlog, 0);
+}
+
+int accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
+    return syscall(SYS_accept, sockfd, (uintptr_t)addr, (uintptr_t)addrlen);
+}
+
+int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
+    return syscall(SYS_connect, sockfd, (uintptr_t)addr, addrlen);
+}

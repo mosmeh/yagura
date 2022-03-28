@@ -1,0 +1,56 @@
+#include <kernel/api/errno.h>
+#include <kernel/api/syscall.h>
+#include <kernel/interrupts.h>
+#include <kernel/kprintf.h>
+#include <kernel/panic.h>
+#include <kernel/system.h>
+
+noreturn uintptr_t sys_halt(void) {
+    kprintf("System halted\n");
+    cli();
+    for (;;)
+        hlt();
+}
+
+uintptr_t sys_puts(const char* str) { return kputs(str); }
+
+#define DECLARE_FUNC(name) uintptr_t sys_##name();
+ENUMERATE_SYSCALLS(DECLARE_FUNC)
+#undef DECLARE_FUNC
+
+typedef uintptr_t (*syscall_handler_fn)();
+
+static syscall_handler_fn syscall_handlers[NUM_SYSCALLS + 1] = {
+#define ENUM_ITEM(name) sys_##name,
+    ENUMERATE_SYSCALLS(ENUM_ITEM)
+#undef ENUM_ITEM
+        NULL};
+
+static void syscall_handler(registers* regs) {
+    KASSERT((regs->cs & 3) == 3);
+    KASSERT((regs->ds & 3) == 3);
+    KASSERT((regs->es & 3) == 3);
+    KASSERT((regs->fs & 3) == 3);
+    KASSERT((regs->gs & 3) == 3);
+    KASSERT((regs->user_ss & 3) == 3);
+    KASSERT(interrupts_enabled());
+
+    if (regs->eax >= NUM_SYSCALLS) {
+        regs->eax = -ENOSYS;
+        return;
+    }
+
+    syscall_handler_fn handler = syscall_handlers[regs->eax];
+    KASSERT(handler);
+
+    if (regs->eax == SYS_fork)
+        regs->eax = handler(regs);
+    else
+        regs->eax = handler(regs->edx, regs->ecx, regs->ebx);
+}
+
+void syscall_init(void) {
+    idt_register_interrupt_handler(SYSCALL_VECTOR, syscall_handler);
+    idt_set_gate_user_callable(SYSCALL_VECTOR);
+    idt_flush();
+}

@@ -1,3 +1,4 @@
+#include "kernel/api/socket.h"
 #include "stdlib.h"
 #include "syscall.h"
 #include <common/extra.h>
@@ -80,8 +81,8 @@ static void list_dir(malloc_ctx* ctx, const char* path) {
     ASSERT(IS_OK(close(fd)));
 }
 
-static int create_file(const char* pathname) {
-    int fd = open(pathname, O_RDWR | O_CREAT, 0777);
+static int create_file(const char* pathname, int extra_flags) {
+    int fd = open(pathname, extra_flags | O_RDWR | O_CREAT, 0777);
     if (IS_ERR(fd))
         return fd;
     return close(fd);
@@ -93,12 +94,19 @@ int userland_main(void) {
     if (ret == 0)
         child_process_entry();
 
+    int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    ASSERT(IS_OK(sockfd));
+    sockaddr_un addr = {AF_UNIX, "/tmp/uds"};
+    ASSERT(IS_OK(bind(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un))));
+
     malloc_ctx ctx;
     malloc_init(&ctx);
-    ASSERT(IS_OK(create_file("/tmp/aoo")));
-    ASSERT(IS_OK(create_file("/tmp/eeee")));
-    ASSERT(create_file("/tmp/eeee/aa") == -ENOTDIR);
-    ASSERT(create_file("/tmp/aa/gew") == -ENOENT);
+    ASSERT(IS_OK(create_file("/tmp/aoo", 0)));
+    ASSERT(IS_OK(create_file("/tmp/eeee", 0)));
+    ASSERT(IS_OK(create_file("/tmp/eeee", 0)));
+    ASSERT(create_file("/tmp/eeee", O_EXCL) == -EEXIST);
+    ASSERT(create_file("/tmp/eeee/aa", 0) == -ENOTDIR);
+    ASSERT(create_file("/tmp/aa/gew", 0) == -ENOENT);
     {
         int fd_new = open("/tmp/hoge", O_RDWR | O_CREAT, 0777);
         ASSERT(IS_OK(fd_new));

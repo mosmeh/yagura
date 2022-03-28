@@ -20,14 +20,19 @@ KERNEL_OBJS := \
 	mem.o \
 	kmalloc.o \
 	process.o \
-	syscall.o \
 	lock.o \
 	serial.o \
 	ps2_mouse.o \
 	pci.o \
 	kprintf.o \
 	bochs_graphics.o \
+	syscall/syscall.o \
+	syscall/process.o \
+	syscall/mmap.o \
+	syscall/file.o \
+	syscall/socket.o \
 	fs/fs.o \
+	fs/vfs.o \
 	fs/initrd.o \
 	fs/tmpfs.o
 
