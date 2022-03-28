@@ -1,3 +1,4 @@
+#include "api/dirent.h"
 #include "api/err.h"
 #include "api/fb.h"
 #include "asm_wrapper.h"
@@ -121,7 +122,7 @@ fs_node* bochs_graphics_device_create(void) {
     if (!node->name)
         return ERR_PTR(-ENOMEM);
 
-    node->type = FS_BLOCK_DEVICE;
+    node->type = DT_BLK;
     node->mmap = bochs_graphics_mmap;
     node->ioctl = bochs_graphics_ioctl;
     return node;

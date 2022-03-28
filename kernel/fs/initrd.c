@@ -73,7 +73,7 @@ void initrd_init(uintptr_t addr) {
         memset(node, 0, sizeof(fs_node));
         node->name = kstrndup(file_headers[i].name, 128);
         KASSERT(node->name);
-        node->type = FS_INODE;
+        node->type = DT_REG;
         node->read = initrd_read;
         node->ino = i;
     }
@@ -90,7 +90,7 @@ fs_node* initrd_create(void) {
     if (!root->name)
         return ERR_PTR(-ENOMEM);
 
-    root->type = FS_DIRECTORY;
+    root->type = DT_DIR;
     root->lookup = initrd_lookup;
     root->readdir = initrd_readdir;
 

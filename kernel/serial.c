@@ -1,4 +1,5 @@
 #include "serial.h"
+#include "api/dirent.h"
 #include "api/err.h"
 #include "api/types.h"
 #include "asm_wrapper.h"
@@ -78,7 +79,7 @@ fs_node* serial_device_create(uint16_t port) {
     if (!node->name)
         return ERR_PTR(-ENOMEM);
 
-    node->type = FS_CHAR_DEVICE;
+    node->type = DT_CHR;
     node->read = serial_device_read;
     node->write = serial_device_write;
     node->device = port;

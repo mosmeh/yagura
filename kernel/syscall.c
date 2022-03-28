@@ -1,4 +1,5 @@
 #include "api/syscall.h"
+#include "api/dirent.h"
 #include "api/err.h"
 #include "api/errno.h"
 #include "api/fcntl.h"
@@ -71,7 +72,7 @@ static uintptr_t sys_mmap(const mmap_params* params) {
     file_description* desc = process_get_file_description(params->fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    if (desc->node->type == FS_DIRECTORY)
+    if (desc->node->type == DT_DIR)
         return -ENODEV;
 
     return fs_mmap(desc, vaddr, length, params->prot, params->offset);

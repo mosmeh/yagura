@@ -6,8 +6,6 @@
 
 #define PATH_SEPARATOR '/'
 
-enum fs_node_type { FS_INODE, FS_DIRECTORY, FS_CHAR_DEVICE, FS_BLOCK_DEVICE };
-
 #define FD_TABLE_CAPACITY 1024
 
 typedef struct file_description {
@@ -37,7 +35,6 @@ typedef long (*readdir_fn)(file_description*, void* dirp, unsigned int count);
 
 typedef struct fs_node {
     char* name;
-    uint32_t type;
     lookup_fn lookup;
     open_fn open;
     close_fn close;
@@ -46,6 +43,7 @@ typedef struct fs_node {
     mmap_fn mmap;
     ioctl_fn ioctl;
     readdir_fn readdir;
+    uint8_t type;
     union {
         ino_t ino;
         uint32_t device;

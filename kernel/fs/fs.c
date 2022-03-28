@@ -1,5 +1,6 @@
 #include "fs.h"
 #include <common/string.h>
+#include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/kmalloc.h>
@@ -8,7 +9,7 @@
 #include <stdbool.h>
 
 fs_node* fs_lookup(fs_node* node, const char* name) {
-    if (!node->lookup || node->type != FS_DIRECTORY)
+    if (!node->lookup || node->type != DT_DIR)
         return ERR_PTR(-ENOTDIR);
     return node->lookup(node, name);
 }
@@ -56,7 +57,7 @@ int fs_ioctl(file_description* desc, int request, void* argp) {
 
 long fs_readdir(file_description* desc, void* dirp, unsigned int count) {
     fs_node* node = desc->node;
-    if (!node->readdir || node->type != FS_DIRECTORY)
+    if (!node->readdir || node->type != DT_DIR)
         return -ENOTDIR;
     return node->readdir(desc, dirp, count);
 }
