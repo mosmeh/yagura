@@ -50,15 +50,43 @@ static void read_file(const char* filename) {
     int fd = open(filename, O_RDWR);
     ASSERT(fd >= 0);
     const size_t size = 1024;
-    char buf[size];
-    ssize_t nread = read(fd, buf, size);
+    char buf1[size];
+    ssize_t nread = read(fd, buf1, size);
     ASSERT(nread >= 0);
+
+    int fd2 = open(filename, O_RDWR);
+    ASSERT(fd2 >= 0);
+    char buf2[size];
+    size_t pos = 0;
+    for (;;) {
+        ssize_t nread = read(fd2, buf2 + pos, 1);
+        if (nread == 0)
+            break;
+        pos += nread;
+    }
+
     ASSERT(close(fd) >= 0);
+    ASSERT(close(fd2) >= 0);
+
+    ASSERT(!strcmp(buf1, buf2));
 }
 
 static noreturn void userland_entry2(void) {
     read_file("/hello.txt");
     read_file("/foo/bar/baz/foo.txt");
+
+    malloc_ctx ctx;
+    malloc_init(&ctx);
+    int fd_dir = open("/", O_RDWR);
+    uintptr_t dirs_buf = (uintptr_t)malloc(&ctx, 1024);
+    ASSERT(dirs_buf);
+    ssize_t nread = syscall(SYS_getdents, fd_dir, dirs_buf, 1024);
+    ASSERT(nread >= 0);
+    for (size_t pos = 0; pos < (size_t)nread;) {
+        dirent* dent = (dirent*)(dirs_buf + pos);
+        printf("name=_%s_ type=%u ino=%u\n", dent->name, dent->type, dent->ino);
+        pos += dent->record_len;
+    }
 
     int fd = open("/dev/ttyS1", O_RDWR);
     ASSERT(fd >= 0);

@@ -10,52 +10,7 @@
 #define O_WRONLY 0x2
 #define O_RDWR (O_RDONLY | O_WRONLY)
 
-enum fs_node_type { FS_FILE, FS_DIRECTORY, FS_CHAR_DEVICE, FS_BLOCK_DEVICE };
-
-typedef struct dirent {
-    char* name;
-    uint32_t ino;
-} dirent;
-
-typedef ssize_t (*read_fn)(fs_node*, off_t offset, size_t size, void* buffer);
-typedef ssize_t (*write_fn)(fs_node*, off_t offset, size_t size,
-                            const void* buffer);
-typedef void (*open_fn)(fs_node*, int flags);
-typedef void (*close_fn)(fs_node*);
-typedef struct dirent* (*readdir_fn)(fs_node*, size_t index);
-typedef fs_node* (*finddir_fn)(fs_node*, const char* name);
-typedef uintptr_t (*mmap_fn)(fs_node*, uintptr_t virtual_addr, size_t length,
-                             int prot, off_t offset);
-typedef int (*ioctl_fn)(fs_node*, int request, void* argp);
-
-typedef struct fs_node {
-    uint32_t flags;
-    uint32_t inode;
-    uint32_t length;
-    read_fn read;
-    write_fn write;
-    open_fn open;
-    close_fn close;
-    readdir_fn readdir;
-    finddir_fn finddir;
-    mmap_fn mmap;
-    ioctl_fn ioctl;
-    char* name;
-} fs_node;
-
-ssize_t fs_read(fs_node*, off_t offset, size_t size, void* buffer);
-ssize_t fs_write(fs_node*, off_t offset, size_t size, const void* buffer);
-void fs_open(fs_node*, int flags);
-void fs_close(fs_node*);
-dirent* fs_readdir(fs_node*, size_t index);
-fs_node* fs_finddir(fs_node*, const char* name);
-uintptr_t fs_mmap(fs_node*, uintptr_t virtual_addr, size_t length, int prot,
-                  off_t offset);
-int fs_ioctl(fs_node*, int request, void* argp);
-
-void vfs_init(void);
-void vfs_mount(char* path, fs_node* fs);
-fs_node* vfs_find_by_pathname(const char* pathname);
+enum fs_node_type { FS_INODE, FS_DIRECTORY, FS_CHAR_DEVICE, FS_BLOCK_DEVICE };
 
 #define FD_TABLE_CAPACITY 1024
 
@@ -72,5 +27,56 @@ int file_descriptor_table_init(file_descriptor_table*);
 int file_descriptor_table_clone_from(file_descriptor_table* to,
                                      const file_descriptor_table* from);
 
-void initrd_init(uintptr_t paddr);
+typedef struct dirent {
+    uint32_t type;
+    ino_t ino;
+    size_t record_len;
+    char name[];
+} dirent;
+
+typedef fs_node* (*lookup_fn)(fs_node*, const char* name);
+typedef void (*open_fn)(fs_node*, int flags);
+
+typedef void (*close_fn)(file_description*);
+typedef ssize_t (*read_fn)(file_description*, void* buffer, size_t count);
+typedef ssize_t (*write_fn)(file_description*, const void* buffer,
+                            size_t count);
+typedef uintptr_t (*mmap_fn)(file_description*, uintptr_t addr, size_t length,
+                             int prot, off_t offset);
+typedef int (*ioctl_fn)(file_description*, int request, void* argp);
+typedef long (*readdir_fn)(file_description*, void* dirp, unsigned int count);
+
+typedef struct fs_node {
+    char* name;
+    uint32_t type;
+    lookup_fn lookup;
+    open_fn open;
+    close_fn close;
+    read_fn read;
+    write_fn write;
+    mmap_fn mmap;
+    ioctl_fn ioctl;
+    readdir_fn readdir;
+    union {
+        ino_t ino;
+        uint32_t device;
+    };
+} fs_node;
+
+fs_node* fs_lookup(fs_node*, const char* name);
+void fs_open(fs_node*, int flags);
+
+void fs_close(file_description*);
+ssize_t fs_read(file_description*, void* buffer, size_t size);
+ssize_t fs_write(file_description*, const void* buffer, size_t size);
+uintptr_t fs_mmap(file_description*, uintptr_t addr, size_t length, int prot,
+                  off_t offset);
+int fs_ioctl(file_description*, int request, void* argp);
+long fs_readdir(file_description*, void* dirp, unsigned int count);
+
+void vfs_init(void);
+void vfs_mount(char* path, fs_node* fs);
+fs_node* vfs_find_node_by_pathname(const char* pathname);
+
+void initrd_init(uintptr_t addr);
 fs_node* initrd_create(void);

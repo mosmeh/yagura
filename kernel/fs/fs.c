@@ -6,18 +6,11 @@
 #include <kernel/system.h>
 #include <stdbool.h>
 
-ssize_t fs_read(fs_node* node, off_t offset, size_t size, void* buffer) {
-    if (!node->read)
-        return 0;
-
-    return node->read(node, offset, size, buffer);
-}
-
-ssize_t fs_write(fs_node* node, off_t offset, size_t size, const void* buffer) {
-    if (!node->write)
-        return 0;
-
-    return node->write(node, offset, size, buffer);
+fs_node* fs_lookup(fs_node* node, const char* name) {
+    if (!node->lookup)
+        return NULL;
+    KASSERT(node->type == FS_DIRECTORY);
+    return node->lookup(node, name);
 }
 
 void fs_open(fs_node* node, int flags) {
@@ -25,39 +18,47 @@ void fs_open(fs_node* node, int flags) {
         node->open(node, flags);
 }
 
-void fs_close(fs_node* node) {
+void fs_close(file_description* desc) {
+    fs_node* node = desc->node;
     if (node->close)
-        node->close(node);
+        node->close(desc);
 }
 
-dirent* fs_readdir(fs_node* node, size_t index) {
-    if (!node->readdir)
-        return NULL;
-
-    return node->readdir(node, index);
+ssize_t fs_read(file_description* desc, void* buffer, size_t size) {
+    fs_node* node = desc->node;
+    if (!node->read)
+        return 0;
+    return node->read(desc, buffer, size);
 }
 
-fs_node* fs_finddir(fs_node* node, const char* name) {
-    if (!node->finddir)
-        return NULL;
-
-    return node->finddir(node, name);
+ssize_t fs_write(file_description* desc, const void* buffer, size_t size) {
+    fs_node* node = desc->node;
+    if (!node->write)
+        return 0;
+    return node->write(desc, buffer, size);
 }
 
-uintptr_t fs_mmap(fs_node* node, uintptr_t vaddr, size_t length, int prot,
-                  off_t offset) {
+uintptr_t fs_mmap(file_description* desc, uintptr_t vaddr, size_t length,
+                  int prot, off_t offset) {
+    fs_node* node = desc->node;
     if (!node->mmap)
         return -ENODEV;
-
-    return node->mmap(node, vaddr, length, prot, offset);
+    return node->mmap(desc, vaddr, length, prot, offset);
 }
 
-int fs_ioctl(fs_node* node, int request, void* argp) {
+int fs_ioctl(file_description* desc, int request, void* argp) {
+    fs_node* node = desc->node;
     if (!node->ioctl)
         return -ENOTTY;
-
-    node->ioctl(node, request, argp);
+    node->ioctl(desc, request, argp);
     return 0;
+}
+
+long fs_readdir(file_description* desc, void* dirp, unsigned int count) {
+    fs_node* node = desc->node;
+    if (!node->readdir || node->type != FS_DIRECTORY)
+        return -ENOTDIR;
+    return node->readdir(desc, dirp, count);
 }
 
 typedef struct vfs_node {
@@ -143,7 +144,7 @@ void vfs_mount(char* path, fs_node* fs) {
     kprintf("Mounted \"%s\" at %s\n", fs->name, path);
 }
 
-fs_node* vfs_find_by_pathname(const char* pathname) {
+fs_node* vfs_find_node_by_pathname(const char* pathname) {
     if (!is_absolute_path(pathname))
         KUNIMPLEMENTED();
 
@@ -171,7 +172,7 @@ fs_node* vfs_find_by_pathname(const char* pathname) {
 
     fs_node* fnode = vnode->fs;
     while (component < split_pathname + path_len) {
-        fs_node* child = fs_finddir(fnode, component);
+        fs_node* child = fs_lookup(fnode, component);
         if (!child)
             return NULL;
 

@@ -17,7 +17,8 @@
     F(close)                                                                   \
     F(read)                                                                    \
     F(write)                                                                   \
-    F(ioctl)
+    F(ioctl)                                                                   \
+    F(getdents)
 
 enum {
 #define DEFINE_ITEM(name) SYS_##name,

@@ -97,10 +97,9 @@ void ps2_mouse_init(void) {
     mutex_init(&queue_lock);
 }
 
-static ssize_t ps2_mouse_device_read(fs_node* node, off_t offset, size_t size,
-                                     void* buffer) {
-    (void)node;
-    (void)offset;
+static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
+                                     size_t size) {
+    (void)desc;
 
     size_t nread = 0;
     mouse_packet* out = (mouse_packet*)buffer;
@@ -130,7 +129,7 @@ fs_node* ps2_mouse_device_create(void) {
     if (!node->name)
         return NULL;
 
-    node->flags = FS_CHAR_DEVICE;
+    node->type = FS_CHAR_DEVICE;
     node->read = ps2_mouse_device_read;
     return node;
 }

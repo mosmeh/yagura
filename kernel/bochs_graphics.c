@@ -75,9 +75,9 @@ void bochs_graphics_init(void) {
     mutex_init(&lock);
 }
 
-static uintptr_t bochs_graphics_mmap(fs_node* node, uintptr_t vaddr,
+static uintptr_t bochs_graphics_mmap(file_description* desc, uintptr_t vaddr,
                                      size_t length, int prot, off_t offset) {
-    (void)node;
+    (void)desc;
     (void)offset;
     int rc = mem_map_to_shared_physical_range(vaddr, fb_addr, length,
                                               mem_prot_to_flags(prot));
@@ -86,8 +86,9 @@ static uintptr_t bochs_graphics_mmap(fs_node* node, uintptr_t vaddr,
     return vaddr;
 }
 
-static int bochs_graphics_ioctl(fs_node* node, int request, void* argp) {
-    (void)node;
+static int bochs_graphics_ioctl(file_description* desc, int request,
+                                void* argp) {
+    (void)desc;
 
     switch (request) {
     case FBIOGET_INFO: {
@@ -120,7 +121,7 @@ fs_node* bochs_graphics_device_create(void) {
     if (!node->name)
         return NULL;
 
-    node->flags = FS_BLOCK_DEVICE;
+    node->type = FS_BLOCK_DEVICE;
     node->mmap = bochs_graphics_mmap;
     node->ioctl = bochs_graphics_ioctl;
     return node;

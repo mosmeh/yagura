@@ -65,10 +65,10 @@ static uintptr_t sys_mmap(const mmap_params* params) {
     file_description* desc = process_get_file_description(params->fd);
     if (!desc)
         return -EBADF;
-    if (desc->node->flags == FS_DIRECTORY)
+    if (desc->node->type == FS_DIRECTORY)
         return -ENODEV;
 
-    return fs_mmap(desc->node, vaddr, length, params->prot, params->offset);
+    return fs_mmap(desc, vaddr, length, params->prot, params->offset);
 }
 
 static uintptr_t sys_puts(const char* str) { return kputs(str); }
@@ -77,7 +77,7 @@ static uintptr_t sys_open(const char* pathname, int flags) {
     if (flags != O_RDWR)
         return -ENOTSUP;
 
-    fs_node* node = vfs_find_by_pathname(pathname);
+    fs_node* node = vfs_find_node_by_pathname(pathname);
     if (!node)
         return -ENOENT;
 
@@ -90,7 +90,7 @@ static uintptr_t sys_close(int fd) {
     if (!desc)
         return -EBADF;
 
-    fs_close(desc->node);
+    fs_close(desc);
     return process_free_file_descriptor(fd);
 }
 
@@ -99,9 +99,7 @@ static uintptr_t sys_read(int fd, void* buf, size_t count) {
     if (!desc)
         return -EBADF;
 
-    size_t nread = fs_read(desc->node, desc->offset, count, buf);
-    desc->offset += nread;
-    return nread;
+    return fs_read(desc, buf, count);
 }
 
 static uintptr_t sys_write(int fd, const void* buf, size_t count) {
@@ -109,9 +107,7 @@ static uintptr_t sys_write(int fd, const void* buf, size_t count) {
     if (!desc)
         return -EBADF;
 
-    size_t nwritten = fs_write(desc->node, desc->offset, count, buf);
-    desc->offset += nwritten;
-    return nwritten;
+    return fs_write(desc, buf, count);
 }
 
 static uintptr_t sys_ioctl(int fd, int request, void* argp) {
@@ -119,7 +115,15 @@ static uintptr_t sys_ioctl(int fd, int request, void* argp) {
     if (!desc)
         return -EBADF;
 
-    return fs_ioctl(desc->node, request, argp);
+    return fs_ioctl(desc, request, argp);
+}
+
+static uintptr_t sys_getdents(int fd, void* dirp, size_t count) {
+    file_description* desc = process_get_file_description(fd);
+    if (!desc)
+        return -EBADF;
+
+    return fs_readdir(desc, dirp, count);
 }
 
 typedef uintptr_t (*syscall_handler_fn)();

@@ -48,22 +48,21 @@ void serial_write(uint16_t port, char c) {
     write_char(port, c);
 }
 
-static ssize_t serial_device_read(fs_node* node, off_t offset, size_t size,
-                                  void* buffer) {
-    (void)node;
-    (void)offset;
+static ssize_t serial_device_read(file_description* desc, void* buffer,
+                                  size_t size) {
+    (void)desc;
     (void)size;
     (void)buffer;
     KUNIMPLEMENTED();
     return 0;
 }
 
-static ssize_t serial_device_write(fs_node* node, off_t offset, size_t size,
-                                   const void* buffer) {
-    (void)offset;
+static ssize_t serial_device_write(file_description* desc, const void* buffer,
+                                   size_t size) {
+    uint16_t port = desc->node->device;
     char* chars = (char*)buffer;
     for (size_t i = 0; i < size; ++i)
-        serial_write(node->inode, chars[i]);
+        serial_write(port, chars[i]);
     return size;
 }
 
@@ -78,9 +77,9 @@ fs_node* serial_device_create(uint16_t port) {
     if (!node->name)
         return NULL;
 
-    node->flags = FS_CHAR_DEVICE;
-    node->inode = port;
+    node->type = FS_CHAR_DEVICE;
     node->read = serial_device_read;
     node->write = serial_device_write;
+    node->device = port;
     return node;
 }

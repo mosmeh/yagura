@@ -15,9 +15,11 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Could not open file \"initrd\"\n");
         return EXIT_FAILURE;
     }
-    fwrite(&num_files, sizeof(uint32_t), 1, out);
+    initrd_header header = {num_files};
+    fwrite(&header, sizeof(initrd_header), 1, out);
 
-    uint32_t offset = 0;
+    uint32_t offset =
+        sizeof(initrd_header) + num_files * sizeof(initrd_file_header);
     uint32_t* lengths = malloc(num_files * sizeof(uint32_t));
     for (size_t i = 0; i < num_files; ++i) {
         char* filepath = argv[i + 2];
@@ -29,20 +31,20 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
 
-        initrd_file_header header;
-        strncpy(header.name, basename(filepath), 127);
-        header.name[127] = '\0';
-        header.offset = offset;
+        initrd_file_header file_header;
+        strncpy(file_header.name, basename(filepath), 127);
+        file_header.name[127] = '\0';
+        file_header.offset = offset;
 
         fseek(file, 0, SEEK_END);
-        header.length = ftell(file);
+        file_header.length = ftell(file);
 
         fclose(file);
 
-        fwrite(&header, 1, sizeof(initrd_file_header), out);
+        fwrite(&file_header, 1, sizeof(initrd_file_header), out);
 
-        offset += header.length;
-        lengths[i] = header.length;
+        offset += file_header.length;
+        lengths[i] = file_header.length;
     }
 
     for (size_t i = 0; i < num_files; ++i) {
