@@ -8,40 +8,41 @@ CFLAGS := \
 	-O2 -g
 
 KERNEL_OBJS := \
+	bochs_graphics.o \
 	boot.o \
-	interrupt.o \
-	main.o \
-	system.o \
-	panic.o \
+	fs/fs.o \
+	fs/initrd.o \
+	fs/tmpfs.o \
+	fs/vfs.o \
 	gdt.o \
 	idt.o \
+	interrupt.o \
 	irq.o \
-	pit.o \
-	mem.o \
 	kmalloc.o \
-	process.o \
-	lock.o \
-	serial.o \
-	ps2_mouse.o \
-	pci.o \
 	kprintf.o \
-	bochs_graphics.o \
-	syscall/syscall.o \
-	syscall/process.o \
-	syscall/mmap.o \
+	lock.o \
+	main.o \
+	mem.o \
+	panic.o \
+	pci.o \
+	pit.o \
+	process.o \
+	ps2_mouse.o \
+	serial.o \
 	syscall/file.o \
+	syscall/mmap.o \
+	syscall/process.o \
 	syscall/socket.o \
-	fs/fs.o \
-	fs/vfs.o \
-	fs/initrd.o \
-	fs/tmpfs.o
+	syscall/syscall.o \
+	system.o \
+	unix_socket.o
 
 COMMON_OBJS := ../common/string.o
 
 USERLAND_OBJS := \
 	../userland/main.o \
-	../userland/syscall.o \
-	../userland/stdlib.o
+	../userland/stdlib.o \
+	../userland/syscall.o
 
 OBJS := $(KERNEL_OBJS) $(COMMON_OBJS) $(USERLAND_OBJS)
 

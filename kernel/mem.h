@@ -5,6 +5,7 @@
 
 #define MEM_WRITE 0x2
 #define MEM_USER 0x4
+#define MEM_GLOBAL 0x100
 
 void mem_init(const multiboot_info_t*);
 

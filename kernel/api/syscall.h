@@ -6,24 +6,24 @@
 #define SYSCALL_VECTOR 0x81
 
 #define ENUMERATE_SYSCALLS(F)                                                  \
+    F(accept)                                                                  \
+    F(bind)                                                                    \
+    F(close)                                                                   \
+    F(connect)                                                                 \
     F(exit)                                                                    \
     F(fork)                                                                    \
-    F(getpid)                                                                  \
-    F(yield)                                                                   \
-    F(halt)                                                                    \
-    F(mmap)                                                                    \
-    F(puts)                                                                    \
-    F(open)                                                                    \
-    F(close)                                                                   \
-    F(read)                                                                    \
-    F(write)                                                                   \
-    F(ioctl)                                                                   \
     F(getdents)                                                                \
-    F(socket)                                                                  \
-    F(bind)                                                                    \
+    F(getpid)                                                                  \
+    F(halt)                                                                    \
+    F(ioctl)                                                                   \
     F(listen)                                                                  \
-    F(accept)                                                                  \
-    F(connect)
+    F(mmap)                                                                    \
+    F(open)                                                                    \
+    F(puts)                                                                    \
+    F(read)                                                                    \
+    F(socket)                                                                  \
+    F(write)                                                                   \
+    F(yield)
 
 enum {
 #define DEFINE_ITEM(name) SYS_##name,

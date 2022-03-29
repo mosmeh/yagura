@@ -14,7 +14,6 @@
 #define DT_WHT 14
 
 typedef struct dirent {
-    ino_t ino;
     size_t record_len;
     uint8_t type;
     char name[];

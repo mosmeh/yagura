@@ -6,11 +6,12 @@
 #include <kernel/api/stat.h>
 #include <kernel/kmalloc.h>
 
-#define BUF_SIZE 1024
+#define BUF_CAPACITY 1024
 
 typedef struct tmpfs_node {
     fs_node inner;
     void* buf;
+    size_t buf_size;
     struct tmpfs_node* first_child;
     struct tmpfs_node* next_sibling;
 } tmpfs_node;
@@ -55,10 +56,10 @@ static fs_node* tmpfs_lookup(fs_node* node, const char* name) {
 
 static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t size) {
     tmpfs_node* tnode = (tmpfs_node*)desc->node;
-    if (desc->offset >= BUF_SIZE)
+    if ((size_t)desc->offset >= tnode->buf_size)
         return 0;
-    if (desc->offset + size >= BUF_SIZE)
-        size = BUF_SIZE - desc->offset;
+    if (desc->offset + size >= tnode->buf_size)
+        size = tnode->buf_size - desc->offset;
 
     memcpy(buffer, (void*)((uintptr_t)tnode->buf + desc->offset), size);
     desc->offset += size;
@@ -68,10 +69,10 @@ static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t size) {
 static ssize_t tmpfs_write(file_description* desc, const void* buffer,
                            size_t size) {
     tmpfs_node* tnode = (tmpfs_node*)desc->node;
-    if (desc->offset >= BUF_SIZE)
+    if (desc->offset >= BUF_CAPACITY)
         return -ENOSPC;
-    if (desc->offset + size >= BUF_SIZE)
-        size = BUF_SIZE - desc->offset;
+    if (desc->offset + size >= BUF_CAPACITY)
+        size = BUF_CAPACITY - desc->offset;
 
     memcpy((void*)((uintptr_t)tnode->buf + desc->offset), buffer, size);
     desc->offset += size;
@@ -92,7 +93,7 @@ static fs_node* tmpfs_create_child(fs_node* node, const char* name,
     inner->mode = mode;
     inner->read = tmpfs_read;
     inner->write = tmpfs_write;
-    child->buf = kmalloc(BUF_SIZE);
+    child->buf = kmalloc(BUF_CAPACITY);
     if (!child->buf)
         return ERR_PTR(-ENOMEM);
     append_child(tnode, child);
@@ -117,15 +118,16 @@ static long tmpfs_readdir(file_description* desc, void* dirp,
 
     while (count > 0 && child) {
         fs_node* node = &child->inner;
-        size_t size = offsetof(dirent, name) + strlen(node->name) + 1;
+        size_t name_len = strlen(node->name);
+        size_t size = offsetof(dirent, name) + name_len + 1;
         if (count < size)
             break;
 
         dirent* dent = (dirent*)buf;
         dent->type = mode_to_dirent_type(node->mode);
-        dent->ino = node->ino;
         dent->record_len = size;
         strcpy(dent->name, node->name);
+        dent->name[name_len] = '\0';
 
         ++desc->offset;
         child = child->next_sibling;

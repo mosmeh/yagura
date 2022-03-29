@@ -10,22 +10,11 @@
 #include "system.h"
 #include <kernel/api/err.h>
 
-int userland_main(void);
-
-static void userland_entry(void) { process_exit(userland_main()); }
-
-static noreturn void kernel_process_entry2(void) {
-    pid_t pid = process_get_pid();
-    KASSERT(IS_OK(pid));
-    process_exit(0);
-}
+void userland_main(void);
 
 static noreturn void kernel_process_entry(void) {
-    pid_t pid = process_get_pid();
-    KASSERT(IS_OK(pid));
-    process_spawn_kernel_process(kernel_process_entry2);
-    process_enter_userland(userland_entry);
-    process_exit(1);
+    process_enter_userland(userland_main);
+    KUNREACHABLE();
 }
 
 extern unsigned char kernel_end[];

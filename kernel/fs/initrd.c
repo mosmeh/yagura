@@ -35,21 +35,23 @@ static fs_node* initrd_lookup(fs_node* node, const char* name) {
     return ERR_PTR(-ENOENT);
 }
 
-long initrd_readdir(file_description* desc, void* dirp, unsigned int count) {
+static long initrd_readdir(file_description* desc, void* dirp,
+                           unsigned int count) {
     uintptr_t buf = (uintptr_t)dirp;
     long nread = 0;
 
     while (count > 0 && (size_t)desc->offset < header->num_files) {
         fs_node* node = file_nodes + desc->offset;
-        size_t size = offsetof(dirent, name) + strlen(node->name) + 1;
+        size_t name_len = strlen(node->name);
+        size_t size = offsetof(dirent, name) + name_len + 1;
         if (count < size)
             break;
 
         dirent* dent = (dirent*)buf;
         dent->type = mode_to_dirent_type(node->mode);
-        dent->ino = node->ino;
         dent->record_len = size;
         strcpy(dent->name, node->name);
+        dent->name[name_len] = '\0';
 
         ++desc->offset;
         nread += size;

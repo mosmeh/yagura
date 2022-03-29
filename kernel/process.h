@@ -8,7 +8,7 @@
 
 typedef struct process {
     pid_t id;
-    uint32_t esp, ebp, eip;
+    uint32_t eip, esp, ebp, ebx, esi, edi;
     uintptr_t pd_paddr;
     uintptr_t stack_top;
     uintptr_t heap_next_vaddr;

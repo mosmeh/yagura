@@ -312,7 +312,7 @@ set_bits_for_available_physical_pages(const multiboot_info_t* mb_info,
 }
 
 void mem_switch_page_directory(uintptr_t paddr) {
-    __asm__ volatile("mov %0, %%cr3" ::"r"(paddr));
+    write_cr3(paddr);
     KASSERT(paddr == get_physical_addr((uintptr_t)current_page_directory()));
 }
 
@@ -354,9 +354,12 @@ uintptr_t mem_clone_current_page_directory_and_get_physical_addr(void) {
     return pd_paddr;
 }
 
+extern unsigned char kernel_page_directory[];
+
 void mem_init(const multiboot_info_t* mb_info) {
-    kprintf("Kernel page directory: P0x%x\n",
-            get_physical_addr((uintptr_t)current_page_directory()));
+    uintptr_t pd_paddr = get_physical_addr((uintptr_t)current_page_directory());
+    kprintf("Kernel page directory: P0x%x\n", pd_paddr);
+    KASSERT(pd_paddr == (uintptr_t)kernel_page_directory);
 
     uintptr_t lower_bound, upper_bound;
     get_available_physical_addr_bounds(mb_info, &lower_bound, &upper_bound);

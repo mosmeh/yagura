@@ -16,3 +16,7 @@ typedef struct process process;
 
 // fs/fs.h
 typedef struct fs_node fs_node;
+typedef struct file_description file_description;
+
+// socket.h
+typedef struct unix_socket unix_socket;
