@@ -12,19 +12,19 @@ static const initrd_header* header;
 static const initrd_file_header* file_headers;
 static fs_node* file_nodes;
 
-static ssize_t initrd_read(file_description* desc, void* buffer, size_t size) {
+static ssize_t initrd_read(file_description* desc, void* buffer, size_t count) {
     const initrd_file_header* header = file_headers + desc->node->ino;
     if ((size_t)desc->offset >= header->length)
         return 0;
-    if (desc->offset + size >= header->length)
-        size = header->length - desc->offset;
+    if (desc->offset + count >= header->length)
+        count = header->length - desc->offset;
 
     memcpy(buffer,
            (void*)(uintptr_t)(initrd_addr + header->offset + desc->offset),
-           size);
-    desc->offset += size;
+           count);
+    desc->offset += count;
 
-    return size;
+    return count;
 }
 
 static fs_node* initrd_lookup(fs_node* node, const char* name) {

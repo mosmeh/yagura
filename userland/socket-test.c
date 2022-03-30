@@ -9,9 +9,9 @@
 
 static noreturn void child1(void) {
     int fb_fd = open("/dev/fb0", O_RDWR);
-    ASSERT(IS_OK(fb_fd));
+    ASSERT_OK(fb_fd);
     fb_info info;
-    ASSERT(IS_OK(ioctl(fb_fd, FBIOGET_INFO, &info)));
+    ASSERT_OK(ioctl(fb_fd, FBIOGET_INFO, &info));
     uint32_t* fb =
         (uint32_t*)mmap(NULL, info.pitch * info.height, PROT_READ | PROT_WRITE,
                         MAP_SHARED, fb_fd, 0);
@@ -23,10 +23,10 @@ static noreturn void child1(void) {
                 ((100000 * y / (info.height - 1) / 1000) << 8);
 
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    ASSERT(IS_OK(sockfd));
+    ASSERT_OK(sockfd);
     sockaddr_un addr = {AF_UNIX, "/tmp/uds"};
     printf("client1: connecting\n");
-    ASSERT(IS_OK(connect(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un))));
+    ASSERT_OK(connect(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un)));
     printf("client1: connected\n");
     mouse_packet packet;
     int32_t x = info.width / 2;
@@ -46,18 +46,18 @@ static noreturn void child1(void) {
             for (int j = y; j < MIN(y + 5, (int32_t)(info.height - 1)); ++j)
                 fb[i + info.width * j] = color;
     }
-    ASSERT(IS_OK(close(fb_fd)));
-    ASSERT(IS_OK(close(sockfd)));
+    ASSERT_OK(close(fb_fd));
+    ASSERT_OK(close(sockfd));
 
     exit(0);
 }
 
 static noreturn void child2(void) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    ASSERT(IS_OK(sockfd));
+    ASSERT_OK(sockfd);
     sockaddr_un addr = {AF_UNIX, "/tmp/uds"};
     printf("client2: connecting\n");
-    ASSERT(IS_OK(connect(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un))));
+    ASSERT_OK(connect(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un)));
     printf("client2: connected\n");
     for (;;) {
         int i;
@@ -65,16 +65,16 @@ static noreturn void child2(void) {
         ASSERT(nread == sizeof(int));
         printf("client2: recv %d\n", i);
     }
-    ASSERT(IS_OK(close(sockfd)));
+    ASSERT_OK(close(sockfd));
     exit(0);
 }
 
 void _start(void) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    ASSERT(IS_OK(sockfd));
+    ASSERT_OK(sockfd);
     sockaddr_un addr = {AF_UNIX, "/tmp/uds"};
-    ASSERT(IS_OK(bind(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un))));
-    ASSERT(IS_OK(listen(sockfd, 5)));
+    ASSERT_OK(bind(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un)));
+    ASSERT_OK(listen(sockfd, 5));
     printf("server: listening\n");
 
     if (fork() == 0)
@@ -82,7 +82,7 @@ void _start(void) {
 
     int peer_fd1 = accept(sockfd, NULL, NULL);
     printf("server: accepted (1)\n");
-    ASSERT(IS_OK(peer_fd1));
+    ASSERT_OK(peer_fd1);
 
     if (fork() == 0)
         child2();
@@ -91,11 +91,11 @@ void _start(void) {
 
     int peer_fd2 = accept(sockfd, NULL, NULL);
     printf("server: accepted (2)\n");
-    ASSERT(IS_OK(peer_fd2));
+    ASSERT_OK(peer_fd2);
 
     int peer_fd3 = accept(sockfd, NULL, NULL);
     printf("server: accepted (2)\n");
-    ASSERT(IS_OK(peer_fd2));
+    ASSERT_OK(peer_fd2);
 
     int ps_fd = open("/dev/psaux", O_RDWR);
     mouse_packet packet;
@@ -115,8 +115,8 @@ void _start(void) {
         printf("server: send2&3 %d\n", i);
     }
 
-    ASSERT(IS_OK(close(sockfd)));
-    ASSERT(IS_OK(close(ps_fd)));
+    ASSERT_OK(close(sockfd));
+    ASSERT_OK(close(ps_fd));
 
     exit(0);
 }

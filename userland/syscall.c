@@ -73,6 +73,10 @@ ssize_t write(int fd, const void* buf, size_t count) {
     return syscall(SYS_write, fd, (uintptr_t)buf, count);
 }
 
+int ftruncate(int fd, off_t length) {
+    return syscall(SYS_ftruncate, fd, length, 0);
+}
+
 int ioctl(int fd, int request, void* argp) {
     return syscall(SYS_ioctl, fd, request, (uintptr_t)argp);
 }

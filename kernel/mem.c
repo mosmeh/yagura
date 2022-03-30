@@ -390,8 +390,8 @@ void mem_init(const multiboot_info_t* mb_info) {
     mutex_init(&physical_page_lock);
 }
 
-int mem_map_to_private_anonymous_region(uintptr_t vaddr, uintptr_t size,
-                                        uint16_t flags) {
+int mem_map_to_anonymous_region(uintptr_t vaddr, uintptr_t size,
+                                uint16_t flags) {
     KASSERT((vaddr % PAGE_SIZE) == 0);
     KASSERT((size % PAGE_SIZE) == 0);
 
@@ -404,8 +404,8 @@ int mem_map_to_private_anonymous_region(uintptr_t vaddr, uintptr_t size,
     return 0;
 }
 
-int mem_map_to_shared_physical_range(uintptr_t vaddr, uintptr_t paddr,
-                                     uintptr_t size, uint16_t flags) {
+int mem_map_to_physical_range(uintptr_t vaddr, uintptr_t paddr, uintptr_t size,
+                              uint16_t flags) {
     KASSERT((vaddr % PAGE_SIZE) == 0);
     KASSERT((paddr % PAGE_SIZE) == 0);
     KASSERT((size % PAGE_SIZE) == 0);

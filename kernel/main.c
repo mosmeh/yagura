@@ -16,7 +16,7 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 static noreturn void init(void) {
     char* argv[] = {NULL};
     char* envp[] = {NULL};
-    sys_execve("/init", argv, envp);
+    KASSERT(IS_OK(sys_execve("/init", argv, envp)));
     KUNREACHABLE();
 }
 

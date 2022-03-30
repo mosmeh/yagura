@@ -57,7 +57,7 @@ static locked_buf* get_buf_to_write(unix_socket* socket,
 }
 
 static ssize_t unix_socket_read(file_description* desc, void* buffer,
-                                size_t size) {
+                                size_t count) {
     unix_socket* socket = (unix_socket*)desc->node;
     locked_buf* buf = get_buf_to_read(socket, desc);
 
@@ -69,20 +69,20 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
         process_switch();
     }
 
-    if (buf->offset + size >= buf->size)
-        size = buf->size - buf->offset;
-    memcpy(buffer, (void*)((uintptr_t)buf->inner_buf + buf->offset), size);
-    buf->offset += size;
+    if (buf->offset + count >= buf->size)
+        count = buf->size - buf->offset;
+    memcpy(buffer, (void*)((uintptr_t)buf->inner_buf + buf->offset), count);
+    buf->offset += count;
 
     if (buf->offset >= buf->size)
         buf->size = buf->offset = 0;
 
     mutex_unlock(&buf->lock);
-    return size;
+    return count;
 }
 
 static ssize_t unix_socket_write(file_description* desc, const void* buffer,
-                                 size_t size) {
+                                 size_t count) {
     unix_socket* socket = (unix_socket*)desc->node;
     locked_buf* buf = get_buf_to_write(socket, desc);
 
@@ -94,14 +94,14 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
         process_switch();
     }
 
-    if (size >= BUF_CAPACITY)
-        size = BUF_CAPACITY - buf->offset;
-    memcpy(buf->inner_buf, buffer, size);
+    if (count >= BUF_CAPACITY)
+        count = BUF_CAPACITY - buf->offset;
+    memcpy(buf->inner_buf, buffer, count);
     buf->offset = 0;
-    buf->size = size;
+    buf->size = count;
 
     mutex_unlock(&buf->lock);
-    return size;
+    return count;
 }
 
 unix_socket* unix_socket_create(void) {

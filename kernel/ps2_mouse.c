@@ -100,19 +100,19 @@ void ps2_mouse_init(void) {
 }
 
 static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
-                                     size_t size) {
+                                     size_t count) {
     (void)desc;
 
     size_t nread = 0;
     mouse_packet* out = (mouse_packet*)buffer;
 
     mutex_lock(&queue_lock);
-    while (size > 0) {
-        if (queue_head == queue_tail || size < sizeof(mouse_packet))
+    while (count > 0) {
+        if (queue_head == queue_tail || count < sizeof(mouse_packet))
             break;
         *out++ = queue[queue_head];
         nread += sizeof(mouse_packet);
-        size -= sizeof(mouse_packet);
+        count -= sizeof(mouse_packet);
         queue_head = (queue_head + 1) % QUEUE_SIZE;
     }
     mutex_unlock(&queue_lock);

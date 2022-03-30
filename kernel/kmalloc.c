@@ -35,8 +35,8 @@ void* kaligned_alloc(size_t alignment, size_t size) {
     uintptr_t region_end = round_up(next_ptr, PAGE_SIZE);
     uintptr_t region_size = region_end - region_start;
 
-    int rc = mem_map_to_private_anonymous_region(region_start, region_size,
-                                                 MEM_WRITE | MEM_GLOBAL);
+    int rc = mem_map_to_anonymous_region(region_start, region_size,
+                                         MEM_WRITE | MEM_GLOBAL);
     if (IS_ERR(rc))
         return NULL;
 

@@ -50,22 +50,13 @@ void serial_write(uint16_t port, char c) {
     write_char(port, c);
 }
 
-static ssize_t serial_device_read(file_description* desc, void* buffer,
-                                  size_t size) {
-    (void)desc;
-    (void)size;
-    (void)buffer;
-    KUNIMPLEMENTED();
-    return 0;
-}
-
 static ssize_t serial_device_write(file_description* desc, const void* buffer,
-                                   size_t size) {
+                                   size_t count) {
     uint16_t port = desc->node->device;
     char* chars = (char*)buffer;
-    for (size_t i = 0; i < size; ++i)
+    for (size_t i = 0; i < count; ++i)
         serial_write(port, chars[i]);
-    return size;
+    return count;
 }
 
 fs_node* serial_device_create(uint16_t port) {
@@ -80,7 +71,6 @@ fs_node* serial_device_create(uint16_t port) {
         return ERR_PTR(-ENOMEM);
 
     node->mode = S_IFCHR;
-    node->read = serial_device_read;
     node->write = serial_device_write;
     node->device = port;
     return node;

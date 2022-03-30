@@ -76,15 +76,15 @@ void bochs_graphics_init(void) {
     mutex_init(&lock);
 }
 
-static uintptr_t bochs_graphics_mmap(file_description* desc, uintptr_t vaddr,
+static uintptr_t bochs_graphics_mmap(file_description* desc, uintptr_t addr,
                                      size_t length, int prot, off_t offset) {
     (void)desc;
     (void)offset;
-    int rc = mem_map_to_shared_physical_range(vaddr, fb_addr, length,
-                                              mem_prot_to_flags(prot));
+    int rc = mem_map_to_physical_range(addr, fb_addr, length,
+                                       mem_prot_to_flags(prot));
     if (IS_ERR(rc))
         return rc;
-    return vaddr;
+    return addr;
 }
 
 static int bochs_graphics_ioctl(file_description* desc, int request,

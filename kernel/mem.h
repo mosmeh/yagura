@@ -16,9 +16,8 @@ page_directory* mem_create_page_directory(void);
 page_directory* mem_clone_current_page_directory(void);
 void mem_switch_page_directory(page_directory* pd);
 
-int mem_map_to_private_anonymous_region(uintptr_t virtual_addr, uintptr_t size,
-                                        uint16_t flags);
-int mem_map_to_shared_physical_range(uintptr_t virtual_addr,
-                                     uintptr_t physical_addr, uintptr_t size,
-                                     uint16_t flags);
+int mem_map_to_anonymous_region(uintptr_t virtual_addr, uintptr_t size,
+                                uint16_t flags);
+int mem_map_to_physical_range(uintptr_t virtual_addr, uintptr_t physical_addr,
+                              uintptr_t size, uint16_t flags);
 uint16_t mem_prot_to_flags(int prot);

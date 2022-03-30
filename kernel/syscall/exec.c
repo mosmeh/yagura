@@ -136,8 +136,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
             round_up(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
         uintptr_t region_size = region_end - region_start;
 
-        ret = mem_map_to_private_anonymous_region(region_start, region_size,
-                                                  MEM_USER | MEM_WRITE);
+        ret = mem_map_to_anonymous_region(region_start, region_size,
+                                          MEM_USER | MEM_WRITE);
         if (IS_ERR(ret))
             goto fail;
         memset((void*)region_start, 0, region_size);
@@ -149,8 +149,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     }
     current->heap_next_vaddr = max_segment_addr;
 
-    ret = mem_map_to_private_anonymous_region(USER_STACK_BASE, STACK_SIZE,
-                                              MEM_WRITE | MEM_USER);
+    ret = mem_map_to_anonymous_region(USER_STACK_BASE, STACK_SIZE,
+                                      MEM_WRITE | MEM_USER);
     if (IS_ERR(ret))
         goto fail;
 

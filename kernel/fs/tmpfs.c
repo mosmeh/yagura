@@ -1,17 +1,16 @@
 #include "fs.h"
 #include "kernel/panic.h"
+#include <common/extra.h>
 #include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
 #include <kernel/api/stat.h>
 #include <kernel/kmalloc.h>
 
-#define BUF_CAPACITY 1024
-
 typedef struct tmpfs_node {
     fs_node inner;
     void* buf;
-    size_t buf_size;
+    size_t capacity, size;
     struct tmpfs_node* first_child;
     struct tmpfs_node* next_sibling;
 } tmpfs_node;
@@ -54,29 +53,66 @@ static fs_node* tmpfs_lookup(fs_node* node, const char* name) {
     return &child->inner;
 }
 
-static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t size) {
+static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t count) {
     tmpfs_node* tnode = (tmpfs_node*)desc->node;
-    if ((size_t)desc->offset >= tnode->buf_size)
+    if ((size_t)desc->offset >= tnode->size)
         return 0;
-    if (desc->offset + size >= tnode->buf_size)
-        size = tnode->buf_size - desc->offset;
+    if (desc->offset + count >= tnode->size)
+        count = tnode->size - desc->offset;
 
-    memcpy(buffer, (void*)((uintptr_t)tnode->buf + desc->offset), size);
-    desc->offset += size;
-    return size;
+    memcpy(buffer, (void*)((uintptr_t)tnode->buf + desc->offset), count);
+    desc->offset += count;
+    return count;
+}
+
+static int grow_buf(tmpfs_node* tnode, size_t requested_size) {
+    size_t new_capacity = MAX(tnode->capacity * 2, requested_size);
+    void* buf = kmalloc(new_capacity);
+    if (!buf)
+        return -ENOMEM;
+    memcpy(buf, tnode->buf, tnode->size);
+    memset((void*)((uintptr_t)buf + tnode->size), 0,
+           new_capacity - tnode->size);
+    tnode->buf = buf;
+    tnode->capacity = new_capacity;
+    return 0;
 }
 
 static ssize_t tmpfs_write(file_description* desc, const void* buffer,
-                           size_t size) {
+                           size_t count) {
     tmpfs_node* tnode = (tmpfs_node*)desc->node;
-    if (desc->offset >= BUF_CAPACITY)
-        return -ENOSPC;
-    if (desc->offset + size >= BUF_CAPACITY)
-        size = BUF_CAPACITY - desc->offset;
+    if (desc->offset + count >= tnode->capacity) {
+        int rc = grow_buf(tnode, desc->offset + count);
+        if (IS_ERR(rc))
+            return rc;
+    }
 
-    memcpy((void*)((uintptr_t)tnode->buf + desc->offset), buffer, size);
-    desc->offset += size;
-    return size;
+    memcpy((void*)((uintptr_t)tnode->buf + desc->offset), buffer, count);
+    desc->offset += count;
+    if (tnode->size < (size_t)desc->offset)
+        tnode->size = desc->offset;
+    return count;
+}
+
+static int tmpfs_truncate(file_description* desc, off_t length) {
+    tmpfs_node* tnode = (tmpfs_node*)desc->node;
+    size_t slength = (size_t)length;
+
+    if (slength <= tnode->size) {
+        memset((void*)((uintptr_t)tnode->buf + slength), 0,
+               tnode->size - slength);
+    } else if (slength < tnode->capacity) {
+        memset((void*)((uintptr_t)tnode->buf + tnode->size), 0,
+               slength - tnode->size);
+    } else {
+        // slength >= capacity
+        int rc = grow_buf(tnode, slength);
+        if (IS_ERR(rc))
+            return rc;
+    }
+
+    tnode->size = slength;
+    return 0;
 }
 
 static fs_node* tmpfs_create_child(fs_node* node, const char* name,
@@ -93,9 +129,8 @@ static fs_node* tmpfs_create_child(fs_node* node, const char* name,
     inner->mode = mode;
     inner->read = tmpfs_read;
     inner->write = tmpfs_write;
-    child->buf = kmalloc(BUF_CAPACITY);
-    if (!child->buf)
-        return ERR_PTR(-ENOMEM);
+    inner->truncate = tmpfs_truncate;
+    child->capacity = child->size = 0;
     append_child(tnode, child);
     return inner;
 }

@@ -35,6 +35,13 @@ uintptr_t sys_write(int fd, const void* buf, size_t count) {
     return fs_write(desc, buf, count);
 }
 
+uintptr_t sys_ftruncate(int fd, off_t length) {
+    file_description* desc = process_get_file_description(fd);
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
+    return fs_truncate(desc, length);
+}
+
 uintptr_t sys_ioctl(int fd, int request, void* argp) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))

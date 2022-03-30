@@ -15,7 +15,7 @@ USERLAND_OBJS := \
 
 OBJS := $(COMMON_OBJS) $(USERLAND_OBJS)
 
-TARGETS := init socket-test
+TARGETS := init socket-test fs-test
 
 .PHONY: all clean
 

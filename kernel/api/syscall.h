@@ -13,6 +13,7 @@
     F(execve)                                                                  \
     F(exit)                                                                    \
     F(fork)                                                                    \
+    F(ftruncate)                                                               \
     F(getdents)                                                                \
     F(getpid)                                                                  \
     F(halt)                                                                    \

@@ -26,8 +26,8 @@ uintptr_t sys_mmap(const mmap_params* params) {
         if (params->flags & MAP_SHARED)
             return -ENOTSUP;
 
-        int rc = mem_map_to_private_anonymous_region(
-            vaddr, length, mem_prot_to_flags(params->prot));
+        int rc = mem_map_to_anonymous_region(vaddr, length,
+                                             mem_prot_to_flags(params->prot));
         if (IS_ERR(rc))
             return rc;
 

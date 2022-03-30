@@ -53,18 +53,18 @@ int fs_close(file_description* desc) {
     return 0;
 }
 
-ssize_t fs_read(file_description* desc, void* buffer, size_t size) {
+ssize_t fs_read(file_description* desc, void* buffer, size_t count) {
     fs_node* node = desc->node;
     if (!node->read)
         return 0;
-    return node->read(desc, buffer, size);
+    return node->read(desc, buffer, count);
 }
 
-ssize_t fs_write(file_description* desc, const void* buffer, size_t size) {
+ssize_t fs_write(file_description* desc, const void* buffer, size_t count) {
     fs_node* node = desc->node;
     if (!node->write)
         return 0;
-    return node->write(desc, buffer, size);
+    return node->write(desc, buffer, count);
 }
 
 uintptr_t fs_mmap(file_description* desc, uintptr_t vaddr, size_t length,
@@ -73,6 +73,15 @@ uintptr_t fs_mmap(file_description* desc, uintptr_t vaddr, size_t length,
     if (!node->mmap)
         return -ENODEV;
     return node->mmap(desc, vaddr, length, prot, offset);
+}
+
+int fs_truncate(file_description* desc, off_t length) {
+    fs_node* node = desc->node;
+    if (S_ISDIR(node->mode))
+        return -EISDIR;
+    if (!node->truncate)
+        return -EROFS;
+    return node->truncate(desc, length);
 }
 
 int fs_ioctl(file_description* desc, int request, void* argp) {
