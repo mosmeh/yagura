@@ -2,8 +2,30 @@
 #include "syscall.h"
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/api/mman.h>
+
+void child(void) {
+    int fd = open("/shm/foofoo", O_RDWR);
+    ASSERT_OK(fd);
+    int* buf = mmap(NULL, 30000 * sizeof(int), PROT_READ | PROT_WRITE,
+                    MAP_SHARED, fd, 0);
+    ASSERT(buf != MAP_FAILED);
+    for (int i = 0; i < 30000; ++i)
+        ASSERT(buf[i] == i);
+    ASSERT_OK(close(fd));
+    exit(0);
+}
 
 void _start(void) {
+    int shm_fd = shm_create("/shm/foofoo", 30000 * sizeof(int));
+    ASSERT_OK(shm_fd);
+    int* buf = mmap(NULL, 30000 * sizeof(int), PROT_READ | PROT_WRITE,
+                    MAP_SHARED, shm_fd, 0);
+    ASSERT(buf != MAP_FAILED);
+    for (int i = 0; i < 30000; ++i)
+        buf[i] = i;
+    if (fork() == 0)
+        child();
     {
         int fd = open("/tmp/wow", O_RDWR | O_CREAT, 0777);
         ASSERT_OK(fd);
@@ -60,5 +82,6 @@ void _start(void) {
         ASSERT(read(fd, buf, 65536 * sizeof(int)) == 0);
         ASSERT_OK(close(fd));
     }
+    ASSERT_OK(close(shm_fd));
     exit(0);
 }

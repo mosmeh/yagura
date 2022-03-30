@@ -69,7 +69,7 @@ int fs_ioctl(file_description*, int request, void* argp);
 long fs_readdir(file_description*, void* dirp, unsigned int count);
 
 void vfs_init(void);
-void vfs_mount(char* path, fs_node* fs);
+void vfs_mount(const char* path, fs_node* fs);
 fs_node* vfs_open(const char* pathname, int flags, mode_t mode);
 
 uint8_t mode_to_dirent_type(mode_t);
@@ -78,3 +78,6 @@ void initrd_init(uintptr_t addr);
 fs_node* initrd_create(void);
 
 fs_node* tmpfs_create(void);
+
+void shm_init(void);
+int shm_create(const char* name, size_t size);

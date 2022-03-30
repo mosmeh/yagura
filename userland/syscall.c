@@ -81,6 +81,10 @@ int ioctl(int fd, int request, void* argp) {
     return syscall(SYS_ioctl, fd, request, (uintptr_t)argp);
 }
 
+int shm_create(const char* name, size_t size) {
+    return syscall(SYS_shm_create, (uintptr_t)name, size, 0);
+}
+
 int socket(int domain, int type, int protocol) {
     return syscall(SYS_socket, domain, type, protocol);
 }

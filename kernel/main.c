@@ -47,6 +47,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     const multiboot_module_t* initrd_mod =
         (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
     initrd_init(initrd_mod->mod_start + KERNEL_VADDR);
+    shm_init();
 
     vfs_mount("/", initrd_create());
     vfs_mount("/dev/ttyS0", serial_device_create(SERIAL_COM1));

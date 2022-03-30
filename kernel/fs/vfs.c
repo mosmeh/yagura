@@ -52,7 +52,7 @@ static bool is_absolute_path(const char* path) {
     return path[0] == PATH_SEPARATOR;
 }
 
-void vfs_mount(char* path, fs_node* fs) {
+void vfs_mount(const char* path, fs_node* fs) {
     KASSERT(is_absolute_path(path));
 
     size_t path_len = strlen(path);

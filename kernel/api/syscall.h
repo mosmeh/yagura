@@ -23,6 +23,7 @@
     F(open)                                                                    \
     F(puts)                                                                    \
     F(read)                                                                    \
+    F(shm_create)                                                              \
     F(socket)                                                                  \
     F(write)                                                                   \
     F(yield)
