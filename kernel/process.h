@@ -31,6 +31,6 @@ noreturn void process_exit(int status);
 
 uintptr_t process_alloc_virtual_address_range(uintptr_t size);
 
-int process_alloc_file_descriptor(fs_node*);
+int process_alloc_file_descriptor(struct file*);
 int process_free_file_descriptor(int fd);
 file_description* process_get_file_description(int fd);

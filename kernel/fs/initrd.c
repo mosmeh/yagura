@@ -10,10 +10,10 @@
 static uintptr_t initrd_addr;
 static const initrd_header* header;
 static const initrd_file_header* file_headers;
-static fs_node* file_nodes;
+static struct file* file_nodes;
 
 static ssize_t initrd_read(file_description* desc, void* buffer, size_t count) {
-    const initrd_file_header* header = file_headers + desc->node->ino;
+    const initrd_file_header* header = file_headers + desc->file->ino;
     if ((size_t)desc->offset >= header->length)
         return 0;
     if (desc->offset + count >= header->length)
@@ -27,8 +27,8 @@ static ssize_t initrd_read(file_description* desc, void* buffer, size_t count) {
     return count;
 }
 
-static fs_node* initrd_lookup(fs_node* node, const char* name) {
-    (void)node;
+static struct file* initrd_lookup(struct file* file, const char* name) {
+    (void)file;
     for (size_t i = 0; i < header->num_files; ++i)
         if (!strcmp(name, file_nodes[i].name))
             return file_nodes + i;
@@ -41,16 +41,16 @@ static long initrd_readdir(file_description* desc, void* dirp,
     long nread = 0;
 
     while (count > 0 && (size_t)desc->offset < header->num_files) {
-        fs_node* node = file_nodes + desc->offset;
-        size_t name_len = strlen(node->name);
+        struct file* file = file_nodes + desc->offset;
+        size_t name_len = strlen(file->name);
         size_t size = offsetof(dirent, name) + name_len + 1;
         if (count < size)
             break;
 
         dirent* dent = (dirent*)buf;
-        dent->type = mode_to_dirent_type(node->mode);
+        dent->type = mode_to_dirent_type(file->mode);
         dent->record_len = size;
-        strcpy(dent->name, node->name);
+        strcpy(dent->name, file->name);
         dent->name[name_len] = '\0';
 
         ++desc->offset;
@@ -69,25 +69,25 @@ void initrd_init(uintptr_t addr) {
     header = (const initrd_header*)addr;
     file_headers = (const initrd_file_header*)(addr + sizeof(initrd_header));
 
-    file_nodes = kmalloc(header->num_files * sizeof(fs_node));
+    file_nodes = kmalloc(header->num_files * sizeof(struct file));
     KASSERT(file_nodes);
     for (size_t i = 0; i < header->num_files; ++i) {
-        fs_node* node = file_nodes + i;
-        memset(node, 0, sizeof(fs_node));
-        node->name = kstrndup(file_headers[i].name, 128);
-        KASSERT(node->name);
-        node->mode = S_IFREG;
-        node->read = initrd_read;
-        node->ino = i;
+        struct file* file = file_nodes + i;
+        memset(file, 0, sizeof(struct file));
+        file->name = kstrndup(file_headers[i].name, 128);
+        KASSERT(file->name);
+        file->mode = S_IFREG;
+        file->read = initrd_read;
+        file->ino = i;
     }
 }
 
-fs_node* initrd_create(void) {
-    fs_node* root = kmalloc(sizeof(fs_node));
+struct file* initrd_create(void) {
+    struct file* root = kmalloc(sizeof(struct file));
     if (!root)
         return ERR_PTR(-ENOMEM);
 
-    memset(root, 0, sizeof(fs_node));
+    memset(root, 0, sizeof(struct file));
 
     root->name = kstrdup("initrd");
     if (!root->name)

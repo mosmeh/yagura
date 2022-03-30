@@ -19,7 +19,7 @@ void syscall_init(void);
 void gdt_set_kernel_stack(uintptr_t stack_top);
 
 void ps2_mouse_init(void);
-fs_node* ps2_mouse_device_create(void);
+struct file* ps2_mouse_device_create(void);
 
 void bochs_graphics_init(void);
-fs_node* bochs_graphics_device_create(void);
+struct file* bochs_graphics_device_create(void);

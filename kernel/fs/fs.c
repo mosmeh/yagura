@@ -26,77 +26,77 @@ int file_descriptor_table_clone_from(file_descriptor_table* to,
     return 0;
 }
 
-fs_node* fs_lookup(fs_node* node, const char* name) {
-    if (!node->lookup || !S_ISDIR(node->mode))
+struct file* fs_lookup(struct file* file, const char* name) {
+    if (!file->lookup || !S_ISDIR(file->mode))
         return ERR_PTR(-ENOTDIR);
-    return node->lookup(node, name);
+    return file->lookup(file, name);
 }
 
-fs_node* fs_create_child(fs_node* node, const char* name, mode_t mode) {
-    if (!node->create_child || !S_ISDIR(node->mode))
+struct file* fs_create_child(struct file* file, const char* name, mode_t mode) {
+    if (!file->create_child || !S_ISDIR(file->mode))
         return ERR_PTR(-ENOTDIR);
     if (!(mode & S_IFMT))
         mode |= S_IFREG;
-    return node->create_child(node, name, mode);
+    return file->create_child(file, name, mode);
 }
 
-int fs_open(fs_node* node, int flags, mode_t mode) {
-    if (node->open)
-        return node->open(node, flags, mode);
+int fs_open(struct file* file, int flags, mode_t mode) {
+    if (file->open)
+        return file->open(file, flags, mode);
     return 0;
 }
 
 int fs_close(file_description* desc) {
-    fs_node* node = desc->node;
-    if (node->close)
-        return node->close(desc);
+    struct file* file = desc->file;
+    if (file->close)
+        return file->close(desc);
     return 0;
 }
 
 ssize_t fs_read(file_description* desc, void* buffer, size_t count) {
-    fs_node* node = desc->node;
-    if (!node->read)
+    struct file* file = desc->file;
+    if (!file->read)
         return 0;
-    return node->read(desc, buffer, count);
+    return file->read(desc, buffer, count);
 }
 
 ssize_t fs_write(file_description* desc, const void* buffer, size_t count) {
-    fs_node* node = desc->node;
-    if (!node->write)
+    struct file* file = desc->file;
+    if (!file->write)
         return 0;
-    return node->write(desc, buffer, count);
+    return file->write(desc, buffer, count);
 }
 
 uintptr_t fs_mmap(file_description* desc, uintptr_t vaddr, size_t length,
                   int prot, off_t offset) {
-    fs_node* node = desc->node;
-    if (!node->mmap)
+    struct file* file = desc->file;
+    if (!file->mmap)
         return -ENODEV;
-    return node->mmap(desc, vaddr, length, prot, offset);
+    return file->mmap(desc, vaddr, length, prot, offset);
 }
 
 int fs_truncate(file_description* desc, off_t length) {
-    fs_node* node = desc->node;
-    if (S_ISDIR(node->mode))
+    struct file* file = desc->file;
+    if (S_ISDIR(file->mode))
         return -EISDIR;
-    if (!node->truncate)
+    if (!file->truncate)
         return -EROFS;
-    return node->truncate(desc, length);
+    return file->truncate(desc, length);
 }
 
 int fs_ioctl(file_description* desc, int request, void* argp) {
-    fs_node* node = desc->node;
-    if (!node->ioctl)
+    struct file* file = desc->file;
+    if (!file->ioctl)
         return -ENOTTY;
-    node->ioctl(desc, request, argp);
+    file->ioctl(desc, request, argp);
     return 0;
 }
 
 long fs_readdir(file_description* desc, void* dirp, unsigned int count) {
-    fs_node* node = desc->node;
-    if (!node->readdir || !S_ISDIR(node->mode))
+    struct file* file = desc->file;
+    if (!file->readdir || !S_ISDIR(file->mode))
         return -ENOTDIR;
-    return node->readdir(desc, dirp, count);
+    return file->readdir(desc, dirp, count);
 }
 
 uint8_t mode_to_dirent_type(mode_t mode) {

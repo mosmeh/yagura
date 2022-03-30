@@ -191,13 +191,13 @@ uintptr_t process_alloc_virtual_address_range(uintptr_t size) {
     return aligned_ptr;
 }
 
-int process_alloc_file_descriptor(fs_node* node) {
+int process_alloc_file_descriptor(struct file* file) {
     file_description* desc = current->fd_table.entries;
     for (int i = 0; i < FD_TABLE_CAPACITY; ++i, ++desc) {
-        if (desc->node)
+        if (desc->file)
             continue;
 
-        desc->node = node;
+        desc->file = file;
         desc->offset = 0;
         return i;
     }
@@ -209,10 +209,10 @@ int process_free_file_descriptor(int fd) {
         return -EBADF;
 
     file_description* desc = current->fd_table.entries + fd;
-    if (!desc->node)
+    if (!desc->file)
         return -EBADF;
 
-    desc->node = NULL;
+    desc->file = NULL;
     desc->offset = 0;
     return 0;
 }
@@ -222,7 +222,7 @@ file_description* process_get_file_description(int fd) {
         return ERR_PTR(-EBADF);
 
     file_description* desc = current->fd_table.entries + fd;
-    if (!desc->node)
+    if (!desc->file)
         return ERR_PTR(-EBADF);
 
     return desc;

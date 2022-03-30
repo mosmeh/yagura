@@ -15,7 +15,7 @@ typedef union page_table_entry page_table_entry;
 typedef struct process process;
 
 // fs/fs.h
-typedef struct fs_node fs_node;
+struct file;
 typedef struct file_description file_description;
 
 // socket.h

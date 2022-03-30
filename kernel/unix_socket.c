@@ -28,7 +28,7 @@ static int locked_buf_init(locked_buf* buf) {
 }
 
 typedef struct unix_socket {
-    fs_node inner;
+    struct file base_file;
     int backlog;
 
     mutex pending_queue_lock;
@@ -58,7 +58,7 @@ static locked_buf* get_buf_to_write(unix_socket* socket,
 
 static ssize_t unix_socket_read(file_description* desc, void* buffer,
                                 size_t count) {
-    unix_socket* socket = (unix_socket*)desc->node;
+    unix_socket* socket = (unix_socket*)desc->file;
     locked_buf* buf = get_buf_to_read(socket, desc);
 
     for (;;) {
@@ -83,7 +83,7 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
 
 static ssize_t unix_socket_write(file_description* desc, const void* buffer,
                                  size_t count) {
-    unix_socket* socket = (unix_socket*)desc->node;
+    unix_socket* socket = (unix_socket*)desc->file;
     locked_buf* buf = get_buf_to_write(socket, desc);
 
     for (;;) {
@@ -110,10 +110,10 @@ unix_socket* unix_socket_create(void) {
         return ERR_PTR(-ENOMEM);
     memset(socket, 0, sizeof(unix_socket));
 
-    fs_node* inner = &socket->inner;
-    inner->mode = S_IFSOCK;
-    inner->read = unix_socket_read;
-    inner->write = unix_socket_write;
+    struct file* file = &socket->base_file;
+    file->mode = S_IFSOCK;
+    file->read = unix_socket_read;
+    file->write = unix_socket_write;
 
     mutex_init(&socket->pending_queue_lock);
     atomic_init(&socket->connected, false);
@@ -171,7 +171,7 @@ unix_socket* unix_socket_accept(unix_socket* listening) {
 
 int unix_socket_connect(file_description* connecting_fd,
                         unix_socket* listening) {
-    unix_socket* connecting = (unix_socket*)connecting_fd->node;
+    unix_socket* connecting = (unix_socket*)connecting_fd->file;
     connecting->connect_side_fd = connecting_fd;
 
     mutex_lock(&listening->pending_queue_lock);

@@ -52,26 +52,26 @@ void serial_write(uint16_t port, char c) {
 
 static ssize_t serial_device_write(file_description* desc, const void* buffer,
                                    size_t count) {
-    uint16_t port = desc->node->device;
+    uint16_t port = desc->file->device;
     char* chars = (char*)buffer;
     for (size_t i = 0; i < count; ++i)
         serial_write(port, chars[i]);
     return count;
 }
 
-fs_node* serial_device_create(uint16_t port) {
-    fs_node* node = kmalloc(sizeof(fs_node));
-    if (!node)
+struct file* serial_device_create(uint16_t port) {
+    struct file* file = kmalloc(sizeof(struct file));
+    if (!file)
         return ERR_PTR(-ENOMEM);
 
-    memset(node, 0, sizeof(fs_node));
+    memset(file, 0, sizeof(struct file));
 
-    node->name = kstrdup("serial_device");
-    if (!node->name)
+    file->name = kstrdup("serial_device");
+    if (!file->name)
         return ERR_PTR(-ENOMEM);
 
-    node->mode = S_IFCHR;
-    node->write = serial_device_write;
-    node->device = port;
-    return node;
+    file->mode = S_IFCHR;
+    file->write = serial_device_write;
+    file->device = port;
+    return file;
 }

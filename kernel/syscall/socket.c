@@ -16,14 +16,14 @@ uintptr_t sys_socket(int domain, int type, int protocol) {
     if (IS_ERR(socket))
         return PTR_ERR(socket);
 
-    return process_alloc_file_descriptor((fs_node*)socket);
+    return process_alloc_file_descriptor((struct file*)socket);
 }
 
 uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    if (!S_ISSOCK(desc->node->mode))
+    if (!S_ISSOCK(desc->file->mode))
         return -ENOTSOCK;
 
     if (addrlen != sizeof(sockaddr_un))
@@ -36,13 +36,14 @@ uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
     if (!path)
         return -ENOMEM;
 
-    fs_node* node = vfs_open(path, O_RDWR | O_CREAT | O_EXCL, S_IFSOCK | 0777);
-    if (IS_ERR(node)) {
-        if (PTR_ERR(node) == -EEXIST)
+    struct file* file =
+        vfs_open(path, O_RDWR | O_CREAT | O_EXCL, S_IFSOCK | 0777);
+    if (IS_ERR(file)) {
+        if (PTR_ERR(file) == -EEXIST)
             return -EADDRINUSE;
-        return PTR_ERR(node);
+        return PTR_ERR(file);
     }
-    node->ptr = desc->node;
+    file->ptr = desc->file;
     return 0;
 }
 
@@ -50,10 +51,10 @@ uintptr_t sys_listen(int sockfd, int backlog) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    if (!S_ISSOCK(desc->node->mode))
+    if (!S_ISSOCK(desc->file->mode))
         return -ENOTSOCK;
 
-    unix_socket* socket = (unix_socket*)desc->node;
+    unix_socket* socket = (unix_socket*)desc->file;
     unix_socket_set_backlog(socket, backlog);
     return 0;
 }
@@ -65,12 +66,12 @@ uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    if (!S_ISSOCK(desc->node->mode))
+    if (!S_ISSOCK(desc->file->mode))
         return -ENOTSOCK;
 
-    unix_socket* listening = (unix_socket*)desc->node;
+    unix_socket* listening = (unix_socket*)desc->file;
     unix_socket* connected = unix_socket_accept(listening);
-    return process_alloc_file_descriptor((fs_node*)connected);
+    return process_alloc_file_descriptor((struct file*)connected);
 }
 
 uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
@@ -78,7 +79,7 @@ uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    if (!S_ISSOCK(desc->node->mode))
+    if (!S_ISSOCK(desc->file->mode))
         return -ENOTSOCK;
 
     if (addrlen != sizeof(sockaddr_un))
@@ -89,10 +90,10 @@ uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
     const char* path = kstrndup(addr_un->sun_path, sizeof(addr_un->sun_path));
     if (!path)
         return -ENOMEM;
-    fs_node* node = vfs_open(path, O_RDWR, 0);
-    if (IS_ERR(node))
-        return PTR_ERR(node);
-    unix_socket* listening = node->ptr;
+    struct file* file = vfs_open(path, O_RDWR, 0);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    unix_socket* listening = file->ptr;
     if (!listening)
         return -ECONNREFUSED;
 

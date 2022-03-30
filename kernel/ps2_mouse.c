@@ -120,18 +120,18 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
     return nread;
 }
 
-fs_node* ps2_mouse_device_create(void) {
-    fs_node* node = kmalloc(sizeof(fs_node));
-    if (!node)
+struct file* ps2_mouse_device_create(void) {
+    struct file* file = kmalloc(sizeof(struct file));
+    if (!file)
         return ERR_PTR(-ENOMEM);
 
-    memset(node, 0, sizeof(fs_node));
+    memset(file, 0, sizeof(struct file));
 
-    node->name = kstrdup("ps2_mouse_device");
-    if (!node->name)
+    file->name = kstrdup("ps2_mouse_device");
+    if (!file->name)
         return ERR_PTR(-ENOMEM);
 
-    node->mode = S_IFCHR;
-    node->read = ps2_mouse_device_read;
-    return node;
+    file->mode = S_IFCHR;
+    file->read = ps2_mouse_device_read;
+    return file;
 }

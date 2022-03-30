@@ -3,10 +3,10 @@
 #include <kernel/process.h>
 
 uintptr_t sys_open(const char* pathname, int flags, unsigned mode) {
-    fs_node* node = vfs_open(pathname, flags, mode);
-    if (IS_ERR(node))
-        return PTR_ERR(node);
-    return process_alloc_file_descriptor(node);
+    struct file* file = vfs_open(pathname, flags, mode);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return process_alloc_file_descriptor(file);
 }
 
 uintptr_t sys_close(int fd) {

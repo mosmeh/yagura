@@ -10,4 +10,4 @@
 
 void serial_init(void);
 void serial_write(uint16_t port, char c);
-fs_node* serial_device_create(uint16_t port);
+struct file* serial_device_create(uint16_t port);

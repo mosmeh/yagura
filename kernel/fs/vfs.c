@@ -9,7 +9,7 @@
 
 typedef struct vfs_node {
     char* name;
-    fs_node* fs;
+    struct file* fs;
     struct vfs_node* first_child;
     struct vfs_node* next_sibling;
 } vfs_node;
@@ -52,7 +52,7 @@ static bool is_absolute_path(const char* path) {
     return path[0] == PATH_SEPARATOR;
 }
 
-void vfs_mount(const char* path, fs_node* fs) {
+void vfs_mount(const char* path, struct file* fs) {
     KASSERT(is_absolute_path(path));
 
     size_t path_len = strlen(path);
@@ -90,7 +90,7 @@ void vfs_mount(const char* path, fs_node* fs) {
     kprintf("Mounted \"%s\" at %s\n", fs->name, path);
 }
 
-fs_node* vfs_open(const char* pathname, int flags, mode_t mode) {
+struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
     if (!is_absolute_path(pathname))
         return ERR_PTR(-ENOTSUP);
     if ((flags & O_RDWR) != O_RDWR)
@@ -119,9 +119,9 @@ fs_node* vfs_open(const char* pathname, int flags, mode_t mode) {
         component += strlen(component) + 1;
     }
 
-    fs_node* fnode = vnode->fs;
+    struct file* fnode = vnode->fs;
     while (component < split_pathname + path_len) {
-        fs_node* child = fs_lookup(fnode, component);
+        struct file* child = fs_lookup(fnode, component);
         if (IS_ERR(child)) {
             if ((PTR_ERR(child) == -ENOENT) && (flags & O_CREAT) &&
                 component + strlen(component) + 1 >=

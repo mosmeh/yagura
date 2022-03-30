@@ -111,19 +111,19 @@ static int bochs_graphics_ioctl(file_description* desc, int request,
     return -EINVAL;
 }
 
-fs_node* bochs_graphics_device_create(void) {
-    fs_node* node = kmalloc(sizeof(fs_node));
-    if (!node)
+struct file* bochs_graphics_device_create(void) {
+    struct file* file = kmalloc(sizeof(struct file));
+    if (!file)
         return ERR_PTR(-ENOMEM);
 
-    memset(node, 0, sizeof(fs_node));
+    memset(file, 0, sizeof(struct file));
 
-    node->name = kstrdup("bochs_graphics_device");
-    if (!node->name)
+    file->name = kstrdup("bochs_graphics_device");
+    if (!file->name)
         return ERR_PTR(-ENOMEM);
 
-    node->mode = S_IFBLK;
-    node->mmap = bochs_graphics_mmap;
-    node->ioctl = bochs_graphics_ioctl;
-    return node;
+    file->mode = S_IFBLK;
+    file->mmap = bochs_graphics_mmap;
+    file->ioctl = bochs_graphics_ioctl;
+    return file;
 }

@@ -73,13 +73,13 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     if (!pathname || !argv || !envp)
         return -EFAULT;
 
-    fs_node* node = vfs_open(pathname, O_RDWR, 0);
-    if (IS_ERR(node))
-        return PTR_ERR(node);
-    if (!S_ISREG(node->mode))
+    struct file* file = vfs_open(pathname, O_RDWR, 0);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    if (!S_ISREG(file->mode))
         return -EACCES;
 
-    file_description desc = {.node = node, .offset = 0};
+    file_description desc = {.file = file, .offset = 0};
     void* buf = kmalloc(65536);
     if (!buf)
         return -ENOMEM;
