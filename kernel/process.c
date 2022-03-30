@@ -20,7 +20,7 @@ static process* queue;
 static process* idle;
 static atomic_int next_pid;
 
-static process* queue_pop(void) {
+static process* process_deque(void) {
     bool int_flag = push_cli();
 
     process* p = queue;
@@ -35,7 +35,7 @@ static process* queue_pop(void) {
     return p;
 }
 
-static void queue_push(process* p) {
+void process_enqueue(process* p) {
     bool int_flag = push_cli();
 
     p->next = NULL;
@@ -51,7 +51,7 @@ static void queue_push(process* p) {
     pop_cli(int_flag);
 }
 
-static pid_t get_next_pid(void) {
+pid_t process_generate_next_pid(void) {
     return atomic_fetch_add_explicit(&next_pid, 1, memory_order_acq_rel);
 }
 
@@ -61,7 +61,7 @@ static process* create_kernel_process(void (*entry_point)(void)) {
         return ERR_PTR(-ENOMEM);
     memset(p, 0, sizeof(process));
 
-    p->id = get_next_pid();
+    p->id = process_generate_next_pid();
     p->heap_next_vaddr = USERLAND_HEAP_START;
     p->eip = (uintptr_t)entry_point;
     p->next = NULL;
@@ -99,7 +99,7 @@ void process_init(void) {
     current = kmalloc(sizeof(process));
     KASSERT(current);
     memset(current, 0, sizeof(process));
-    current->id = get_next_pid();
+    current->id = process_generate_next_pid();
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
@@ -116,20 +116,20 @@ void process_init(void) {
 static noreturn void switch_to_next_process(void) {
     cli();
 
-    current = queue_pop();
+    current = process_deque();
     KASSERT(current);
 
     mem_switch_page_directory(current->pd);
     gdt_set_kernel_stack(current->stack_top);
 
     __asm__ volatile("mov %0, %%edx\n"
-                     "mov %1, %%esp\n"
-                     "mov %2, %%ebp\n"
+                     "mov %1, %%ebp\n"
+                     "mov %2, %%esp\n"
                      "mov $1, %%eax;\n"
                      "sti\n"
                      "jmp *%%edx"
                      :
-                     : "g"(current->eip), "g"(current->esp), "g"(current->ebp),
+                     : "g"(current->eip), "g"(current->ebp), "g"(current->esp),
                        "b"(current->ebx), "S"(current->esi), "D"(current->edi)
                      : "eax", "edx");
     KUNREACHABLE();
@@ -158,7 +158,7 @@ void process_switch(void) {
         current->esi = esi;
         current->edi = edi;
 
-        queue_push(current);
+        process_enqueue(current);
     }
 
     switch_to_next_process();
@@ -168,75 +168,7 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
     process* p = create_kernel_process(entry_point);
     if (IS_ERR(p))
         return PTR_ERR(p);
-    queue_push(p);
-    return p->id;
-}
-
-int process_enter_userland(void (*entry_point)(void)) {
-    int rc = mem_map_to_private_anonymous_region(USER_STACK_BASE, STACK_SIZE,
-                                                 MEM_WRITE | MEM_USER);
-    if (IS_ERR(rc))
-        return rc;
-    memset((void*)USER_STACK_BASE, 0, STACK_SIZE);
-
-    __asm__ volatile("movw $0x23, %%ax\n"
-                     "movw %%ax, %%ds\n"
-                     "movw %%ax, %%es\n"
-                     "movw %%ax, %%fs\n"
-                     "movw %%ax, %%gs\n"
-                     "movl %0, %%esp\n"
-                     "pushl $0x23\n"
-                     "pushl %0\n"
-                     "pushf\n"
-                     "popl %%eax\n"
-                     "orl $0x200, %%eax\n" // set IF
-                     "pushl %%eax\n"
-                     "pushl $0x1b\n"
-                     "push %1\n"
-                     "iret" ::"i"(USER_STACK_TOP),
-                     "r"(entry_point)
-                     : "eax");
-    KUNREACHABLE();
-}
-
-void return_to_userland(registers);
-
-pid_t process_userland_fork(registers* regs) {
-    process* p = kmalloc(sizeof(process));
-    if (!p)
-        return -ENOMEM;
-    memset(p, 0, sizeof(process));
-
-    p->pd = mem_clone_current_page_directory();
-    if (IS_ERR(p->pd))
-        return PTR_ERR(p->pd);
-
-    p->id = get_next_pid();
-    p->eip = (uintptr_t)return_to_userland;
-    p->heap_next_vaddr = current->heap_next_vaddr;
-    p->ebx = current->ebx;
-    p->esi = current->esi;
-    p->edi = current->edi;
-    p->next = NULL;
-
-    int rc = file_descriptor_table_clone_from(&p->fd_table, &current->fd_table);
-    if (IS_ERR(rc))
-        return rc;
-
-    void* stack = kmalloc(STACK_SIZE);
-    if (!stack)
-        return -ENOMEM;
-    p->stack_top = (uintptr_t)stack + STACK_SIZE;
-    p->esp = p->ebp = p->stack_top;
-
-    // push the argument of return_to_userland()
-    p->esp -= sizeof(registers);
-    registers* child_regs = (registers*)p->esp;
-    *child_regs = *regs;
-    child_regs->eax = 0; // fork() returns 0 in the child
-
-    queue_push(p);
-
+    process_enqueue(p);
     return p->id;
 }
 

@@ -25,4 +25,4 @@ $(TARGETS): % : $(OBJS) %.o
 	$(CC) $(CFLAGS) -o ../base/$@ $^
 
 clean:
-	rm -f $(TARGETS:%=../base/%) $(OBJS)
+	rm -f $(TARGETS:%=%.o) $(TARGETS:%=../base/%) $(OBJS)

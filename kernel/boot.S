@@ -17,7 +17,7 @@ _start:
   cli
 
   # fill page table
-  movl $7, %esi # P | RW | US
+  movl $3, %esi # P | RW
   movl $kernel_page_table, %edi
   movl $1023, %ecx # last page is for quickmap
 1:
@@ -27,7 +27,7 @@ _start:
   loop 1b
 
   movl $kernel_page_table, %edx
-  orl $7, %edx # P | RW | US
+  orl $3, %edx # P | RW
   movl %edx, kernel_page_directory # identity mapping
   orl $100, %edx # G
   movl %edx, kernel_page_directory + KERNEL_PDE_IDX * 4

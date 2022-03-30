@@ -1,6 +1,5 @@
 #pragma once
 
-#include "kernel/forward.h"
 #include <kernel/fs/fs.h>
 #include <stdnoreturn.h>
 
@@ -21,15 +20,14 @@ extern process* current;
 
 void process_init(void);
 
-pid_t process_get_pid(void);
+pid_t process_spawn_kernel_process(void (*entry_point)(void));
 
 void process_switch(void);
+void process_enqueue(process*);
 
-pid_t process_spawn_kernel_process(void (*entry_point)(void));
+pid_t process_generate_next_pid(void);
+pid_t process_get_pid(void);
 noreturn void process_exit(int status);
-
-int process_enter_userland(void (*entry_point)(void));
-pid_t process_userland_fork(registers*);
 
 uintptr_t process_alloc_virtual_address_range(uintptr_t size);
 

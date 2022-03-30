@@ -29,6 +29,7 @@ KERNEL_OBJS := \
 	process.o \
 	ps2_mouse.o \
 	serial.o \
+	syscall/exec.o \
 	syscall/file.o \
 	syscall/mmap.o \
 	syscall/process.o \
