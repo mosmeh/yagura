@@ -49,11 +49,7 @@ struct file {
     ioctl_fn ioctl;
     readdir_fn readdir;
     mode_t mode;
-    union {
-        ino_t ino;
-        uint32_t device;
-        void* ptr;
-    };
+    unix_socket* bound_socket;
 };
 
 struct file* fs_lookup(struct file*, const char* name);

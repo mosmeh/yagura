@@ -25,6 +25,7 @@ uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
         return PTR_ERR(desc);
     if (!S_ISSOCK(desc->file->mode))
         return -ENOTSOCK;
+    unix_socket* socket = (unix_socket*)desc->file;
 
     if (addrlen != sizeof(sockaddr_un))
         return -EINVAL;
@@ -43,7 +44,7 @@ uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
             return -EADDRINUSE;
         return PTR_ERR(file);
     }
-    file->ptr = desc->file;
+    file->bound_socket = socket;
     return 0;
 }
 
@@ -93,7 +94,7 @@ uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
     struct file* file = vfs_open(path, O_RDWR, 0);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    unix_socket* listening = file->ptr;
+    unix_socket* listening = file->bound_socket;
     if (!listening)
         return -ECONNREFUSED;
 

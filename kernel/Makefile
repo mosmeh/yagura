@@ -14,6 +14,7 @@ KERNEL_OBJS := \
 	fs/initrd.o \
 	fs/shm.o \
 	fs/tmpfs.o \
+	fs/tree.o \
 	fs/vfs.o \
 	gdt.o \
 	idt.o \
