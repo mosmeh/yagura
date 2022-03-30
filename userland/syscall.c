@@ -27,6 +27,11 @@ pid_t getpid(void) { return syscall(SYS_getpid, 0, 0, 0); }
 
 void sched_yield(void) { syscall(SYS_yield, 0, 0, 0); }
 
+int execve(const char* pathname, char* const argv[], char* const envp[]) {
+    return syscall(SYS_execve, (uintptr_t)pathname, (uintptr_t)argv,
+                   (uintptr_t)envp);
+}
+
 void halt(void) { syscall(SYS_halt, 0, 0, 0); }
 
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,

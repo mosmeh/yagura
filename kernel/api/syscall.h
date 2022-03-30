@@ -10,6 +10,7 @@
     F(bind)                                                                    \
     F(close)                                                                   \
     F(connect)                                                                 \
+    F(execve)                                                                  \
     F(exit)                                                                    \
     F(fork)                                                                    \
     F(getdents)                                                                \

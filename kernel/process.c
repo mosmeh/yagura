@@ -61,14 +61,14 @@ static process* create_kernel_process(void (*entry_point)(void)) {
         return ERR_PTR(-ENOMEM);
     memset(p, 0, sizeof(process));
 
-    p->id = next_pid++;
+    p->id = get_next_pid();
     p->heap_next_vaddr = USERLAND_HEAP_START;
     p->eip = (uintptr_t)entry_point;
     p->next = NULL;
 
-    p->pd_paddr = mem_clone_current_page_directory_and_get_physical_addr();
-    if (IS_ERR(p->pd_paddr))
-        return ERR_CAST(p->pd_paddr);
+    p->pd = mem_create_page_directory();
+    if (IS_ERR(p->pd))
+        return ERR_CAST(p->pd);
 
     int rc = file_descriptor_table_init(&p->fd_table);
     if (IS_ERR(rc))
@@ -100,7 +100,8 @@ void process_init(void) {
     KASSERT(current);
     memset(current, 0, sizeof(process));
     current->id = get_next_pid();
-    current->pd_paddr = (uintptr_t)kernel_page_directory;
+    current->pd =
+        (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
     current->heap_next_vaddr = USERLAND_HEAP_START;
     KASSERT(IS_OK(file_descriptor_table_init(&current->fd_table)));
@@ -118,7 +119,7 @@ static noreturn void switch_to_next_process(void) {
     current = queue_pop();
     KASSERT(current);
 
-    mem_switch_page_directory(current->pd_paddr);
+    mem_switch_page_directory(current->pd);
     gdt_set_kernel_stack(current->stack_top);
 
     __asm__ volatile("mov %0, %%edx\n"
@@ -128,7 +129,7 @@ static noreturn void switch_to_next_process(void) {
                      "sti\n"
                      "jmp *%%edx"
                      :
-                     : "m"(current->eip), "m"(current->esp), "m"(current->ebp),
+                     : "g"(current->eip), "g"(current->esp), "g"(current->ebp),
                        "b"(current->ebx), "S"(current->esi), "D"(current->edi)
                      : "eax", "edx");
     KUNREACHABLE();
@@ -164,34 +165,10 @@ void process_switch(void) {
 }
 
 pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
-    process* p = kmalloc(sizeof(process));
-    if (!p)
-        return -ENOMEM;
-    memset(p, 0, sizeof(process));
-
-    uintptr_t pd_paddr =
-        mem_clone_current_page_directory_and_get_physical_addr();
-    if (IS_ERR(pd_paddr))
-        return pd_paddr;
-
-    p->id = next_pid++;
-    p->pd_paddr = pd_paddr;
-    p->heap_next_vaddr = USERLAND_HEAP_START;
-    p->eip = (uintptr_t)entry_point;
-    p->next = NULL;
-
-    int rc = file_descriptor_table_init(&p->fd_table);
-    if (IS_ERR(rc))
-        return rc;
-
-    void* stack = kmalloc(STACK_SIZE);
-    if (!stack)
-        return -ENOMEM;
-    p->stack_top = (uintptr_t)stack + STACK_SIZE;
-    p->esp = p->ebp = p->stack_top;
-
+    process* p = create_kernel_process(entry_point);
+    if (IS_ERR(p))
+        return PTR_ERR(p);
     queue_push(p);
-
     return p->id;
 }
 
@@ -200,6 +177,7 @@ int process_enter_userland(void (*entry_point)(void)) {
                                                  MEM_WRITE | MEM_USER);
     if (IS_ERR(rc))
         return rc;
+    memset((void*)USER_STACK_BASE, 0, STACK_SIZE);
 
     __asm__ volatile("movw $0x23, %%ax\n"
                      "movw %%ax, %%ds\n"
@@ -223,20 +201,17 @@ int process_enter_userland(void (*entry_point)(void)) {
 
 void return_to_userland(registers);
 
-// for syscall
 pid_t process_userland_fork(registers* regs) {
     process* p = kmalloc(sizeof(process));
     if (!p)
         return -ENOMEM;
     memset(p, 0, sizeof(process));
 
-    uintptr_t pd_paddr =
-        mem_clone_current_page_directory_and_get_physical_addr();
-    if (IS_ERR(pd_paddr))
-        return pd_paddr;
+    p->pd = mem_clone_current_page_directory();
+    if (IS_ERR(p->pd))
+        return PTR_ERR(p->pd);
 
-    p->id = next_pid++;
-    p->pd_paddr = pd_paddr;
+    p->id = get_next_pid();
     p->eip = (uintptr_t)return_to_userland;
     p->heap_next_vaddr = current->heap_next_vaddr;
     p->ebx = current->ebx;

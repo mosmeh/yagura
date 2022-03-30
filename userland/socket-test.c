@@ -1,15 +1,11 @@
 #include "stdlib.h"
 #include "syscall.h"
 #include <common/extra.h>
-#include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/hid.h>
 #include <kernel/api/mman.h>
-#include <kernel/api/socket.h>
-#include <kernel/api/syscall.h>
-#include <kernel/boot_defs.h>
 
 static noreturn void child1(void) {
     int fb_fd = open("/dev/fb0", O_RDWR);
@@ -73,7 +69,7 @@ static noreturn void child2(void) {
     exit(0);
 }
 
-void userland_main(void) {
+void _start(void) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     ASSERT(IS_OK(sockfd));
     sockaddr_un addr = {AF_UNIX, "/tmp/uds"};
@@ -83,6 +79,7 @@ void userland_main(void) {
 
     if (fork() == 0)
         child1();
+
     int peer_fd1 = accept(sockfd, NULL, NULL);
     printf("server: accepted (1)\n");
     ASSERT(IS_OK(peer_fd1));
@@ -121,5 +118,5 @@ void userland_main(void) {
     ASSERT(IS_OK(close(sockfd)));
     ASSERT(IS_OK(close(ps_fd)));
 
-    exit(123);
+    exit(0);
 }

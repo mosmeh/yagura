@@ -1,22 +1,19 @@
 MAKEFLAGS += --jobs=$(shell nproc)
+SUBDIRS := kernel userland tool
 
-.PHONY: all clean run kernel/kernel tool/mkfs
+.PHONY: all run clean $(SUBDIRS)
 
-all: kernel/kernel initrd
+all: kernel initrd
 
-kernel/kernel:
-	$(MAKE) -C kernel kernel
+initrd: tool base/* userland
+	tool/mkfs $@ base/*
 
-initrd: tool/mkfs base/*
-	'$<' $@ base/*
-
-tool/mkfs:
-	$(MAKE) -C tool mkfs
+$(SUBDIRS):
+	$(MAKE) -C $@ all
 
 clean:
-	$(MAKE) -C kernel $@
-	$(MAKE) -C tool $@
-	rm -f *.o initrd
+	for dir in $(SUBDIRS); do $(MAKE) -C $$dir clean; done
+	rm -f initrd
 
-run: kernel/kernel initrd
+run: kernel initrd
 	./run.sh

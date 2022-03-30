@@ -1,5 +1,6 @@
 #pragma once
 
+#include "kernel/forward.h"
 #include <kernel/fs/fs.h>
 #include <stdnoreturn.h>
 
@@ -9,7 +10,7 @@
 typedef struct process {
     pid_t id;
     uint32_t eip, esp, ebp, ebx, esi, edi;
-    uintptr_t pd_paddr;
+    page_directory* pd;
     uintptr_t stack_top;
     uintptr_t heap_next_vaddr;
     file_descriptor_table fd_table;

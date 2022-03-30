@@ -9,8 +9,12 @@
 
 void mem_init(const multiboot_info_t*);
 
-void mem_switch_page_directory(uintptr_t physical_addr);
-uintptr_t mem_clone_current_page_directory_and_get_physical_addr(void);
+uintptr_t mem_to_physical_addr(uintptr_t virtual_addr);
+
+page_directory* mem_current_page_directory(void);
+page_directory* mem_create_page_directory(void);
+page_directory* mem_clone_current_page_directory(void);
+void mem_switch_page_directory(page_directory* pd);
 
 int mem_map_to_private_anonymous_region(uintptr_t virtual_addr, uintptr_t size,
                                         uint16_t flags);

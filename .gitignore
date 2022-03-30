@@ -2,4 +2,6 @@ compile_flags.txt
 **/*.o
 kernel/kernel
 tool/mkfs
+base/*
+!base/*.txt
 initrd

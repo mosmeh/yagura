@@ -10,10 +10,13 @@
 #include "system.h"
 #include <kernel/api/err.h>
 
-void userland_main(void);
+uintptr_t sys_execve(const char* pathname, char* const argv[],
+                     char* const envp[]);
 
-static noreturn void kernel_process_entry(void) {
-    process_enter_userland(userland_main);
+static noreturn void init(void) {
+    char* argv[] = {NULL};
+    char* envp[] = {NULL};
+    sys_execve("/init", argv, envp);
     KUNREACHABLE();
 }
 
@@ -60,7 +63,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     pit_init(UINT32_MAX);
     kprintf("\x1b[32mInitialization done\x1b[m\n");
 
-    KASSERT(IS_OK(process_spawn_kernel_process(kernel_process_entry)));
+    KASSERT(IS_OK(process_spawn_kernel_process(init)));
 
     process_exit(0);
 }

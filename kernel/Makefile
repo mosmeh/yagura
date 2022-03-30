@@ -39,12 +39,7 @@ KERNEL_OBJS := \
 
 COMMON_OBJS := ../common/string.o
 
-USERLAND_OBJS := \
-	../userland/main.o \
-	../userland/stdlib.o \
-	../userland/syscall.o
-
-OBJS := $(KERNEL_OBJS) $(COMMON_OBJS) $(USERLAND_OBJS)
+OBJS := $(KERNEL_OBJS) $(COMMON_OBJS)
 
 .PHONY: all clean
 
