@@ -108,6 +108,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         return num_envp;
 
     page_directory* prev_pd = mem_current_page_directory();
+    uintptr_t prev_heap_next_vaddr = current->heap_next_vaddr;
+
     page_directory* new_pd = mem_create_page_directory();
     if (IS_ERR(new_pd))
         return PTR_ERR(new_pd);
@@ -120,6 +122,7 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     int ret = 0;
 
     Elf32_Phdr* phdr = (Elf32_Phdr*)((uintptr_t)buf + ehdr->e_phoff);
+    uintptr_t max_segment_addr = 0;
     for (size_t i = 0; i < ehdr->e_phnum; ++i, ++phdr) {
         if (phdr->p_type != PT_LOAD)
             continue;
@@ -138,10 +141,13 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         if (IS_ERR(ret))
             goto fail;
         memset((void*)region_start, 0, region_size);
-
         memcpy((void*)phdr->p_vaddr, (void*)((uintptr_t)buf + phdr->p_offset),
                phdr->p_filesz);
+
+        if (max_segment_addr < region_end)
+            max_segment_addr = region_end;
     }
+    current->heap_next_vaddr = max_segment_addr;
 
     ret = mem_map_to_private_anonymous_region(USER_STACK_BASE, STACK_SIZE,
                                               MEM_WRITE | MEM_USER);
@@ -181,7 +187,7 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     cli();
 
     current->eip = ehdr->e_entry;
-    current->esp = current->ebp = sp;
+    current->esp = current->ebp = current->stack_top;
     current->ebx = current->esi = current->edi = 0;
 
     // enter userland
@@ -207,6 +213,7 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 fail:
     KASSERT(IS_ERR(ret));
     current->pd = prev_pd;
+    current->heap_next_vaddr = prev_heap_next_vaddr;
     mem_switch_page_directory(prev_pd);
     return ret;
 }

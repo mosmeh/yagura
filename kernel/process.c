@@ -13,7 +13,7 @@
 #include <common/string.h>
 #include <stdatomic.h>
 
-#define USERLAND_HEAP_START 0x100000
+#define USER_HEAP_START 0x100000
 
 process* current;
 static process* queue;
@@ -62,7 +62,7 @@ static process* create_kernel_process(void (*entry_point)(void)) {
     memset(p, 0, sizeof(process));
 
     p->id = process_generate_next_pid();
-    p->heap_next_vaddr = USERLAND_HEAP_START;
+    p->heap_next_vaddr = USER_HEAP_START;
     p->eip = (uintptr_t)entry_point;
     p->next = NULL;
 
@@ -103,7 +103,7 @@ void process_init(void) {
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
-    current->heap_next_vaddr = USERLAND_HEAP_START;
+    current->heap_next_vaddr = USER_HEAP_START;
     KASSERT(IS_OK(file_descriptor_table_init(&current->fd_table)));
     current->next = NULL;
 

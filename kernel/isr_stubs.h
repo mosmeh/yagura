@@ -1,3 +1,5 @@
+#pragma once
+
 #define ENUMERATE_ISR_STUBS(F)                                                 \
     F(17)                                                                      \
     F(18)                                                                      \
