@@ -10,9 +10,12 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
     size_t num_files = argc - 2;
+
+    puts("Creating initrd");
+
     FILE* out = fopen(argv[1], "wb");
     if (!out) {
-        fprintf(stderr, "Could not open file \"initrd\"\n");
+        perror("fopen");
         return EXIT_FAILURE;
     }
     initrd_header header = {num_files};
@@ -23,22 +26,23 @@ int main(int argc, char** argv) {
     uint32_t* lengths = malloc(num_files * sizeof(uint32_t));
     for (size_t i = 0; i < num_files; ++i) {
         char* filepath = argv[i + 2];
-        printf("Scanning %s...\n", filepath);
+        printf("%s -> ", filepath);
+
+        initrd_file_header file_header;
+        file_header.offset = offset;
+        strncpy(file_header.name, basename(filepath), 127);
+        file_header.name[127] = '\0';
+        puts(file_header.name);
 
         FILE* file = fopen(filepath, "rb");
         if (!file) {
-            fprintf(stderr, "Could not open file\n");
+            perror("fopen");
+            fclose(out);
+            free(lengths);
             return EXIT_FAILURE;
         }
-
-        initrd_file_header file_header;
-        strncpy(file_header.name, basename(filepath), 127);
-        file_header.name[127] = '\0';
-        file_header.offset = offset;
-
         fseek(file, 0, SEEK_END);
         file_header.length = ftell(file);
-
         fclose(file);
 
         fwrite(&file_header, 1, sizeof(initrd_file_header), out);
@@ -49,18 +53,16 @@ int main(int argc, char** argv) {
 
     for (size_t i = 0; i < num_files; ++i) {
         const char* filename = argv[i + 2];
-        printf("Reading %s...\n", filename);
-
         FILE* file = fopen(filename, "rb");
-        if (!file) {
-            fprintf(stderr, "Could not open file\n");
-            return EXIT_FAILURE;
-        }
 
         uint8_t* buffer = (uint8_t*)malloc(lengths[i]);
         size_t nread = fread(buffer, sizeof(uint8_t), lengths[i], file);
         if (nread < lengths[i]) {
-            fprintf(stderr, "Failed to read file\n");
+            perror("fread");
+            fclose(out);
+            free(lengths);
+            free(buffer);
+            fclose(file);
             return EXIT_FAILURE;
         }
         fwrite(buffer, sizeof(uint8_t), lengths[i], out);
@@ -71,7 +73,6 @@ int main(int argc, char** argv) {
 
     fclose(out);
     free(lengths);
-    printf("Wrote to %s\n", argv[1]);
 
     return EXIT_SUCCESS;
 }
