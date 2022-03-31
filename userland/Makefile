@@ -10,19 +10,22 @@ CFLAGS := \
 COMMON_OBJS := ../common/string.o
 
 USERLAND_OBJS := \
-	../userland/stdlib.o \
-	../userland/syscall.o
+	stdlib.o \
+	syscall.o
 
 OBJS := $(COMMON_OBJS) $(USERLAND_OBJS)
 
-TARGETS := init socket-test fs-test
+TARGET_NAMES := init socket-test fs-test
+
+OUTDIR := ../base
+TARGETS := $(TARGET_NAMES:%=$(OUTDIR)/%)
 
 .PHONY: all clean
 
 all: $(TARGETS)
 
-$(TARGETS): % : $(OBJS) %.o
-	$(CC) $(CFLAGS) -o ../base/$@ $^
+$(TARGETS): $(OUTDIR)/% : $(OBJS) %.o
+	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
-	rm -f $(TARGETS:%=%.o) $(TARGETS:%=../base/%) $(OBJS)
+	rm -f $(TARGET_NAMES:%=%.o) $(TARGETS) $(OBJS)

@@ -1,11 +1,13 @@
 CFLAGS := -std=c11 -I.. -Wall -Wextra -pedantic -O2
 
+TARGETS := mkfs
+
 .PHONY: all clean
 
-all: mkfs
+all: $(TARGETS)
 
-mkfs: mkfs.c
-	$(CC) $(CFLAGS) -o $@ $<
+$(TARGETS): % : %.c
+	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
-	rm -f mkfs
+	rm -f $(TARGETS)
