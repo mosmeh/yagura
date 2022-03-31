@@ -1,5 +1,6 @@
 #include "stdlib.h"
 #include "syscall.h"
+#include <common/panic.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/mman.h>

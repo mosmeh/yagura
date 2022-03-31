@@ -7,9 +7,9 @@
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "lock.h"
-#include "panic.h"
 #include "pci.h"
 #include "system.h"
+#include <common/panic.h>
 #include <common/string.h>
 
 #define VBE_DISPI_IOPORT_INDEX 0x01ce
@@ -70,7 +70,7 @@ static void configure(size_t width, size_t height, size_t bpp) {
 
 void bochs_graphics_init(void) {
     pci_enumerate(pci_enumeration_callback);
-    KASSERT(fb_addr);
+    ASSERT(fb_addr);
     kprintf("Found framebuffer at 0x%x\n", fb_addr);
     configure(640, 480, 32);
     mutex_init(&lock);

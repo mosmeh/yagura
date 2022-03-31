@@ -1,4 +1,5 @@
 #include "common/extra.h"
+#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/api/elf.h>
 #include <kernel/api/err.h>
@@ -8,7 +9,6 @@
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/mem.h>
-#include <kernel/panic.h>
 #include <kernel/process.h>
 
 static ssize_t copy_strings(char** dst[], char* const src[]) {
@@ -84,7 +84,12 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     if (!buf)
         return -ENOMEM;
     ssize_t nread = fs_read(&desc, buf, 65536);
-    KASSERT(sizeof(Elf32_Ehdr) < (size_t)nread && nread < 65536);
+    if (IS_ERR(nread))
+        return nread;
+    if ((size_t)nread < sizeof(Elf32_Ehdr))
+        return -ENOEXEC;
+    if (nread >= 65536)
+        UNIMPLEMENTED();
 
     Elf32_Ehdr* ehdr = (Elf32_Ehdr*)buf;
     if (!IS_ELF(*ehdr) || ehdr->e_ident[EI_CLASS] != ELFCLASS32 ||
@@ -147,6 +152,11 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         if (max_segment_addr < region_end)
             max_segment_addr = region_end;
     }
+
+    // make sure we didn't make any userland virtual memory allocations, which
+    // could overlap newly loaded segments
+    ASSERT(current->heap_next_vaddr == prev_heap_next_vaddr);
+
     current->heap_next_vaddr = max_segment_addr;
 
     ret = mem_map_to_anonymous_region(USER_STACK_BASE, STACK_SIZE,
@@ -208,10 +218,10 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
                      "iret" ::"r"(sp),
                      "r"(ehdr->e_entry)
                      : "eax");
-    KUNREACHABLE();
+    UNREACHABLE();
 
 fail:
-    KASSERT(IS_ERR(ret));
+    ASSERT(IS_ERR(ret));
     current->pd = prev_pd;
     current->heap_next_vaddr = prev_heap_next_vaddr;
     mem_switch_page_directory(prev_pd);

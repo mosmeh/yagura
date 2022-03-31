@@ -1,6 +1,7 @@
 #include "stdlib.h"
 #include "syscall.h"
 #include <common/extra.h>
+#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/api/mman.h>
 #include <kernel/api/syscall.h>

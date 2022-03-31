@@ -4,11 +4,10 @@
 #include "kprintf.h"
 #include "mem.h"
 #include "multiboot.h"
-#include "panic.h"
 #include "process.h"
 #include "serial.h"
 #include "system.h"
-#include <kernel/api/err.h>
+#include <common/panic.h>
 
 uintptr_t sys_execve(const char* pathname, char* const argv[],
                      char* const envp[]);
@@ -16,8 +15,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 static noreturn void init(void) {
     char* argv[] = {NULL};
     char* envp[] = {NULL};
-    KASSERT(IS_OK(sys_execve("/init", argv, envp)));
-    KUNREACHABLE();
+    ASSERT_OK(sys_execve("/init", argv, envp));
+    UNREACHABLE();
 }
 
 extern unsigned char kernel_end[];
@@ -31,7 +30,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     kprintf("\n\x1b[32mBooted\x1b[m\n");
     sti();
 
-    KASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
+    ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
     kprintf("Kernel stack top: V0x%x\n", (uintptr_t)stack_top);
     kprintf("Kernel end: V0x%x\n", (uintptr_t)kernel_end);
 
@@ -64,7 +63,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     pit_init(250);
     kprintf("\x1b[32mInitialization done\x1b[m\n");
 
-    KASSERT(IS_OK(process_spawn_kernel_process(init)));
+    ASSERT_OK(process_spawn_kernel_process(init));
 
     process_exit(0);
 }

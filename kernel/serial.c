@@ -4,8 +4,8 @@
 #include "api/types.h"
 #include "asm_wrapper.h"
 #include "kmalloc.h"
-#include "panic.h"
 #include "string.h"
+#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/fs/fs.h>
 #include <stdbool.h>
@@ -29,10 +29,10 @@ static bool serial_enable_port(uint16_t port) {
 }
 
 void serial_init(void) {
-    KASSERT(serial_enable_port(SERIAL_COM1));
-    KASSERT(serial_enable_port(SERIAL_COM2));
-    KASSERT(serial_enable_port(SERIAL_COM3));
-    KASSERT(serial_enable_port(SERIAL_COM4));
+    ASSERT(serial_enable_port(SERIAL_COM1));
+    ASSERT(serial_enable_port(SERIAL_COM2));
+    ASSERT(serial_enable_port(SERIAL_COM3));
+    ASSERT(serial_enable_port(SERIAL_COM4));
 }
 
 static bool is_transmit_empty(uint16_t port) { return in8(port + 5) & 0x20; }

@@ -2,8 +2,8 @@
 #include "interrupts.h"
 #include "isr_stubs.h"
 #include "kprintf.h"
-#include "panic.h"
 #include "system.h"
+#include <common/panic.h>
 
 typedef struct idt_descriptor {
     uint16_t base_lo : 16;
@@ -39,7 +39,7 @@ void isr_handler(registers* regs) {
 
     kprintf("Unhandled interrupt: %u\n", regs->num);
     dump_registers(regs);
-    KPANIC("Unhandled interrupt");
+    PANIC("Unhandled interrupt");
 }
 
 void idt_set_gate(uint8_t idx, uint32_t base, uint16_t segment_selector,
@@ -82,7 +82,7 @@ void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
     static void handle_exception##num(registers* regs) {                       \
         kprintf("Exception #" #num ": " msg "\n");                             \
         dump_registers(regs);                                                  \
-        KPANIC("Exception");                                                   \
+        PANIC("Exception");                                                    \
     }
 
 #define DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(num, msg)                          \
@@ -119,7 +119,7 @@ static void handle_exception14(registers* regs) {
             write ? "write " : "read ", user ? "user-mode" : "kernel-mode",
             read_cr2());
     dump_registers(regs);
-    KPANIC("Page fault");
+    PANIC("Page fault");
 }
 
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(15, "Unknown")

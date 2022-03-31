@@ -6,7 +6,7 @@
 #include "kernel/interrupts.h"
 #include "kmalloc.h"
 #include "lock.h"
-#include "panic.h"
+#include <common/panic.h>
 #include <common/string.h>
 
 #define PS2_DATA 0x60
@@ -35,7 +35,7 @@ static void write(uint8_t port, uint8_t data) {
 static void write_mouse(uint8_t data) {
     write(PS2_COMMAND, 0xd4);
     write(PS2_DATA, data);
-    KASSERT(read(PS2_DATA) == PS2_ACK);
+    ASSERT(read(PS2_DATA) == PS2_ACK);
 }
 
 static uint8_t buf[3];
@@ -54,7 +54,7 @@ static void irq_handler(registers* reg) {
     buf[state] = data;
     switch (state) {
     case 0:
-        KASSERT(data & 8);
+        ASSERT(data & 8);
         ++state;
         return;
     case 1:
@@ -77,7 +77,7 @@ static void irq_handler(registers* reg) {
         return;
     }
     }
-    KUNREACHABLE();
+    UNREACHABLE();
 }
 
 void ps2_mouse_init(void) {

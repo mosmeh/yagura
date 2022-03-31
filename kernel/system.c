@@ -1,6 +1,14 @@
 #include "system.h"
 #include "asm_wrapper.h"
 #include "kprintf.h"
+#include <common/panic.h>
+
+noreturn void panic(const char* message, const char* file, size_t line) {
+    kprintf("%s at %s:%u\n", message, file, line);
+    cli();
+    for (;;)
+        hlt();
+}
 
 void dump_registers(const registers* regs) {
     uint16_t ss;

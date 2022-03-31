@@ -25,7 +25,6 @@ KERNEL_OBJS := \
 	lock.o \
 	main.o \
 	mem.o \
-	panic.o \
 	pci.o \
 	pit.o \
 	process.o \

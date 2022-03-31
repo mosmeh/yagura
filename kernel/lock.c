@@ -1,7 +1,7 @@
 #include "lock.h"
 #include "interrupts.h"
-#include "panic.h"
 #include "process.h"
+#include <common/panic.h>
 
 void mutex_init(mutex* m) {
     m->holder = NULL;
@@ -10,7 +10,7 @@ void mutex_init(mutex* m) {
 }
 
 void mutex_lock(mutex* m) {
-    KASSERT(interrupts_enabled());
+    ASSERT(interrupts_enabled());
 
     for (;;) {
         bool expected = false;
@@ -35,8 +35,8 @@ void mutex_unlock(mutex* m) {
         if (atomic_compare_exchange_strong_explicit(&m->lock, &expected, true,
                                                     memory_order_acq_rel,
                                                     memory_order_acquire)) {
-            KASSERT(m->holder == current);
-            KASSERT(m->level > 0);
+            ASSERT(m->holder == current);
+            ASSERT(m->level > 0);
             if (--m->level == 0)
                 m->holder = NULL;
             atomic_store_explicit(&m->lock, false, memory_order_release);

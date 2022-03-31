@@ -1,12 +1,12 @@
 #include "kernel/mem.h"
 #include "tree.h"
+#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/stat.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
-#include <kernel/panic.h>
 #include <kernel/process.h>
 
 typedef struct shm_node {
@@ -49,11 +49,11 @@ static const char mount_point[] = "/shm/";
 
 void shm_init(void) {
     shm_node* node = kmalloc(sizeof(shm_node));
-    KASSERT(node);
+    ASSERT(node);
     memset(node, 0, sizeof(shm_node));
     struct file* file = (struct file*)node;
     file->name = kstrdup("shm");
-    KASSERT(file->name);
+    ASSERT(file->name);
     file->mode = S_IFDIR;
     file->lookup = tree_node_lookup;
     file->create_child = shm_create_child;

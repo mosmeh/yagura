@@ -1,8 +1,8 @@
+#include <common/panic.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/syscall.h>
 #include <kernel/interrupts.h>
 #include <kernel/kprintf.h>
-#include <kernel/panic.h>
 #include <kernel/system.h>
 
 noreturn uintptr_t sys_halt(void) {
@@ -27,13 +27,13 @@ static syscall_handler_fn syscall_handlers[NUM_SYSCALLS + 1] = {
         NULL};
 
 static void syscall_handler(registers* regs) {
-    KASSERT((regs->cs & 3) == 3);
-    KASSERT((regs->ds & 3) == 3);
-    KASSERT((regs->es & 3) == 3);
-    KASSERT((regs->fs & 3) == 3);
-    KASSERT((regs->gs & 3) == 3);
-    KASSERT((regs->user_ss & 3) == 3);
-    KASSERT(interrupts_enabled());
+    ASSERT((regs->cs & 3) == 3);
+    ASSERT((regs->ds & 3) == 3);
+    ASSERT((regs->es & 3) == 3);
+    ASSERT((regs->fs & 3) == 3);
+    ASSERT((regs->gs & 3) == 3);
+    ASSERT((regs->user_ss & 3) == 3);
+    ASSERT(interrupts_enabled());
 
     if (regs->eax >= NUM_SYSCALLS) {
         regs->eax = -ENOSYS;
@@ -41,7 +41,7 @@ static void syscall_handler(registers* regs) {
     }
 
     syscall_handler_fn handler = syscall_handlers[regs->eax];
-    KASSERT(handler);
+    ASSERT(handler);
 
     if (regs->eax == SYS_fork)
         regs->eax = handler(regs);

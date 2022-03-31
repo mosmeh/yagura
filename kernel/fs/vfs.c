@@ -1,10 +1,10 @@
 #include "fs.h"
+#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
-#include <kernel/panic.h>
 #include <stdbool.h>
 
 typedef struct vfs_node {
@@ -53,7 +53,7 @@ static bool is_absolute_path(const char* path) {
 }
 
 void vfs_mount(const char* path, struct file* fs) {
-    KASSERT(is_absolute_path(path));
+    ASSERT(is_absolute_path(path));
 
     size_t path_len = strlen(path);
     if (path_len == 1) {
@@ -63,13 +63,13 @@ void vfs_mount(const char* path, struct file* fs) {
     }
 
     char* split_path = kstrdup(path);
-    KASSERT(split_path);
+    ASSERT(split_path);
     str_replace_char(split_path, PATH_SEPARATOR, '\0');
 
     vfs_node* node = &root;
     char* component = split_path + 1;
     for (;;) {
-        KASSERT(component < split_path + path_len);
+        ASSERT(component < split_path + path_len);
         vfs_node* child = find_child_by_name(node, component);
         if (!child)
             break;
@@ -79,9 +79,9 @@ void vfs_mount(const char* path, struct file* fs) {
 
     while (component < split_path + path_len) {
         vfs_node* child = kmalloc(sizeof(vfs_node));
-        KASSERT(child);
+        ASSERT(child);
         child->name = kstrdup(component);
-        KASSERT(child->name);
+        ASSERT(child->name);
         append_child(node, child);
         node = child;
         component += strlen(component) + 1;

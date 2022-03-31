@@ -9,8 +9,8 @@
 #include "kprintf.h"
 #include "lock.h"
 #include "multiboot.h"
-#include "panic.h"
 #include <common/extra.h>
+#include <common/panic.h>
 #include <common/string.h>
 #include <stdalign.h>
 #include <stdbool.h>
@@ -23,12 +23,12 @@ static uint32_t physical_page_bitmap[PHYSICAL_PAGE_BITMAP_MAX_LEN];
 static mutex physical_page_lock;
 
 static void physical_page_bitmap_set(size_t i) {
-    KASSERT((i >> 5) < physical_page_bitmap_len);
+    ASSERT((i >> 5) < physical_page_bitmap_len);
     physical_page_bitmap[i >> 5] |= 1 << (i & 31);
 }
 
 static void physical_page_bitmap_clear(size_t i) {
-    KASSERT((i >> 5) < physical_page_bitmap_len);
+    ASSERT((i >> 5) < physical_page_bitmap_len);
     physical_page_bitmap[i >> 5] &= ~(1 << (i & 31));
 }
 
@@ -102,7 +102,7 @@ static page_directory* current_pd;
 page_directory* mem_current_page_directory(void) { return current_pd; }
 
 static volatile page_table* get_page_table(size_t pd_idx) {
-    KASSERT(pd_idx < 1024);
+    ASSERT(pd_idx < 1024);
     return (volatile page_table*)(0xffc00000 + PAGE_SIZE * pd_idx);
 }
 
@@ -114,7 +114,7 @@ static volatile page_table* get_page_table(size_t pd_idx) {
 static uintptr_t quickmap(uintptr_t paddr, uint32_t flags) {
     volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
     volatile page_table_entry* pte = pt->entries + 1023;
-    KASSERT(pte->raw == 0);
+    ASSERT(pte->raw == 0);
     pte->raw = paddr | flags;
     pte->present = true;
     flush_tlb_single(QUICKMAP_VADDR);
@@ -124,7 +124,7 @@ static uintptr_t quickmap(uintptr_t paddr, uint32_t flags) {
 static void unquickmap(void) {
     volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
     volatile page_table_entry* pte = pt->entries + 1023;
-    KASSERT(pte->present);
+    ASSERT(pte->present);
     pte->raw = 0;
     flush_tlb_single(QUICKMAP_VADDR);
 }
@@ -188,7 +188,7 @@ static volatile page_table_entry* get_pte(uintptr_t vaddr) {
 
 uintptr_t mem_to_physical_addr(uintptr_t vaddr) {
     const volatile page_table_entry* pte = get_pte(vaddr);
-    KASSERT(pte && pte->present);
+    ASSERT(pte && pte->present);
     return (pte->raw & ~0xfff) | (vaddr & 0xfff);
 }
 
@@ -198,7 +198,7 @@ static int map_page_anywhere(uintptr_t vaddr, uint32_t flags) {
         return PTR_ERR(pt);
 
     volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
-    KASSERT(!pte->present);
+    ASSERT(!pte->present);
 
     uintptr_t physical_page_addr = alloc_physical_page();
     if (IS_ERR(physical_page_addr))
@@ -218,7 +218,7 @@ static int map_page_at_fixed_physical_addr(uintptr_t vaddr, uintptr_t paddr,
         return PTR_ERR(pt);
 
     volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
-    KASSERT(!pte->present);
+    ASSERT(!pte->present);
     pte->raw = paddr | flags;
     pte->present = true;
     flush_tlb_single(vaddr);
@@ -363,7 +363,7 @@ void mem_switch_page_directory(page_directory* pd) {
 
     pop_cli(int_flag);
 
-    KASSERT(paddr == mem_to_physical_addr(0xfffff000));
+    ASSERT(paddr == mem_to_physical_addr(0xfffff000));
 }
 
 extern unsigned char kernel_page_directory[];
@@ -380,10 +380,10 @@ void mem_init(const multiboot_info_t* mb_info) {
 
     // In the current setup, kernel image (including 1MiB offset) has to fit in
     // single page table (< 4MiB), and last page is reserved for quickmap
-    KASSERT(lower_bound <= 1023 * PAGE_SIZE);
+    ASSERT(lower_bound <= 1023 * PAGE_SIZE);
 
     physical_page_bitmap_len = div_ceil(upper_bound, PAGE_SIZE * 32);
-    KASSERT(physical_page_bitmap_len <= PHYSICAL_PAGE_BITMAP_MAX_LEN);
+    ASSERT(physical_page_bitmap_len <= PHYSICAL_PAGE_BITMAP_MAX_LEN);
 
     set_bits_for_available_physical_pages(mb_info, lower_bound, upper_bound);
 
@@ -392,8 +392,8 @@ void mem_init(const multiboot_info_t* mb_info) {
 
 int mem_map_to_anonymous_region(uintptr_t vaddr, uintptr_t size,
                                 uint16_t flags) {
-    KASSERT((vaddr % PAGE_SIZE) == 0);
-    KASSERT((size % PAGE_SIZE) == 0);
+    ASSERT((vaddr % PAGE_SIZE) == 0);
+    ASSERT((size % PAGE_SIZE) == 0);
 
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
         int rc = map_page_anywhere(vaddr + offset, flags);
@@ -406,9 +406,9 @@ int mem_map_to_anonymous_region(uintptr_t vaddr, uintptr_t size,
 
 int mem_map_to_physical_range(uintptr_t vaddr, uintptr_t paddr, uintptr_t size,
                               uint16_t flags) {
-    KASSERT((vaddr % PAGE_SIZE) == 0);
-    KASSERT((paddr % PAGE_SIZE) == 0);
-    KASSERT((size % PAGE_SIZE) == 0);
+    ASSERT((vaddr % PAGE_SIZE) == 0);
+    ASSERT((paddr % PAGE_SIZE) == 0);
+    ASSERT((size % PAGE_SIZE) == 0);
 
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
         int rc = map_page_at_fixed_physical_addr(vaddr + offset, paddr + offset,

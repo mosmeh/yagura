@@ -1,11 +1,11 @@
 #include "fs.h"
 #include <common/initrd.h>
+#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
 #include <kernel/api/stat.h>
 #include <kernel/kmalloc.h>
-#include <kernel/panic.h>
 
 typedef struct initrd_file {
     struct file base_file;
@@ -76,7 +76,7 @@ void initrd_init(uintptr_t addr) {
     file_headers = (const initrd_file_header*)(addr + sizeof(initrd_header));
 
     file_nodes = kmalloc(header->num_files * sizeof(initrd_file));
-    KASSERT(file_nodes);
+    ASSERT(file_nodes);
     for (size_t i = 0; i < header->num_files; ++i) {
         initrd_file* ifile = file_nodes + i;
         ifile->ino = i;
@@ -84,7 +84,7 @@ void initrd_init(uintptr_t addr) {
         struct file* file = (struct file*)ifile;
         memset(file, 0, sizeof(struct file));
         file->name = kstrndup(file_headers[i].name, 128);
-        KASSERT(file->name);
+        ASSERT(file->name);
         file->mode = S_IFREG;
         file->read = initrd_read;
     }

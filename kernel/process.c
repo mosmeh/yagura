@@ -1,5 +1,4 @@
 #include "process.h"
-#include "api/err.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
 #include "kernel/fs/fs.h"
@@ -7,9 +6,9 @@
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "mem.h"
-#include "panic.h"
 #include "system.h"
 #include <common/extra.h>
+#include <common/panic.h>
 #include <common/string.h>
 #include <stdatomic.h>
 
@@ -85,7 +84,7 @@ static process* create_kernel_process(void (*entry_point)(void)) {
 
 static noreturn void do_idle(void) {
     for (;;) {
-        KASSERT(interrupts_enabled());
+        ASSERT(interrupts_enabled());
         hlt();
     }
 }
@@ -97,27 +96,27 @@ void process_init(void) {
     atomic_init(&next_pid, 0);
 
     current = kmalloc(sizeof(process));
-    KASSERT(current);
+    ASSERT(current);
     memset(current, 0, sizeof(process));
     current->id = process_generate_next_pid();
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
     current->heap_next_vaddr = USER_HEAP_START;
-    KASSERT(IS_OK(file_descriptor_table_init(&current->fd_table)));
+    ASSERT_OK(file_descriptor_table_init(&current->fd_table));
     current->next = NULL;
 
     gdt_set_kernel_stack(current->stack_top);
 
     idle = create_kernel_process(do_idle);
-    KASSERT(IS_OK(idle));
+    ASSERT_OK(idle);
 }
 
 static noreturn void switch_to_next_process(void) {
     cli();
 
     current = process_deque();
-    KASSERT(current);
+    ASSERT(current);
 
     mem_switch_page_directory(current->pd);
     gdt_set_kernel_stack(current->stack_top);
@@ -132,12 +131,12 @@ static noreturn void switch_to_next_process(void) {
                      : "g"(current->eip), "g"(current->ebp), "g"(current->esp),
                        "b"(current->ebx), "S"(current->esi), "D"(current->edi)
                      : "eax", "edx");
-    KUNREACHABLE();
+    UNREACHABLE();
 }
 
 void process_switch(void) {
     cli();
-    KASSERT(current);
+    ASSERT(current);
 
     if (current != idle) {
         uint32_t eip = read_eip();

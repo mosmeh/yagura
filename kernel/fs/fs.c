@@ -1,10 +1,10 @@
 #include "fs.h"
+#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
 #include <kernel/api/stat.h>
 #include <kernel/kmalloc.h>
-#include <kernel/panic.h>
 
 int file_descriptor_table_init(file_descriptor_table* table) {
     table->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
@@ -116,5 +116,5 @@ uint8_t mode_to_dirent_type(mode_t mode) {
     case S_IFSOCK:
         return DT_SOCK;
     }
-    KUNREACHABLE();
+    UNREACHABLE();
 }

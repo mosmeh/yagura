@@ -3,9 +3,9 @@
 #include "fs/fs.h"
 #include "kmalloc.h"
 #include "lock.h"
-#include "panic.h"
 #include "process.h"
 #include "socket.h"
+#include <common/panic.h>
 #include <common/string.h>
 #include <stdbool.h>
 
@@ -164,8 +164,8 @@ unix_socket* unix_socket_accept(unix_socket* listening) {
     unix_socket* connecting = deque_pending(listening);
     mutex_unlock(&listening->pending_queue_lock);
 
-    KASSERT(!atomic_exchange_explicit(&connecting->connected, true,
-                                      memory_order_acq_rel));
+    ASSERT(!atomic_exchange_explicit(&connecting->connected, true,
+                                     memory_order_acq_rel));
     return connecting;
 }
 

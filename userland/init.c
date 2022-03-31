@@ -1,5 +1,6 @@
 #include "stdlib.h"
 #include "syscall.h"
+#include <common/panic.h>
 
 void spawn_process(const char* filename) {
     if (fork() == 0) {

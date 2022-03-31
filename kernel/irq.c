@@ -1,8 +1,8 @@
 #include "asm_wrapper.h"
 #include "interrupts.h"
-#include "panic.h"
 #include "system.h"
 #include <common/extra.h>
+#include <common/panic.h>
 
 #define PIC1_CMD 0x20
 #define PIC1_DATA 0x21
@@ -60,7 +60,7 @@ ENUMERATE_IRQS(DEFINE_IRQ)
 extern interrupt_handler_fn interrupt_handlers[256];
 
 void irq_handler(registers* regs) {
-    KASSERT(!interrupts_enabled());
+    ASSERT(!interrupts_enabled());
 
     if (regs->num >= NUM_IRQS_PER_PIC)
         out8(PIC2_CMD, PIC_EOI);
