@@ -70,9 +70,9 @@ uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     if (!S_ISSOCK(desc->file->mode))
         return -ENOTSOCK;
 
-    unix_socket* listening = (unix_socket*)desc->file;
-    unix_socket* connected = unix_socket_accept(listening);
-    return process_alloc_file_descriptor((struct file*)connected);
+    unix_socket* listener = (unix_socket*)desc->file;
+    unix_socket* connector = unix_socket_accept(listener);
+    return process_alloc_file_descriptor((struct file*)connector);
 }
 
 uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
@@ -94,9 +94,9 @@ uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
     struct file* file = vfs_open(path, O_RDWR, 0);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    unix_socket* listening = file->bound_socket;
-    if (!listening)
+    unix_socket* listener = file->bound_socket;
+    if (!listener)
         return -ECONNREFUSED;
 
-    return unix_socket_connect(desc, listening);
+    return unix_socket_connect(desc, listener);
 }

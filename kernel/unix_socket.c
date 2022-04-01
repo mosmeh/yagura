@@ -36,7 +36,7 @@ typedef struct unix_socket {
     struct unix_socket* next; // pending queue
 
     atomic_bool connected;
-    file_description* connect_side_fd;
+    file_description* connector_fd;
 
     locked_buf server_to_client_buf;
     locked_buf client_to_server_buf;
@@ -44,14 +44,14 @@ typedef struct unix_socket {
 
 static locked_buf* get_buf_to_read(unix_socket* socket,
                                    file_description* desc) {
-    bool is_client = socket->connect_side_fd == desc;
+    bool is_client = socket->connector_fd == desc;
     return is_client ? &socket->server_to_client_buf
                      : &socket->client_to_server_buf;
 }
 
 static locked_buf* get_buf_to_write(unix_socket* socket,
                                     file_description* desc) {
-    bool is_client = socket->connect_side_fd == desc;
+    bool is_client = socket->connector_fd == desc;
     return is_client ? &socket->client_to_server_buf
                      : &socket->server_to_client_buf;
 }
@@ -132,57 +132,56 @@ void unix_socket_set_backlog(unix_socket* socket, int backlog) {
     socket->backlog = backlog;
 }
 
-static void enqueue_pending(unix_socket* listening, unix_socket* connecting) {
-    connecting->next = NULL;
-    if (listening->next) {
-        unix_socket* it = listening->next;
+static void enqueue_pending(unix_socket* listener, unix_socket* connector) {
+    connector->next = NULL;
+    if (listener->next) {
+        unix_socket* it = listener->next;
         while (it->next)
             it = it->next;
-        it->next = connecting;
+        it->next = connector;
     } else {
-        listening->next = connecting;
+        listener->next = connector;
     }
-    ++listening->num_pending;
+    ++listener->num_pending;
 }
 
-static unix_socket* deque_pending(unix_socket* listening) {
-    unix_socket* connecting = listening->next;
-    listening->next = connecting->next;
-    --listening->num_pending;
-    return connecting;
+static unix_socket* deque_pending(unix_socket* listener) {
+    unix_socket* connector = listener->next;
+    listener->next = connector->next;
+    --listener->num_pending;
+    return connector;
 }
 
-unix_socket* unix_socket_accept(unix_socket* listening) {
+unix_socket* unix_socket_accept(unix_socket* listener) {
     for (;;) {
-        mutex_lock(&listening->pending_queue_lock);
-        if (listening->num_pending > 0)
+        mutex_lock(&listener->pending_queue_lock);
+        if (listener->num_pending > 0)
             break;
-        mutex_unlock(&listening->pending_queue_lock);
+        mutex_unlock(&listener->pending_queue_lock);
         process_switch();
     }
 
-    unix_socket* connecting = deque_pending(listening);
-    mutex_unlock(&listening->pending_queue_lock);
+    unix_socket* connector = deque_pending(listener);
+    mutex_unlock(&listener->pending_queue_lock);
 
-    ASSERT(!atomic_exchange_explicit(&connecting->connected, true,
+    ASSERT(!atomic_exchange_explicit(&connector->connected, true,
                                      memory_order_acq_rel));
-    return connecting;
+    return connector;
 }
 
-int unix_socket_connect(file_description* connecting_fd,
-                        unix_socket* listening) {
-    unix_socket* connecting = (unix_socket*)connecting_fd->file;
-    connecting->connect_side_fd = connecting_fd;
+int unix_socket_connect(file_description* connector_fd, unix_socket* listener) {
+    unix_socket* connector = (unix_socket*)connector_fd->file;
+    connector->connector_fd = connector_fd;
 
-    mutex_lock(&listening->pending_queue_lock);
-    if (listening->num_pending >= (size_t)listening->backlog) {
-        mutex_unlock(&listening->pending_queue_lock);
+    mutex_lock(&listener->pending_queue_lock);
+    if (listener->num_pending >= (size_t)listener->backlog) {
+        mutex_unlock(&listener->pending_queue_lock);
         return -ECONNREFUSED;
     }
-    enqueue_pending(listening, connecting);
-    mutex_unlock(&listening->pending_queue_lock);
+    enqueue_pending(listener, connector);
+    mutex_unlock(&listener->pending_queue_lock);
 
-    while (!atomic_load_explicit(&connecting->connected, memory_order_acquire))
+    while (!atomic_load_explicit(&connector->connected, memory_order_acquire))
         process_switch();
 
     return 0;
