@@ -92,7 +92,7 @@ static struct file* tmpfs_create_child(struct file* file, const char* name,
     return child_file;
 }
 
-struct file* tmpfs_create(void) {
+struct file* tmpfs_create_root(void) {
     tmpfs_node* root = kmalloc(sizeof(tmpfs_node));
     if (!root)
         return ERR_PTR(-ENOMEM);

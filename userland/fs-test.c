@@ -6,7 +6,7 @@
 #include <kernel/api/mman.h>
 
 void child(void) {
-    int fd = open("/shm/foofoo", O_RDWR);
+    int fd = open("/dev/shm/foofoo", O_RDWR);
     ASSERT_OK(fd);
     int* buf = mmap(NULL, 30000 * sizeof(int), PROT_READ | PROT_WRITE,
                     MAP_SHARED, fd, 0);
@@ -18,8 +18,9 @@ void child(void) {
 }
 
 void _start(void) {
-    int shm_fd = shm_create("/shm/foofoo", 30000 * sizeof(int));
+    int shm_fd = open("/dev/shm/foofoo", O_RDWR | O_CREAT | O_EXCL);
     ASSERT_OK(shm_fd);
+    ASSERT_OK(ftruncate(shm_fd, 30000 * sizeof(int)));
     int* buf = mmap(NULL, 30000 * sizeof(int), PROT_READ | PROT_WRITE,
                     MAP_SHARED, shm_fd, 0);
     ASSERT(buf != MAP_FAILED);
@@ -28,7 +29,7 @@ void _start(void) {
     if (fork() == 0)
         child();
     {
-        int fd = open("/tmp/wow", O_RDWR | O_CREAT, 0777);
+        int fd = open("/tmp/wow", O_RDWR | O_CREAT);
         ASSERT_OK(fd);
         int* buf = malloc(65536 * sizeof(int));
         ASSERT(buf);

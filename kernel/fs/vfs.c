@@ -95,8 +95,6 @@ struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
         return ERR_PTR(-ENOTSUP);
     if ((flags & O_RDWR) != O_RDWR)
         return ERR_PTR(-ENOTSUP);
-    if ((flags & O_CREAT) && ((mode & 07777) != 0777))
-        return ERR_PTR(-ENOTSUP);
 
     size_t path_len = strlen(pathname);
     if (path_len == 1)

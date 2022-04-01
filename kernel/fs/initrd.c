@@ -90,7 +90,7 @@ void initrd_init(uintptr_t addr) {
     }
 }
 
-struct file* initrd_create(void) {
+struct file* initrd_create_root(void) {
     initrd_file* root = kmalloc(sizeof(initrd_file));
     if (!root)
         return ERR_PTR(-ENOMEM);

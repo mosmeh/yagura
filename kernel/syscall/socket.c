@@ -37,8 +37,7 @@ uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
     if (!path)
         return -ENOMEM;
 
-    struct file* file =
-        vfs_open(path, O_RDWR | O_CREAT | O_EXCL, S_IFSOCK | 0777);
+    struct file* file = vfs_open(path, O_RDWR | O_CREAT | O_EXCL, S_IFSOCK);
     if (IS_ERR(file)) {
         if (PTR_ERR(file) == -EEXIST)
             return -EADDRINUSE;

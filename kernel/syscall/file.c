@@ -55,7 +55,3 @@ uintptr_t sys_getdents(int fd, void* dirp, size_t count) {
         return PTR_ERR(desc);
     return fs_readdir(desc, dirp, count);
 }
-
-uintptr_t sys_shm_create(const char* name, size_t size) {
-    return shm_create(name, size);
-}

@@ -27,7 +27,6 @@ ssize_t read(int fd, void* buf, size_t count);
 ssize_t write(int fd, const void* buf, size_t count);
 int ftruncate(int fd, off_t length);
 int ioctl(int fd, int request, void* argp);
-int shm_create(const char* name, size_t size);
 
 int socket(int domain, int type, int protocol);
 int bind(int sockfd, const sockaddr* addr, socklen_t addrlen);

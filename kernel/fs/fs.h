@@ -72,9 +72,7 @@ struct file* vfs_open(const char* pathname, int flags, mode_t mode);
 uint8_t mode_to_dirent_type(mode_t);
 
 void initrd_init(uintptr_t addr);
-struct file* initrd_create(void);
+struct file* initrd_create_root(void);
 
-struct file* tmpfs_create(void);
-
-void shm_init(void);
-int shm_create(const char* name, size_t size);
+struct file* tmpfs_create_root(void);
+struct file* shmfs_create_root(void);

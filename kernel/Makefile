@@ -12,7 +12,7 @@ KERNEL_OBJS := \
 	boot.o \
 	fs/fs.o \
 	fs/initrd.o \
-	fs/shm.o \
+	fs/shmfs.o \
 	fs/tmpfs.o \
 	fs/tree.o \
 	fs/vfs.o \
