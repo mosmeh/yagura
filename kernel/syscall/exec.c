@@ -139,15 +139,16 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         uintptr_t region_start = round_down(phdr->p_vaddr, PAGE_SIZE);
         uintptr_t region_end =
             round_up(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
-        uintptr_t region_size = region_end - region_start;
-
-        ret = mem_map_to_anonymous_region(region_start, region_size,
-                                          MEM_USER | MEM_WRITE);
+        ret = mem_map_to_anonymous_region(
+            region_start, region_end - region_start, MEM_USER | MEM_WRITE);
         if (IS_ERR(ret))
             goto fail;
-        memset((void*)region_start, 0, region_size);
+
+        memset((void*)region_start, 0, phdr->p_vaddr - region_start);
         memcpy((void*)phdr->p_vaddr, (void*)((uintptr_t)buf + phdr->p_offset),
                phdr->p_filesz);
+        memset((void*)(phdr->p_vaddr + phdr->p_filesz), 0,
+               region_end - phdr->p_vaddr - phdr->p_filesz);
 
         if (max_segment_addr < region_end)
             max_segment_addr = region_end;
