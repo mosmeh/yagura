@@ -160,13 +160,22 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 
     current->heap_next_vaddr = max_segment_addr;
 
-    ret = mem_map_to_anonymous_region(USER_STACK_BASE, STACK_SIZE,
+    // we keep extra pages before and after stack unmapped to detect stack
+    // overflow and underflow by causing page faults
+    uintptr_t stack_region =
+        process_alloc_virtual_addr_range(2 * PAGE_SIZE + STACK_SIZE);
+    if (IS_ERR(stack_region)) {
+        ret = stack_region;
+        goto fail;
+    }
+    uintptr_t stack_base = stack_region + PAGE_SIZE;
+    ret = mem_map_to_anonymous_region(stack_base, STACK_SIZE,
                                       MEM_WRITE | MEM_USER);
     if (IS_ERR(ret))
         goto fail;
 
-    uintptr_t sp = USER_STACK_TOP;
-    memset((void*)USER_STACK_BASE, 0, STACK_SIZE);
+    uintptr_t sp = stack_base + STACK_SIZE;
+    memset((void*)stack_base, 0, STACK_SIZE);
 
     uintptr_t* envp_ptrs;
     ret = push_strings(&sp, &envp_ptrs, copied_envp, num_envp);

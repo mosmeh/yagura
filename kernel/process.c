@@ -179,11 +179,11 @@ noreturn void process_exit(int status) {
 
 pid_t process_get_pid(void) { return current->id; }
 
-uintptr_t process_alloc_virtual_address_range(uintptr_t size) {
+uintptr_t process_alloc_virtual_addr_range(uintptr_t size) {
     uintptr_t current_ptr = current->heap_next_vaddr;
     uintptr_t aligned_ptr = round_up(current_ptr, PAGE_SIZE);
     uintptr_t next_ptr = aligned_ptr + size;
-    if (next_ptr > USER_STACK_BASE - PAGE_SIZE)
+    if (next_ptr > KERNEL_VADDR)
         return -ENOMEM;
 
     current->heap_next_vaddr = next_ptr;

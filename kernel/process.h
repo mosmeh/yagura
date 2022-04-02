@@ -3,9 +3,6 @@
 #include <kernel/fs/fs.h>
 #include <stdnoreturn.h>
 
-#define USER_STACK_BASE (KERNEL_VADDR - STACK_SIZE)
-#define USER_STACK_TOP KERNEL_VADDR
-
 typedef struct process {
     pid_t id;
     uint32_t eip, esp, ebp, ebx, esi, edi;
@@ -29,7 +26,7 @@ pid_t process_generate_next_pid(void);
 pid_t process_get_pid(void);
 noreturn void process_exit(int status);
 
-uintptr_t process_alloc_virtual_address_range(uintptr_t size);
+uintptr_t process_alloc_virtual_addr_range(uintptr_t size);
 
 int process_alloc_file_descriptor(struct file*);
 int process_free_file_descriptor(int fd);
