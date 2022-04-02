@@ -172,8 +172,8 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
 }
 
 noreturn void process_exit(int status) {
-    kprintf("\x1b[34mProcess #%d exited with status %d\x1b[m\n", current->id,
-            status);
+    kprintf("\x1b[%dmProcess #%d exited with status %d\x1b[m\n",
+            status == 0 ? 32 : 31, current->id, status);
     switch_to_next_process();
 }
 

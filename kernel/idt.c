@@ -1,7 +1,9 @@
+#include "api/signum.h"
 #include "asm_wrapper.h"
 #include "interrupts.h"
 #include "isr_stubs.h"
 #include "kprintf.h"
+#include "process.h"
 #include "system.h"
 #include <common/panic.h>
 
@@ -65,6 +67,13 @@ void idt_set_gate_user_callable(uint8_t idx) {
 
 void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
 
+static noreturn void crash(registers* regs, int signum) {
+    dump_registers(regs);
+    if ((regs->cs & 3) != 3)
+        PANIC("Kernel crashed");
+    process_exit(128 + signum);
+}
+
 #define DEFINE_ISR_WITHOUT_ERROR_CODE(num)                                     \
     void isr##num(void);                                                       \
     __asm__("isr" #num ":\n"                                                   \
@@ -80,9 +89,9 @@ void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
 
 #define DEFINE_EXCEPTION(num, msg)                                             \
     static void handle_exception##num(registers* regs) {                       \
-        kprintf("Exception #" #num ": " msg "\n");                             \
+        kprintf("Exception: " msg "\n");                                       \
         dump_registers(regs);                                                  \
-        PANIC("Exception");                                                    \
+        PANIC("Unrecoverable exception");                                      \
     }
 
 #define DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(num, msg)                          \
@@ -93,20 +102,36 @@ void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
     DEFINE_ISR_WITH_ERROR_CODE(num)                                            \
     DEFINE_EXCEPTION(num, msg)
 
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(0, "Divide-by-zero error")
+DEFINE_ISR_WITHOUT_ERROR_CODE(0)
+static void handle_exception0(registers* regs) {
+    kprintf("Divide-by-zero error\n");
+    crash(regs, SIGFPE);
+}
+
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(1, "Debug")
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(2, "Non-maskable interrupt")
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(3, "Breakpoint")
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(4, "Overflow")
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(5, "Bound range exceeded")
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(6, "Invalid opcode")
+
+DEFINE_ISR_WITHOUT_ERROR_CODE(6)
+static void handle_exception6(registers* regs) {
+    kprintf("Invalid opcode\n");
+    crash(regs, SIGILL);
+}
+
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(7, "Device not available")
 DEFINE_EXCEPTION_WITH_ERROR_CODE(8, "Double fault")
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(9, "Coprocessor segment overrun")
 DEFINE_EXCEPTION_WITH_ERROR_CODE(10, "Invalid TSS")
 DEFINE_EXCEPTION_WITH_ERROR_CODE(11, "Segment not present")
 DEFINE_EXCEPTION_WITH_ERROR_CODE(12, "Stack-segment fault")
-DEFINE_EXCEPTION_WITH_ERROR_CODE(13, "General protection fault")
+
+DEFINE_ISR_WITH_ERROR_CODE(13)
+static void handle_exception13(registers* regs) {
+    kprintf("General protection fault\n");
+    crash(regs, SIGSEGV);
+}
 
 DEFINE_ISR_WITH_ERROR_CODE(14)
 static void handle_exception14(registers* regs) {
@@ -114,12 +139,11 @@ static void handle_exception14(registers* regs) {
     uint32_t write = regs->err_code & 0x2;
     uint32_t user = regs->err_code & 0x4;
 
-    kprintf("Page fault! (%s%s%s) at 0x%x\n",
+    kprintf("Page fault (%s%s%s) at 0x%x\n",
             present ? "page-protection " : "non-present ",
             write ? "write " : "read ", user ? "user-mode" : "kernel-mode",
             read_cr2());
-    dump_registers(regs);
-    PANIC("Page fault");
+    crash(regs, SIGSEGV);
 }
 
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(15, "Unknown")
