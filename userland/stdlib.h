@@ -12,6 +12,9 @@
 
 noreturn void panic(const char* message, const char* file, size_t line);
 
+#define EXIT_SUCCESS 0
+#define EXIT_FAILURE 1
+
 noreturn void abort(void);
 
 void* malloc(size_t size);

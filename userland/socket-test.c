@@ -69,7 +69,7 @@ static noreturn void child2(void) {
     exit(0);
 }
 
-void _start(void) {
+int main(void) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     ASSERT_OK(sockfd);
     sockaddr_un addr = {AF_UNIX, "/tmp/uds"};
@@ -118,5 +118,5 @@ void _start(void) {
     ASSERT_OK(close(sockfd));
     ASSERT_OK(close(ps_fd));
 
-    exit(0);
+    return EXIT_SUCCESS;
 }

@@ -10,6 +10,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+int main(int argc, char* const argv[], char* const envp[]);
+
+void _start(int argc, char* const argv[], char* const envp[]) {
+    exit(main(argc, argv, envp));
+}
+
 noreturn void abort(void) { exit(128 + SIGABRT); }
 
 noreturn void panic(const char* message, const char* file, size_t line) {

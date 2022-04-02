@@ -16,7 +16,7 @@ void child(void) {
     exit(0);
 }
 
-void _start(void) {
+int main(void) {
     int shm_fd = open("/dev/shm/foofoo", O_RDWR | O_CREAT | O_EXCL);
     ASSERT_OK(shm_fd);
     ASSERT_OK(ftruncate(shm_fd, 30000 * sizeof(int)));
@@ -84,5 +84,5 @@ void _start(void) {
         ASSERT_OK(close(fd));
     }
     ASSERT_OK(close(shm_fd));
-    exit(0);
+    return EXIT_SUCCESS;
 }

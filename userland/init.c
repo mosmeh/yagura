@@ -10,8 +10,8 @@ void spawn_process(const char* filename) {
     }
 }
 
-void _start(void) {
+int main(void) {
     spawn_process("/fs-test");
     spawn_process("/socket-test");
-    exit(0);
+    return EXIT_SUCCESS;
 }
