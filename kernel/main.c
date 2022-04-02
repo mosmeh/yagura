@@ -4,10 +4,10 @@
 #include "kprintf.h"
 #include "mem.h"
 #include "multiboot.h"
+#include "panic.h"
 #include "process.h"
 #include "serial.h"
 #include "system.h"
-#include <common/panic.h>
 
 uintptr_t sys_execve(const char* pathname, char* const argv[],
                      char* const envp[]);

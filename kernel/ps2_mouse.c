@@ -6,7 +6,7 @@
 #include "kernel/interrupts.h"
 #include "kmalloc.h"
 #include "lock.h"
-#include <common/panic.h>
+#include "panic.h"
 #include <common/string.h>
 
 #define PS2_DATA 0x60

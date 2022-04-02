@@ -1,10 +1,10 @@
 #include "fs.h"
-#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
+#include <kernel/panic.h>
 #include <stdbool.h>
 
 typedef struct vfs_node {

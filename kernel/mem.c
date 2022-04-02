@@ -9,8 +9,8 @@
 #include "kprintf.h"
 #include "lock.h"
 #include "multiboot.h"
+#include "panic.h"
 #include <common/extra.h>
-#include <common/panic.h>
 #include <common/string.h>
 #include <stdalign.h>
 #include <stdbool.h>

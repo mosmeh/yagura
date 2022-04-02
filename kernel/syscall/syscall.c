@@ -1,8 +1,8 @@
-#include <common/panic.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/syscall.h>
 #include <kernel/interrupts.h>
 #include <kernel/kprintf.h>
+#include <kernel/panic.h>
 #include <kernel/system.h>
 
 noreturn uintptr_t sys_halt(void) {

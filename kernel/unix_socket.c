@@ -3,9 +3,9 @@
 #include "fs/fs.h"
 #include "kmalloc.h"
 #include "lock.h"
+#include "panic.h"
 #include "process.h"
 #include "socket.h"
-#include <common/panic.h>
 #include <common/string.h>
 #include <stdbool.h>
 

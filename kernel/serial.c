@@ -4,8 +4,8 @@
 #include "api/types.h"
 #include "asm_wrapper.h"
 #include "kmalloc.h"
+#include "panic.h"
 #include "string.h"
-#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/fs/fs.h>
 #include <stdbool.h>

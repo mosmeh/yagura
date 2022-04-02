@@ -1,8 +1,8 @@
 #include "asm_wrapper.h"
 #include "interrupts.h"
+#include "panic.h"
 #include "system.h"
 #include <common/extra.h>
-#include <common/panic.h>
 
 #define PIC1_CMD 0x20
 #define PIC1_DATA 0x21

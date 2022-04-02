@@ -1,8 +1,8 @@
 #include "syscall.h"
+#include "stdlib.h"
 #include <common/extra.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/mman.h>
 #include <kernel/api/syscall.h>
 #include <stdarg.h>
 
@@ -16,20 +16,39 @@ uintptr_t syscall(uint32_t num, uintptr_t arg1, uintptr_t arg2,
     return ret;
 }
 
+#define RETURN_WITH_ERRNO(rc, type)                                            \
+    do {                                                                       \
+        if (IS_ERR(rc)) {                                                      \
+            errno = -rc;                                                       \
+            return (type)-1;                                                   \
+        }                                                                      \
+        return (type)rc;                                                       \
+    } while (0);
+
 noreturn void exit(int status) {
     syscall(SYS_exit, status, 0, 0);
     __builtin_unreachable();
 }
 
-pid_t fork(void) { return syscall(SYS_fork, 0, 0, 0); }
+pid_t fork(void) {
+    int rc = syscall(SYS_fork, 0, 0, 0);
+    RETURN_WITH_ERRNO(rc, pid_t)
+}
 
-pid_t getpid(void) { return syscall(SYS_getpid, 0, 0, 0); }
+pid_t getpid(void) {
+    int rc = syscall(SYS_getpid, 0, 0, 0);
+    RETURN_WITH_ERRNO(rc, pid_t)
+}
 
-int sched_yield(void) { return syscall(SYS_yield, 0, 0, 0); }
+int sched_yield(void) {
+    int rc = syscall(SYS_yield, 0, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
 
 int execve(const char* pathname, char* const argv[], char* const envp[]) {
-    return syscall(SYS_execve, (uintptr_t)pathname, (uintptr_t)argv,
-                   (uintptr_t)envp);
+    int rc = syscall(SYS_execve, (uintptr_t)pathname, (uintptr_t)argv,
+                     (uintptr_t)envp);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 noreturn void halt(void) {
@@ -47,13 +66,14 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd,
     params.fd = fd;
     params.offset = offset;
 
-    uintptr_t ret = syscall(SYS_mmap, (uintptr_t)&params, 0, 0);
-    if (IS_ERR(ret))
-        return MAP_FAILED;
-    return (void*)ret;
+    int rc = syscall(SYS_mmap, (uintptr_t)&params, 0, 0);
+    RETURN_WITH_ERRNO(rc, void*)
 }
 
-int puts(const char* str) { return syscall(SYS_puts, (uintptr_t)str, 0, 0); }
+int puts(const char* str) {
+    int rc = syscall(SYS_puts, (uintptr_t)str, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
 
 int open(const char* pathname, int flags, ...) {
     unsigned mode = 0;
@@ -63,43 +83,56 @@ int open(const char* pathname, int flags, ...) {
         mode = va_arg(args, unsigned);
         va_end(args);
     }
-    return syscall(SYS_open, (uintptr_t)pathname, flags, mode);
+    int rc = syscall(SYS_open, (uintptr_t)pathname, flags, mode);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
-int close(int fd) { return syscall(SYS_close, fd, 0, 0); }
+int close(int fd) {
+    int rc = syscall(SYS_close, fd, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
 
 ssize_t read(int fd, void* buf, size_t count) {
-    return syscall(SYS_read, fd, (uintptr_t)buf, count);
+    int rc = syscall(SYS_read, fd, (uintptr_t)buf, count);
+    RETURN_WITH_ERRNO(rc, ssize_t)
 }
 
 ssize_t write(int fd, const void* buf, size_t count) {
-    return syscall(SYS_write, fd, (uintptr_t)buf, count);
+    int rc = syscall(SYS_write, fd, (uintptr_t)buf, count);
+    RETURN_WITH_ERRNO(rc, ssize_t)
 }
 
 int ftruncate(int fd, off_t length) {
-    return syscall(SYS_ftruncate, fd, length, 0);
+    int rc = syscall(SYS_ftruncate, fd, length, 0);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 int ioctl(int fd, int request, void* argp) {
-    return syscall(SYS_ioctl, fd, request, (uintptr_t)argp);
+    int rc = syscall(SYS_ioctl, fd, request, (uintptr_t)argp);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 int socket(int domain, int type, int protocol) {
-    return syscall(SYS_socket, domain, type, protocol);
+    int rc = syscall(SYS_socket, domain, type, protocol);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 int bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
-    return syscall(SYS_bind, sockfd, (uintptr_t)addr, addrlen);
+    int rc = syscall(SYS_bind, sockfd, (uintptr_t)addr, addrlen);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 int listen(int sockfd, int backlog) {
-    return syscall(SYS_listen, sockfd, backlog, 0);
+    int rc = syscall(SYS_listen, sockfd, backlog, 0);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 int accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
-    return syscall(SYS_accept, sockfd, (uintptr_t)addr, (uintptr_t)addrlen);
+    int rc = syscall(SYS_accept, sockfd, (uintptr_t)addr, (uintptr_t)addrlen);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
-    return syscall(SYS_connect, sockfd, (uintptr_t)addr, addrlen);
+    int rc = syscall(SYS_connect, sockfd, (uintptr_t)addr, addrlen);
+    RETURN_WITH_ERRNO(rc, int)
 }

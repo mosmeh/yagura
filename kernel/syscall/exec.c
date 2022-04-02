@@ -1,5 +1,4 @@
 #include "common/extra.h"
-#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/api/elf.h>
 #include <kernel/api/err.h>
@@ -9,6 +8,7 @@
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/mem.h>
+#include <kernel/panic.h>
 #include <kernel/process.h>
 
 static ssize_t copy_strings(char** dst[], char* const src[]) {

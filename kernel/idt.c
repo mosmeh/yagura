@@ -3,9 +3,9 @@
 #include "interrupts.h"
 #include "isr_stubs.h"
 #include "kprintf.h"
+#include "panic.h"
 #include "process.h"
 #include "system.h"
-#include <common/panic.h>
 
 typedef struct idt_descriptor {
     uint16_t base_lo : 16;

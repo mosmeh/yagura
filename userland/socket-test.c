@@ -1,7 +1,6 @@
 #include "stdlib.h"
 #include "syscall.h"
 #include <common/extra.h>
-#include <common/panic.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
@@ -91,12 +90,12 @@ void _start(void) {
         child2();
 
     int peer_fd2 = accept(sockfd, NULL, NULL);
-    printf("server: accepted (2)\n");
     ASSERT_OK(peer_fd2);
+    printf("server: accepted (2)\n");
 
     int peer_fd3 = accept(sockfd, NULL, NULL);
+    ASSERT_OK(peer_fd3);
     printf("server: accepted (2)\n");
-    ASSERT_OK(peer_fd2);
 
     int ps_fd = open("/dev/psaux", O_RDWR);
     mouse_packet packet;

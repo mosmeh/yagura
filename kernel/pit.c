@@ -1,7 +1,7 @@
 #include "asm_wrapper.h"
 #include "interrupts.h"
+#include "panic.h"
 #include "process.h"
-#include <common/panic.h>
 
 #define TIMER0_CTL 0x40
 #define TIMER0_SELECT 0x00

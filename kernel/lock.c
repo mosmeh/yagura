@@ -1,7 +1,7 @@
 #include "lock.h"
 #include "interrupts.h"
+#include "panic.h"
 #include "process.h"
-#include <common/panic.h>
 
 void mutex_init(mutex* m) {
     m->holder = NULL;

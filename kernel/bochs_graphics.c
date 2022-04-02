@@ -7,9 +7,9 @@
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "lock.h"
+#include "panic.h"
 #include "pci.h"
 #include "system.h"
-#include <common/panic.h>
 #include <common/string.h>
 
 #define VBE_DISPI_IOPORT_INDEX 0x01ce

@@ -1,7 +1,7 @@
 #include "system.h"
 #include "asm_wrapper.h"
 #include "kprintf.h"
-#include <common/panic.h>
+#include "panic.h"
 
 noreturn void panic(const char* message, const char* file, size_t line) {
     kprintf("%s at %s:%u\n", message, file, line);

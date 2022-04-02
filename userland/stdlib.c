@@ -1,17 +1,20 @@
 #include "stdlib.h"
+#include "kernel/api/errno.h"
 #include "syscall.h"
 #include <common/extra.h>
-#include <common/panic.h>
 #include <common/string.h>
 #include <kernel/api/mman.h>
+#include <kernel/api/signum.h>
 #include <kernel/api/syscall.h>
 #include <stdalign.h>
 #include <stdbool.h>
 #include <stdint.h>
 
+noreturn void abort(void) { exit(128 + SIGABRT); }
+
 noreturn void panic(const char* message, const char* file, size_t line) {
     printf("%s at %s:%u\n", message, file, line);
-    exit(1);
+    abort();
 }
 
 #define MALLOC_HEAP_SIZE 0x100000
@@ -43,8 +46,10 @@ void* aligned_alloc(size_t alignment, size_t size) {
 
     uintptr_t aligned_ptr = round_up(malloc_ctx.ptr, alignment);
     uintptr_t next_ptr = aligned_ptr + size;
-    if (next_ptr > malloc_ctx.heap_start + MALLOC_HEAP_SIZE)
+    if (next_ptr > malloc_ctx.heap_start + MALLOC_HEAP_SIZE) {
+        errno = ENOMEM;
         return NULL;
+    }
 
     memset((void*)aligned_ptr, 0, size);
 
@@ -75,3 +80,17 @@ int printf(const char* format, ...) {
     puts(buf);
     return ret;
 }
+
+int errno;
+
+#define ERRNO_MSG(I, MSG) MSG,
+const char* errno_msgs[EMAXERRNO] = {ENUMERATE_ERRNO(ERRNO_MSG)};
+#undef ERRNO_MSG
+
+char* strerror(int errnum) {
+    if (0 <= errnum && errnum < EMAXERRNO)
+        return (char*)errno_msgs[errnum];
+    return "Unknown error";
+}
+
+void perror(const char* s) { printf("%s: %s\n", s, strerror(errno)); }

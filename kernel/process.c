@@ -6,9 +6,9 @@
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "mem.h"
+#include "panic.h"
 #include "system.h"
 #include <common/extra.h>
-#include <common/panic.h>
 #include <common/string.h>
 #include <stdatomic.h>
 
