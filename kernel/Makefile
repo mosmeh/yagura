@@ -7,7 +7,9 @@ CFLAGS := \
 	-Wall -Wextra -pedantic \
 	-O2 -g
 
-KERNEL_OBJS := \
+TARGET := kernel
+
+OBJS := \
 	bochs_graphics.o \
 	boot.o \
 	fs/fs.o \
@@ -37,21 +39,25 @@ KERNEL_OBJS := \
 	syscall/socket.o \
 	syscall/syscall.o \
 	system.o \
-	unix_socket.o
+	unix_socket.o \
+ 	../common/string.o
 
-COMMON_OBJS := ../common/string.o
-
-OBJS := $(KERNEL_OBJS) $(COMMON_OBJS)
+DEPS := $(OBJS:.o=.d)
 
 .PHONY: all clean
 
-all: kernel
+all: $(TARGET)
 
-kernel: $(OBJS) linker.ld
-	$(CC) $(CFLAGS) -Wl,-Tlinker.ld -Wl,--build-id=none -o '$@' $(OBJS)
+$(TARGET): $(OBJS) linker.ld
+	$(CC) $(CFLAGS) -Wl,-Tlinker.ld -Wl,--build-id=none -o $@ $(OBJS)
+
+.c.o:
+	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 .S.o:
-	$(CC) $(CFLAGS) -c -o '$@' '$<'
+	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 clean:
-	rm -f kernel $(OBJS)
+	$(RM) $(TARGET) $(OBJS) $(DEPS)
+
+-include $(DEPS)

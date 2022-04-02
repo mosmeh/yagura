@@ -1,5 +1,5 @@
 compile_flags.txt
-**/*.o
+*.[od]
 kernel/kernel
 tool/mkfs
 base/*

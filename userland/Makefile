@@ -7,25 +7,32 @@ CFLAGS := \
 	-Wall -Wextra -pedantic \
 	-O2 -g
 
-COMMON_OBJS := ../common/string.o
+TARGET_NAMES := init socket-test fs-test
+OUTDIR := ../base
 
-USERLAND_OBJS := \
+TARGETS := $(TARGET_NAMES:%=$(OUTDIR)/%)
+TARGET_OBJS := $(TARGET_NAMES:=.o)
+TARGET_DEPS := $(TARGET_NAMES:=.d)
+
+COMMON_OBJS := \
+	../common/string.o \
 	stdlib.o \
 	syscall.o
 
-OBJS := $(COMMON_OBJS) $(USERLAND_OBJS)
-
-TARGET_NAMES := init socket-test fs-test
-
-OUTDIR := ../base
-TARGETS := $(TARGET_NAMES:%=$(OUTDIR)/%)
+COMMON_DEPS := $(COMMON_OBJS:.o=.d)
 
 .PHONY: all clean
 
 all: $(TARGETS)
 
-$(TARGETS): $(OUTDIR)/% : $(OBJS) %.o
+$(TARGETS): $(OUTDIR)/% : $(COMMON_OBJS) %.o
 	$(CC) $(CFLAGS) -o $@ $^
 
+.c.o:
+	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+
 clean:
-	rm -f $(TARGET_NAMES:%=%.o) $(TARGETS) $(OBJS)
+	$(RM) $(TARGETS) $(TARGET_OBJS) $(TARGET_DEPS) $(COMMON_OBJS) $(COMMON_DEPS)
+
+-include $(TARGET_DEPS)
+-include $(COMMON_DEPS)

@@ -12,8 +12,8 @@ $(SUBDIRS):
 	$(MAKE) -C $@ all
 
 clean:
-	for dir in $(SUBDIRS); do $(MAKE) -C $$dir clean; done
-	rm -f initrd
+	for dir in $(SUBDIRS); do $(MAKE) -C $$dir $@; done
+	$(RM) initrd
 
 run: kernel initrd
 	./run.sh

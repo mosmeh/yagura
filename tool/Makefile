@@ -2,12 +2,20 @@ CFLAGS := -std=c11 -I.. -Wall -Wextra -pedantic -O2
 
 TARGETS := mkfs
 
+OBJS := $(TARGETS:=.o)
+DEPS := $(TARGETS:=.d)
+
 .PHONY: all clean
 
 all: $(TARGETS)
 
-$(TARGETS): % : %.c
+$(TARGETS): % : %.o
 	$(CC) $(CFLAGS) -o $@ $^
 
+.c.o:
+	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+
 clean:
-	rm -f $(TARGETS)
+	$(RM) $(TARGETS) $(OBJS) $(DEPS)
+
+-include $(DEPS)
