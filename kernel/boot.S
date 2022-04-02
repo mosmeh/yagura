@@ -17,7 +17,7 @@ _start:
   cli
 
   # fill page table
-  movl $3, %esi # P | RW
+  movl $0x103, %esi # P | RW | G
   movl $kernel_page_table, %edi
   movl $1023, %ecx # last page is for quickmap
 1:
@@ -29,17 +29,12 @@ _start:
   movl $kernel_page_table, %edx
   orl $3, %edx # P | RW
   movl %edx, kernel_page_directory # identity mapping
-  orl $100, %edx # G
   movl %edx, kernel_page_directory + KERNEL_PDE_IDX * 4
 
   # recursive
   movl $kernel_page_directory, %edx
   orl $3, %edx # P | RW
   movl %edx, kernel_page_directory + 1023 * 4
-
-  movl %cr4, %edx
-  orl $0x80, %edx # PGE
-  movl %edx, %cr4
 
   movl $kernel_page_directory, %edx
   movl %edx, %cr3
@@ -67,6 +62,10 @@ paging_enabled:
   movl $0, kernel_page_directory + KERNEL_VADDR
   movl $kernel_page_directory, %edx
   movl %edx, %cr3
+
+  movl %cr4, %edx
+  orl $0x80, %edx # PGE
+  movl %edx, %cr4
 
   movl $stack_top, %esp
   pushl %ebx # Multiboot info struct
