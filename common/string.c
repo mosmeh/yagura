@@ -29,6 +29,20 @@ void* memset(void* s, int c, size_t n) {
 void* memcpy(void* dest_ptr, const void* src_ptr, size_t n) {
     size_t dest = (size_t)dest_ptr;
     size_t src = (size_t)src_ptr;
+
+    bool aligned = !((uintptr_t)dest_ptr & (alignof(uint32_t) - 1)) &&
+                   !((uintptr_t)src_ptr & (alignof(uint32_t) - 1));
+    if (aligned && n >= sizeof(uint32_t)) {
+        size_t nd = n / sizeof(uint32_t);
+        __asm__ volatile("rep movsl"
+                         : "=S"(src), "=D"(dest)
+                         : "S"(src), "D"(dest), "c"(nd)
+                         : "memory");
+        n -= sizeof(uint32_t) * nd;
+        if (n == 0)
+            return dest_ptr;
+    }
+
     __asm__ volatile("rep movsb" ::"S"(src), "D"(dest), "c"(n) : "memory");
     return dest_ptr;
 }
