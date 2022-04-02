@@ -25,14 +25,17 @@ pid_t fork(void) { return syscall(SYS_fork, 0, 0, 0); }
 
 pid_t getpid(void) { return syscall(SYS_getpid, 0, 0, 0); }
 
-void sched_yield(void) { syscall(SYS_yield, 0, 0, 0); }
+int sched_yield(void) { return syscall(SYS_yield, 0, 0, 0); }
 
 int execve(const char* pathname, char* const argv[], char* const envp[]) {
     return syscall(SYS_execve, (uintptr_t)pathname, (uintptr_t)argv,
                    (uintptr_t)envp);
 }
 
-void halt(void) { syscall(SYS_halt, 0, 0, 0); }
+noreturn void halt(void) {
+    syscall(SYS_halt, 0, 0, 0);
+    __builtin_unreachable();
+}
 
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,
            off_t offset) {
