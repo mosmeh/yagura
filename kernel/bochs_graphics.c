@@ -10,7 +10,7 @@
 #include "panic.h"
 #include "pci.h"
 #include "system.h"
-#include <common/string.h>
+#include <string.h>
 
 #define VBE_DISPI_IOPORT_INDEX 0x01ce
 #define VBE_DISPI_IOPORT_DATA 0x01cf

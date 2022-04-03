@@ -11,9 +11,9 @@
 #include "multiboot.h"
 #include "panic.h"
 #include <common/extra.h>
-#include <common/string.h>
 #include <stdalign.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define MAX_NUM_PHYSICAL_PAGES (1024 * 1024)
 #define PHYSICAL_PAGE_BITMAP_MAX_LEN (MAX_NUM_PHYSICAL_PAGES / 32)

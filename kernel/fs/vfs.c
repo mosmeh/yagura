@@ -6,6 +6,7 @@
 #include <kernel/kprintf.h>
 #include <kernel/panic.h>
 #include <stdbool.h>
+#include <string.h>
 
 typedef struct vfs_node {
     char* name;

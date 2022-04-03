@@ -1,9 +1,9 @@
 #include "tree.h"
 #include <common/extra.h>
-#include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/stat.h>
 #include <kernel/kmalloc.h>
+#include <string.h>
 
 typedef struct tmpfs_node {
     struct tree_node base_tree;

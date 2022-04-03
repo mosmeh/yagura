@@ -1,5 +1,4 @@
 #include <common/extra.h>
-#include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/mman.h>
 #include <kernel/api/stat.h>
@@ -7,6 +6,7 @@
 #include <kernel/boot_defs.h>
 #include <kernel/mem.h>
 #include <kernel/process.h>
+#include <string.h>
 
 uintptr_t sys_mmap(const mmap_params* params) {
     if (params->length == 0 || params->offset < 0 ||

@@ -7,6 +7,7 @@
 #include <common/extra.h>
 #include <common/string.h>
 #include <stdalign.h>
+#include <string.h>
 
 static mutex lock;
 

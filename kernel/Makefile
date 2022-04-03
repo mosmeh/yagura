@@ -3,6 +3,7 @@ CFLAGS := \
 	-m32 \
 	-static \
 	-nostdlib -ffreestanding \
+	-U_FORTIFY_SOURCE \
 	-I.. \
 	-Wall -Wextra -pedantic \
 	-O2 -g
@@ -40,6 +41,7 @@ OBJS := \
 	syscall/syscall.o \
 	system.o \
 	unix_socket.o \
+ 	../common/stdio.o \
  	../common/string.o
 
 DEPS := $(OBJS:.o=.d)

@@ -2,7 +2,8 @@
 #include "asm_wrapper.h"
 #include "interrupts.h"
 #include "serial.h"
-#include <common/string.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 int kputs(const char* str) {
     bool int_flag = push_cli();

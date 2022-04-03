@@ -9,8 +9,8 @@
 #include "panic.h"
 #include "system.h"
 #include <common/extra.h>
-#include <common/string.h>
 #include <stdatomic.h>
+#include <string.h>
 
 #define USER_HEAP_START 0x100000
 

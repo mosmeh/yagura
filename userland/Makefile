@@ -3,6 +3,7 @@ CFLAGS := \
 	-m32 \
 	-static \
 	-nostdlib -ffreestanding \
+	-U_FORTIFY_SOURCE \
 	-I.. \
 	-Wall -Wextra -pedantic \
 	-O2 -g
@@ -15,6 +16,7 @@ TARGET_OBJS := $(TARGET_NAMES:=.o)
 TARGET_DEPS := $(TARGET_NAMES:=.d)
 
 COMMON_OBJS := \
+ 	../common/stdio.o \
 	../common/string.o \
 	stdlib.o \
 	syscall.o

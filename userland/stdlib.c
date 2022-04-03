@@ -2,13 +2,15 @@
 #include "kernel/api/errno.h"
 #include "syscall.h"
 #include <common/extra.h>
-#include <common/string.h>
 #include <kernel/api/mman.h>
 #include <kernel/api/signum.h>
 #include <kernel/api/syscall.h>
 #include <stdalign.h>
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 int main(int argc, char* const argv[], char* const envp[]);
 

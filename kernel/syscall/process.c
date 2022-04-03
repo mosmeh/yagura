@@ -1,10 +1,10 @@
-#include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/mem.h>
 #include <kernel/process.h>
 #include <kernel/system.h>
+#include <string.h>
 
 noreturn uintptr_t sys_exit(int status) { process_exit(status); }
 

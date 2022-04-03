@@ -7,7 +7,7 @@
 #include "kmalloc.h"
 #include "lock.h"
 #include "panic.h"
-#include <common/string.h>
+#include <string.h>
 
 #define PS2_DATA 0x60
 #define PS2_STATUS 0x64

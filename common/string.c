@@ -1,6 +1,7 @@
 #include "string.h"
 #include <stdalign.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 void* memset(void* s, int c, size_t n) {
     uintptr_t dest = (uintptr_t)s;
@@ -97,113 +98,6 @@ char* strncpy(char* dest, const char* src, size_t n) {
     for (; i < n; ++i)
         dest[i] = '\0';
     return dest;
-}
-
-static void itoa(int value, char* str, int radix) {
-    char* c = str;
-    unsigned uvalue = value;
-
-    if (radix == 10 && value < 0) {
-        *c++ = '-';
-        str++;
-        uvalue = -value;
-    }
-
-    do {
-        unsigned mod = uvalue % radix;
-        *c++ = (mod < 10) ? mod + '0' : mod - 10 + 'a';
-    } while (uvalue /= radix);
-
-    *c = 0;
-
-    char* p1 = str;
-    char* p2 = c - 1;
-    while (p1 < p2) {
-        char tmp = *p1;
-        *p1 = *p2;
-        *p2 = tmp;
-        p1++;
-        p2--;
-    }
-}
-
-int sprintf(char* buffer, const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    int ret = vsnprintf(buffer, SIZE_MAX, format, args);
-    va_end(args);
-    return ret;
-}
-
-int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
-    size_t idx = 0;
-    char ch;
-    while ((ch = *format++) != 0) {
-        if (ch != '%') {
-            buffer[idx++] = ch;
-            if (idx >= size)
-                goto too_long;
-            continue;
-        }
-
-        bool pad0 = false;
-        size_t pad_len = 0;
-
-        ch = *format++;
-        if (ch == '0') {
-            pad0 = true;
-            ch = *format++;
-        }
-        if ('0' <= ch && ch <= '9') {
-            pad_len = ch - '0';
-            ch = *format++;
-        }
-
-        switch (ch) {
-        case 'd':
-        case 'u':
-        case 'x': {
-            char num_buf[20];
-            itoa(va_arg(args, int), num_buf, ch == 'x' ? 16 : 10);
-
-            size_t len = strlen(num_buf);
-            if (pad_len > len) {
-                for (size_t i = 0; i < pad_len - len; ++i) {
-                    buffer[idx++] = pad0 ? '0' : ' ';
-                    if (idx >= size)
-                        goto too_long;
-                }
-            }
-            for (size_t i = 0; i < len; ++i) {
-                buffer[idx++] = num_buf[i];
-                if (idx >= size)
-                    goto too_long;
-            }
-
-            break;
-        }
-        case 's': {
-            const char* str = va_arg(args, const char*);
-            if (!str)
-                str = "(null)";
-            while (*str) {
-                buffer[idx++] = *str++;
-                if (idx >= size)
-                    goto too_long;
-            }
-            break;
-        }
-        default:
-            buffer[idx++] = '?';
-            if (idx >= size)
-                goto too_long;
-            break;
-        }
-    }
-
-too_long:
-    buffer[idx < size ? idx : size - 1] = '\0';
-    return idx;
 }
 
 void str_replace_char(char* str, char from, char to) {

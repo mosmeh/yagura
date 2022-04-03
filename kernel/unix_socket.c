@@ -6,8 +6,8 @@
 #include "panic.h"
 #include "process.h"
 #include "socket.h"
-#include <common/string.h>
 #include <stdbool.h>
+#include <string.h>
 
 #define BUF_CAPACITY 1024
 

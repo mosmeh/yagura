@@ -1,5 +1,4 @@
 #include "common/extra.h"
-#include <common/string.h>
 #include <kernel/api/elf.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
@@ -10,6 +9,7 @@
 #include <kernel/mem.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+#include <string.h>
 
 static ssize_t copy_strings(char** dst[], char* const src[]) {
     size_t count = 0;

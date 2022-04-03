@@ -1,11 +1,11 @@
 #include "fs.h"
 #include <common/initrd.h>
-#include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
 #include <kernel/api/stat.h>
 #include <kernel/kmalloc.h>
 #include <kernel/panic.h>
+#include <string.h>
 
 typedef struct initrd_file {
     struct file base_file;

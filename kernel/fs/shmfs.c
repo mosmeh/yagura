@@ -1,11 +1,11 @@
 #include "kernel/mem.h"
 #include "tree.h"
 #include <common/extra.h>
-#include <common/string.h>
 #include <kernel/api/stat.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/panic.h>
+#include <string.h>
 
 typedef struct shmfs_node {
     tree_node base_tree;

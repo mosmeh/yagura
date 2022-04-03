@@ -1,7 +1,7 @@
 #include "tree.h"
-#include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
+#include <string.h>
 
 static tree_node* find_child_by_name(tree_node* node, const char* name) {
     tree_node* child = node->first_child;
