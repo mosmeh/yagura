@@ -1,7 +1,7 @@
 #pragma once
 
+#include "asm_wrapper.h"
 #include "forward.h"
-#include "kernel/asm_wrapper.h"
 #include <stdbool.h>
 
 #define IRQ(i) (0x20 + i)

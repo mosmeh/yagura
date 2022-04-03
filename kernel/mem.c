@@ -4,7 +4,7 @@
 #include "api/syscall.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
-#include "kernel/interrupts.h"
+#include "interrupts.h"
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "lock.h"

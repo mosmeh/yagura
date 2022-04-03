@@ -3,7 +3,7 @@
 #include "api/stat.h"
 #include "asm_wrapper.h"
 #include "fs/fs.h"
-#include "kernel/interrupts.h"
+#include "interrupts.h"
 #include "kmalloc.h"
 #include "lock.h"
 #include "panic.h"

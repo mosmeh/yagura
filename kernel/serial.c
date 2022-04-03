@@ -3,11 +3,11 @@
 #include "api/stat.h"
 #include "api/types.h"
 #include "asm_wrapper.h"
+#include "fs/fs.h"
 #include "kmalloc.h"
 #include "panic.h"
 #include "string.h"
 #include <common/string.h>
-#include <kernel/fs/fs.h>
 #include <stdbool.h>
 
 static bool serial_enable_port(uint16_t port) {
