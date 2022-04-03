@@ -10,17 +10,16 @@
 static noreturn void child1(void) {
     int fb_fd = open("/dev/fb0", O_RDWR);
     ASSERT_OK(fb_fd);
-    fb_info info;
-    ASSERT_OK(ioctl(fb_fd, FBIOGET_INFO, &info));
-    uint32_t* fb =
-        (uint32_t*)mmap(NULL, info.pitch * info.height, PROT_READ | PROT_WRITE,
-                        MAP_SHARED, fb_fd, 0);
+    struct fb_info fb_info;
+    ASSERT_OK(ioctl(fb_fd, FBIOGET_INFO, &fb_info));
+    uint32_t* fb = mmap(NULL, fb_info.pitch * fb_info.height,
+                        PROT_READ | PROT_WRITE, MAP_SHARED, fb_fd, 0);
     ASSERT(fb != MAP_FAILED);
-    for (size_t y = 0; y < info.height; ++y)
-        for (size_t x = 0; x < info.width; ++x)
-            fb[x + info.width * y] =
-                ((100000 * x / (info.width - 1) / 1000) << 16) +
-                ((100000 * y / (info.height - 1) / 1000) << 8);
+    for (size_t y = 0; y < fb_info.height; ++y)
+        for (size_t x = 0; x < fb_info.width; ++x)
+            fb[x + fb_info.width * y] =
+                ((100000 * x / (fb_info.width - 1) / 1000) << 16) +
+                ((100000 * y / (fb_info.height - 1) / 1000) << 8);
 
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     ASSERT_OK(sockfd);
@@ -29,22 +28,22 @@ static noreturn void child1(void) {
     ASSERT_OK(connect(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un)));
     printf("client1: connected\n");
     mouse_packet packet;
-    int32_t x = info.width / 2;
-    int32_t y = info.height / 2;
+    int32_t x = fb_info.width / 2;
+    int32_t y = fb_info.height / 2;
     for (;;) {
         ssize_t nread = read(sockfd, &packet, sizeof(mouse_packet));
         ASSERT(nread == sizeof(mouse_packet));
         printf("client1: recv dx=%d dy=%d\n", packet.dx, packet.dy);
-        x = MIN((int32_t)(info.width - 1), MAX(0, x + packet.dx));
-        y = MIN((int32_t)(info.height - 1), MAX(0, y - packet.dy));
+        x = MIN((int32_t)(fb_info.width - 1), MAX(0, x + packet.dx));
+        y = MIN((int32_t)(fb_info.height - 1), MAX(0, y - packet.dy));
         uint32_t color = 0xffffff;
         if (packet.buttons & MOUSE_BUTTON_LEFT)
             color &= 0xff00ff;
         if (packet.buttons & MOUSE_BUTTON_RIGHT)
             color &= 0x00ffff;
-        for (int i = x; i < MIN(x + 5, (int32_t)(info.width - 1)); ++i)
-            for (int j = y; j < MIN(y + 5, (int32_t)(info.height - 1)); ++j)
-                fb[i + info.width * j] = color;
+        for (int i = x; i < MIN(x + 5, (int32_t)(fb_info.width - 1)); ++i)
+            for (int j = y; j < MIN(y + 5, (int32_t)(fb_info.height - 1)); ++j)
+                fb[i + fb_info.width * j] = color;
     }
     ASSERT_OK(close(fb_fd));
     ASSERT_OK(close(sockfd));

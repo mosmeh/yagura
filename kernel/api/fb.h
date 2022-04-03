@@ -4,9 +4,9 @@
 
 enum { FBIOGET_INFO, FBIOSET_INFO };
 
-typedef struct fb_info {
+struct fb_info {
     size_t width;
     size_t height;
     size_t pitch;
     size_t bpp;
-} fb_info;
+};

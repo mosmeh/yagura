@@ -31,7 +31,7 @@
 #define VBE_DISPI_LFB_ENABLED 0x40
 
 static uintptr_t fb_addr;
-static fb_info info;
+static struct fb_info fb_info;
 static mutex lock;
 
 static void pci_enumeration_callback(uint8_t bus, uint8_t slot,
@@ -62,10 +62,10 @@ static void configure(size_t width, size_t height, size_t bpp) {
     write_reg(VBE_DISPI_INDEX_ENABLE,
               VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED);
 
-    info.width = read_reg(VBE_DISPI_INDEX_XRES);
-    info.height = read_reg(VBE_DISPI_INDEX_YRES);
-    info.bpp = read_reg(VBE_DISPI_INDEX_BPP);
-    info.pitch = info.width * (info.bpp / 8);
+    fb_info.width = read_reg(VBE_DISPI_INDEX_XRES);
+    fb_info.height = read_reg(VBE_DISPI_INDEX_YRES);
+    fb_info.bpp = read_reg(VBE_DISPI_INDEX_BPP);
+    fb_info.pitch = fb_info.width * (fb_info.bpp / 8);
 }
 
 void bochs_graphics_init(void) {
@@ -94,15 +94,15 @@ static int bochs_graphics_ioctl(file_description* desc, int request,
     switch (request) {
     case FBIOGET_INFO: {
         mutex_lock(&lock);
-        *(fb_info*)argp = info;
+        *(struct fb_info*)argp = fb_info;
         mutex_unlock(&lock);
         return 0;
     }
     case FBIOSET_INFO: {
-        fb_info* request = (fb_info*)argp;
+        struct fb_info* request = (struct fb_info*)argp;
         mutex_lock(&lock);
         configure(request->width, request->height, request->bpp);
-        *(fb_info*)argp = info;
+        *(struct fb_info*)argp = fb_info;
         mutex_unlock(&lock);
         return 0;
     }
