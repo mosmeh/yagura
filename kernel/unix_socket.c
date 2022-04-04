@@ -6,6 +6,7 @@
 #include "panic.h"
 #include "scheduler.h"
 #include "socket.h"
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -14,13 +15,14 @@
 typedef struct locked_buf {
     mutex lock;
     void* inner_buf;
-    size_t size;
+    atomic_size_t size;
     size_t offset;
 } locked_buf;
 
 static int locked_buf_init(locked_buf* buf) {
     memset(buf, 0, sizeof(locked_buf));
     mutex_init(&buf->lock);
+    atomic_init(&buf->size, 0);
     buf->inner_buf = kmalloc(BUF_CAPACITY);
     if (!buf->inner_buf)
         return -ENOMEM;
@@ -32,7 +34,7 @@ typedef struct unix_socket {
     int backlog;
 
     mutex pending_queue_lock;
-    size_t num_pending;
+    atomic_size_t num_pending;
     struct unix_socket* next; // pending queue
 
     atomic_bool connected;
@@ -56,18 +58,19 @@ static locked_buf* get_buf_to_write(unix_socket* socket,
                      : &socket->server_to_client_buf;
 }
 
+static bool read_should_unblock(atomic_size_t* size) {
+    return atomic_load_explicit(size, memory_order_acquire) > 0;
+}
+
 static ssize_t unix_socket_read(file_description* desc, void* buffer,
                                 size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
     locked_buf* buf = get_buf_to_read(socket, desc);
 
-    for (;;) {
-        mutex_lock(&buf->lock);
-        if (buf->size > 0)
-            break;
-        mutex_unlock(&buf->lock);
-        scheduler_yield(true);
-    }
+    if (atomic_load_explicit(&buf->size, memory_order_acquire) == 0)
+        scheduler_block(read_should_unblock, &buf->size);
+
+    mutex_lock(&buf->lock);
 
     if (buf->offset + count >= buf->size)
         count = buf->size - buf->offset;
@@ -81,18 +84,19 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
     return count;
 }
 
+static bool write_should_unblock(atomic_size_t* size) {
+    return atomic_load_explicit(size, memory_order_acquire) == 0;
+}
+
 static ssize_t unix_socket_write(file_description* desc, const void* buffer,
                                  size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
     locked_buf* buf = get_buf_to_write(socket, desc);
 
-    for (;;) {
-        mutex_lock(&buf->lock);
-        if (buf->size == 0)
-            break;
-        mutex_unlock(&buf->lock);
-        scheduler_yield(true);
-    }
+    if (atomic_load_explicit(&buf->size, memory_order_acquire) > 0)
+        scheduler_block(write_should_unblock, &buf->size);
+
+    mutex_lock(&buf->lock);
 
     if (count >= BUF_CAPACITY)
         count = BUF_CAPACITY - buf->offset;
@@ -115,6 +119,7 @@ unix_socket* unix_socket_create(void) {
     file->read = unix_socket_read;
     file->write = unix_socket_write;
 
+    atomic_init(&socket->num_pending, 0);
     mutex_init(&socket->pending_queue_lock);
     atomic_init(&socket->connected, false);
 
@@ -134,6 +139,8 @@ void unix_socket_set_backlog(unix_socket* socket, int backlog) {
 
 static void enqueue_pending(unix_socket* listener, unix_socket* connector) {
     connector->next = NULL;
+    mutex_lock(&listener->pending_queue_lock);
+
     if (listener->next) {
         unix_socket* it = listener->next;
         while (it->next)
@@ -142,47 +149,51 @@ static void enqueue_pending(unix_socket* listener, unix_socket* connector) {
     } else {
         listener->next = connector;
     }
-    ++listener->num_pending;
+
+    mutex_unlock(&listener->pending_queue_lock);
+    atomic_fetch_add_explicit(&listener->num_pending, 1, memory_order_acq_rel);
 }
 
 static unix_socket* deque_pending(unix_socket* listener) {
+    mutex_lock(&listener->pending_queue_lock);
+
     unix_socket* connector = listener->next;
     listener->next = connector->next;
-    --listener->num_pending;
+
+    mutex_unlock(&listener->pending_queue_lock);
+    atomic_fetch_sub_explicit(&listener->num_pending, 1, memory_order_acq_rel);
+
+    ASSERT(connector);
     return connector;
 }
 
+static bool accept_should_unblock(atomic_size_t* num_pending) {
+    return atomic_load_explicit(num_pending, memory_order_acquire) > 0;
+}
+
 unix_socket* unix_socket_accept(unix_socket* listener) {
-    for (;;) {
-        mutex_lock(&listener->pending_queue_lock);
-        if (listener->num_pending > 0)
-            break;
-        mutex_unlock(&listener->pending_queue_lock);
-        scheduler_yield(true);
-    }
+    if (atomic_load_explicit(&listener->num_pending, memory_order_acquire) == 0)
+        scheduler_block(accept_should_unblock, &listener->num_pending);
 
     unix_socket* connector = deque_pending(listener);
-    mutex_unlock(&listener->pending_queue_lock);
-
     ASSERT(!atomic_exchange_explicit(&connector->connected, true,
                                      memory_order_acq_rel));
     return connector;
+}
+
+static bool connect_should_unblock(atomic_bool* connected) {
+    return atomic_load_explicit(connected, memory_order_acquire);
 }
 
 int unix_socket_connect(file_description* connector_fd, unix_socket* listener) {
     unix_socket* connector = (unix_socket*)connector_fd->file;
     connector->connector_fd = connector_fd;
 
-    mutex_lock(&listener->pending_queue_lock);
-    if (listener->num_pending >= (size_t)listener->backlog) {
-        mutex_unlock(&listener->pending_queue_lock);
+    if (atomic_load_explicit(&listener->num_pending, memory_order_acquire) >=
+        (size_t)listener->backlog)
         return -ECONNREFUSED;
-    }
     enqueue_pending(listener, connector);
-    mutex_unlock(&listener->pending_queue_lock);
 
-    while (!atomic_load_explicit(&connector->connected, memory_order_acquire))
-        scheduler_yield(true);
-
+    scheduler_block(connect_should_unblock, &connector->connected);
     return 0;
 }
