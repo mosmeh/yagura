@@ -55,15 +55,19 @@ int fs_close(file_description* desc) {
 
 ssize_t fs_read(file_description* desc, void* buffer, size_t count) {
     struct file* file = desc->file;
+    if (S_ISDIR(file->mode))
+        return -EISDIR;
     if (!file->read)
-        return 0;
+        return -EINVAL;
     return file->read(desc, buffer, count);
 }
 
 ssize_t fs_write(file_description* desc, const void* buffer, size_t count) {
     struct file* file = desc->file;
+    if (S_ISDIR(file->mode))
+        return -EISDIR;
     if (!file->write)
-        return 0;
+        return -EINVAL;
     return file->write(desc, buffer, count);
 }
 
