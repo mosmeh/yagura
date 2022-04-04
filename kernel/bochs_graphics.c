@@ -77,11 +77,16 @@ void bochs_graphics_init(void) {
 }
 
 static uintptr_t bochs_graphics_mmap(file_description* desc, uintptr_t addr,
-                                     size_t length, int prot, off_t offset) {
+                                     size_t length, int prot, off_t offset,
+                                     bool shared) {
     (void)desc;
-    (void)offset;
-    int rc = mem_map_to_physical_range(addr, fb_addr, length,
-                                       mem_prot_to_flags(prot));
+    if (offset != 0)
+        return -ENXIO;
+    if (!shared)
+        return -ENODEV;
+
+    int rc = mem_map_to_physical_range(
+        addr, fb_addr, length, mem_prot_to_map_flags(prot) | MEM_SHARED);
     if (IS_ERR(rc))
         return rc;
     return addr;

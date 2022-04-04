@@ -2,6 +2,7 @@
 
 #include <kernel/api/types.h>
 #include <kernel/forward.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 #define PATH_SEPARATOR '/'
@@ -31,7 +32,7 @@ typedef ssize_t (*read_fn)(file_description*, void* buffer, size_t count);
 typedef ssize_t (*write_fn)(file_description*, const void* buffer,
                             size_t count);
 typedef uintptr_t (*mmap_fn)(file_description*, uintptr_t addr, size_t length,
-                             int prot, off_t offset);
+                             int prot, off_t offset, bool shared);
 typedef int (*truncate_fn)(file_description*, off_t length);
 typedef int (*ioctl_fn)(file_description*, int request, void* argp);
 typedef long (*readdir_fn)(file_description*, void* dirp, unsigned int count);
@@ -60,7 +61,7 @@ int fs_close(file_description*);
 ssize_t fs_read(file_description*, void* buffer, size_t count);
 ssize_t fs_write(file_description*, const void* buffer, size_t count);
 uintptr_t fs_mmap(file_description*, uintptr_t addr, size_t length, int prot,
-                  off_t offset);
+                  off_t offset, bool shared);
 int fs_truncate(file_description*, off_t length);
 int fs_ioctl(file_description*, int request, void* argp);
 long fs_readdir(file_description*, void* dirp, unsigned int count);

@@ -7,6 +7,10 @@
 #define MEM_USER 0x4
 #define MEM_GLOBAL 0x100
 
+// we use an unused bit in page table entries to indicate the page should be
+// linked, not copied, when cloning a page directory
+#define MEM_SHARED 0x200
+
 void mem_init(const multiboot_info_t*);
 
 uintptr_t mem_to_physical_addr(uintptr_t virtual_addr);
@@ -20,4 +24,4 @@ int mem_map_to_anonymous_region(uintptr_t virtual_addr, uintptr_t size,
                                 uint16_t flags);
 int mem_map_to_physical_range(uintptr_t virtual_addr, uintptr_t physical_addr,
                               uintptr_t size, uint16_t flags);
-uint16_t mem_prot_to_flags(int prot);
+uint16_t mem_prot_to_map_flags(int prot);

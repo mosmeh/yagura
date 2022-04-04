@@ -68,11 +68,11 @@ ssize_t fs_write(file_description* desc, const void* buffer, size_t count) {
 }
 
 uintptr_t fs_mmap(file_description* desc, uintptr_t vaddr, size_t length,
-                  int prot, off_t offset) {
+                  int prot, off_t offset, bool shared) {
     struct file* file = desc->file;
     if (!file->mmap)
         return -ENODEV;
-    return file->mmap(desc, vaddr, length, prot, offset);
+    return file->mmap(desc, vaddr, length, prot, offset, shared);
 }
 
 int fs_truncate(file_description* desc, off_t length) {

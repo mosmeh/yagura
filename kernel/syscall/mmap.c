@@ -13,7 +13,7 @@ uintptr_t sys_mmap(const mmap_params* params) {
         !((params->flags & MAP_PRIVATE) ^ (params->flags & MAP_SHARED)))
         return -EINVAL;
 
-    if (params->addr || !(params->prot & PROT_READ) || params->offset != 0)
+    if ((params->flags & MAP_FIXED) || !(params->prot & PROT_READ))
         return -ENOTSUP;
 
     size_t length = round_up(params->length, PAGE_SIZE);
@@ -23,11 +23,14 @@ uintptr_t sys_mmap(const mmap_params* params) {
         return vaddr;
 
     if (params->flags & MAP_ANONYMOUS) {
-        if (params->flags & MAP_SHARED)
+        if (params->offset != 0)
             return -ENOTSUP;
 
-        int rc = mem_map_to_anonymous_region(vaddr, length,
-                                             mem_prot_to_flags(params->prot));
+        int map_flags = mem_prot_to_map_flags(params->prot);
+        if (params->flags & MAP_SHARED)
+            map_flags |= MEM_SHARED;
+
+        int rc = mem_map_to_anonymous_region(vaddr, length, map_flags);
         if (IS_ERR(rc))
             return rc;
 
@@ -35,14 +38,12 @@ uintptr_t sys_mmap(const mmap_params* params) {
         return vaddr;
     }
 
-    if (params->flags & MAP_PRIVATE)
-        return -ENOTSUP;
-
     file_description* desc = process_get_file_description(params->fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     if (S_ISDIR(desc->file->mode))
         return -ENODEV;
 
-    return fs_mmap(desc, vaddr, length, params->prot, params->offset);
+    return fs_mmap(desc, vaddr, length, params->prot, params->offset,
+                   params->flags & MAP_SHARED);
 }

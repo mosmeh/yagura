@@ -14,14 +14,18 @@ typedef struct shmfs_node {
 } shmfs_node;
 
 static uintptr_t shmfs_mmap(file_description* desc, uintptr_t addr,
-                            size_t length, int prot, off_t offset) {
-    (void)offset;
+                            size_t length, int prot, off_t offset,
+                            bool shared) {
+    if (offset != 0 || !shared)
+        return -EINVAL;
+
     shmfs_node* node = (shmfs_node*)desc->file;
     if (length > node->size)
         return -EINVAL;
+
     uintptr_t paddr = mem_to_physical_addr((uintptr_t)node->buf);
-    int rc =
-        mem_map_to_physical_range(addr, paddr, length, mem_prot_to_flags(prot));
+    int rc = mem_map_to_physical_range(
+        addr, paddr, length, mem_prot_to_map_flags(prot) | MEM_SHARED);
     if (IS_ERR(rc))
         return rc;
     return addr;

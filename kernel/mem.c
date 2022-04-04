@@ -141,6 +141,11 @@ static page_table* clone_page_table(const volatile page_table* src,
             continue;
         }
 
+        if (src->entries[i].raw & MEM_SHARED) {
+            dst->entries[i].raw = src->entries[i].raw;
+            continue;
+        }
+
         uintptr_t dst_physical_addr = alloc_physical_page();
         if (IS_ERR(dst_physical_addr))
             return ERR_CAST(dst_physical_addr);
@@ -345,9 +350,8 @@ page_directory* mem_clone_current_page_directory(void) {
         if (IS_ERR(cloned_pt))
             return ERR_CAST(cloned_pt);
 
-        dst->entries[i].raw =
-            (uintptr_t)mem_to_physical_addr((uintptr_t)cloned_pt) |
-            (current_pd->entries[i].raw & 0xfff);
+        dst->entries[i].raw = mem_to_physical_addr((uintptr_t)cloned_pt) |
+                              (current_pd->entries[i].raw & 0xfff);
     }
 
     return dst;
@@ -420,7 +424,7 @@ int mem_map_to_physical_range(uintptr_t vaddr, uintptr_t paddr, uintptr_t size,
     return 0;
 }
 
-uint16_t mem_prot_to_flags(int prot) {
+uint16_t mem_prot_to_map_flags(int prot) {
     uint32_t flags = MEM_USER;
     if (prot & PROT_WRITE)
         flags |= MEM_WRITE;
