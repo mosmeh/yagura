@@ -51,6 +51,11 @@ int execve(const char* pathname, char* const argv[], char* const envp[]) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int nanosleep(const struct timespec* req, struct timespec* rem) {
+    int rc = syscall(SYS_nanosleep, (uintptr_t)req, (uintptr_t)rem, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 noreturn void halt(void) {
     syscall(SYS_halt, 0, 0, 0);
     __builtin_unreachable();

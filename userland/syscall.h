@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/api/socket.h>
+#include <kernel/api/time.h>
 #include <kernel/api/types.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -13,6 +14,7 @@ pid_t fork(void);
 pid_t getpid(void);
 int sched_yield(void);
 int execve(const char* pathname, char* const argv[], char* const envp[]);
+int nanosleep(const struct timespec* req, struct timespec* rem);
 
 noreturn void halt(void);
 

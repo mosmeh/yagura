@@ -66,7 +66,7 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
         if (buf->size > 0)
             break;
         mutex_unlock(&buf->lock);
-        process_switch();
+        process_switch(true);
     }
 
     if (buf->offset + count >= buf->size)
@@ -91,7 +91,7 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
         if (buf->size == 0)
             break;
         mutex_unlock(&buf->lock);
-        process_switch();
+        process_switch(true);
     }
 
     if (count >= BUF_CAPACITY)
@@ -158,7 +158,7 @@ unix_socket* unix_socket_accept(unix_socket* listener) {
         if (listener->num_pending > 0)
             break;
         mutex_unlock(&listener->pending_queue_lock);
-        process_switch();
+        process_switch(true);
     }
 
     unix_socket* connector = deque_pending(listener);
@@ -182,7 +182,7 @@ int unix_socket_connect(file_description* connector_fd, unix_socket* listener) {
     mutex_unlock(&listener->pending_queue_lock);
 
     while (!atomic_load_explicit(&connector->connected, memory_order_acquire))
-        process_switch();
+        process_switch(true);
 
     return 0;
 }

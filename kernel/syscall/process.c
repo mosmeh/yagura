@@ -1,4 +1,5 @@
 #include <kernel/api/err.h>
+#include <kernel/api/time.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/mem.h>
@@ -11,7 +12,7 @@ noreturn uintptr_t sys_exit(int status) { process_exit(status); }
 uintptr_t sys_getpid(void) { return process_get_pid(); }
 
 uintptr_t sys_yield(void) {
-    process_switch();
+    process_switch(true);
     return 0;
 }
 
@@ -54,4 +55,17 @@ uintptr_t sys_fork(registers* regs) {
     process_enqueue(p);
 
     return p->id;
+}
+
+static bool sleep_should_unblock(uint32_t* deadline) {
+    return uptime >= *deadline;
+}
+
+uintptr_t sys_nanosleep(const struct timespec* req, struct timespec* rem) {
+    uint32_t deadline = uptime + req->tv_sec * CLOCKS_PER_SEC +
+                        req->tv_nsec * CLOCKS_PER_SEC / 1000000000;
+    process_block(sleep_should_unblock, &deadline);
+    if (rem)
+        rem->tv_sec = rem->tv_nsec = 0;
+    return 0;
 }

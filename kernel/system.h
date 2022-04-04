@@ -13,10 +13,12 @@ typedef struct registers {
 void dump_registers(const registers*);
 
 void gdt_init(void);
-void pit_init(uint32_t freq);
+void gdt_set_kernel_stack(uintptr_t stack_top);
+
 void syscall_init(void);
 
-void gdt_set_kernel_stack(uintptr_t stack_top);
+extern uint32_t uptime;
+void pit_init(void);
 
 void ps2_mouse_init(void);
 struct file* ps2_mouse_device_create(void);

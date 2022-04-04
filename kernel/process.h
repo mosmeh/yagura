@@ -6,11 +6,17 @@
 typedef struct process {
     pid_t id;
     uint32_t eip, esp, ebp, ebx, esi, edi;
+
     page_directory* pd;
     uintptr_t stack_top;
     uintptr_t heap_next_vaddr;
+
     file_descriptor_table fd_table;
-    struct process* next; // queue
+
+    bool (*should_unblock)(void*);
+    void* blocker_data;
+
+    struct process* next; // for ready_queue or blocked_processes
 } process;
 
 extern process* current;
@@ -19,8 +25,9 @@ void process_init(void);
 
 pid_t process_spawn_kernel_process(void (*entry_point)(void));
 
-void process_switch(void);
+void process_switch(bool requeue);
 void process_enqueue(process*);
+void process_block(bool (*should_unblock)(), void* data);
 
 pid_t process_generate_next_pid(void);
 pid_t process_get_pid(void);

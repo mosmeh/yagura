@@ -20,6 +20,7 @@
     F(ioctl)                                                                   \
     F(listen)                                                                  \
     F(mmap)                                                                    \
+    F(nanosleep)                                                               \
     F(open)                                                                    \
     F(puts)                                                                    \
     F(read)                                                                    \

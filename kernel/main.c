@@ -60,7 +60,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     syscall_init();
     process_init();
-    pit_init(250);
+    pit_init();
     kprintf("\x1b[32mInitialization done\x1b[m\n");
 
     ASSERT_OK(process_spawn_kernel_process(init));

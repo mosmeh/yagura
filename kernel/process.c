@@ -15,16 +15,17 @@
 #define USER_HEAP_START 0x100000
 
 process* current;
-static process* queue;
+static process* ready_queue;
+static process* blocked_processes;
 static process* idle;
 static atomic_int next_pid;
 
 static process* process_deque(void) {
     bool int_flag = push_cli();
 
-    process* p = queue;
+    process* p = ready_queue;
     if (p) {
-        queue = p->next;
+        ready_queue = p->next;
         p->next = NULL;
     } else {
         p = idle;
@@ -38,16 +39,41 @@ void process_enqueue(process* p) {
     bool int_flag = push_cli();
 
     p->next = NULL;
-    if (queue) {
-        process* it = queue;
+    if (ready_queue) {
+        process* it = ready_queue;
         while (it->next)
             it = it->next;
         it->next = p;
     } else {
-        queue = p;
+        ready_queue = p;
     }
 
     pop_cli(int_flag);
+}
+
+static void unblock_processes(void) {
+    if (!blocked_processes)
+        return;
+
+    process* prev = NULL;
+    process* it = blocked_processes;
+    for (;;) {
+        ASSERT(it->should_unblock);
+        if (it->should_unblock(it->blocker_data)) {
+            if (prev)
+                prev->next = it->next;
+            else
+                blocked_processes = it->next;
+
+            it->should_unblock = NULL;
+            it->blocker_data = NULL;
+            process_enqueue(it);
+        }
+        if (!it->next)
+            return;
+        prev = it;
+        it = it->next;
+    }
 }
 
 pid_t process_generate_next_pid(void) {
@@ -115,6 +141,8 @@ void process_init(void) {
 static noreturn void switch_to_next_process(void) {
     cli();
 
+    unblock_processes();
+
     current = process_deque();
     ASSERT(current);
 
@@ -134,33 +162,55 @@ static noreturn void switch_to_next_process(void) {
     UNREACHABLE();
 }
 
-void process_switch(void) {
+void process_switch(bool requeue) {
     cli();
     ASSERT(current);
 
-    if (current != idle) {
-        uint32_t eip = read_eip();
-        if (eip == 1)
-            return;
+    if (current == idle)
+        switch_to_next_process();
 
-        uint32_t esp, ebp, ebx, esi, edi;
-        __asm__ volatile("mov %%esp, %0" : "=m"(esp));
-        __asm__ volatile("mov %%ebp, %0" : "=m"(ebp));
-        __asm__ volatile("mov %%ebx, %0" : "=m"(ebx));
-        __asm__ volatile("mov %%esi, %0" : "=m"(esi));
-        __asm__ volatile("mov %%edi, %0" : "=m"(edi));
+    uint32_t eip = read_eip();
+    if (eip == 1)
+        return;
 
-        current->eip = eip;
-        current->esp = esp;
-        current->ebp = ebp;
-        current->ebx = ebx;
-        current->esi = esi;
-        current->edi = edi;
+    uint32_t esp, ebp, ebx, esi, edi;
+    __asm__ volatile("mov %%esp, %0" : "=m"(esp));
+    __asm__ volatile("mov %%ebp, %0" : "=m"(ebp));
+    __asm__ volatile("mov %%ebx, %0" : "=m"(ebx));
+    __asm__ volatile("mov %%esi, %0" : "=m"(esi));
+    __asm__ volatile("mov %%edi, %0" : "=m"(edi));
 
+    current->eip = eip;
+    current->esp = esp;
+    current->ebp = ebp;
+    current->ebx = ebx;
+    current->esi = esi;
+    current->edi = edi;
+
+    if (requeue)
         process_enqueue(current);
-    }
 
     switch_to_next_process();
+}
+
+void process_block(bool (*should_unblock)(void*), void* data) {
+    ASSERT(!current->should_unblock);
+    current->should_unblock = should_unblock;
+    current->blocker_data = data;
+
+    cli();
+
+    current->next = NULL;
+    if (blocked_processes) {
+        process* it = blocked_processes;
+        while (it->next)
+            it = it->next;
+        it->next = current;
+    } else {
+        blocked_processes = current;
+    }
+
+    process_switch(false);
 }
 
 pid_t process_spawn_kernel_process(void (*entry_point)(void)) {

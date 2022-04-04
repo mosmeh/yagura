@@ -25,7 +25,7 @@ void mutex_lock(mutex* m) {
             }
             atomic_store_explicit(&m->lock, false, memory_order_release);
         }
-        process_switch();
+        process_switch(true);
     }
 }
 
@@ -42,6 +42,6 @@ void mutex_unlock(mutex* m) {
             atomic_store_explicit(&m->lock, false, memory_order_release);
             return;
         }
-        process_switch();
+        process_switch(true);
     }
 }
