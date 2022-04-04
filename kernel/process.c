@@ -1,12 +1,10 @@
 #include "process.h"
-#include "asm_wrapper.h"
 #include "boot_defs.h"
-#include "fs/fs.h"
-#include "interrupts.h"
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "mem.h"
 #include "panic.h"
+#include "scheduler.h"
 #include "system.h"
 #include <common/extra.h>
 #include <stdatomic.h>
@@ -15,72 +13,29 @@
 #define USER_HEAP_START 0x100000
 
 process* current;
-static process* ready_queue;
-static process* blocked_processes;
-static process* idle;
 static atomic_int next_pid;
 
-static process* process_deque(void) {
-    bool int_flag = push_cli();
+extern unsigned char kernel_page_directory[];
+extern unsigned char stack_top[];
 
-    process* p = ready_queue;
-    if (p) {
-        ready_queue = p->next;
-        p->next = NULL;
-    } else {
-        p = idle;
-    }
+void process_init(void) {
+    atomic_init(&next_pid, 0);
 
-    pop_cli(int_flag);
-    return p;
+    current = kmalloc(sizeof(process));
+    ASSERT(current);
+    memset(current, 0, sizeof(process));
+    current->id = process_generate_next_pid();
+    current->pd =
+        (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
+    current->stack_top = (uintptr_t)stack_top;
+    current->heap_next_vaddr = USER_HEAP_START;
+    ASSERT_OK(file_descriptor_table_init(&current->fd_table));
+    current->next = NULL;
+
+    gdt_set_kernel_stack(current->stack_top);
 }
 
-void process_enqueue(process* p) {
-    bool int_flag = push_cli();
-
-    p->next = NULL;
-    if (ready_queue) {
-        process* it = ready_queue;
-        while (it->next)
-            it = it->next;
-        it->next = p;
-    } else {
-        ready_queue = p;
-    }
-
-    pop_cli(int_flag);
-}
-
-static void unblock_processes(void) {
-    if (!blocked_processes)
-        return;
-
-    process* prev = NULL;
-    process* it = blocked_processes;
-    for (;;) {
-        ASSERT(it->should_unblock);
-        if (it->should_unblock(it->blocker_data)) {
-            if (prev)
-                prev->next = it->next;
-            else
-                blocked_processes = it->next;
-
-            it->should_unblock = NULL;
-            it->blocker_data = NULL;
-            process_enqueue(it);
-        }
-        if (!it->next)
-            return;
-        prev = it;
-        it = it->next;
-    }
-}
-
-pid_t process_generate_next_pid(void) {
-    return atomic_fetch_add_explicit(&next_pid, 1, memory_order_acq_rel);
-}
-
-static process* create_kernel_process(void (*entry_point)(void)) {
+process* process_create_kernel_process(void (*entry_point)(void)) {
     process* p = kmalloc(sizeof(process));
     if (!p)
         return ERR_PTR(-ENOMEM);
@@ -108,126 +63,26 @@ static process* create_kernel_process(void (*entry_point)(void)) {
     return p;
 }
 
-static noreturn void do_idle(void) {
-    for (;;) {
-        ASSERT(interrupts_enabled());
-        hlt();
-    }
-}
-
-extern unsigned char kernel_page_directory[];
-extern unsigned char stack_top[];
-
-void process_init(void) {
-    atomic_init(&next_pid, 0);
-
-    current = kmalloc(sizeof(process));
-    ASSERT(current);
-    memset(current, 0, sizeof(process));
-    current->id = process_generate_next_pid();
-    current->pd =
-        (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
-    current->stack_top = (uintptr_t)stack_top;
-    current->heap_next_vaddr = USER_HEAP_START;
-    ASSERT_OK(file_descriptor_table_init(&current->fd_table));
-    current->next = NULL;
-
-    gdt_set_kernel_stack(current->stack_top);
-
-    idle = create_kernel_process(do_idle);
-    ASSERT_OK(idle);
-}
-
-static noreturn void switch_to_next_process(void) {
-    cli();
-
-    unblock_processes();
-
-    current = process_deque();
-    ASSERT(current);
-
-    mem_switch_page_directory(current->pd);
-    gdt_set_kernel_stack(current->stack_top);
-
-    __asm__ volatile("mov %0, %%edx\n"
-                     "mov %1, %%ebp\n"
-                     "mov %2, %%esp\n"
-                     "mov $1, %%eax;\n"
-                     "sti\n"
-                     "jmp *%%edx"
-                     :
-                     : "g"(current->eip), "g"(current->ebp), "g"(current->esp),
-                       "b"(current->ebx), "S"(current->esi), "D"(current->edi)
-                     : "eax", "edx");
-    UNREACHABLE();
-}
-
-void process_switch(bool requeue) {
-    cli();
-    ASSERT(current);
-
-    if (current == idle)
-        switch_to_next_process();
-
-    uint32_t eip = read_eip();
-    if (eip == 1)
-        return;
-
-    uint32_t esp, ebp, ebx, esi, edi;
-    __asm__ volatile("mov %%esp, %0" : "=m"(esp));
-    __asm__ volatile("mov %%ebp, %0" : "=m"(ebp));
-    __asm__ volatile("mov %%ebx, %0" : "=m"(ebx));
-    __asm__ volatile("mov %%esi, %0" : "=m"(esi));
-    __asm__ volatile("mov %%edi, %0" : "=m"(edi));
-
-    current->eip = eip;
-    current->esp = esp;
-    current->ebp = ebp;
-    current->ebx = ebx;
-    current->esi = esi;
-    current->edi = edi;
-
-    if (requeue)
-        process_enqueue(current);
-
-    switch_to_next_process();
-}
-
-void process_block(bool (*should_unblock)(void*), void* data) {
-    ASSERT(!current->should_unblock);
-    current->should_unblock = should_unblock;
-    current->blocker_data = data;
-
-    cli();
-
-    current->next = NULL;
-    if (blocked_processes) {
-        process* it = blocked_processes;
-        while (it->next)
-            it = it->next;
-        it->next = current;
-    } else {
-        blocked_processes = current;
-    }
-
-    process_switch(false);
-}
-
 pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
-    process* p = create_kernel_process(entry_point);
+    process* p = process_create_kernel_process(entry_point);
     if (IS_ERR(p))
         return PTR_ERR(p);
-    process_enqueue(p);
+    scheduler_enqueue(p);
     return p->id;
 }
+
+pid_t process_generate_next_pid(void) {
+    return atomic_fetch_add_explicit(&next_pid, 1, memory_order_acq_rel);
+}
+
+pid_t process_get_pid(void) { return current->id; }
 
 noreturn void process_exit(int status) {
     kprintf("\x1b[%dmProcess #%d exited with status %d\x1b[m\n",
             status == 0 ? 32 : 31, current->id, status);
-    switch_to_next_process();
+    scheduler_yield(false);
+    UNREACHABLE();
 }
-
-pid_t process_get_pid(void) { return current->id; }
 
 uintptr_t process_alloc_virtual_addr_range(uintptr_t size) {
     uintptr_t current_ptr = current->heap_next_vaddr;

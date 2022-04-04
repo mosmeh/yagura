@@ -2,6 +2,7 @@
 #include "interrupts.h"
 #include "panic.h"
 #include "process.h"
+#include "scheduler.h"
 
 void mutex_init(mutex* m) {
     m->holder = NULL;
@@ -25,7 +26,7 @@ void mutex_lock(mutex* m) {
             }
             atomic_store_explicit(&m->lock, false, memory_order_release);
         }
-        process_switch(true);
+        scheduler_yield(true);
     }
 }
 
@@ -42,6 +43,6 @@ void mutex_unlock(mutex* m) {
             atomic_store_explicit(&m->lock, false, memory_order_release);
             return;
         }
-        process_switch(true);
+        scheduler_yield(true);
     }
 }

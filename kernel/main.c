@@ -6,6 +6,7 @@
 #include "multiboot.h"
 #include "panic.h"
 #include "process.h"
+#include "scheduler.h"
 #include "serial.h"
 #include "system.h"
 
@@ -60,6 +61,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     syscall_init();
     process_init();
+    scheduler_init();
     pit_init();
     kprintf("\x1b[32mInitialization done\x1b[m\n");
 

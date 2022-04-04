@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/fs/fs.h>
+#include "fs/fs.h"
 #include <stdnoreturn.h>
 
 typedef struct process {
@@ -23,11 +23,8 @@ extern process* current;
 
 void process_init(void);
 
+process* process_create_kernel_process(void (*entry_point)(void));
 pid_t process_spawn_kernel_process(void (*entry_point)(void));
-
-void process_switch(bool requeue);
-void process_enqueue(process*);
-void process_block(bool (*should_unblock)(), void* data);
 
 pid_t process_generate_next_pid(void);
 pid_t process_get_pid(void);

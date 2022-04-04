@@ -32,6 +32,7 @@ OBJS := \
 	pit.o \
 	process.o \
 	ps2_mouse.o \
+	scheduler.o \
 	serial.o \
 	syscall/exec.o \
 	syscall/file.o \
