@@ -91,15 +91,17 @@ static noreturn void switch_to_next_process(void) {
     gdt_set_kernel_stack(current->stack_top);
 
     __asm__ volatile("mov %0, %%edx\n"
-                     "mov %1, %%ebp\n"
-                     "mov %2, %%esp\n"
+                     "mov %1, %%eax\n"
+                     "mov %2, %%ecx\n"
+                     "mov %%eax, %%ebp\n"
+                     "mov %%ecx, %%esp\n"
                      "mov $1, %%eax;\n"
                      "sti\n"
                      "jmp *%%edx"
                      :
                      : "g"(current->eip), "g"(current->ebp), "g"(current->esp),
                        "b"(current->ebx), "S"(current->esi), "D"(current->edi)
-                     : "eax", "edx");
+                     : "eax", "edx", "ecx");
     UNREACHABLE();
 }
 
