@@ -27,7 +27,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     gdt_init();
     idt_init();
     irq_init();
-    serial_init();
+    ASSERT(serial_enable_port(SERIAL_COM1));
     kprintf("\n\x1b[32mBooted\x1b[m\n");
     sti();
 
@@ -49,15 +49,22 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     initrd_init(initrd_mod->mod_start + KERNEL_VADDR);
 
     vfs_mount("/", initrd_create_root());
-    vfs_mount("/dev/ttyS0", serial_device_create(SERIAL_COM1));
-    vfs_mount("/dev/ttyS1", serial_device_create(SERIAL_COM2));
-    vfs_mount("/dev/ttyS2", serial_device_create(SERIAL_COM3));
-    vfs_mount("/dev/ttyS3", serial_device_create(SERIAL_COM4));
     vfs_mount("/dev/fb0", bochs_graphics_device_create());
     vfs_mount("/dev/psaux", ps2_mouse_device_create());
     vfs_mount("/dev/shm", shmfs_create_root());
     vfs_mount("/tmp", tmpfs_create_root());
     vfs_mount("/foo/bar/baz", initrd_create_root());
+
+    vfs_mount("/dev/ttyS0", serial_device_create(SERIAL_COM1));
+
+    if (serial_enable_port(SERIAL_COM2))
+        vfs_mount("/dev/ttyS1", serial_device_create(SERIAL_COM2));
+
+    if (serial_enable_port(SERIAL_COM3))
+        vfs_mount("/dev/ttyS2", serial_device_create(SERIAL_COM3));
+
+    if (serial_enable_port(SERIAL_COM4))
+        vfs_mount("/dev/ttyS3", serial_device_create(SERIAL_COM4));
 
     syscall_init();
     process_init();

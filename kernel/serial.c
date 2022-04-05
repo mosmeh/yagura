@@ -8,9 +8,8 @@
 #include "panic.h"
 #include "string.h"
 #include <common/string.h>
-#include <stdbool.h>
 
-static bool serial_enable_port(uint16_t port) {
+bool serial_enable_port(uint16_t port) {
     out8(port + 1, 0x00);
     out8(port + 3, 0x80);
     out8(port + 0, 0x03);
@@ -26,13 +25,6 @@ static bool serial_enable_port(uint16_t port) {
 
     out8(port + 4, 0x0f);
     return true;
-}
-
-void serial_init(void) {
-    ASSERT(serial_enable_port(SERIAL_COM1));
-    ASSERT(serial_enable_port(SERIAL_COM2));
-    ASSERT(serial_enable_port(SERIAL_COM3));
-    ASSERT(serial_enable_port(SERIAL_COM4));
 }
 
 static bool is_transmit_empty(uint16_t port) { return in8(port + 5) & 0x20; }
@@ -68,9 +60,7 @@ struct file* serial_device_create(uint16_t port) {
     serial_device* dev = kmalloc(sizeof(serial_device));
     if (!dev)
         return ERR_PTR(-ENOMEM);
-
     memset(dev, 0, sizeof(serial_device));
-
     dev->port = port;
 
     struct file* file = (struct file*)dev;
