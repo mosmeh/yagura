@@ -10,7 +10,7 @@
 
 noreturn uintptr_t sys_exit(int status) { process_exit(status); }
 
-uintptr_t sys_getpid(void) { return process_get_pid(); }
+uintptr_t sys_getpid(void) { return current->id; }
 
 uintptr_t sys_yield(void) {
     scheduler_yield(true);

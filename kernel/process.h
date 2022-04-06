@@ -27,7 +27,6 @@ process* process_create_kernel_process(void (*entry_point)(void));
 pid_t process_spawn_kernel_process(void (*entry_point)(void));
 
 pid_t process_generate_next_pid(void);
-pid_t process_get_pid(void);
 noreturn void process_exit(int status);
 
 uintptr_t process_alloc_virtual_addr_range(uintptr_t size);

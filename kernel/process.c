@@ -75,8 +75,6 @@ pid_t process_generate_next_pid(void) {
     return atomic_fetch_add_explicit(&next_pid, 1, memory_order_acq_rel);
 }
 
-pid_t process_get_pid(void) { return current->id; }
-
 noreturn void process_exit(int status) {
     kprintf("\x1b[%dmProcess #%d exited with status %d\x1b[m\n",
             status == 0 ? 32 : 31, current->id, status);
