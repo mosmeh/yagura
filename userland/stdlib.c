@@ -102,3 +102,11 @@ char* strerror(int errnum) {
 }
 
 void perror(const char* s) { printf("%s: %s\n", s, strerror(errno)); }
+
+unsigned int sleep(unsigned int seconds) {
+    struct timespec req = {.tv_sec = seconds, .tv_nsec = 0};
+    struct timespec rem;
+    if (nanosleep(&req, &rem) < 0)
+        return rem.tv_sec;
+    return 0;
+}

@@ -26,3 +26,5 @@ int printf(const char* format, ...);
 extern int errno;
 char* strerror(int errnum);
 void perror(const char*);
+
+unsigned int sleep(unsigned int seconds);
