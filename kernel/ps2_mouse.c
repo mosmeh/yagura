@@ -1,11 +1,8 @@
-#include "api/err.h"
 #include "api/hid.h"
 #include "api/stat.h"
-#include "asm_wrapper.h"
 #include "fs/fs.h"
 #include "interrupts.h"
 #include "kmalloc.h"
-#include "lock.h"
 #include "panic.h"
 #include <string.h>
 
@@ -45,7 +42,6 @@ static size_t state = 0;
 static mouse_packet queue[QUEUE_SIZE];
 static size_t queue_head = 0;
 static size_t queue_tail = 0;
-static mutex queue_lock;
 
 static void irq_handler(registers* reg) {
     (void)reg;
@@ -95,8 +91,6 @@ void ps2_mouse_init(void) {
     write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
 
     idt_register_interrupt_handler(IRQ(12), irq_handler);
-
-    mutex_init(&queue_lock);
 }
 
 static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
@@ -106,7 +100,8 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
     size_t nread = 0;
     mouse_packet* out = (mouse_packet*)buffer;
 
-    mutex_lock(&queue_lock);
+    bool int_flag = push_cli();
+
     while (count > 0) {
         if (queue_head == queue_tail || count < sizeof(mouse_packet))
             break;
@@ -115,7 +110,8 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
         count -= sizeof(mouse_packet);
         queue_head = (queue_head + 1) % QUEUE_SIZE;
     }
-    mutex_unlock(&queue_lock);
+
+    pop_cli(int_flag);
 
     return nread;
 }
