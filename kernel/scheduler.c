@@ -8,21 +8,6 @@ static process* ready_queue;
 static process* blocked_processes;
 static process* idle;
 
-static process* scheduler_deque(void) {
-    bool int_flag = push_cli();
-
-    process* p = ready_queue;
-    if (p) {
-        ready_queue = p->next;
-        p->next = NULL;
-    } else {
-        p = idle;
-    }
-
-    pop_cli(int_flag);
-    return p;
-}
-
 void scheduler_enqueue(process* p) {
     bool int_flag = push_cli();
 
@@ -37,6 +22,17 @@ void scheduler_enqueue(process* p) {
     }
 
     pop_cli(int_flag);
+}
+
+static process* scheduler_deque(void) {
+    process* p = ready_queue;
+    if (p) {
+        ready_queue = p->next;
+        p->next = NULL;
+    } else {
+        p = idle;
+    }
+    return p;
 }
 
 static void unblock_processes(void) {
@@ -80,8 +76,6 @@ void scheduler_init(void) {
 }
 
 static noreturn void switch_to_next_process(void) {
-    cli();
-
     unblock_processes();
 
     current = scheduler_deque();
