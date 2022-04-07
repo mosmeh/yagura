@@ -49,13 +49,11 @@ void* memcpy(void* dest_ptr, const void* src_ptr, size_t n) {
 }
 
 int strcmp(const char* s1, const char* s2) {
-    while (*s1 && *s2) {
-        if (*s1 != *s2)
-            return *(const unsigned char*)s1 - *(const unsigned char*)s2;
-        s1++;
-        s2++;
+    for (; *s1 == *s2; ++s1, ++s2) {
+        if (*s1 == 0)
+            return 0;
     }
-    return 0;
+    return *s1 < *s2 ? -1 : 1;
 }
 
 int strncmp(const char* s1, const char* s2, size_t n) {
