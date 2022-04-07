@@ -1,3 +1,4 @@
+#include "scheduler.h"
 #include "interrupts.h"
 #include "mem.h"
 #include "panic.h"
@@ -25,13 +26,11 @@ void scheduler_enqueue(process* p) {
 }
 
 static process* scheduler_deque(void) {
+    if (!ready_queue)
+        return idle;
     process* p = ready_queue;
-    if (p) {
-        ready_queue = p->next;
-        p->next = NULL;
-    } else {
-        p = idle;
-    }
+    ready_queue = p->next;
+    p->next = NULL;
     return p;
 }
 
@@ -64,6 +63,8 @@ static noreturn void do_idle(void) {
     for (;;) {
         ASSERT(interrupts_enabled());
         hlt();
+        ASSERT(interrupts_enabled());
+        scheduler_yield(false);
     }
 }
 
