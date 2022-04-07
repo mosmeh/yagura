@@ -12,7 +12,7 @@ noreturn uintptr_t sys_halt(void) {
         hlt();
 }
 
-uintptr_t sys_puts(const char* str) { return kputs(str); }
+uintptr_t sys_dbgputs(const char* str) { return kputs(str); }
 
 #define DECLARE_FUNC(name) uintptr_t sys_##name();
 ENUMERATE_SYSCALLS(DECLARE_FUNC)

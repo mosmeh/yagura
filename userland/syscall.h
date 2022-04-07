@@ -21,7 +21,7 @@ noreturn void halt(void);
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,
            off_t offset);
 
-int puts(const char* str);
+int dbgputs(const char* str);
 
 int open(const char* pathname, int flags, ...);
 int close(int fd);

@@ -85,7 +85,7 @@ int printf(const char* format, ...) {
     va_start(args, format);
     int ret = vsnprintf(buf, 1024, format, args);
     va_end(args);
-    puts(buf);
+    dbgputs(buf);
     return ret;
 }
 

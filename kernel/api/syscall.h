@@ -10,6 +10,7 @@
     F(bind)                                                                    \
     F(close)                                                                   \
     F(connect)                                                                 \
+    F(dbgputs)                                                                 \
     F(execve)                                                                  \
     F(exit)                                                                    \
     F(fork)                                                                    \
@@ -22,7 +23,6 @@
     F(mmap)                                                                    \
     F(nanosleep)                                                               \
     F(open)                                                                    \
-    F(puts)                                                                    \
     F(read)                                                                    \
     F(socket)                                                                  \
     F(write)                                                                   \
