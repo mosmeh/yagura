@@ -25,6 +25,6 @@ QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
 	-d guest_errors \
 	-no-reboot \
 	-chardev stdio,mux=on,id=char0 \
-	-serial chardev:char0 -serial chardev:char0 \
+	-serial chardev:char0 \
 	-mon char0,mode=readline -s \
 	"${QEMU_VIRT_TECH_ARGS[@]}" -display none

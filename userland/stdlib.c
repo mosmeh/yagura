@@ -79,14 +79,42 @@ void free(void* ptr) {
         malloc_ctx.ptr = malloc_ctx.heap_start;
 }
 
+int putchar(int ch) {
+    char c = ch;
+    if (write(1, &c, 1) < 0)
+        return -1;
+    return ch;
+}
+
+int puts(const char* str) {
+    int rc = write(1, str, strlen(str));
+    if (rc < 0)
+        return -1;
+    if (write(1, "\n", 1) < 0)
+        return -1;
+    return rc + 1;
+}
+
 int printf(const char* format, ...) {
-    char buf[1024];
     va_list args;
     va_start(args, format);
-    int ret = vsnprintf(buf, 1024, format, args);
+    int ret = vdprintf(1, format, args);
     va_end(args);
-    dbgputs(buf);
     return ret;
+}
+
+int dprintf(int fd, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = vdprintf(fd, format, args);
+    va_end(args);
+    return ret;
+}
+
+int vdprintf(int fd, const char* format, va_list ap) {
+    char buf[1024];
+    int len = vsnprintf(buf, 1024, format, ap);
+    return write(fd, buf, len);
 }
 
 int errno;

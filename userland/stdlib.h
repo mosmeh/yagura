@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdnoreturn.h>
@@ -21,7 +22,11 @@ void* malloc(size_t size);
 void* aligned_alloc(size_t alignment, size_t size);
 void free(void* ptr);
 
+int putchar(int ch);
+int puts(const char* str);
 int printf(const char* format, ...);
+int dprintf(int fd, const char* format, ...);
+int vdprintf(int fd, const char* format, va_list ap);
 
 extern int errno;
 char* strerror(int errnum);

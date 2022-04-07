@@ -4,18 +4,10 @@
 #include "serial.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 int kputs(const char* str) {
-    bool int_flag = push_cli();
-
-    int i = 0;
-    while (*str) {
-        serial_write(SERIAL_COM1, *str++);
-        ++i;
-    }
-
-    pop_cli(int_flag);
-    return i;
+    return serial_write(SERIAL_COM1, str, strlen(str));
 }
 
 int kprintf(const char* format, ...) {
