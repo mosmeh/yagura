@@ -11,7 +11,6 @@ void spawn_process(const char* filename) {
 }
 
 int main(void) {
-    spawn_process("/fs-test");
-    spawn_process("/socket-test");
+    spawn_process("/sh");
     return EXIT_SUCCESS;
 }
