@@ -76,6 +76,39 @@ void scheduler_init(void) {
     ASSERT_OK(idle);
 }
 
+process* scheduler_find_process_by_pid(pid_t pid) {
+    ASSERT(current);
+    if (current->id == pid)
+        return current;
+
+    ASSERT(idle);
+    if (idle->id == pid)
+        return idle;
+
+    bool int_flag = push_cli();
+
+    process* it = ready_queue;
+    while (it) {
+        if (it->id == pid)
+            goto found;
+        it = it->next;
+    }
+
+    it = blocked_processes;
+    while (it) {
+        if (it->id == pid)
+            goto found;
+        it = it->next;
+    }
+
+    it = NULL;
+found:
+    pop_cli(int_flag);
+    if (it)
+        ASSERT(it->id == pid);
+    return it;
+}
+
 static noreturn void switch_to_next_process(void) {
     unblock_processes();
 

@@ -25,6 +25,7 @@
     F(open)                                                                    \
     F(read)                                                                    \
     F(socket)                                                                  \
+    F(waitpid)                                                                 \
     F(write)                                                                   \
     F(yield)
 

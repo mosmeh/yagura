@@ -51,6 +51,11 @@ int execve(const char* pathname, char* const argv[], char* const envp[]) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+pid_t waitpid(pid_t pid, int* wstatus, int options) {
+    int rc = syscall(SYS_waitpid, pid, (uintptr_t)wstatus, options);
+    RETURN_WITH_ERRNO(rc, pid_t)
+}
+
 int nanosleep(const struct timespec* req, struct timespec* rem) {
     int rc = syscall(SYS_nanosleep, (uintptr_t)req, (uintptr_t)rem, 0);
     RETURN_WITH_ERRNO(rc, int)

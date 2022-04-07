@@ -14,6 +14,7 @@ pid_t fork(void);
 pid_t getpid(void);
 int sched_yield(void);
 int execve(const char* pathname, char* const argv[], char* const envp[]);
+pid_t waitpid(pid_t pid, int* wstatus, int options);
 int nanosleep(const struct timespec* req, struct timespec* rem);
 
 noreturn void halt(void);
