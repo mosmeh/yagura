@@ -133,6 +133,10 @@ void scheduler_yield(bool requeue_current) {
 void scheduler_block(bool (*should_unblock)(void*), void* data) {
     ASSERT(!current->should_unblock);
     ASSERT(!current->blocker_data);
+
+    if (should_unblock(data))
+        return;
+
     current->should_unblock = should_unblock;
     current->blocker_data = data;
 

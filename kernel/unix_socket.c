@@ -66,9 +66,7 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
                                 size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
     locked_buf* buf = get_buf_to_read(socket, desc);
-
-    if (atomic_load_explicit(&buf->size, memory_order_acquire) == 0)
-        scheduler_block(read_should_unblock, &buf->size);
+    scheduler_block(read_should_unblock, &buf->size);
 
     mutex_lock(&buf->lock);
 
@@ -92,9 +90,7 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
                                  size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
     locked_buf* buf = get_buf_to_write(socket, desc);
-
-    if (atomic_load_explicit(&buf->size, memory_order_acquire) > 0)
-        scheduler_block(write_should_unblock, &buf->size);
+    scheduler_block(write_should_unblock, &buf->size);
 
     mutex_lock(&buf->lock);
 
@@ -172,8 +168,7 @@ static bool accept_should_unblock(atomic_size_t* num_pending) {
 }
 
 unix_socket* unix_socket_accept(unix_socket* listener) {
-    if (atomic_load_explicit(&listener->num_pending, memory_order_acquire) == 0)
-        scheduler_block(accept_should_unblock, &listener->num_pending);
+    scheduler_block(accept_should_unblock, &listener->num_pending);
 
     unix_socket* connector = deque_pending(listener);
     ASSERT(!atomic_exchange_explicit(&connector->connected, true,
