@@ -8,7 +8,7 @@ CFLAGS := \
 	-Wall -Wextra -pedantic \
 	-O2 -g
 
-TARGET_NAMES := init sh socket-test fs-test
+TARGET_NAMES := init sh cat socket-test fs-test
 OUTDIR := ../base
 
 TARGETS := $(TARGET_NAMES:%=$(OUTDIR)/%)
