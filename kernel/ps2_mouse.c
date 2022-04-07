@@ -2,6 +2,7 @@
 #include "api/stat.h"
 #include "fs/fs.h"
 #include "interrupts.h"
+#include "kernel/scheduler.h"
 #include "kmalloc.h"
 #include "panic.h"
 #include <string.h>
@@ -93,12 +94,20 @@ void ps2_mouse_init(void) {
     idt_register_interrupt_handler(IRQ(12), irq_handler);
 }
 
+static bool read_should_unblock(void) {
+    bool int_flag = push_cli();
+    bool should_unblock = queue_head != queue_tail;
+    pop_cli(int_flag);
+    return should_unblock;
+}
+
 static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
                                      size_t count) {
     (void)desc;
 
     size_t nread = 0;
     mouse_packet* out = (mouse_packet*)buffer;
+    scheduler_block(read_should_unblock, NULL);
 
     bool int_flag = push_cli();
 

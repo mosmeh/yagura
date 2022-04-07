@@ -101,10 +101,9 @@ int main(void) {
     int i = 0;
     for (;;) {
         ssize_t nread = read(ps_fd, &packet, sizeof(mouse_packet));
-        if (nread == 0) {
-            sched_yield();
+        ASSERT_OK(nread);
+        if (nread == 0)
             continue;
-        }
         ++i;
         ASSERT(nread == sizeof(mouse_packet));
         ASSERT(write(peer_fd1, &packet, nread) == nread);
