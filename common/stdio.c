@@ -66,6 +66,11 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
         }
 
         switch (ch) {
+        case 'c':
+            buffer[idx++] = (char)va_arg(args, int);
+            if (idx >= size)
+                goto too_long;
+            break;
         case 'd':
         case 'u':
         case 'x': {
