@@ -117,6 +117,8 @@ struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
         vnode = child;
         component += strlen(component) + 1;
     }
+    ASSERT(vnode);
+    ASSERT(vnode->fs);
 
     struct file* fnode = vnode->fs;
     while (component < split_pathname + path_len) {
@@ -138,7 +140,8 @@ struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
     if (flags & O_EXCL)
         return ERR_PTR(-EEXIST);
 
-created:;
+created:
+    ASSERT(fnode);
     int rc = fs_open(fnode, flags, mode);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
