@@ -73,17 +73,16 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     if (!pathname || !argv || !envp)
         return -EFAULT;
 
-    struct file* file = vfs_open(pathname, O_RDWR, 0);
-    if (IS_ERR(file))
-        return PTR_ERR(file);
-    if (!S_ISREG(file->mode))
+    file_description* desc = vfs_open(pathname, O_RDONLY, 0);
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
+    if (!S_ISREG(desc->file->mode))
         return -EACCES;
 
-    file_description desc = {.file = file, .offset = 0};
     void* buf = kmalloc(65536);
     if (!buf)
         return -ENOMEM;
-    ssize_t nread = fs_read(&desc, buf, 65536);
+    ssize_t nread = fs_read(desc, buf, 65536);
     if (IS_ERR(nread))
         return nread;
     if ((size_t)nread < sizeof(Elf32_Ehdr))

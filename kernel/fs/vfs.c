@@ -91,10 +91,9 @@ void vfs_mount(const char* path, struct file* fs) {
     kprintf("Mounted \"%s\" at %s\n", fs->name, path);
 }
 
-struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
+static struct file* get_or_create_file(const char* pathname, int flags,
+                                       mode_t mode) {
     if (!is_absolute_path(pathname))
-        return ERR_PTR(-ENOTSUP);
-    if ((flags & O_RDWR) != O_RDWR)
         return ERR_PTR(-ENOTSUP);
 
     size_t path_len = strlen(pathname);
@@ -120,31 +119,45 @@ struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
     ASSERT(vnode);
     ASSERT(vnode->fs);
 
-    struct file* fnode = vnode->fs;
+    struct file* file = vnode->fs;
     while (component < split_pathname + path_len) {
-        struct file* child = fs_lookup(fnode, component);
+        struct file* child = fs_lookup(file, component);
         if (IS_ERR(child)) {
             if ((PTR_ERR(child) == -ENOENT) && (flags & O_CREAT) &&
                 component + strlen(component) + 1 >=
                     split_pathname + path_len) {
-                fnode = fs_create_child(fnode, component, mode);
-                goto created;
+                file = fs_create_child(file, component, mode);
+                goto found_or_created;
             }
             return child;
         }
 
-        fnode = child;
+        file = child;
         component += strlen(component) + 1;
     }
 
     if (flags & O_EXCL)
         return ERR_PTR(-EEXIST);
 
-created:
-    ASSERT(fnode);
-    int rc = fs_open(fnode, flags, mode);
+found_or_created:
+    ASSERT(file);
+    int rc = fs_open(file, flags, mode);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
-    return fnode;
+    return file;
+}
+
+file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
+    struct file* file = get_or_create_file(pathname, flags, mode);
+    if (IS_ERR(file))
+        return ERR_CAST(file);
+
+    file_description* desc = kmalloc(sizeof(file_description));
+    if (!desc)
+        return ERR_PTR(-ENOMEM);
+    desc->file = file;
+    desc->offset = 0;
+    desc->flags = flags;
+    return desc;
 }

@@ -15,7 +15,7 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
                      char* const envp[]);
 
 static noreturn void init(void) {
-    struct file* tty = vfs_open("/dev/ttyS0", O_RDWR, 0);
+    file_description* tty = vfs_open("/dev/ttyS0", O_RDWR, 0);
     ASSERT_OK(tty);
     ASSERT(process_alloc_file_descriptor(tty) == 0);
     ASSERT(process_alloc_file_descriptor(tty) == 1);

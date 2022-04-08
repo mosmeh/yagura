@@ -154,7 +154,7 @@ DIR* opendir(const char* name) {
     DIR* dirp = malloc(sizeof(DIR));
     if (!dirp)
         return NULL;
-    dirp->fd = open(name, O_RDWR);
+    dirp->fd = open(name, O_RDONLY);
     if (dirp->fd < 0)
         return NULL;
     return dirp;

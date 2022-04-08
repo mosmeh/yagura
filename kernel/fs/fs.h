@@ -12,10 +12,11 @@
 typedef struct file_description {
     struct file* file;
     off_t offset;
+    int flags;
 } file_description;
 
 typedef struct file_descriptor_table {
-    file_description* entries;
+    file_description** entries;
 } file_descriptor_table;
 
 int file_descriptor_table_init(file_descriptor_table*);
@@ -68,7 +69,7 @@ long fs_readdir(file_description*, void* dirp, unsigned int count);
 
 void vfs_init(void);
 void vfs_mount(const char* path, struct file* fs);
-struct file* vfs_open(const char* pathname, int flags, mode_t mode);
+file_description* vfs_open(const char* pathname, int flags, mode_t mode);
 
 uint8_t mode_to_dirent_type(mode_t);
 

@@ -28,7 +28,7 @@ int main(void) {
     if (fork() == 0)
         child();
     {
-        int fd = open("/tmp/wow", O_RDWR | O_CREAT);
+        int fd = open("/tmp/wow", O_WRONLY | O_CREAT);
         ASSERT_OK(fd);
         int* buf = malloc(65536 * sizeof(int));
         ASSERT(buf);
@@ -74,7 +74,7 @@ int main(void) {
         ASSERT_OK(close(fd));
     }
     {
-        int fd = open("/tmp/wow", O_RDWR);
+        int fd = open("/tmp/wow", O_RDONLY);
         int* buf = malloc(65536 * sizeof(int));
         ASSERT(buf);
         ASSERT(read(fd, buf, 1024 * sizeof(int)) == 1024 * sizeof(int));
@@ -84,5 +84,6 @@ int main(void) {
         ASSERT_OK(close(fd));
     }
     ASSERT_OK(close(shm_fd));
+    printf("Passed\n");
     return EXIT_SUCCESS;
 }

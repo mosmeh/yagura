@@ -15,8 +15,13 @@ uintptr_t sys_socket(int domain, int type, int protocol) {
     unix_socket* socket = unix_socket_create();
     if (IS_ERR(socket))
         return PTR_ERR(socket);
-
-    return process_alloc_file_descriptor((struct file*)socket);
+    file_description* desc = kmalloc(sizeof(file_description));
+    if (!desc)
+        return -ENOMEM;
+    desc->file = (struct file*)socket;
+    desc->offset = 0;
+    desc->flags = O_RDWR;
+    return process_alloc_file_descriptor(desc);
 }
 
 uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
@@ -37,13 +42,13 @@ uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
     if (!path)
         return -ENOMEM;
 
-    struct file* file = vfs_open(path, O_RDWR | O_CREAT | O_EXCL, S_IFSOCK);
-    if (IS_ERR(file)) {
-        if (PTR_ERR(file) == -EEXIST)
+    file_description* bound_desc = vfs_open(path, O_CREAT | O_EXCL, S_IFSOCK);
+    if (IS_ERR(bound_desc)) {
+        if (PTR_ERR(bound_desc) == -EEXIST)
             return -EADDRINUSE;
-        return PTR_ERR(file);
+        return PTR_ERR(bound_desc);
     }
-    file->bound_socket = socket;
+    bound_desc->file->bound_socket = socket;
     return 0;
 }
 
@@ -71,7 +76,13 @@ uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
 
     unix_socket* listener = (unix_socket*)desc->file;
     unix_socket* connector = unix_socket_accept(listener);
-    return process_alloc_file_descriptor((struct file*)connector);
+    file_description* connector_desc = kmalloc(sizeof(file_description));
+    if (!connector_desc)
+        return -ENOMEM;
+    connector_desc->file = (struct file*)connector;
+    connector_desc->offset = 0;
+    connector_desc->flags = O_RDWR;
+    return process_alloc_file_descriptor(connector_desc);
 }
 
 uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
@@ -90,10 +101,10 @@ uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
     const char* path = kstrndup(addr_un->sun_path, sizeof(addr_un->sun_path));
     if (!path)
         return -ENOMEM;
-    struct file* file = vfs_open(path, O_RDWR, 0);
-    if (IS_ERR(file))
-        return PTR_ERR(file);
-    unix_socket* listener = file->bound_socket;
+    file_description* listener_desc = vfs_open(path, 0, 0);
+    if (IS_ERR(listener_desc))
+        return PTR_ERR(listener_desc);
+    unix_socket* listener = listener_desc->file->bound_socket;
     if (!listener)
         return -ECONNREFUSED;
 

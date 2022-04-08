@@ -1,28 +1,39 @@
 #include "fs.h"
 #include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
+#include <kernel/api/fcntl.h>
+#include <kernel/api/mman.h>
 #include <kernel/api/stat.h>
 #include <kernel/kmalloc.h>
 #include <kernel/panic.h>
 #include <string.h>
 
 int file_descriptor_table_init(file_descriptor_table* table) {
-    table->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
+    table->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description*));
     if (!table->entries)
         return -ENOMEM;
 
-    memset(table->entries, 0, FD_TABLE_CAPACITY * sizeof(file_description));
+    memset(table->entries, 0, FD_TABLE_CAPACITY * sizeof(file_description*));
     return 0;
 }
 
 int file_descriptor_table_clone_from(file_descriptor_table* to,
                                      const file_descriptor_table* from) {
-    to->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description));
+    to->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description*));
     if (!to->entries)
         return -ENOMEM;
 
-    memcpy(to->entries, from->entries,
-           FD_TABLE_CAPACITY * sizeof(file_description));
+    for (size_t i = 0; i < FD_TABLE_CAPACITY; ++i) {
+        if (from->entries[i]) {
+            file_description* dst = kmalloc(sizeof(file_description));
+            if (!dst)
+                return -ENOMEM;
+            *dst = *from->entries[i];
+            to->entries[i] = dst;
+        } else {
+            to->entries[i] = NULL;
+        }
+    }
     return 0;
 }
 
@@ -59,6 +70,8 @@ ssize_t fs_read(file_description* desc, void* buffer, size_t count) {
         return -EISDIR;
     if (!file->read)
         return -EINVAL;
+    if (!(desc->flags & O_RDONLY))
+        return -EBADF;
     return file->read(desc, buffer, count);
 }
 
@@ -68,6 +81,8 @@ ssize_t fs_write(file_description* desc, const void* buffer, size_t count) {
         return -EISDIR;
     if (!file->write)
         return -EINVAL;
+    if (!(desc->flags & O_WRONLY))
+        return -EBADF;
     return file->write(desc, buffer, count);
 }
 
@@ -76,6 +91,10 @@ uintptr_t fs_mmap(file_description* desc, uintptr_t vaddr, size_t length,
     struct file* file = desc->file;
     if (!file->mmap)
         return -ENODEV;
+    if (!(desc->flags & O_RDONLY))
+        return -EACCES;
+    if ((prot | PROT_WRITE) && !(desc->flags & O_RDWR))
+        return -EACCES;
     return file->mmap(desc, vaddr, length, prot, offset, shared);
 }
 
@@ -85,6 +104,8 @@ int fs_truncate(file_description* desc, off_t length) {
         return -EISDIR;
     if (!file->truncate)
         return -EROFS;
+    if (!(desc->flags & O_WRONLY))
+        return -EBADF;
     return file->truncate(desc, length);
 }
 

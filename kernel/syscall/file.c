@@ -1,12 +1,13 @@
 #include <kernel/api/err.h>
+#include <kernel/api/stat.h>
 #include <kernel/fs/fs.h>
 #include <kernel/process.h>
 
 uintptr_t sys_open(const char* pathname, int flags, unsigned mode) {
-    struct file* file = vfs_open(pathname, flags, mode);
-    if (IS_ERR(file))
-        return PTR_ERR(file);
-    return process_alloc_file_descriptor(file);
+    file_description* desc = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
+    return process_alloc_file_descriptor(desc);
 }
 
 uintptr_t sys_close(int fd) {

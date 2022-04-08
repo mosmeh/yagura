@@ -96,7 +96,8 @@ int main(void) {
     ASSERT_OK(peer_fd3);
     printf("server: accepted (2)\n");
 
-    int ps_fd = open("/dev/psaux", O_RDWR);
+    int ps_fd = open("/dev/psaux", O_RDONLY);
+    ASSERT_OK(ps_fd);
     mouse_packet packet;
     int i = 0;
     for (;;) {

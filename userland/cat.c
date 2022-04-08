@@ -11,7 +11,7 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    int fd = open(argv[1], O_RDWR);
+    int fd = open(argv[1], O_RDONLY);
     if (fd < 0) {
         perror("open");
         return EXIT_FAILURE;
