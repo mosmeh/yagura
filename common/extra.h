@@ -24,5 +24,5 @@ static inline size_t div_ceil(size_t lhs, size_t rhs) {
 static inline size_t next_power_of_two(size_t x) {
     if (x <= 1)
         return 1;
-    return (SIZE_MAX >> __builtin_clzll(x - 1)) + 1;
+    return (SIZE_MAX >> __builtin_clz(x - 1)) + 1;
 }
