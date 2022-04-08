@@ -1,6 +1,7 @@
 #include "serial.h"
 #include "api/err.h"
 #include "api/stat.h"
+#include "api/sysmacros.h"
 #include "fs/fs.h"
 #include "interrupts.h"
 #include "kmalloc.h"
@@ -102,5 +103,6 @@ struct file* serial_device_create(uint16_t port) {
     file->mode = S_IFCHR;
     file->read = serial_device_read;
     file->write = serial_device_write;
+    file->device_id = makedev(4, port + 64 - SERIAL_COM1);
     return file;
 }

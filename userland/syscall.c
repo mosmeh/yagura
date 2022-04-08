@@ -127,6 +127,11 @@ int mkdir(const char* pathname, mode_t mode) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int mknod(const char* pathname, mode_t mode, dev_t dev) {
+    int rc = syscall(SYS_mknod, (uintptr_t)pathname, mode, dev);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 long getdents(int fd, void* dirp, size_t count) {
     int rc = syscall(SYS_getdents, fd, (uintptr_t)dirp, count);
     RETURN_WITH_ERRNO(rc, long)

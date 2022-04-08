@@ -21,6 +21,7 @@
     F(ioctl)                                                                   \
     F(listen)                                                                  \
     F(mkdir)                                                                   \
+    F(mknod)                                                                   \
     F(mmap)                                                                    \
     F(nanosleep)                                                               \
     F(open)                                                                    \

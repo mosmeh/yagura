@@ -51,6 +51,7 @@ struct file {
     ioctl_fn ioctl;
     readdir_fn readdir;
     mode_t mode;
+    dev_t device_id;
     unix_socket* bound_socket;
 };
 
@@ -67,9 +68,10 @@ int fs_truncate(file_description*, off_t length);
 int fs_ioctl(file_description*, int request, void* argp);
 long fs_readdir(file_description*, void* dirp, unsigned int count);
 
-void vfs_init(void);
-void vfs_mount(const char* path, struct file* fs);
+int vfs_mount(const char* path, struct file* root_file);
+int vfs_register_device(struct file* device_file);
 file_description* vfs_open(const char* pathname, int flags, mode_t mode);
+struct file* vfs_create(const char* pathname, mode_t mode);
 
 uint8_t mode_to_dirent_type(mode_t);
 

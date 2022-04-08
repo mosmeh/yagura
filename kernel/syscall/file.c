@@ -52,10 +52,27 @@ uintptr_t sys_ioctl(int fd, int request, void* argp) {
 }
 
 uintptr_t sys_mkdir(const char* pathname, mode_t mode) {
-    file_description* desc = vfs_open(pathname, O_CREAT | O_RDONLY | O_EXCL,
-                                      (mode & 0777) | S_IFDIR);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
+    struct file* file = vfs_create(pathname, (mode & 0777) | S_IFDIR);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return 0;
+}
+
+uintptr_t sys_mknod(const char* pathname, mode_t mode, dev_t dev) {
+    switch (mode & S_IFMT) {
+    case S_IFREG:
+    case S_IFCHR:
+    case S_IFBLK:
+    case S_IFIFO:
+    case S_IFSOCK:
+        break;
+    default:
+        return -EINVAL;
+    }
+    struct file* file = vfs_create(pathname, mode);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    file->device_id = dev;
     return 0;
 }
 

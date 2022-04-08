@@ -1,6 +1,7 @@
 #include "api/err.h"
 #include "api/fb.h"
 #include "api/stat.h"
+#include "api/sysmacros.h"
 #include "asm_wrapper.h"
 #include "fs/fs.h"
 #include "kmalloc.h"
@@ -130,5 +131,6 @@ struct file* bochs_graphics_device_create(void) {
     file->mode = S_IFBLK;
     file->mmap = bochs_graphics_mmap;
     file->ioctl = bochs_graphics_ioctl;
+    file->device_id = makedev(29, 0);
     return file;
 }

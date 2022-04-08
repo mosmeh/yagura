@@ -7,8 +7,10 @@ int main(void) {
         if (pid == 0) {
             char* argv[] = {NULL};
             char* envp[] = {NULL};
-            if (execve("/sh", argv, envp) < 0)
+            if (execve("/initrd/sh", argv, envp) < 0) {
                 perror("execve");
+                abort();
+            }
         }
         if (waitpid(pid, NULL, 0) < 0) {
             perror("waitpid");

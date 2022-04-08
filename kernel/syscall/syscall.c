@@ -1,5 +1,5 @@
+#include "syscall.h"
 #include <kernel/api/errno.h>
-#include <kernel/api/syscall.h>
 #include <kernel/interrupts.h>
 #include <kernel/kprintf.h>
 #include <kernel/panic.h>
@@ -13,10 +13,6 @@ noreturn uintptr_t sys_halt(void) {
 }
 
 uintptr_t sys_dbgputs(const char* str) { return kputs(str); }
-
-#define DECLARE_FUNC(name) uintptr_t sys_##name();
-ENUMERATE_SYSCALLS(DECLARE_FUNC)
-#undef DECLARE_FUNC
 
 typedef uintptr_t (*syscall_handler_fn)();
 

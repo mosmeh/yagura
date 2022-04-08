@@ -1,4 +1,6 @@
 #include "api/fcntl.h"
+#include "api/stat.h"
+#include "api/sysmacros.h"
 #include "boot_defs.h"
 #include "interrupts.h"
 #include "kmalloc.h"
@@ -9,10 +11,8 @@
 #include "process.h"
 #include "scheduler.h"
 #include "serial.h"
+#include "syscall/syscall.h"
 #include "system.h"
-
-uintptr_t sys_execve(const char* pathname, char* const argv[],
-                     char* const envp[]);
 
 static noreturn void init(void) {
     file_description* tty = vfs_open("/dev/ttyS0", O_RDWR, 0);
@@ -23,12 +23,18 @@ static noreturn void init(void) {
 
     char* argv[] = {NULL};
     char* envp[] = {NULL};
-    ASSERT_OK(sys_execve("/init", argv, envp));
+    ASSERT_OK(sys_execve("/initrd/init", argv, envp));
     UNREACHABLE();
 }
 
 extern unsigned char kernel_end[];
 extern unsigned char stack_top[];
+
+static void create_char_device(const char* pathname, int major, int minor,
+                               struct file* device_file) {
+    ASSERT_OK(vfs_register_device(device_file));
+    ASSERT_OK(sys_mknod(pathname, S_IFCHR, makedev(major, minor)));
+}
 
 void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     gdt_init();
@@ -50,28 +56,33 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     ps2_mouse_init();
     bochs_graphics_init();
 
-    vfs_init();
     const multiboot_module_t* initrd_mod =
         (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
     initrd_init(initrd_mod->mod_start + KERNEL_VADDR);
 
-    vfs_mount("/", initrd_create_root());
-    vfs_mount("/dev/fb0", bochs_graphics_device_create());
-    vfs_mount("/dev/psaux", ps2_mouse_device_create());
-    vfs_mount("/dev/shm", shmfs_create_root());
-    vfs_mount("/tmp", tmpfs_create_root());
-    vfs_mount("/foo/bar/baz", initrd_create_root());
+    ASSERT_OK(vfs_mount("/", tmpfs_create_root()));
+    ASSERT_OK(sys_mkdir("/tmp", 0));
+    ASSERT_OK(sys_mkdir("/dev", 0));
 
-    vfs_mount("/dev/ttyS0", serial_device_create(SERIAL_COM1));
+    ASSERT_OK(sys_mkdir("/dev/shm", 0));
+    ASSERT_OK(vfs_mount("/dev/shm", shmfs_create_root()));
 
+    ASSERT_OK(sys_mkdir("/initrd", 0));
+    ASSERT_OK(vfs_mount("/initrd", initrd_create_root()));
+
+    create_char_device("/dev/psaux", 10, 0, ps2_mouse_device_create());
+    create_char_device("/dev/fb0", 29, 0, bochs_graphics_device_create());
+
+    create_char_device("/dev/ttyS0", 4, 64, serial_device_create(SERIAL_COM1));
     if (serial_enable_port(SERIAL_COM2))
-        vfs_mount("/dev/ttyS1", serial_device_create(SERIAL_COM2));
-
+        create_char_device("/dev/ttyS1", 4, 65,
+                           serial_device_create(SERIAL_COM2));
+    if (serial_enable_port(SERIAL_COM2))
+        create_char_device("/dev/ttyS2", 4, 66,
+                           serial_device_create(SERIAL_COM3));
     if (serial_enable_port(SERIAL_COM3))
-        vfs_mount("/dev/ttyS2", serial_device_create(SERIAL_COM3));
-
-    if (serial_enable_port(SERIAL_COM4))
-        vfs_mount("/dev/ttyS3", serial_device_create(SERIAL_COM4));
+        create_char_device("/dev/ttyS3", 4, 67,
+                           serial_device_create(SERIAL_COM4));
 
     syscall_init();
     process_init();

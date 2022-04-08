@@ -1,5 +1,6 @@
 #include "api/hid.h"
 #include "api/stat.h"
+#include "api/sysmacros.h"
 #include "fs/fs.h"
 #include "interrupts.h"
 #include "kernel/scheduler.h"
@@ -138,5 +139,6 @@ struct file* ps2_mouse_device_create(void) {
 
     file->mode = S_IFCHR;
     file->read = ps2_mouse_device_read;
+    file->device_id = makedev(10, 0);
     return file;
 }
