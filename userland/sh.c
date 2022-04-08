@@ -46,6 +46,22 @@ static void parse_cmd(char* cmd, size_t len, char* argv[]) {
     argv[i] = NULL;
 }
 
+static int exec_cmd(char* argv[]) {
+    if (!strcmp(argv[0], "exit")) {
+        exit(0);
+    }
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        char* envp[] = {NULL};
+        if (execve(argv[0], argv, envp) < 0) {
+            perror("execve");
+            abort();
+        }
+    }
+    return waitpid(pid, NULL, 0);
+}
+
 int main(void) {
     for (;;) {
         printf("$ ");
@@ -63,16 +79,11 @@ int main(void) {
 
         char* argv[1024];
         parse_cmd(cmd, len, argv);
-        char* envp[] = {NULL};
-        pid_t pid = fork();
-        if (pid == 0) {
-            if (execve(argv[0], argv, envp) < 0) {
-                perror("execve");
-                abort();
-            }
+
+        if (exec_cmd(argv) < 0) {
+            perror("exec_cmd");
+            return EXIT_FAILURE;
         }
-        if (waitpid(pid, NULL, 0) < 0)
-            perror("waitpid");
     }
     return EXIT_SUCCESS;
 }
