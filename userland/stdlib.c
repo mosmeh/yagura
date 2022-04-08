@@ -23,7 +23,7 @@ void _start(int argc, char* const argv[], char* const envp[]) {
 noreturn void abort(void) { exit(128 + SIGABRT); }
 
 noreturn void panic(const char* message, const char* file, size_t line) {
-    printf("%s at %s:%u\n", message, file, line);
+    dprintf(2, "%s at %s:%u\n", message, file, line);
     abort();
 }
 
@@ -131,7 +131,7 @@ char* strerror(int errnum) {
     return "Unknown error";
 }
 
-void perror(const char* s) { printf("%s: %s\n", s, strerror(errno)); }
+void perror(const char* s) { dprintf(2, "%s: %s\n", s, strerror(errno)); }
 
 unsigned int sleep(unsigned int seconds) {
     struct timespec req = {.tv_sec = seconds, .tv_nsec = 0};
