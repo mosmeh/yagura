@@ -33,3 +33,8 @@ char* strerror(int errnum);
 void perror(const char*);
 
 unsigned int sleep(unsigned int seconds);
+
+typedef struct DIR DIR;
+DIR* opendir(const char* name);
+int closedir(DIR* dirp);
+struct dirent* readdir(DIR* dirp);

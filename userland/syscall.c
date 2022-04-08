@@ -122,6 +122,11 @@ int ioctl(int fd, int request, void* argp) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+long getdents(int fd, void* dirp, size_t count) {
+    int rc = syscall(SYS_getdents, fd, (uintptr_t)dirp, count);
+    RETURN_WITH_ERRNO(rc, long)
+}
+
 int socket(int domain, int type, int protocol) {
     int rc = syscall(SYS_socket, domain, type, protocol);
     RETURN_WITH_ERRNO(rc, int)
