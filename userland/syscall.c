@@ -122,6 +122,11 @@ int ioctl(int fd, int request, void* argp) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int mkdir(const char* pathname, mode_t mode) {
+    int rc = syscall(SYS_mkdir, (uintptr_t)pathname, mode, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 long getdents(int fd, void* dirp, size_t count) {
     int rc = syscall(SYS_getdents, fd, (uintptr_t)dirp, count);
     RETURN_WITH_ERRNO(rc, long)

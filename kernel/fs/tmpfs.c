@@ -84,6 +84,11 @@ static struct file* tmpfs_create_child(struct file* file, const char* name,
     if (!child_file->name)
         return ERR_PTR(-ENOMEM);
     child_file->mode = mode;
+    if (S_ISDIR(mode)) {
+        child_file->lookup = tree_node_lookup;
+        child_file->create_child = tmpfs_create_child;
+        child_file->readdir = tree_node_readdir;
+    }
     child_file->read = tmpfs_read;
     child_file->write = tmpfs_write;
     child_file->truncate = tmpfs_truncate;

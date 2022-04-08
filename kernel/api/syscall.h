@@ -20,6 +20,7 @@
     F(halt)                                                                    \
     F(ioctl)                                                                   \
     F(listen)                                                                  \
+    F(mkdir)                                                                   \
     F(mmap)                                                                    \
     F(nanosleep)                                                               \
     F(open)                                                                    \

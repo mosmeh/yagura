@@ -1,4 +1,5 @@
 #include <kernel/api/err.h>
+#include <kernel/api/fcntl.h>
 #include <kernel/api/stat.h>
 #include <kernel/fs/fs.h>
 #include <kernel/process.h>
@@ -48,6 +49,14 @@ uintptr_t sys_ioctl(int fd, int request, void* argp) {
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     return fs_ioctl(desc, request, argp);
+}
+
+uintptr_t sys_mkdir(const char* pathname, mode_t mode) {
+    file_description* desc = vfs_open(pathname, O_CREAT | O_RDONLY | O_EXCL,
+                                      (mode & 0777) | S_IFDIR);
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
+    return 0;
 }
 
 uintptr_t sys_getdents(int fd, void* dirp, size_t count) {

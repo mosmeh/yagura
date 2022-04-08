@@ -46,8 +46,7 @@ struct file* fs_lookup(struct file* file, const char* name) {
 struct file* fs_create_child(struct file* file, const char* name, mode_t mode) {
     if (!file->create_child || !S_ISDIR(file->mode))
         return ERR_PTR(-ENOTDIR);
-    if (!(mode & S_IFMT))
-        mode |= S_IFREG;
+    ASSERT(mode & S_IFMT);
     return file->create_child(file, name, mode);
 }
 
