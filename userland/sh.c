@@ -12,18 +12,25 @@ static int read_cmd(char* cmd, size_t* len) {
             return -1;
         if (nread == 0)
             continue;
-        if (c == '\r') {
+        switch (c) {
+        case '\r':
             cmd[*len] = '\0';
             return 0;
-        }
-        if (c == '\b') {
+        case '\b':
+        case '\x7f': // ^H
             if (*len == 0)
                 continue;
             --(*len);
             printf("\b \b");
-        } else {
+            break;
+        case 'U' - '@': // ^U
+            for (; *len > 0; --(*len))
+                printf("\b \b");
+            break;
+        default:
             cmd[(*len)++] = c;
             putchar(c);
+            break;
         }
     }
 }
@@ -41,7 +48,7 @@ static void parse_cmd(char* cmd, size_t len, char* argv[]) {
 
 int main(void) {
     for (;;) {
-        printf("> ");
+        printf("$ ");
         char cmd[1024];
         memset(cmd, 0, 1024);
         size_t len;
