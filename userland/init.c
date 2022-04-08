@@ -1,16 +1,19 @@
 #include "stdlib.h"
 #include "syscall.h"
 
-void spawn_process(const char* filename) {
-    if (fork() == 0) {
-        char* argv[] = {NULL};
-        char* envp[] = {NULL};
-        if (execve(filename, argv, envp) < 0)
-            perror("execve");
-    }
-}
-
 int main(void) {
-    spawn_process("/sh");
+    for (;;) {
+        pid_t pid = fork();
+        if (pid == 0) {
+            char* argv[] = {NULL};
+            char* envp[] = {NULL};
+            if (execve("/sh", argv, envp) < 0)
+                perror("execve");
+        }
+        if (waitpid(pid, NULL, 0) < 0) {
+            perror("waitpid");
+            return EXIT_FAILURE;
+        }
+    }
     return EXIT_SUCCESS;
 }
