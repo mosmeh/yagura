@@ -3,8 +3,8 @@
 #include <common/string.h>
 #include <string.h>
 
-static int read_cmd(char* out_cmd, size_t* out_len) {
-    *out_len = 0;
+static int read_cmd(char* out_cmd) {
+    size_t len = 0;
     for (;;) {
         char c;
         ssize_t nread = read(0, &c, 1);
@@ -14,21 +14,21 @@ static int read_cmd(char* out_cmd, size_t* out_len) {
             continue;
         switch (c) {
         case '\r':
-            out_cmd[*out_len] = '\0';
+            out_cmd[len] = '\0';
             return 0;
         case '\b':
         case '\x7f': // ^H
-            if (*out_len == 0)
+            if (len == 0)
                 continue;
-            --(*out_len);
+            --len;
             printf("\b \b");
             break;
         case 'U' - '@': // ^U
-            for (; *out_len > 0; --(*out_len))
+            for (; len > 0; --len)
                 printf("\b \b");
             break;
         default:
-            out_cmd[(*out_len)++] = c;
+            out_cmd[len++] = c;
             putchar(c);
             break;
         }
@@ -74,21 +74,20 @@ static int exec_cmd(int argc, char* const argv[]) {
 int main(void) {
     for (;;) {
         printf("$ ");
-        char cmd[1024];
+        static char cmd[1024];
         memset(cmd, 0, 1024);
-        size_t len;
-        if (read_cmd(cmd, &len) < 0) {
+        if (read_cmd(cmd) < 0) {
             perror("read_cmd");
             return EXIT_FAILURE;
         }
         putchar('\n');
 
-        if (len == 0)
-            continue;
-
         int argc;
         char* argv[1024];
         parse_cmd(cmd, &argc, argv);
+
+        if (argc == 0)
+            continue;
 
         if (exec_cmd(argc, argv) < 0) {
             perror("exec_cmd");
