@@ -1,6 +1,7 @@
 #include "stdlib.h"
 #include "syscall.h"
 #include <common/extra.h>
+#include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/fcntl.h>
@@ -16,7 +17,10 @@
 
 int main(int argc, char* const argv[], char* const envp[]);
 
+char** environ;
+
 void _start(int argc, char* const argv[], char* const envp[]) {
+    environ = (char**)envp;
     exit(main(argc, argv, envp));
 }
 
@@ -81,6 +85,17 @@ void free(void* ptr) {
         malloc_ctx.ptr = malloc_ctx.heap_start;
 }
 
+char* strdup(const char* src) {
+    size_t len = strlen(src);
+    char* buf = malloc((len + 1) * sizeof(char));
+    if (!buf)
+        return NULL;
+
+    memcpy(buf, src, len);
+    buf[len] = '\0';
+    return buf;
+}
+
 int putchar(int ch) {
     char c = ch;
     if (write(1, &c, 1) < 0)
@@ -132,6 +147,48 @@ char* strerror(int errnum) {
 }
 
 void perror(const char* s) { dprintf(2, "%s: %s\n", s, strerror(errno)); }
+
+char* getenv(const char* name) {
+    for (char** env = environ; *env; ++env) {
+        char* s = strchr(*env, '=');
+        if (!s)
+            continue;
+        size_t len = s - *env;
+        if (len > 0 && !strncmp(*env, name, len))
+            return s + 1;
+    }
+    return NULL;
+}
+
+int execvpe(const char* file, char* const argv[], char* const envp[]) {
+    if (strchr(file, '/'))
+        return execve(file, argv, envp);
+
+    const char* path = getenv("PATH");
+    if (!path)
+        path = "/bin";
+    char* dup_path = strdup(path);
+    if (!dup_path)
+        return -1;
+
+    int saved_errno = errno;
+
+    static const char* sep = ":";
+    char* saved_ptr;
+    for (const char* part = strtok_r(dup_path, sep, &saved_ptr); part;
+         part = strtok_r(NULL, sep, &saved_ptr)) {
+        static char buf[1024];
+        sprintf(buf, "%s/%s", part, file);
+        int rc = execve(buf, argv, envp);
+        ASSERT(rc < 0);
+        if (errno != ENOENT)
+            return -1;
+        errno = saved_errno;
+    }
+
+    errno = ENOENT;
+    return -1;
+}
 
 unsigned int sleep(unsigned int seconds) {
     struct timespec req = {.tv_sec = seconds, .tv_nsec = 0};

@@ -63,8 +63,8 @@ static int exec_cmd(int argc, char* const argv[]) {
     pid_t pid = fork();
     if (pid == 0) {
         char* envp[] = {NULL};
-        if (execve(name, argv, envp) < 0) {
-            perror("execve");
+        if (execvpe(name, argv, envp) < 0) {
+            perror("execvpe");
             abort();
         }
     }

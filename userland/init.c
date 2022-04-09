@@ -6,7 +6,7 @@ int main(void) {
         pid_t pid = fork();
         if (pid == 0) {
             char* argv[] = {NULL};
-            char* envp[] = {NULL};
+            char* envp[] = {"PATH=/initrd", NULL};
             if (execve("/initrd/sh", argv, envp) < 0) {
                 perror("execve");
                 abort();

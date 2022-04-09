@@ -32,6 +32,11 @@ extern int errno;
 char* strerror(int errnum);
 void perror(const char*);
 
+extern char** environ;
+char* getenv(const char* name);
+
+int execvpe(const char* file, char* const argv[], char* const envp[]);
+
 unsigned int sleep(unsigned int seconds);
 
 typedef struct DIR DIR;
