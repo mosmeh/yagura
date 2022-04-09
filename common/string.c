@@ -119,12 +119,13 @@ void str_replace_char(char* str, char from, char to) {
     }
 }
 
-static bool is_sep_char(char c, const char* sep, size_t sep_len) {
-    for (size_t i = 0; i < sep_len; ++i) {
-        if (c == sep[i])
-            return true;
+char* strchr(const char* str, int ch) {
+    while (*str) {
+        if (*str == ch)
+            return (char*)str;
+        ++str;
     }
-    return false;
+    return NULL;
 }
 
 char* strtok_r(char* str, const char* sep, char** last) {
@@ -134,9 +135,8 @@ char* strtok_r(char* str, const char* sep, char** last) {
         str = *last;
     }
 
-    size_t sep_len = strlen(sep);
     while (*str) {
-        if (!is_sep_char(*str, sep, sep_len))
+        if (!strchr(sep, *str))
             break;
         ++str;
     }
@@ -147,7 +147,7 @@ char* strtok_r(char* str, const char* sep, char** last) {
 
     char* end = str;
     while (*end) {
-        if (is_sep_char(*end, sep, sep_len))
+        if (strchr(sep, *end))
             break;
         ++end;
     }
