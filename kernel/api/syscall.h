@@ -8,6 +8,7 @@
 #define ENUMERATE_SYSCALLS(F)                                                  \
     F(accept)                                                                  \
     F(bind)                                                                    \
+    F(chdir)                                                                   \
     F(close)                                                                   \
     F(connect)                                                                 \
     F(dbgputs)                                                                 \
@@ -15,6 +16,7 @@
     F(exit)                                                                    \
     F(fork)                                                                    \
     F(ftruncate)                                                               \
+    F(getcwd)                                                                  \
     F(getdents)                                                                \
     F(getpid)                                                                  \
     F(halt)                                                                    \

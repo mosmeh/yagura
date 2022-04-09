@@ -7,6 +7,7 @@
 
 #define PATH_SEPARATOR '/'
 #define PATH_SEPARATOR_STR "/"
+#define ROOT_DIR PATH_SEPARATOR_STR
 
 #define FD_TABLE_CAPACITY 1024
 
@@ -73,6 +74,10 @@ int vfs_mount(const char* path, struct file* root_file);
 int vfs_register_device(struct file* device_file);
 file_description* vfs_open(const char* pathname, int flags, mode_t mode);
 struct file* vfs_create(const char* pathname, mode_t mode);
+char* vfs_canonicalize_path(const char* pathname, const char* parent_path);
+struct file* vfs_resolve_path(const char* pathname, const char* parent_path,
+                              struct file** out_parent,
+                              const char** out_basename);
 
 uint8_t mode_to_dirent_type(mode_t);
 

@@ -41,7 +41,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     idt_init();
     irq_init();
     ASSERT(serial_enable_port(SERIAL_COM1));
-    kprintf("\n\x1b[32mBooted\x1b[m\n");
+    kprintf("\x1b[32mBooted\x1b[m\n");
     sti();
 
     ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
@@ -52,6 +52,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
         (const multiboot_info_t*)(mb_info_paddr + KERNEL_VADDR);
     mem_init(mb_info);
     kmalloc_init();
+    process_init();
 
     ps2_mouse_init();
     bochs_graphics_init();
@@ -60,7 +61,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
         (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
     initrd_init(initrd_mod->mod_start + KERNEL_VADDR);
 
-    ASSERT_OK(vfs_mount("/", tmpfs_create_root()));
+    ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));
     ASSERT_OK(sys_mkdir("/tmp", 0));
     ASSERT_OK(sys_mkdir("/dev", 0));
 
@@ -85,7 +86,6 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
                            serial_device_create(SERIAL_COM4));
 
     syscall_init();
-    process_init();
     scheduler_init();
     pit_init();
     kprintf("\x1b[32mInitialization done\x1b[m\n");

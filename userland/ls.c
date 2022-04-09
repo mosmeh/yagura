@@ -3,7 +3,14 @@
 #include <kernel/api/dirent.h>
 
 int main(int argc, char* argv[]) {
-    const char* path = argc < 2 ? "/" : argv[1];
+    const char* path;
+    if (argc < 2) {
+        static char path_buf[1024];
+        getcwd(path_buf, 1024);
+        path = path_buf;
+    } else {
+        path = argv[1];
+    }
     DIR* dirp = opendir(path);
     if (!dirp) {
         perror("opendir");

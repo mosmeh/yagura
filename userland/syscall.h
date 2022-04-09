@@ -16,6 +16,8 @@ int sched_yield(void);
 int execve(const char* pathname, char* const argv[], char* const envp[]);
 pid_t waitpid(pid_t pid, int* wstatus, int options);
 int nanosleep(const struct timespec* req, struct timespec* rem);
+char* getcwd(char* buf, size_t size);
+int chdir(const char* path);
 
 noreturn void halt(void);
 

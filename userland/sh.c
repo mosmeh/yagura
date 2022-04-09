@@ -3,8 +3,8 @@
 #include <common/string.h>
 #include <string.h>
 
-static int read_cmd(char* cmd, size_t* len) {
-    *len = 0;
+static int read_cmd(char* out_cmd, size_t* out_len) {
+    *out_len = 0;
     for (;;) {
         char c;
         ssize_t nread = read(0, &c, 1);
@@ -14,46 +14,56 @@ static int read_cmd(char* cmd, size_t* len) {
             continue;
         switch (c) {
         case '\r':
-            cmd[*len] = '\0';
+            out_cmd[*out_len] = '\0';
             return 0;
         case '\b':
         case '\x7f': // ^H
-            if (*len == 0)
+            if (*out_len == 0)
                 continue;
-            --(*len);
+            --(*out_len);
             printf("\b \b");
             break;
         case 'U' - '@': // ^U
-            for (; *len > 0; --(*len))
+            for (; *out_len > 0; --(*out_len))
                 printf("\b \b");
             break;
         default:
-            cmd[(*len)++] = c;
+            out_cmd[(*out_len)++] = c;
             putchar(c);
             break;
         }
     }
 }
 
-static void parse_cmd(char* cmd, char* argv[]) {
+static void parse_cmd(char* cmd, int* out_argc, char* out_argv[]) {
     static const char* sep = " \t";
     size_t i = 0;
     char* saved_ptr;
     for (char* part = strtok_r(cmd, sep, &saved_ptr); part;
          part = strtok_r(NULL, sep, &saved_ptr), ++i)
-        argv[i] = part;
-    argv[i] = NULL;
+        out_argv[i] = part;
+    out_argv[i] = NULL;
+    *out_argc = i;
 }
 
-static int exec_cmd(char* const argv[]) {
-    if (!strcmp(argv[0], "exit")) {
+static int exec_cmd(int argc, char* const argv[]) {
+    const char* name = argv[0];
+
+    if (!strcmp(name, "exit"))
         exit(0);
+    if (!strcmp(name, "pwd")) {
+        char buf[1024];
+        puts(getcwd(buf, 1024));
+        return 0;
+    }
+    if (!strcmp(name, "cd")) {
+        return chdir(argc < 2 ? "/" : argv[1]);
     }
 
     pid_t pid = fork();
     if (pid == 0) {
         char* envp[] = {NULL};
-        if (execve(argv[0], argv, envp) < 0) {
+        if (execve(name, argv, envp) < 0) {
             perror("execve");
             abort();
         }
@@ -76,10 +86,11 @@ int main(void) {
         if (len == 0)
             continue;
 
+        int argc;
         char* argv[1024];
-        parse_cmd(cmd, argv);
+        parse_cmd(cmd, &argc, argv);
 
-        if (exec_cmd(argv) < 0) {
+        if (exec_cmd(argc, argv) < 0) {
             perror("exec_cmd");
             return EXIT_FAILURE;
         }

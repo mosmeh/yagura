@@ -1,4 +1,6 @@
+#include <common/string.h>
 #include <kernel/api/err.h>
+#include <kernel/api/stat.h>
 #include <kernel/api/time.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
@@ -36,6 +38,10 @@ uintptr_t sys_fork(registers* regs) {
     p->esi = current->esi;
     p->edi = current->edi;
     p->next = NULL;
+
+    p->cwd = kstrdup(current->cwd);
+    if (!p->cwd)
+        return -ENOMEM;
 
     int rc = file_descriptor_table_clone_from(&p->fd_table, &current->fd_table);
     if (IS_ERR(rc))
@@ -79,5 +85,24 @@ uintptr_t sys_nanosleep(const struct timespec* req, struct timespec* rem) {
     scheduler_block(sleep_should_unblock, &deadline);
     if (rem)
         rem->tv_sec = rem->tv_nsec = 0;
+    return 0;
+}
+
+uintptr_t sys_getcwd(char* buf, size_t size) {
+    if (!buf || size == 0)
+        return -EINVAL;
+    if (size < strlen(current->cwd) + 1)
+        return -ERANGE;
+    strlcpy(buf, current->cwd, size);
+    return (uintptr_t)buf;
+}
+
+uintptr_t sys_chdir(const char* path) {
+    struct file* file = vfs_resolve_path(path, current->cwd, NULL, NULL);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    if (!S_ISDIR(file->mode))
+        return -ENOTDIR;
+    current->cwd = vfs_canonicalize_path(path, current->cwd);
     return 0;
 }

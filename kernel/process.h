@@ -11,6 +11,7 @@ typedef struct process {
     uintptr_t stack_top;
     uintptr_t heap_next_vaddr;
 
+    char* cwd;
     file_descriptor_table fd_table;
 
     bool (*should_unblock)(void*);

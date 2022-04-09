@@ -61,6 +61,20 @@ int nanosleep(const struct timespec* req, struct timespec* rem) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+char* getcwd(char* buf, size_t size) {
+    int rc = syscall(SYS_getcwd, (uintptr_t)buf, size, 0);
+    if (IS_ERR(rc)) {
+        errno = -rc;
+        return NULL;
+    }
+    return (char*)rc;
+}
+
+int chdir(const char* path) {
+    int rc = syscall(SYS_chdir, (uintptr_t)path, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 noreturn void halt(void) {
     syscall(SYS_halt, 0, 0, 0);
     __builtin_unreachable();

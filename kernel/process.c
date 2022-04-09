@@ -29,6 +29,8 @@ void process_init(void) {
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
     current->heap_next_vaddr = USER_HEAP_START;
+    current->cwd = kstrdup(ROOT_DIR);
+    ASSERT(current->cwd);
     ASSERT_OK(file_descriptor_table_init(&current->fd_table));
     current->next = NULL;
 
@@ -49,6 +51,10 @@ process* process_create_kernel_process(void (*entry_point)(void)) {
     p->pd = mem_create_page_directory();
     if (IS_ERR(p->pd))
         return ERR_CAST(p->pd);
+
+    p->cwd = kstrdup(ROOT_DIR);
+    if (!p->cwd)
+        return ERR_PTR(-ENOMEM);
 
     int rc = file_descriptor_table_init(&p->fd_table);
     if (IS_ERR(rc))
