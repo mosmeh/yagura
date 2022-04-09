@@ -35,18 +35,17 @@ static int read_cmd(char* cmd, size_t* len) {
     }
 }
 
-static void parse_cmd(char* cmd, size_t len, char* argv[]) {
-    str_replace_char(cmd, ' ', '\0');
-    char* part = cmd;
+static void parse_cmd(char* cmd, char* argv[]) {
+    static const char* sep = " \t";
     size_t i = 0;
-    for (; part < cmd + len; ++i) {
+    char* saved_ptr;
+    for (char* part = strtok_r(cmd, sep, &saved_ptr); part;
+         part = strtok_r(NULL, sep, &saved_ptr), ++i)
         argv[i] = part;
-        part += strlen(part) + 1;
-    }
     argv[i] = NULL;
 }
 
-static int exec_cmd(char* argv[]) {
+static int exec_cmd(char* const argv[]) {
     if (!strcmp(argv[0], "exit")) {
         exit(0);
     }
@@ -78,7 +77,7 @@ int main(void) {
             continue;
 
         char* argv[1024];
-        parse_cmd(cmd, len, argv);
+        parse_cmd(cmd, argv);
 
         if (exec_cmd(argv) < 0) {
             perror("exec_cmd");

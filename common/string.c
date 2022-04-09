@@ -107,3 +107,43 @@ void str_replace_char(char* str, char from, char to) {
         }
     }
 }
+
+static bool is_sep_char(char c, const char* sep, size_t sep_len) {
+    for (size_t i = 0; i < sep_len; ++i) {
+        if (c == sep[i])
+            return true;
+    }
+    return false;
+}
+
+char* strtok_r(char* str, const char* sep, char** last) {
+    if (!str) {
+        if (!*last)
+            return NULL;
+        str = *last;
+    }
+
+    size_t sep_len = strlen(sep);
+    while (*str) {
+        if (!is_sep_char(*str, sep, sep_len))
+            break;
+        ++str;
+    }
+    if (!*str) {
+        *last = NULL;
+        return NULL;
+    }
+
+    char* end = str;
+    while (*end) {
+        if (is_sep_char(*end, sep, sep_len))
+            break;
+        ++end;
+    }
+    if (*end)
+        *last = end + 1;
+    else
+        *last = NULL;
+    *end = '\0';
+    return str;
+}

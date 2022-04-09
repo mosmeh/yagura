@@ -6,6 +6,7 @@
 #include <stddef.h>
 
 #define PATH_SEPARATOR '/'
+#define PATH_SEPARATOR_STR "/"
 
 #define FD_TABLE_CAPACITY 1024
 

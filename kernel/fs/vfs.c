@@ -59,26 +59,26 @@ static bool is_absolute_path(const char* path) {
 int vfs_mount(const char* path, struct file* root_file) {
     ASSERT(is_absolute_path(path));
 
-    size_t path_len = strlen(path);
-    if (path_len == 1) {
+    if (path[0] == PATH_SEPARATOR && path[1] == '\0') {
         root = root_file;
         kprintf("Mounted \"%s\" at /\n", root_file->name);
         return 0;
     }
     ASSERT(root);
 
-    char* split_path = kstrdup(path);
-    ASSERT(split_path);
-    str_replace_char(split_path, PATH_SEPARATOR, '\0');
+    char* dup_path = kstrdup(path);
+    ASSERT(dup_path);
 
     struct file* parent = root;
-    char* component = split_path + 1;
-    while (component < split_path + path_len) {
+    char* saved_ptr;
+    for (const char* component =
+             strtok_r(dup_path, PATH_SEPARATOR_STR, &saved_ptr);
+         component;
+         component = strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr)) {
         struct file* child = fs_lookup(parent, component);
         if (IS_ERR(child))
             return PTR_ERR(child);
         parent = child;
-        component += strlen(component) + 1;
     }
     int rc = mount_at(parent, root_file);
     if (IS_ERR(rc))
@@ -128,19 +128,20 @@ static struct file* get_or_create_file(const char* pathname, int flags,
     if (path_len == 1)
         return root;
 
-    char* split_pathname = kstrdup(pathname);
-    if (!split_pathname)
+    char* dup_path = kstrdup(pathname);
+    if (!dup_path)
         return ERR_PTR(-ENOMEM);
-    str_replace_char(split_pathname, PATH_SEPARATOR, '\0');
 
-    char* component = split_pathname + 1;
     struct file* parent = root;
-    while (component < split_pathname + path_len) {
+    char* saved_ptr;
+    for (const char* component =
+             strtok_r(dup_path, PATH_SEPARATOR_STR, &saved_ptr);
+         component;
+         component = strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr)) {
         struct file* child = fs_lookup(parent, component);
         if (IS_ERR(child)) {
             if ((PTR_ERR(child) == -ENOENT) && (flags & O_CREAT) &&
-                component + strlen(component) + 1 >=
-                    split_pathname + path_len) {
+                component + strlen(component) + 1 >= dup_path + path_len) {
                 parent = fs_create_child(parent, component, mode);
                 goto found_or_created;
             }
@@ -152,7 +153,6 @@ static struct file* get_or_create_file(const char* pathname, int flags,
             child = guest;
 
         parent = child;
-        component += strlen(component) + 1;
     }
 
     if (flags & O_EXCL)
