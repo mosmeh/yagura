@@ -122,7 +122,7 @@ int vdprintf(int fd, const char* format, va_list ap) {
 int errno;
 
 #define ERRNO_MSG(I, MSG) MSG,
-const char* errno_msgs[EMAXERRNO] = {ENUMERATE_ERRNO(ERRNO_MSG)};
+static const char* errno_msgs[EMAXERRNO] = {ENUMERATE_ERRNO(ERRNO_MSG)};
 #undef ERRNO_MSG
 
 char* strerror(int errnum) {

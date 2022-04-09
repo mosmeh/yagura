@@ -4,7 +4,7 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/api/mman.h>
 
-void child(void) {
+static void child(void) {
     int fd = open("/dev/shm/foofoo", O_RDWR);
     ASSERT_OK(fd);
     int* buf = mmap(NULL, 30000 * sizeof(int), PROT_READ | PROT_WRITE,

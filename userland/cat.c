@@ -3,7 +3,6 @@
 #include <kernel/api/fcntl.h>
 
 #define BUF_SIZE 1024
-char buf[BUF_SIZE];
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
@@ -17,6 +16,7 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
     for (;;) {
+        static char buf[BUF_SIZE];
         ssize_t nread = read(fd, buf, BUF_SIZE - 1);
         if (nread < 0) {
             perror("read");
