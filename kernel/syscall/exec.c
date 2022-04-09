@@ -1,4 +1,5 @@
 #include <common/extra.h>
+#include <common/string.h>
 #include <kernel/api/elf.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
@@ -32,11 +33,10 @@ static ssize_t copy_strings(char** dst[], char* const src[]) {
     *dst = kmalloc(count * sizeof(char*));
 
     for (size_t i = 0; i < count; ++i) {
-        size_t len = strlen(src[i]);
-        memcpy(dst_str, src[i], len);
-        dst_str[len] = '\0';
+        size_t size = strlen(src[i]) + 1;
+        strlcpy(dst_str, src[i], size);
         (*dst)[i] = dst_str;
-        dst_str += len + 1;
+        dst_str += size;
     }
 
     return count;
@@ -61,7 +61,7 @@ static int push_strings(uintptr_t* sp, uintptr_t** dst_ptrs,
     for (size_t i = 0; i < count; ++i) {
         size_t size = strlen(src_strings[i]) + 1;
         *sp -= next_power_of_two(size);
-        memcpy((void*)*sp, src_strings[i], size);
+        strlcpy((char*)*sp, src_strings[i], size);
         (*dst_ptrs)[count - i - 1] = *sp;
     }
 

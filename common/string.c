@@ -98,6 +98,17 @@ char* strncpy(char* dest, const char* src, size_t n) {
     return dest;
 }
 
+size_t strlcpy(char* dst, const char* src, size_t size) {
+    size_t len;
+    for (len = 0; (len + 1 < size) && *src; len++)
+        *dst++ = *src++;
+    if (size > 0)
+        *dst = '\0';
+    while (*src++)
+        len++;
+    return len;
+}
+
 void str_replace_char(char* str, char from, char to) {
     while (*str) {
         if (*str == from) {

@@ -1,5 +1,6 @@
 #include "fs.h"
 #include <common/initrd.h>
+#include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
 #include <kernel/api/stat.h>
@@ -48,16 +49,15 @@ static long initrd_readdir(file_description* desc, void* dirp,
 
     while (count > 0 && (size_t)desc->offset < header->num_files) {
         struct file* file = (struct file*)(file_nodes + desc->offset);
-        size_t name_len = strlen(file->name);
-        size_t size = offsetof(dirent, name) + name_len + 1;
+        size_t name_size = strlen(file->name) + 1;
+        size_t size = offsetof(dirent, name) + name_size;
         if (count < size)
             break;
 
         dirent* dent = (dirent*)buf;
         dent->type = mode_to_dirent_type(file->mode);
         dent->record_len = size;
-        strcpy(dent->name, file->name);
-        dent->name[name_len] = '\0';
+        strlcpy(dent->name, file->name, name_size);
 
         ++desc->offset;
         nread += size;
