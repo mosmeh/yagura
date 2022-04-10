@@ -30,6 +30,12 @@ static int read_cmd(char* out_cmd) {
             break;
         case '\t':
             break;
+        case 'D' - '@': // ^D
+            if (len == 0) {
+                strcpy(out_cmd, "exit");
+                return 0;
+            }
+            break;
         default:
             out_cmd[len++] = c;
             putchar(c);
@@ -52,8 +58,10 @@ static void parse_cmd(char* cmd, int* out_argc, char* out_argv[]) {
 static int exec_cmd(int argc, char* const argv[]) {
     const char* name = argv[0];
 
-    if (!strcmp(name, "exit"))
+    if (!strcmp(name, "exit")) {
+        printf("exit\n");
         exit(0);
+    }
     if (!strcmp(name, "pwd")) {
         char buf[1024];
         puts(getcwd(buf, 1024));
