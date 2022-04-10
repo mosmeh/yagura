@@ -63,7 +63,7 @@ static int exec_cmd(int argc, char* const argv[]) {
         exit(0);
     }
     if (!strcmp(name, "pwd")) {
-        char buf[1024];
+        static char buf[1024];
         puts(getcwd(buf, 1024));
         return 0;
     }
@@ -84,7 +84,10 @@ static int exec_cmd(int argc, char* const argv[]) {
 
 int main(void) {
     for (;;) {
-        printf("$ ");
+        static char buf[1024];
+        getcwd(buf, 1024);
+        printf("\x1b[36m%s\x1b[m $ ", buf);
+
         static char cmd[1024];
         memset(cmd, 0, 1024);
         if (read_cmd(cmd) < 0) {
