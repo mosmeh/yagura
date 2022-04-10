@@ -9,7 +9,7 @@ CFLAGS := \
 	-O2 -g
 
 TARGET_NAMES := init sh cat ls socket-test fs-test
-OUTDIR := ../base
+OUTDIR := ../base/bin
 
 TARGETS := $(TARGET_NAMES:%=$(OUTDIR)/%)
 TARGET_OBJS := $(TARGET_NAMES:=.o)

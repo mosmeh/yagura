@@ -81,8 +81,7 @@ struct file* vfs_resolve_path(const char* pathname, const char* parent_path,
 
 uint8_t mode_to_dirent_type(mode_t);
 
-void initrd_init(uintptr_t addr);
-struct file* initrd_create_root(void);
+void initrd_populate_root_fs(uintptr_t addr);
 
 struct file* tmpfs_create_root(void);
 struct file* shmfs_create_root(void);

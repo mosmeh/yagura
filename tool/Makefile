@@ -1,6 +1,6 @@
 CFLAGS := -std=c11 -I.. -Wall -Wextra -pedantic -O2
 
-TARGETS := mkfs
+TARGETS :=
 
 OBJS := $(TARGETS:=.o)
 DEPS := $(TARGETS:=.d)

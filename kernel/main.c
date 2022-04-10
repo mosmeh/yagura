@@ -15,15 +15,9 @@
 #include "system.h"
 
 static noreturn void init(void) {
-    file_description* tty = vfs_open("/dev/ttyS0", O_RDWR, 0);
-    ASSERT_OK(tty);
-    ASSERT(process_alloc_file_descriptor(tty) == 0);
-    ASSERT(process_alloc_file_descriptor(tty) == 1);
-    ASSERT(process_alloc_file_descriptor(tty) == 2);
-
-    char* argv[] = {NULL};
-    char* envp[] = {NULL};
-    ASSERT_OK(sys_execve("/initrd/init", argv, envp));
+    static char* argv[] = {NULL};
+    static char* envp[] = {NULL};
+    ASSERT_OK(sys_execve("/bin/init", argv, envp));
     UNREACHABLE();
 }
 
@@ -57,19 +51,13 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     ps2_mouse_init();
     bochs_graphics_init();
 
+    ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));
+
     const multiboot_module_t* initrd_mod =
         (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
-    initrd_init(initrd_mod->mod_start + KERNEL_VADDR);
+    initrd_populate_root_fs(initrd_mod->mod_start + KERNEL_VADDR);
 
-    ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));
-    ASSERT_OK(sys_mkdir("/tmp", 0));
-    ASSERT_OK(sys_mkdir("/dev", 0));
-
-    ASSERT_OK(sys_mkdir("/dev/shm", 0));
     ASSERT_OK(vfs_mount("/dev/shm", shmfs_create_root()));
-
-    ASSERT_OK(sys_mkdir("/initrd", 0));
-    ASSERT_OK(vfs_mount("/initrd", initrd_create_root()));
 
     create_char_device("/dev/psaux", 10, 0, ps2_mouse_device_create());
     create_char_device("/dev/fb0", 29, 0, bochs_graphics_device_create());

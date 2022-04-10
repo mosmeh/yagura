@@ -1,110 +1,68 @@
 #include "fs.h"
-#include <common/initrd.h>
-#include <common/string.h>
-#include <kernel/api/dirent.h>
-#include <kernel/api/err.h>
-#include <kernel/api/stat.h>
-#include <kernel/kmalloc.h>
+#include <kernel/api/fcntl.h>
 #include <kernel/panic.h>
 #include <string.h>
 
-typedef struct initrd_file {
-    struct file base_file;
-    ino_t ino;
-} initrd_file;
+struct cpio_odc_header {
+    char c_magic[6];
+    char c_dev[6];
+    char c_ino[6];
+    char c_mode[6];
+    char c_uid[6];
+    char c_gid[6];
+    char c_nlink[6];
+    char c_rdev[6];
+    char c_mtime[11];
+    char c_namesize[6];
+    char c_filesize[11];
+} __attribute__((packed));
 
-static uintptr_t initrd_addr;
-static const initrd_header* header;
-static const initrd_file_header* file_headers;
-static initrd_file* file_nodes;
-
-static ssize_t initrd_read(file_description* desc, void* buffer, size_t count) {
-    initrd_file* ifile = (initrd_file*)desc->file;
-    const initrd_file_header* header = file_headers + ifile->ino;
-    if ((size_t)desc->offset >= header->length)
-        return 0;
-    if (desc->offset + count >= header->length)
-        count = header->length - desc->offset;
-
-    memcpy(buffer,
-           (void*)(uintptr_t)(initrd_addr + header->offset + desc->offset),
-           count);
-    desc->offset += count;
-
-    return count;
+static size_t parse_octal(const char* s, size_t len) {
+    size_t res = 0;
+    for (size_t i = 0; i < len; ++i) {
+        res += s[i] - '0';
+        if (i < len - 1)
+            res *= 8;
+    }
+    return res;
 }
 
-static struct file* initrd_lookup(struct file* file, const char* name) {
-    (void)file;
-    for (size_t i = 0; i < header->num_files; ++i)
-        if (!strcmp(name, file_nodes[i].base_file.name))
-            return (struct file*)(file_nodes + i);
-    return ERR_PTR(-ENOENT);
-}
+#define PARSE(field) parse_octal(field, sizeof(field))
 
-static long initrd_readdir(file_description* desc, void* dirp,
-                           unsigned int count) {
-    uintptr_t buf = (uintptr_t)dirp;
-    long nread = 0;
+void initrd_populate_root_fs(uintptr_t addr) {
+    uintptr_t cursor = addr;
+    for (;;) {
+        const struct cpio_odc_header* header =
+            (const struct cpio_odc_header*)cursor;
+        ASSERT(!strncmp(header->c_magic, "070707", 6));
 
-    while (count > 0 && (size_t)desc->offset < header->num_files) {
-        struct file* file = (struct file*)(file_nodes + desc->offset);
-        size_t name_size = strlen(file->name) + 1;
-        size_t size = offsetof(dirent, name) + name_size;
-        if (count < size)
+        size_t name_size = PARSE(header->c_namesize);
+        const char* filename =
+            (const char*)(cursor + sizeof(struct cpio_odc_header));
+        if (!strncmp(filename, "TRAILER!!!", name_size))
             break;
 
-        dirent* dent = (dirent*)buf;
-        dent->type = mode_to_dirent_type(file->mode);
-        dent->record_len = size;
-        strlcpy(dent->name, file->name, name_size);
+        size_t mode = PARSE(header->c_mode);
+        size_t rdev = PARSE(header->c_rdev);
 
-        ++desc->offset;
-        nread += size;
-        buf += size;
-        count -= size;
+        file_description* desc =
+            vfs_open(filename, O_CREAT | O_EXCL | O_WRONLY, mode);
+        ASSERT_OK(desc);
+
+        desc->file->device_id = rdev;
+
+        size_t file_size = PARSE(header->c_filesize);
+        const unsigned char* file_content =
+            (const unsigned char*)(cursor + sizeof(struct cpio_odc_header) +
+                                   name_size);
+        for (size_t count = 0; count < file_size;) {
+            ssize_t nwritten =
+                fs_write(desc, file_content + count, file_size - count);
+            ASSERT_OK(nwritten);
+            count += nwritten;
+        }
+
+        ASSERT_OK(fs_close(desc));
+        cursor += sizeof(struct cpio_odc_header) + name_size + file_size;
     }
-
-    if (nread == 0)
-        return -EINVAL;
-    return nread;
-}
-
-void initrd_init(uintptr_t addr) {
-    initrd_addr = addr;
-    header = (const initrd_header*)addr;
-    file_headers = (const initrd_file_header*)(addr + sizeof(initrd_header));
-
-    file_nodes = kmalloc(header->num_files * sizeof(initrd_file));
-    ASSERT(file_nodes);
-    for (size_t i = 0; i < header->num_files; ++i) {
-        initrd_file* ifile = file_nodes + i;
-        ifile->ino = i;
-
-        struct file* file = (struct file*)ifile;
-        memset(file, 0, sizeof(struct file));
-        file->name = kstrndup(file_headers[i].name, 128);
-        ASSERT(file->name);
-        file->mode = S_IFREG;
-        file->read = initrd_read;
-    }
-}
-
-struct file* initrd_create_root(void) {
-    initrd_file* root = kmalloc(sizeof(initrd_file));
-    if (!root)
-        return ERR_PTR(-ENOMEM);
-
-    memset(root, 0, sizeof(initrd_file));
-
-    struct file* file = (struct file*)root;
-    file->name = kstrdup("initrd");
-    if (!file->name)
-        return ERR_PTR(-ENOMEM);
-
-    file->mode = S_IFDIR;
-    file->lookup = initrd_lookup;
-    file->readdir = initrd_readdir;
-
-    return file;
 }
