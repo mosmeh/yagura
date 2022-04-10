@@ -20,10 +20,11 @@ static int read_cmd(char* out_cmd) {
         case '\x7f': // ^H
             if (len == 0)
                 continue;
-            --len;
+            out_cmd[--len] = '\0';
             printf("\b \b");
             break;
         case 'U' - '@': // ^U
+            memset(out_cmd, 0, len);
             for (; len > 0; --len)
                 printf("\b \b");
             break;
