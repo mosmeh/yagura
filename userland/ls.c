@@ -2,6 +2,20 @@
 #include "syscall.h"
 #include <kernel/api/dirent.h>
 
+int print_name(const struct dirent* dent) {
+    switch (dent->type) {
+    case DT_FIFO:
+        return printf("\x1b[33m%s\x1b[m|", dent->name);
+    case DT_DIR:
+        return printf("\x1b[34m%s\x1b[m/", dent->name);
+    case DT_LNK:
+        return printf("\x1b[36m%s\x1b[m@", dent->name);
+    case DT_SOCK:
+        return printf("\x1b[35m%s\x1b[m=", dent->name);
+    }
+    return printf("%s", dent->name);
+}
+
 int main(int argc, char* argv[]) {
     const char* path;
     if (argc < 2) {
@@ -11,18 +25,29 @@ int main(int argc, char* argv[]) {
     } else {
         path = argv[1];
     }
+
     DIR* dirp = opendir(path);
     if (!dirp) {
         perror("opendir");
         return EXIT_FAILURE;
     }
-    struct dirent* dent;
+
+    size_t width = 0;
     for (;;) {
-        dent = readdir(dirp);
+        struct dirent* dent = readdir(dirp);
         if (!dent)
             break;
-        puts(dent->name);
+        width += print_name(dent);
+        if (width >= 50) { // arbitrary threshold
+            putchar('\n');
+            width = 0;
+        } else {
+            printf("\t");
+        }
     }
+    if (width > 0)
+        putchar('\n');
+
     closedir(dirp);
     return EXIT_SUCCESS;
 }
