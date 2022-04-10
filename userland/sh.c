@@ -27,6 +27,8 @@ static int read_cmd(char* out_cmd) {
             for (; len > 0; --len)
                 printf("\b \b");
             break;
+        case '\t':
+            break;
         default:
             out_cmd[len++] = c;
             putchar(c);
