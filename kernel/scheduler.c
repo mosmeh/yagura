@@ -144,11 +144,15 @@ void scheduler_yield(bool requeue_current) {
     if (eip == 1)
         return;
 
-    uint32_t esp, ebp, ebx, esi, edi;
+    uint32_t esp;
     __asm__ volatile("mov %%esp, %0" : "=m"(esp));
+    uint32_t ebp;
     __asm__ volatile("mov %%ebp, %0" : "=m"(ebp));
+    uint32_t ebx;
     __asm__ volatile("mov %%ebx, %0" : "=m"(ebx));
+    uint32_t esi;
     __asm__ volatile("mov %%esi, %0" : "=m"(esi));
+    uint32_t edi;
     __asm__ volatile("mov %%edi, %0" : "=m"(edi));
 
     current->eip = eip;

@@ -64,10 +64,11 @@ uintptr_t sys_fork(registers* regs) {
     return p->id;
 }
 
-static bool waitpid_should_unblock(pid_t* pid) {
+static bool waitpid_should_unblock(const pid_t* pid) {
     return !scheduler_find_process_by_pid(*pid);
 }
 
+// NOLINTNEXTLINE(readability-non-const-parameter)
 pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
     if (pid <= 0 || wstatus || options != 0)
         return -ENOTSUP;
@@ -75,7 +76,7 @@ pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
     return pid;
 }
 
-static bool sleep_should_unblock(uint32_t* deadline) {
+static bool sleep_should_unblock(const uint32_t* deadline) {
     return uptime >= *deadline;
 }
 

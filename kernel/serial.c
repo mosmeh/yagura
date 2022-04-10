@@ -59,7 +59,9 @@ typedef struct serial_device {
     mutex lock;
 } serial_device;
 
-static bool read_should_unblock(uint16_t* port) { return can_read(*port); }
+static bool read_should_unblock(const uint16_t* port) {
+    return can_read(*port);
+}
 
 static ssize_t serial_device_read(file_description* desc, void* buffer,
                                   size_t count) {

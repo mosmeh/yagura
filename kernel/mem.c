@@ -377,7 +377,8 @@ void mem_init(const multiboot_info_t* mb_info) {
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     kprintf("Kernel page directory: P0x%x\n", (uintptr_t)kernel_page_directory);
 
-    uintptr_t lower_bound, upper_bound;
+    uintptr_t lower_bound;
+    uintptr_t upper_bound;
     get_available_physical_addr_bounds(mb_info, &lower_bound, &upper_bound);
     kprintf("Available physical memory address space: P0x%x - P0x%x\n",
             lower_bound, upper_bound);

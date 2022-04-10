@@ -19,10 +19,10 @@ uintptr_t syscall(uint32_t num, uintptr_t arg1, uintptr_t arg2,
 #define RETURN_WITH_ERRNO(rc, type)                                            \
     do {                                                                       \
         if (IS_ERR(rc)) {                                                      \
-            errno = -rc;                                                       \
+            errno = -(rc);                                                     \
             return (type)-1;                                                   \
         }                                                                      \
-        return (type)rc;                                                       \
+        return (type)(rc);                                                     \
     } while (0);
 
 noreturn void exit(int status) {

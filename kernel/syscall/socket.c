@@ -64,6 +64,7 @@ uintptr_t sys_listen(int sockfd, int backlog) {
     return 0;
 }
 
+// NOLINTNEXTLINE(readability-non-const-parameter)
 uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     (void)addr;
     (void)addrlen;

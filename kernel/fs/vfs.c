@@ -333,12 +333,9 @@ struct file* vfs_create(const char* pathname, mode_t mode) {
     const char* basename = NULL;
     struct file* file =
         vfs_resolve_path(pathname, current->cwd, &parent, &basename);
-    if (IS_OK(file)) {
+    if (IS_OK(file))
         return ERR_PTR(-EEXIST);
-    } else {
-        if (PTR_ERR(file) != -ENOENT || !parent)
-            return file;
-        file = fs_create_child(parent, basename, mode);
-    }
-    return file;
+    if (PTR_ERR(file) != -ENOENT || !parent)
+        return file;
+    return fs_create_child(parent, basename, mode);
 }

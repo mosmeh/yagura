@@ -178,7 +178,7 @@ int execvpe(const char* file, char* const argv[], char* const envp[]) {
     for (const char* part = strtok_r(dup_path, sep, &saved_ptr); part;
          part = strtok_r(NULL, sep, &saved_ptr)) {
         static char buf[1024];
-        sprintf(buf, "%s/%s", part, file);
+        ASSERT(sprintf(buf, "%s/%s", part, file) > 0);
         int rc = execve(buf, argv, envp);
         ASSERT(rc < 0);
         if (errno != ENOENT)
