@@ -1,8 +1,7 @@
 compile_flags.txt
 *.[od]
 /kernel/kernel
-/base/**
-!/base/**/
+/base/bin/**
 !/base/**/.gitkeep
-/base/src
+/base/root/src
 /initrd
