@@ -1,7 +1,7 @@
 MAKEFLAGS += --jobs=$(shell nproc)
 SUBDIRS := kernel userland tool
 
-.PHONY: all run clean $(SUBDIRS)
+.PHONY: all run clean $(SUBDIRS) base
 
 all: kernel initrd
 
