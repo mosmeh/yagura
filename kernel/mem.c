@@ -431,3 +431,19 @@ uint16_t mem_prot_to_map_flags(int prot) {
         flags |= MEM_WRITE;
     return flags;
 }
+
+// kernel heap starts right after the quickmap page
+static uintptr_t heap_next_vaddr = KERNEL_VADDR + 1024 * PAGE_SIZE;
+
+uintptr_t mem_alloc_kernel_virtual_addr_range(uintptr_t size) {
+    uintptr_t current_ptr = heap_next_vaddr;
+    uintptr_t aligned_ptr = round_up(current_ptr, PAGE_SIZE);
+    uintptr_t next_ptr = aligned_ptr + size;
+    if (next_ptr > 0xffc00000) // last 4MiB is for recursive mapping
+        return -ENOMEM;
+    if (next_ptr < heap_next_vaddr) // wrapped around
+        return -ENOMEM;
+
+    heap_next_vaddr = next_ptr;
+    return aligned_ptr;
+}

@@ -89,7 +89,7 @@ noreturn void process_exit(int status) {
     UNREACHABLE();
 }
 
-uintptr_t process_alloc_virtual_addr_range(uintptr_t size) {
+uintptr_t process_alloc_user_virtual_addr_range(uintptr_t size) {
     uintptr_t current_ptr = current->heap_next_vaddr;
     uintptr_t aligned_ptr = round_up(current_ptr, PAGE_SIZE);
     uintptr_t next_ptr = aligned_ptr + size;

@@ -3,21 +3,27 @@
 #include "boot_defs.h"
 #include "lock.h"
 #include "mem.h"
+#include "panic.h"
 #include "system.h"
 #include <common/extra.h>
 #include <common/string.h>
 #include <stdalign.h>
 #include <string.h>
 
+#define KMALLOC_HEAP_SIZE 0x1000000
+
 static mutex lock;
 
-// kernel heap starts right after the quickmap page
-static uintptr_t heap_ptr = KERNEL_VADDR + 1024 * PAGE_SIZE;
-static uintptr_t current_page_start;
+static uintptr_t heap_start;
+static uintptr_t ptr;
 
 void kmalloc_init(void) {
     mutex_init(&lock);
-    current_page_start = heap_ptr;
+
+    heap_start = ptr = mem_alloc_kernel_virtual_addr_range(KMALLOC_HEAP_SIZE);
+    ASSERT_OK(heap_start);
+    ASSERT_OK(mem_map_to_anonymous_region(heap_start, KMALLOC_HEAP_SIZE,
+                                          MEM_WRITE | MEM_GLOBAL));
 }
 
 void* kaligned_alloc(size_t alignment, size_t size) {
@@ -26,27 +32,16 @@ void* kaligned_alloc(size_t alignment, size_t size) {
 
     mutex_lock(&lock);
 
-    uintptr_t aligned_ptr = round_up(heap_ptr, alignment);
+    uintptr_t aligned_ptr = round_up(ptr, alignment);
     uintptr_t next_ptr = aligned_ptr + size;
-    if (next_ptr > 0xffc00000) // last 4MiB is for recursive mapping
+    if (next_ptr > heap_start + KMALLOC_HEAP_SIZE)
         return NULL;
-
-    uintptr_t region_start =
-        MAX(current_page_start, round_down(aligned_ptr, PAGE_SIZE));
-    uintptr_t region_end = round_up(next_ptr, PAGE_SIZE);
-    uintptr_t region_size = region_end - region_start;
-
-    int rc = mem_map_to_anonymous_region(region_start, region_size,
-                                         MEM_WRITE | MEM_GLOBAL);
-    if (IS_ERR(rc))
-        return NULL;
-
-    current_page_start = region_end;
-
-    heap_ptr = next_ptr;
-    mutex_unlock(&lock);
 
     memset((void*)aligned_ptr, 0, size);
+
+    ptr = next_ptr;
+
+    mutex_unlock(&lock);
     return (void*)aligned_ptr;
 }
 

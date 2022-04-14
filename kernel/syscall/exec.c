@@ -162,7 +162,7 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     // we keep extra pages before and after stack unmapped to detect stack
     // overflow and underflow by causing page faults
     uintptr_t stack_region =
-        process_alloc_virtual_addr_range(2 * PAGE_SIZE + STACK_SIZE);
+        process_alloc_user_virtual_addr_range(2 * PAGE_SIZE + STACK_SIZE);
     if (IS_ERR(stack_region)) {
         ret = stack_region;
         goto fail;

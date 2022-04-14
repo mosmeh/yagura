@@ -30,7 +30,7 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void));
 pid_t process_generate_next_pid(void);
 noreturn void process_exit(int status);
 
-uintptr_t process_alloc_virtual_addr_range(uintptr_t size);
+uintptr_t process_alloc_user_virtual_addr_range(uintptr_t size);
 
 int process_alloc_file_descriptor(file_description*);
 int process_free_file_descriptor(int fd);

@@ -18,7 +18,7 @@ uintptr_t sys_mmap(const mmap_params* params) {
 
     size_t length = round_up(params->length, PAGE_SIZE);
 
-    uintptr_t vaddr = process_alloc_virtual_addr_range(length);
+    uintptr_t vaddr = process_alloc_user_virtual_addr_range(length);
     if (IS_ERR(vaddr))
         return vaddr;
 
