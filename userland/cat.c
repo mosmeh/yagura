@@ -18,9 +18,7 @@ static int dump_file(const char* filename) {
         if (nread == 0)
             break;
         buf[nread] = '\0';
-        puts(buf);
-        if (nread < BUF_SIZE - 1)
-            break;
+        printf("%s", buf);
     }
     close(fd);
     return 0;
