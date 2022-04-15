@@ -8,7 +8,20 @@ CFLAGS := \
 	-Wall -Wextra -pedantic \
 	-O2 -g
 
-TARGET_NAMES := init sh cat ls socket-test fs-test
+TARGET_NAMES := \
+	cat \
+	clear \
+	cp \
+	echo \
+	env \
+	fs-test \
+	init \
+	ls \
+	mkdir \
+	sh \
+	sleep \
+	socket-test \
+	touch
 OUTDIR := ../base/bin
 
 TARGETS := $(TARGET_NAMES:%=$(OUTDIR)/%)
@@ -17,6 +30,7 @@ TARGET_DEPS := $(TARGET_NAMES:=.d)
 
 COMMON_OBJS := \
  	../common/stdio.o \
+ 	../common/stdlib.o \
 	../common/string.o \
 	stdlib.o \
 	syscall.o
