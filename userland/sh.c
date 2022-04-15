@@ -68,7 +68,13 @@ static int exec_cmd(int argc, char* const argv[], char* const envp[]) {
         return 0;
     }
     if (!strcmp(name, "cd")) {
-        return chdir(argc < 2 ? "/" : argv[1]);
+        if (argc < 2) {
+            const char* home = getenv("HOME");
+            if (home)
+                return chdir(home);
+            return 0;
+        }
+        return chdir(argv[1]);
     }
 
     pid_t pid = fork();
