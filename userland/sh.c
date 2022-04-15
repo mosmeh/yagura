@@ -55,7 +55,7 @@ static void parse_cmd(char* cmd, int* out_argc, char* out_argv[]) {
     *out_argc = i;
 }
 
-static int exec_cmd(int argc, char* const argv[]) {
+static int exec_cmd(int argc, char* const argv[], char* const envp[]) {
     const char* name = argv[0];
 
     if (!strcmp(name, "exit")) {
@@ -73,7 +73,6 @@ static int exec_cmd(int argc, char* const argv[]) {
 
     pid_t pid = fork();
     if (pid == 0) {
-        char* envp[] = {NULL};
         if (execvpe(name, argv, envp) < 0) {
             perror("execvpe");
             abort();
@@ -82,7 +81,10 @@ static int exec_cmd(int argc, char* const argv[]) {
     return waitpid(pid, NULL, 0);
 }
 
-int main(void) {
+int main(int argc, char* const argv[], char* const envp[]) {
+    (void)argc;
+    (void)argv;
+
     for (;;) {
         static char buf[1024];
         getcwd(buf, 1024);
@@ -103,7 +105,7 @@ int main(void) {
         if (argc == 0)
             continue;
 
-        if (exec_cmd(argc, argv) < 0) {
+        if (exec_cmd(argc, argv, envp) < 0) {
             perror("exec_cmd");
             return EXIT_FAILURE;
         }
