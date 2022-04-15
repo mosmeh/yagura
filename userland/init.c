@@ -7,11 +7,13 @@ int main(void) {
     ASSERT(open("/dev/ttyS0", O_WRONLY) == 1);
     ASSERT(open("/dev/ttyS0", O_WRONLY) == 2);
 
+    chdir("/root");
+
     for (;;) {
         pid_t pid = fork();
         if (pid == 0) {
             static char* argv[] = {NULL};
-            static char* envp[] = {"PATH=/bin", NULL};
+            static char* envp[] = {"PATH=/bin", "HOME=/root", NULL};
             if (execve("/bin/sh", argv, envp) < 0) {
                 perror("execve");
                 abort();
