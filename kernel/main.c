@@ -24,10 +24,9 @@ static noreturn void init(void) {
 extern unsigned char kernel_end[];
 extern unsigned char stack_top[];
 
-static void create_char_device(const char* pathname, int major, int minor,
-                               struct file* device_file) {
+static void create_char_device(const char* pathname, struct file* device_file) {
     ASSERT_OK(vfs_register_device(device_file));
-    ASSERT_OK(sys_mknod(pathname, S_IFCHR, makedev(major, minor)));
+    ASSERT_OK(sys_mknod(pathname, S_IFCHR, device_file->device_id));
 }
 
 void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
@@ -59,19 +58,16 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     ASSERT_OK(vfs_mount("/dev/shm", shmfs_create_root()));
 
-    create_char_device("/dev/psaux", 10, 0, ps2_mouse_device_create());
-    create_char_device("/dev/fb0", 29, 0, bochs_graphics_device_create());
+    create_char_device("/dev/psaux", ps2_mouse_device_create());
+    create_char_device("/dev/fb0", bochs_graphics_device_create());
 
-    create_char_device("/dev/ttyS0", 4, 64, serial_device_create(SERIAL_COM1));
+    create_char_device("/dev/ttyS0", serial_device_create(SERIAL_COM1));
     if (serial_enable_port(SERIAL_COM2))
-        create_char_device("/dev/ttyS1", 4, 65,
-                           serial_device_create(SERIAL_COM2));
+        create_char_device("/dev/ttyS1", serial_device_create(SERIAL_COM2));
     if (serial_enable_port(SERIAL_COM2))
-        create_char_device("/dev/ttyS2", 4, 66,
-                           serial_device_create(SERIAL_COM3));
+        create_char_device("/dev/ttyS2", serial_device_create(SERIAL_COM3));
     if (serial_enable_port(SERIAL_COM3))
-        create_char_device("/dev/ttyS3", 4, 67,
-                           serial_device_create(SERIAL_COM4));
+        create_char_device("/dev/ttyS3", serial_device_create(SERIAL_COM4));
 
     syscall_init();
     scheduler_init();
