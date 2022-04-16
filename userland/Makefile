@@ -17,6 +17,7 @@ TARGET_NAMES := \
 	fs-test \
 	init \
 	ls \
+	mandelbrot \
 	mkdir \
 	sh \
 	sleep \
@@ -29,6 +30,7 @@ TARGET_OBJS := $(TARGET_NAMES:=.o)
 TARGET_DEPS := $(TARGET_NAMES:=.d)
 
 COMMON_OBJS := \
+	../common/math.o \
  	../common/stdio.o \
  	../common/stdlib.o \
 	../common/string.o \
