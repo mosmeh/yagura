@@ -14,6 +14,7 @@ static int read_cmd(char* out_cmd) {
             continue;
         switch (c) {
         case '\r':
+        case '\n':
             out_cmd[len] = '\0';
             return 0;
         case '\b':
