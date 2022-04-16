@@ -22,7 +22,7 @@ uintptr_t sys_yield(void) {
 void return_to_userland(registers);
 
 uintptr_t sys_fork(registers* regs) {
-    process* p = kmalloc(sizeof(process));
+    process* p = kaligned_alloc(alignof(process), sizeof(process));
     if (!p)
         return -ENOMEM;
     memset(p, 0, sizeof(process));
@@ -34,6 +34,7 @@ uintptr_t sys_fork(registers* regs) {
     p->id = process_generate_next_pid();
     p->eip = (uintptr_t)return_to_userland;
     p->heap_next_vaddr = current->heap_next_vaddr;
+    p->fpu_state = current->fpu_state;
     p->ebx = current->ebx;
     p->esi = current->esi;
     p->edi = current->edi;

@@ -118,6 +118,8 @@ static noreturn void switch_to_next_process(void) {
     mem_switch_page_directory(current->pd);
     gdt_set_kernel_stack(current->stack_top);
 
+    __asm__ volatile("fxrstor %0" ::"m"(current->fpu_state));
+
     __asm__ volatile("mov %0, %%edx\n"
                      "mov %1, %%eax\n"
                      "mov %2, %%ecx\n"
@@ -161,6 +163,8 @@ void scheduler_yield(bool requeue_current) {
     current->ebx = ebx;
     current->esi = esi;
     current->edi = edi;
+
+    __asm__ volatile("fxsave %0" : "=m"(current->fpu_state));
 
     if (requeue_current)
         scheduler_enqueue(current);

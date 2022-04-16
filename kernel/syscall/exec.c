@@ -208,6 +208,7 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     current->eip = ehdr->e_entry;
     current->esp = current->ebp = current->stack_top;
     current->ebx = current->esi = current->edi = 0;
+    current->fpu_state = initial_fpu_state;
 
     // enter userland
     __asm__ volatile("movw $0x23, %%ax\n"

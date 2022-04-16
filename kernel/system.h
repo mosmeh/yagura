@@ -1,6 +1,7 @@
 #pragma once
 
 #include "forward.h"
+#include <stdalign.h>
 #include <stdint.h>
 
 typedef struct registers {
@@ -11,6 +12,10 @@ typedef struct registers {
 } __attribute__((packed)) registers;
 
 void dump_registers(const registers*);
+
+struct fpu_state {
+    alignas(16) unsigned char buffer[512];
+};
 
 void gdt_init(void);
 void gdt_set_kernel_stack(uintptr_t stack_top);

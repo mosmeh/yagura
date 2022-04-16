@@ -1,11 +1,13 @@
 #pragma once
 
 #include "fs/fs.h"
+#include "system.h"
 #include <stdnoreturn.h>
 
 typedef struct process {
     pid_t id;
     uint32_t eip, esp, ebp, ebx, esi, edi;
+    struct fpu_state fpu_state;
 
     page_directory* pd;
     uintptr_t stack_top;
@@ -21,6 +23,7 @@ typedef struct process {
 } process;
 
 extern process* current;
+extern const struct fpu_state initial_fpu_state;
 
 void process_init(void);
 

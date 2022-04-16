@@ -13,18 +13,24 @@
 #define USER_HEAP_START 0x100000
 
 process* current;
+const struct fpu_state initial_fpu_state;
 static atomic_int next_pid;
 
 extern unsigned char kernel_page_directory[];
 extern unsigned char stack_top[];
 
 void process_init(void) {
+    __asm__ volatile("fninit");
+    __asm__ volatile("fxsave %0"
+                     : "=m"(*(struct fpu_state*)&initial_fpu_state));
+
     atomic_init(&next_pid, 0);
 
-    current = kmalloc(sizeof(process));
+    current = kaligned_alloc(alignof(process), sizeof(process));
     ASSERT(current);
     memset(current, 0, sizeof(process));
     current->id = process_generate_next_pid();
+    current->fpu_state = initial_fpu_state;
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
@@ -38,14 +44,15 @@ void process_init(void) {
 }
 
 process* process_create_kernel_process(void (*entry_point)(void)) {
-    process* p = kmalloc(sizeof(process));
+    process* p = kaligned_alloc(alignof(process), sizeof(process));
     if (!p)
         return ERR_PTR(-ENOMEM);
     memset(p, 0, sizeof(process));
 
     p->id = process_generate_next_pid();
-    p->heap_next_vaddr = USER_HEAP_START;
     p->eip = (uintptr_t)entry_point;
+    p->fpu_state = initial_fpu_state;
+    p->heap_next_vaddr = USER_HEAP_START;
     p->next = NULL;
 
     p->pd = mem_create_page_directory();
