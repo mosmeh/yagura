@@ -56,6 +56,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
         (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
     initrd_populate_root_fs(initrd_mod->mod_start + KERNEL_VADDR);
 
+    ASSERT_OK(vfs_mount("/tmp", tmpfs_create_root()));
     ASSERT_OK(vfs_mount("/dev/shm", shmfs_create_root()));
 
     create_char_device("/dev/psaux", ps2_mouse_device_create());
