@@ -98,8 +98,13 @@ int vfs_register_device(struct file* device_file) {
     dev->next = NULL;
     if (devices) {
         device* it = devices;
-        while (it->next)
+        for (;;) {
+            if (it->file->device_id == device_file->device_id)
+                return -EEXIST;
+            if (!it->next)
+                break;
             it = it->next;
+        }
         it->next = dev;
     } else {
         devices = dev;
