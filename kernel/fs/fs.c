@@ -92,7 +92,7 @@ uintptr_t fs_mmap(file_description* desc, uintptr_t vaddr, size_t length,
         return -ENODEV;
     if (!(desc->flags & O_RDONLY))
         return -EACCES;
-    if ((prot | PROT_WRITE) && !(desc->flags & O_RDWR))
+    if (shared && (prot | PROT_WRITE) && ((desc->flags & O_RDWR) != O_RDWR))
         return -EACCES;
     return file->mmap(desc, vaddr, length, prot, offset, shared);
 }
