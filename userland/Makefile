@@ -19,6 +19,7 @@ TARGET_NAMES := \
 	ls \
 	mandelbrot \
 	mkdir \
+	mouse_cursor \
 	sh \
 	sleep \
 	socket-test \
