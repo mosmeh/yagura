@@ -112,8 +112,7 @@ int fs_ioctl(file_description* desc, int request, void* argp) {
     struct file* file = desc->file;
     if (!file->ioctl)
         return -ENOTTY;
-    file->ioctl(desc, request, argp);
-    return 0;
+    return file->ioctl(desc, request, argp);
 }
 
 long fs_readdir(file_description* desc, void* dirp, unsigned int count) {
