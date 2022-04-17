@@ -16,9 +16,9 @@ pid_t spawn(const char* filename) {
 }
 
 int main(void) {
-    ASSERT(open("/dev/tty", O_RDONLY) == 0);
-    ASSERT(open("/dev/tty", O_WRONLY) == 1);
-    ASSERT(open("/dev/tty", O_WRONLY) == 2);
+    ASSERT(open("/dev/console", O_RDONLY) == 0);
+    ASSERT(open("/dev/console", O_WRONLY) == 1);
+    ASSERT(open("/dev/console", O_WRONLY) == 2);
 
     chdir("/root");
 

@@ -1,6 +1,4 @@
 #include "kprintf.h"
-#include "asm_wrapper.h"
-#include "interrupts.h"
 #include "serial.h"
 #include <stdarg.h>
 #include <stdio.h>

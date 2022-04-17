@@ -46,9 +46,6 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     kmalloc_init();
     process_init();
 
-    ps2_init();
-    bochs_graphics_init();
-
     ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));
 
     const multiboot_module_t* initrd_mod =
@@ -58,9 +55,12 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     ASSERT_OK(vfs_mount("/tmp", tmpfs_create_root()));
     ASSERT_OK(vfs_mount("/dev/shm", shmfs_create_root()));
 
+    bochs_graphics_init();
+    create_char_device("/dev/fb0", bochs_graphics_device_create());
+
+    ps2_init();
     create_char_device("/dev/kbd", ps2_keyboard_device_create());
     create_char_device("/dev/psaux", ps2_mouse_device_create());
-    create_char_device("/dev/fb0", bochs_graphics_device_create());
 
     tty_init();
     create_char_device("/dev/tty", tty_device_create());
@@ -72,6 +72,9 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
         create_char_device("/dev/ttyS2", serial_device_create(SERIAL_COM3));
     if (serial_enable_port(SERIAL_COM3))
         create_char_device("/dev/ttyS3", serial_device_create(SERIAL_COM4));
+
+    console_init();
+    create_char_device("/dev/console", console_device_create());
 
     syscall_init();
     scheduler_init();

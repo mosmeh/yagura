@@ -13,6 +13,7 @@ TARGET := kernel
 OBJS := \
 	bochs_graphics.o \
 	boot.o \
+	console/console.o \
 	console/psf.o \
 	console/tty.o \
 	fs/fs.o \
