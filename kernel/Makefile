@@ -13,6 +13,8 @@ TARGET := kernel
 OBJS := \
 	bochs_graphics.o \
 	boot.o \
+	console/psf.o \
+	console/tty.o \
 	fs/fs.o \
 	fs/initrd.o \
 	fs/shmfs.o \
@@ -45,6 +47,7 @@ OBJS := \
 	system.o \
 	unix_socket.o \
  	../common/stdio.o \
+	../common/stdlib.o \
  	../common/string.o
 
 DEPS := $(OBJS:.o=.d)

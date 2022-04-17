@@ -11,6 +11,7 @@ Checks: >
     -bugprone-easily-swappable-parameters,
     -cert-dcl37-c,
     -cert-dcl51-cpp,
+    -cert-err34-c,
     -concurrency-mt-unsafe,
     -misc-no-recursion,
     -performance-no-int-to-ptr,

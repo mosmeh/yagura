@@ -2,6 +2,7 @@
 #include <kernel/api/hid.h>
 #include <kernel/api/stat.h>
 #include <kernel/api/sysmacros.h>
+#include <kernel/console/console.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
 #include <kernel/kmalloc.h>
@@ -111,6 +112,8 @@ static void irq_handler(registers* reg) {
     event->pressed = pressed;
 
     received_e0 = false;
+
+    tty_on_key(event);
 }
 
 void ps2_keyboard_init(void) {
