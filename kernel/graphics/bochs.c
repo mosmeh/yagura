@@ -1,16 +1,16 @@
-#include "api/err.h"
-#include "api/fb.h"
-#include "api/stat.h"
-#include "api/sysmacros.h"
-#include "asm_wrapper.h"
-#include "fs/fs.h"
-#include "kmalloc.h"
-#include "kprintf.h"
-#include "lock.h"
-#include "mem.h"
-#include "panic.h"
-#include "pci.h"
-#include "system.h"
+#include <kernel/api/err.h>
+#include <kernel/api/fb.h>
+#include <kernel/api/stat.h>
+#include <kernel/api/sysmacros.h>
+#include <kernel/asm_wrapper.h>
+#include <kernel/fs/fs.h>
+#include <kernel/kmalloc.h>
+#include <kernel/kprintf.h>
+#include <kernel/lock.h>
+#include <kernel/mem.h>
+#include <kernel/panic.h>
+#include <kernel/pci.h>
+#include <kernel/system.h>
 #include <string.h>
 
 #define VBE_DISPI_IOPORT_INDEX 0x01ce
@@ -31,7 +31,7 @@
 #define VBE_DISPI_ENABLED 0x01
 #define VBE_DISPI_LFB_ENABLED 0x40
 
-static uintptr_t fb_addr;
+static uintptr_t fb_paddr;
 static struct fb_info fb_info;
 static mutex lock;
 
@@ -40,7 +40,7 @@ static void pci_enumeration_callback(uint8_t bus, uint8_t slot,
                                      uint16_t device_id) {
     if ((vendor_id == 0x1234 && device_id == 0x1111) |
         (vendor_id == 0x80ee && device_id == 0xbeef))
-        fb_addr = pci_get_bar0(bus, slot, function) & 0xfffffff0;
+        fb_paddr = pci_get_bar0(bus, slot, function) & 0xfffffff0;
 }
 
 static uint16_t read_reg(uint16_t index) {
@@ -69,20 +69,20 @@ static void configure(size_t width, size_t height, size_t bpp) {
     fb_info.pitch = fb_info.width * (fb_info.bpp / 8);
 }
 
-bool bochs_graphics_init(void) {
+bool bochs_fb_init(void) {
     pci_enumerate(pci_enumeration_callback);
-    if (!fb_addr)
+    if (!fb_paddr)
         return false;
 
-    kprintf("Found framebuffer at 0x%x\n", fb_addr);
+    kprintf("Found framebuffer at P0x%x\n", fb_paddr);
     configure(640, 480, 32);
     mutex_init(&lock);
     return true;
 }
 
-static uintptr_t bochs_graphics_mmap(file_description* desc, uintptr_t addr,
-                                     size_t length, int prot, off_t offset,
-                                     bool shared) {
+static uintptr_t bochs_fb_device_mmap(file_description* desc, uintptr_t addr,
+                                      size_t length, int prot, off_t offset,
+                                      bool shared) {
     (void)desc;
     if (offset != 0)
         return -ENXIO;
@@ -90,16 +90,15 @@ static uintptr_t bochs_graphics_mmap(file_description* desc, uintptr_t addr,
         return -ENODEV;
 
     int rc = mem_map_to_physical_range(
-        addr, fb_addr, length, mem_prot_to_map_flags(prot) | MEM_SHARED);
+        addr, fb_paddr, length, mem_prot_to_map_flags(prot) | MEM_SHARED);
     if (IS_ERR(rc))
         return rc;
     return addr;
 }
 
-static int bochs_graphics_ioctl(file_description* desc, int request,
-                                void* argp) {
+static int bochs_fb_device_ioctl(file_description* desc, int request,
+                                 void* argp) {
     (void)desc;
-
     switch (request) {
     case FBIOGET_INFO: {
         mutex_lock(&lock);
@@ -116,24 +115,22 @@ static int bochs_graphics_ioctl(file_description* desc, int request,
         return 0;
     }
     }
-
     return -EINVAL;
 }
 
-struct file* bochs_graphics_device_create(void) {
+struct file* bochs_fb_device_create(void) {
     struct file* file = kmalloc(sizeof(struct file));
     if (!file)
         return ERR_PTR(-ENOMEM);
-
     memset(file, 0, sizeof(struct file));
 
-    file->name = kstrdup("bochs_graphics_device");
+    file->name = kstrdup("bochs_fb_device");
     if (!file->name)
         return ERR_PTR(-ENOMEM);
 
     file->mode = S_IFBLK;
-    file->mmap = bochs_graphics_mmap;
-    file->ioctl = bochs_graphics_ioctl;
+    file->mmap = bochs_fb_device_mmap;
+    file->ioctl = bochs_fb_device_ioctl;
     file->device_id = makedev(29, 0);
     return file;
 }

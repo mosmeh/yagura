@@ -1,6 +1,7 @@
 #include "api/stat.h"
 #include "boot_defs.h"
 #include "console/console.h"
+#include "graphics/graphics.h"
 #include "hid/hid.h"
 #include "interrupts.h"
 #include "kmalloc.h"
@@ -64,8 +65,8 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     create_char_device("/dev/kbd", ps2_keyboard_device_create());
     create_char_device("/dev/psaux", ps2_mouse_device_create());
 
-    if (bochs_graphics_init()) {
-        create_char_device("/dev/fb0", bochs_graphics_device_create());
+    if (fb_init(mb_info)) {
+        create_char_device("/dev/fb0", fb_device_create());
         tty_init();
         create_char_device("/dev/tty", tty_device_create());
     }

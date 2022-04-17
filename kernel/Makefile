@@ -11,7 +11,6 @@ CFLAGS := \
 TARGET := kernel
 
 OBJS := \
-	bochs_graphics.o \
 	boot.o \
 	console/console.o \
 	console/psf.o \
@@ -23,6 +22,9 @@ OBJS := \
 	fs/tree.o \
 	fs/vfs.o \
 	gdt.o \
+	graphics/bochs.o \
+	graphics/graphics.o \
+	graphics/multiboot.o \
 	hid/keyboard.o \
 	hid/mouse.o \
 	hid/ps2.o \
