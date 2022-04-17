@@ -20,6 +20,9 @@ OBJS := \
 	fs/tree.o \
 	fs/vfs.o \
 	gdt.o \
+	hid/keyboard.o \
+	hid/mouse.o \
+	hid/ps2.o \
 	idt.o \
 	interrupt.o \
 	irq.o \
@@ -31,7 +34,6 @@ OBJS := \
 	pci.o \
 	pit.o \
 	process.o \
-	ps2_mouse.o \
 	scheduler.o \
 	serial.o \
 	syscall/exec.o \

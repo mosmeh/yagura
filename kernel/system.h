@@ -2,6 +2,7 @@
 
 #include "forward.h"
 #include <stdalign.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct registers {
@@ -24,9 +25,6 @@ void syscall_init(void);
 
 extern uint32_t uptime;
 void pit_init(void);
-
-void ps2_mouse_init(void);
-struct file* ps2_mouse_device_create(void);
 
 void bochs_graphics_init(void);
 struct file* bochs_graphics_device_create(void);

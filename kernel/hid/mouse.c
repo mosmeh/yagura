@@ -1,46 +1,25 @@
-#include "api/hid.h"
-#include "api/stat.h"
-#include "api/sysmacros.h"
-#include "fs/fs.h"
-#include "interrupts.h"
-#include "kernel/scheduler.h"
-#include "kmalloc.h"
-#include "panic.h"
+#include "hid.h"
+#include <kernel/api/hid.h>
+#include <kernel/api/stat.h>
+#include <kernel/api/sysmacros.h>
+#include <kernel/fs/fs.h>
+#include <kernel/interrupts.h>
+#include <kernel/kmalloc.h>
+#include <kernel/panic.h>
+#include <kernel/scheduler.h>
 #include <string.h>
 
-#define PS2_DATA 0x60
-#define PS2_STATUS 0x64
-#define PS2_COMMAND 0x64
-#define PS2_DISABLE_PORT2 0xa7
-#define PS2_ENABLE_PORT2 0xa8
-#define PS2_DISABLE_PORT1 0xad
-#define PS2_ENABLE_PORT1 0xae
-#define PS2_MOUSE_ENABLE_PACKET_STREAMING 0xf4
-#define PS2_MOUSE_SET_DEFAULTS 0xf6
-#define PS2_ACK 0xfa
-
-static uint8_t read(uint8_t port) {
-    while (!(in8(PS2_STATUS) & 1))
-        pause();
-    return in8(port);
-}
-
-static void write(uint8_t port, uint8_t data) {
-    while (in8(PS2_COMMAND) & 2)
-        pause();
-    out8(port, data);
-}
-
 static void write_mouse(uint8_t data) {
-    write(PS2_COMMAND, 0xd4);
-    write(PS2_DATA, data);
-    ASSERT(read(PS2_DATA) == PS2_ACK);
+    ps2_write(PS2_COMMAND, 0xd4);
+    ps2_write(PS2_DATA, data);
+    ASSERT(ps2_read(PS2_DATA) == PS2_ACK);
 }
+
+#define QUEUE_SIZE 128
 
 static uint8_t buf[3];
 static size_t state = 0;
 
-#define QUEUE_SIZE 32
 static mouse_packet queue[QUEUE_SIZE];
 static size_t queue_head = 0;
 static size_t queue_tail = 0;
@@ -79,16 +58,6 @@ static void irq_handler(registers* reg) {
 }
 
 void ps2_mouse_init(void) {
-    write(PS2_COMMAND, PS2_DISABLE_PORT1);
-    write(PS2_COMMAND, PS2_DISABLE_PORT2);
-
-    write(PS2_COMMAND, 0x20); // read config
-    uint8_t config = read(PS2_DATA);
-    write(PS2_COMMAND, 0x60);    // write config
-    write(PS2_DATA, config | 2); // enable IRQ12
-
-    write(PS2_COMMAND, PS2_ENABLE_PORT2);
-
     write_mouse(PS2_MOUSE_SET_DEFAULTS);
     write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
 

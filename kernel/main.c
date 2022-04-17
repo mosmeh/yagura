@@ -1,7 +1,6 @@
-#include "api/fcntl.h"
 #include "api/stat.h"
-#include "api/sysmacros.h"
 #include "boot_defs.h"
+#include "hid/hid.h"
 #include "interrupts.h"
 #include "kmalloc.h"
 #include "kprintf.h"
@@ -12,7 +11,6 @@
 #include "scheduler.h"
 #include "serial.h"
 #include "syscall/syscall.h"
-#include "system.h"
 
 static noreturn void init(void) {
     static char* argv[] = {NULL};
@@ -47,7 +45,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     kmalloc_init();
     process_init();
 
-    ps2_mouse_init();
+    ps2_init();
     bochs_graphics_init();
 
     ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));
@@ -59,6 +57,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     ASSERT_OK(vfs_mount("/tmp", tmpfs_create_root()));
     ASSERT_OK(vfs_mount("/dev/shm", shmfs_create_root()));
 
+    create_char_device("/dev/kbd", ps2_keyboard_device_create());
     create_char_device("/dev/psaux", ps2_mouse_device_create());
     create_char_device("/dev/fb0", bochs_graphics_device_create());
 
