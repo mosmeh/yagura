@@ -5,3 +5,6 @@ compile_flags.txt
 !/base/**/.gitkeep
 /base/root/src
 /initrd
+/disk/boot/*
+!/disk/boot/grub
+/disk_image

@@ -16,3 +16,18 @@ Then run the following command to build and run:
 ```
 make run
 ```
+
+## Installation on bare-metal
+
+You will need additional dependencies:
+
+```sh
+# on Ubuntu
+sudo apt install grub2 mtools xorriso
+```
+
+The following command creates a disk image file called `disk_image`. You can simply copy it onto a disk and boot it.
+
+```sh
+make disk_image
+```

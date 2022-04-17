@@ -16,10 +16,14 @@ base: $@/* userland
 $(SUBDIRS):
 	$(MAKE) -C $@ all
 
+disk_image: kernel initrd
+	cp kernel/kernel initrd disk/boot
+	grub-mkrescue -o '$@' disk
+
 clean:
 	for dir in $(SUBDIRS); do $(MAKE) -C $$dir $@; done
 	$(RM) -r base/root/src
-	$(RM) initrd
+	$(RM) initrd disk_image disk/boot/kernel disk/boot/initrd
 
 run: kernel initrd
 	./run.sh
