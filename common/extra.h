@@ -26,3 +26,16 @@ static inline size_t next_power_of_two(size_t x) {
         return 1;
     return (SIZE_MAX >> __builtin_clz(x - 1)) + 1;
 }
+
+// NOLINTNEXTLINE(readability-non-const-parameter)
+static inline void memset32(uint32_t* dest, uint32_t c, size_t n) {
+    __asm__ volatile("rep stosl"
+                     : "=D"(dest), "=c"(n)
+                     : "D"(dest), "c"(n), "a"(c)
+                     : "memory");
+}
+
+// NOLINTNEXTLINE(readability-non-const-parameter)
+static inline void memcpy32(uint32_t* dest, const uint32_t* src, size_t n) {
+    __asm__ volatile("rep movsl" : "+S"(src), "+D"(dest), "+c"(n)::"memory");
+}
