@@ -12,6 +12,7 @@
 #include "scheduler.h"
 #include "serial.h"
 #include "syscall/syscall.h"
+#include "system.h"
 
 static noreturn void init(void) {
     static char* argv[] = {NULL};
@@ -54,6 +55,10 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     ASSERT_OK(vfs_mount("/tmp", tmpfs_create_root()));
     ASSERT_OK(vfs_mount("/dev/shm", shmfs_create_root()));
+
+    create_char_device("/dev/null", null_device_create());
+    create_char_device("/dev/zero", zero_device_create());
+    create_char_device("/dev/full", full_device_create());
 
     ps2_init();
     create_char_device("/dev/kbd", ps2_keyboard_device_create());

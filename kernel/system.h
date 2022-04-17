@@ -28,3 +28,7 @@ void pit_init(void);
 
 bool bochs_graphics_init(void);
 struct file* bochs_graphics_device_create(void);
+
+struct file* null_device_create(void);
+struct file* zero_device_create(void);
+struct file* full_device_create(void);

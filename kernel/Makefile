@@ -37,6 +37,7 @@ OBJS := \
 	pci.o \
 	pit.o \
 	process.o \
+	pseudo_device.o \
 	scheduler.o \
 	serial.o \
 	syscall/exec.o \
