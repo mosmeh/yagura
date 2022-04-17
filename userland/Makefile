@@ -23,7 +23,8 @@ TARGET_NAMES := \
 	sh \
 	sleep \
 	socket-test \
-	touch
+	touch \
+	view
 OUTDIR := ../base/bin
 
 TARGETS := $(TARGET_NAMES:%=$(OUTDIR)/%)
