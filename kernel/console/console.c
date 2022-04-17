@@ -14,8 +14,17 @@ static file_description* tty = NULL;
 static file_description* ttyS0 = NULL;
 
 void console_init(void) {
-    tty = vfs_open("/dev/tty", O_RDWR, 0);
-    ttyS0 = vfs_open("/dev/ttyS0", O_RDWR, 0);
+    file_description* desc = vfs_open("/dev/ttyS0", O_RDWR, 0);
+    if (IS_OK(desc))
+        ttyS0 = desc;
+    else
+        ASSERT(PTR_ERR(desc) == -ENOENT);
+
+    desc = vfs_open("/dev/tty", O_RDWR, 0);
+    if (IS_OK(desc))
+        tty = desc;
+    else
+        ASSERT(PTR_ERR(desc) == -ENOENT);
 }
 
 static ssize_t write_all(file_description* desc, const char* s, size_t count) {
@@ -33,16 +42,27 @@ static ssize_t write_all(file_description* desc, const char* s, size_t count) {
 static ssize_t console_device_read(file_description* desc, void* buffer,
                                    size_t count) {
     (void)desc;
-    return fs_read(tty, buffer, count);
+    if (tty)
+        return fs_read(tty, buffer, count);
+    if (ttyS0)
+        return fs_read(ttyS0, buffer, count);
+    return 0;
 }
 
 static ssize_t console_device_write(file_description* desc, const void* buffer,
                                     size_t count) {
     (void)desc;
-    ssize_t nwritten = write_all(ttyS0, buffer, count);
-    if (IS_ERR(nwritten))
-        return nwritten;
-    return write_all(tty, buffer, count);
+    if (ttyS0) {
+        ssize_t nwritten = write_all(ttyS0, buffer, count);
+        if (IS_ERR(nwritten))
+            return nwritten;
+    }
+    if (tty) {
+        ssize_t nwritten = write_all(tty, buffer, count);
+        if (IS_ERR(nwritten))
+            return nwritten;
+    }
+    return count;
 }
 
 struct file* console_device_create(void) {

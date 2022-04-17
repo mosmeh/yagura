@@ -69,12 +69,15 @@ static void configure(size_t width, size_t height, size_t bpp) {
     fb_info.pitch = fb_info.width * (fb_info.bpp / 8);
 }
 
-void bochs_graphics_init(void) {
+bool bochs_graphics_init(void) {
     pci_enumerate(pci_enumeration_callback);
-    ASSERT(fb_addr);
+    if (!fb_addr)
+        return false;
+
     kprintf("Found framebuffer at 0x%x\n", fb_addr);
     configure(640, 480, 32);
     mutex_init(&lock);
+    return true;
 }
 
 static uintptr_t bochs_graphics_mmap(file_description* desc, uintptr_t addr,

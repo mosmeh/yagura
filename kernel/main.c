@@ -32,7 +32,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     gdt_init();
     idt_init();
     irq_init();
-    ASSERT(serial_enable_port(SERIAL_COM1));
+    bool com1_is_available = serial_enable_port(SERIAL_COM1);
     kprintf("\x1b[32mBooted\x1b[m\n");
     sti();
 
@@ -55,17 +55,18 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     ASSERT_OK(vfs_mount("/tmp", tmpfs_create_root()));
     ASSERT_OK(vfs_mount("/dev/shm", shmfs_create_root()));
 
-    bochs_graphics_init();
-    create_char_device("/dev/fb0", bochs_graphics_device_create());
-
     ps2_init();
     create_char_device("/dev/kbd", ps2_keyboard_device_create());
     create_char_device("/dev/psaux", ps2_mouse_device_create());
 
-    tty_init();
-    create_char_device("/dev/tty", tty_device_create());
+    if (bochs_graphics_init()) {
+        create_char_device("/dev/fb0", bochs_graphics_device_create());
+        tty_init();
+        create_char_device("/dev/tty", tty_device_create());
+    }
 
-    create_char_device("/dev/ttyS0", serial_device_create(SERIAL_COM1));
+    if (com1_is_available)
+        create_char_device("/dev/ttyS0", serial_device_create(SERIAL_COM1));
     if (serial_enable_port(SERIAL_COM2))
         create_char_device("/dev/ttyS1", serial_device_create(SERIAL_COM2));
     if (serial_enable_port(SERIAL_COM2))

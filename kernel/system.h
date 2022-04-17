@@ -26,5 +26,5 @@ void syscall_init(void);
 extern uint32_t uptime;
 void pit_init(void);
 
-void bochs_graphics_init(void);
+bool bochs_graphics_init(void);
 struct file* bochs_graphics_device_create(void);

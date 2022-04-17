@@ -1,6 +1,7 @@
 #include "stdlib.h"
 #include "syscall.h"
 #include <common/extra.h>
+#include <kernel/api/errno.h>
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/hid.h>
@@ -82,6 +83,8 @@ static void restore_fb(void) {
 int main(void) {
     int fb_fd = open("/dev/fb0", O_RDWR);
     if (fb_fd < 0) {
+        if (errno == ENOENT)
+            return EXIT_SUCCESS;
         perror("open");
         return EXIT_FAILURE;
     }
