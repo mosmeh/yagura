@@ -4,7 +4,7 @@
 #include <kernel/api/stat.h>
 #include <kernel/api/syscall.h>
 #include <kernel/boot_defs.h>
-#include <kernel/mem.h>
+#include <kernel/memory.h>
 #include <kernel/process.h>
 #include <string.h>
 
@@ -26,11 +26,11 @@ uintptr_t sys_mmap(const mmap_params* params) {
         if (params->offset != 0)
             return -ENOTSUP;
 
-        int map_flags = mem_prot_to_map_flags(params->prot);
+        int map_flags = memory_prot_to_map_flags(params->prot);
         if (params->flags & MAP_SHARED)
-            map_flags |= MEM_SHARED;
+            map_flags |= MEMORY_SHARED;
 
-        int rc = mem_map_to_anonymous_region(vaddr, length, map_flags);
+        int rc = memory_map_to_anonymous_region(vaddr, length, map_flags);
         if (IS_ERR(rc))
             return rc;
 

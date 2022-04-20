@@ -5,7 +5,7 @@
 #include <kernel/fs/fs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
-#include <kernel/mem.h>
+#include <kernel/memory.h>
 #include <kernel/multiboot.h>
 #include <stdbool.h>
 #include <string.h>
@@ -37,8 +37,8 @@ static uintptr_t multiboot_fb_device_mmap(file_description* desc,
     if (!shared)
         return -ENODEV;
 
-    int rc = mem_map_to_physical_range(
-        addr, fb_paddr, length, mem_prot_to_map_flags(prot) | MEM_SHARED);
+    int rc = memory_map_to_physical_range(
+        addr, fb_paddr, length, memory_prot_to_map_flags(prot) | MEMORY_SHARED);
     if (IS_ERR(rc))
         return rc;
     return addr;

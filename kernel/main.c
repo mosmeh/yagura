@@ -6,7 +6,7 @@
 #include "interrupts.h"
 #include "kmalloc.h"
 #include "kprintf.h"
-#include "mem.h"
+#include "memory.h"
 #include "multiboot.h"
 #include "panic.h"
 #include "process.h"
@@ -44,7 +44,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     const multiboot_info_t* mb_info =
         (const multiboot_info_t*)(mb_info_paddr + KERNEL_VADDR);
-    mem_init(mb_info);
+    memory_init(mb_info);
     kmalloc_init();
     process_init();
 

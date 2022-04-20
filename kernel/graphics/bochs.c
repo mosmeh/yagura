@@ -7,7 +7,7 @@
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
 #include <kernel/lock.h>
-#include <kernel/mem.h>
+#include <kernel/memory.h>
 #include <kernel/panic.h>
 #include <kernel/pci.h>
 #include <kernel/system.h>
@@ -89,8 +89,8 @@ static uintptr_t bochs_fb_device_mmap(file_description* desc, uintptr_t addr,
     if (!shared)
         return -ENODEV;
 
-    int rc = mem_map_to_physical_range(
-        addr, fb_paddr, length, mem_prot_to_map_flags(prot) | MEM_SHARED);
+    int rc = memory_map_to_physical_range(
+        addr, fb_paddr, length, memory_prot_to_map_flags(prot) | MEMORY_SHARED);
     if (IS_ERR(rc))
         return rc;
     return addr;

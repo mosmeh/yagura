@@ -4,7 +4,7 @@
 #include <kernel/api/time.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
-#include <kernel/mem.h>
+#include <kernel/memory.h>
 #include <kernel/process.h>
 #include <kernel/scheduler.h>
 #include <kernel/system.h>
@@ -27,7 +27,7 @@ uintptr_t sys_fork(registers* regs) {
         return -ENOMEM;
     *p = (process){0};
 
-    p->pd = mem_clone_current_page_directory();
+    p->pd = memory_clone_current_page_directory();
     if (IS_ERR(p->pd))
         return PTR_ERR(p->pd);
 

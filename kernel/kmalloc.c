@@ -2,7 +2,7 @@
 #include "api/err.h"
 #include "boot_defs.h"
 #include "lock.h"
-#include "mem.h"
+#include "memory.h"
 #include "panic.h"
 #include "system.h"
 #include <common/extra.h>
@@ -20,10 +20,11 @@ static uintptr_t ptr;
 void kmalloc_init(void) {
     mutex_init(&lock);
 
-    heap_start = ptr = mem_alloc_kernel_virtual_addr_range(KMALLOC_HEAP_SIZE);
+    heap_start = ptr =
+        memory_alloc_kernel_virtual_addr_range(KMALLOC_HEAP_SIZE);
     ASSERT_OK(heap_start);
-    ASSERT_OK(mem_map_to_anonymous_region(heap_start, KMALLOC_HEAP_SIZE,
-                                          MEM_WRITE | MEM_GLOBAL));
+    ASSERT_OK(memory_map_to_anonymous_region(heap_start, KMALLOC_HEAP_SIZE,
+                                             MEMORY_WRITE | MEMORY_GLOBAL));
 }
 
 void* kaligned_alloc(size_t alignment, size_t size) {

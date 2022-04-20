@@ -2,7 +2,7 @@
 #include "boot_defs.h"
 #include "kmalloc.h"
 #include "kprintf.h"
-#include "mem.h"
+#include "memory.h"
 #include "panic.h"
 #include "scheduler.h"
 #include "system.h"
@@ -55,7 +55,7 @@ process* process_create_kernel_process(void (*entry_point)(void)) {
     p->heap_next_vaddr = USER_HEAP_START;
     p->next = NULL;
 
-    p->pd = mem_create_page_directory();
+    p->pd = memory_create_page_directory();
     if (IS_ERR(p->pd))
         return ERR_CAST(p->pd);
 

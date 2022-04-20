@@ -1,6 +1,6 @@
 #include "scheduler.h"
 #include "interrupts.h"
-#include "mem.h"
+#include "memory.h"
 #include "panic.h"
 #include "process.h"
 #include "system.h"
@@ -115,7 +115,7 @@ static noreturn void switch_to_next_process(void) {
     current = scheduler_deque();
     ASSERT(current);
 
-    mem_switch_page_directory(current->pd);
+    memory_switch_page_directory(current->pd);
     gdt_set_kernel_stack(current->stack_top);
 
     __asm__ volatile("fxrstor %0" ::"m"(current->fpu_state));

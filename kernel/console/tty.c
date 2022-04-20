@@ -12,7 +12,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/kmalloc.h>
 #include <kernel/lock.h>
-#include <kernel/mem.h>
+#include <kernel/memory.h>
 #include <kernel/panic.h>
 #include <kernel/scheduler.h>
 #include <string.h>
@@ -284,7 +284,7 @@ void tty_init(void) {
     console_height = fb_info.height / font->glyph_height;
 
     size_t fb_size = fb_info.pitch * fb_info.height;
-    uintptr_t vaddr = mem_alloc_kernel_virtual_addr_range(fb_size);
+    uintptr_t vaddr = memory_alloc_kernel_virtual_addr_range(fb_size);
     ASSERT_OK(vaddr);
     fb_addr = fs_mmap(desc, vaddr, fb_size, PROT_READ | PROT_WRITE, 0, true);
     ASSERT_OK(fb_addr);

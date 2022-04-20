@@ -3,7 +3,7 @@
 #include <kernel/api/stat.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
-#include <kernel/mem.h>
+#include <kernel/memory.h>
 #include <kernel/panic.h>
 #include <string.h>
 
@@ -23,9 +23,9 @@ static uintptr_t shmfs_mmap(file_description* desc, uintptr_t addr,
     if (length > node->size)
         return -EINVAL;
 
-    uintptr_t paddr = mem_virtual_to_physical_addr((uintptr_t)node->buf);
-    int rc = mem_map_to_physical_range(
-        addr, paddr, length, mem_prot_to_map_flags(prot) | MEM_SHARED);
+    uintptr_t paddr = memory_virtual_to_physical_addr((uintptr_t)node->buf);
+    int rc = memory_map_to_physical_range(
+        addr, paddr, length, memory_prot_to_map_flags(prot) | MEMORY_SHARED);
     if (IS_ERR(rc))
         return rc;
     return addr;

@@ -7,7 +7,7 @@
 #include <kernel/asm_wrapper.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
-#include <kernel/mem.h>
+#include <kernel/memory.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <string.h>
@@ -111,15 +111,15 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     if (IS_ERR(num_envp))
         return num_envp;
 
-    page_directory* prev_pd = mem_current_page_directory();
+    page_directory* prev_pd = memory_current_page_directory();
     uintptr_t prev_heap_next_vaddr = current->heap_next_vaddr;
 
-    page_directory* new_pd = mem_create_page_directory();
+    page_directory* new_pd = memory_create_page_directory();
     if (IS_ERR(new_pd))
         return PTR_ERR(new_pd);
 
     current->pd = new_pd;
-    mem_switch_page_directory(new_pd);
+    memory_switch_page_directory(new_pd);
 
     // after this point, we have to revert to prev_pd if we want to abort.
 
@@ -138,8 +138,9 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         uintptr_t region_start = round_down(phdr->p_vaddr, PAGE_SIZE);
         uintptr_t region_end =
             round_up(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
-        ret = mem_map_to_anonymous_region(
-            region_start, region_end - region_start, MEM_USER | MEM_WRITE);
+        ret = memory_map_to_anonymous_region(region_start,
+                                             region_end - region_start,
+                                             MEMORY_USER | MEMORY_WRITE);
         if (IS_ERR(ret))
             goto fail;
 
@@ -168,8 +169,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         goto fail;
     }
     uintptr_t stack_base = stack_region + PAGE_SIZE;
-    ret = mem_map_to_anonymous_region(stack_base, STACK_SIZE,
-                                      MEM_WRITE | MEM_USER);
+    ret = memory_map_to_anonymous_region(stack_base, STACK_SIZE,
+                                         MEMORY_WRITE | MEMORY_USER);
     if (IS_ERR(ret))
         goto fail;
 
@@ -234,6 +235,6 @@ fail:
     ASSERT(IS_ERR(ret));
     current->pd = prev_pd;
     current->heap_next_vaddr = prev_heap_next_vaddr;
-    mem_switch_page_directory(prev_pd);
+    memory_switch_page_directory(prev_pd);
     return ret;
 }

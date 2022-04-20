@@ -36,7 +36,7 @@ OBJS := \
 	kprintf.o \
 	lock.o \
 	main.o \
-	mem.o \
+	memory.o \
 	pci.o \
 	pit.o \
 	process.o \
