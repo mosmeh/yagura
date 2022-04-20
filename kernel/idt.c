@@ -71,6 +71,7 @@ static noreturn void crash(registers* regs, int signum) {
     dump_registers(regs);
     if ((regs->cs & 3) != 3)
         PANIC("Kernel crashed");
+    sti();
     process_exit(128 + signum);
 }
 

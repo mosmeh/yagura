@@ -1,5 +1,6 @@
 #include "process.h"
 #include "boot_defs.h"
+#include "interrupts.h"
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "memory.h"
@@ -90,6 +91,8 @@ pid_t process_generate_next_pid(void) {
 }
 
 noreturn void process_exit(int status) {
+    ASSERT(interrupts_enabled());
+
     if (status != 0)
         kprintf("\x1b[31mProcess %d exited with status %d\x1b[m\n", current->id,
                 status);
