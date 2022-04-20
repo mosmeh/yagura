@@ -231,3 +231,9 @@ struct dirent* readdir(DIR* dirp) {
     dirp->buf_cursor += dent->record_len;
     return dent;
 }
+
+clock_t clock(void) {
+    struct tms tms;
+    times(&tms);
+    return tms.tms_utime + tms.tms_stime;
+}

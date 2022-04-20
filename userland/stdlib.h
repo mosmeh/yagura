@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kernel/api/types.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -43,3 +44,5 @@ typedef struct DIR DIR;
 DIR* opendir(const char* name);
 int closedir(DIR* dirp);
 struct dirent* readdir(DIR* dirp);
+
+clock_t clock(void);
