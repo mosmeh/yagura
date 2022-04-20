@@ -13,7 +13,7 @@
 
 void mem_init(const multiboot_info_t*);
 
-uintptr_t mem_to_physical_addr(uintptr_t virtual_addr);
+uintptr_t mem_virtual_to_physical_addr(uintptr_t virtual_addr);
 
 page_directory* mem_current_page_directory(void);
 page_directory* mem_create_page_directory(void);

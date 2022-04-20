@@ -23,7 +23,7 @@ static uintptr_t shmfs_mmap(file_description* desc, uintptr_t addr,
     if (length > node->size)
         return -EINVAL;
 
-    uintptr_t paddr = mem_to_physical_addr((uintptr_t)node->buf);
+    uintptr_t paddr = mem_virtual_to_physical_addr((uintptr_t)node->buf);
     int rc = mem_map_to_physical_range(
         addr, paddr, length, mem_prot_to_map_flags(prot) | MEM_SHARED);
     if (IS_ERR(rc))

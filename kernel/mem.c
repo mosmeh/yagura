@@ -137,7 +137,7 @@ static volatile page_table_entry* get_pte(uintptr_t vaddr) {
     return pt->entries + ((vaddr >> 12) & 0x3ff);
 }
 
-uintptr_t mem_to_physical_addr(uintptr_t vaddr) {
+uintptr_t mem_virtual_to_physical_addr(uintptr_t vaddr) {
     const volatile page_table_entry* pte = get_pte(vaddr);
     ASSERT(pte && pte->present);
     return (pte->raw & ~0xfff) | (vaddr & 0xfff);
@@ -273,7 +273,7 @@ page_directory* mem_create_page_directory(void) {
 
     // recursive
     page_directory_entry* last_entry = dst->entries + 1023;
-    last_entry->raw = mem_to_physical_addr((uintptr_t)dst);
+    last_entry->raw = mem_virtual_to_physical_addr((uintptr_t)dst);
     last_entry->present = last_entry->write = true;
 
     return dst;
@@ -358,8 +358,9 @@ page_directory* mem_clone_current_page_directory(void) {
             return ERR_CAST(cloned_pt);
         }
 
-        dst->entries[i].raw = mem_to_physical_addr((uintptr_t)cloned_pt) |
-                              (current_pd->entries[i].raw & 0xfff);
+        dst->entries[i].raw =
+            mem_virtual_to_physical_addr((uintptr_t)cloned_pt) |
+            (current_pd->entries[i].raw & 0xfff);
     }
 
     mutex_unlock(&quickmap_lock);
@@ -368,7 +369,7 @@ page_directory* mem_clone_current_page_directory(void) {
 }
 
 void mem_switch_page_directory(page_directory* pd) {
-    uintptr_t paddr = mem_to_physical_addr((uintptr_t)pd);
+    uintptr_t paddr = mem_virtual_to_physical_addr((uintptr_t)pd);
 
     bool int_flag = push_cli();
 
@@ -377,7 +378,7 @@ void mem_switch_page_directory(page_directory* pd) {
 
     pop_cli(int_flag);
 
-    ASSERT(paddr == mem_to_physical_addr(0xfffff000));
+    ASSERT(paddr == mem_virtual_to_physical_addr(0xfffff000));
 }
 
 extern unsigned char kernel_page_directory[];
