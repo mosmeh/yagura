@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/api/socket.h>
+#include <kernel/api/stat.h>
 #include <kernel/api/time.h>
 #include <kernel/api/types.h>
 #include <stddef.h>
@@ -31,6 +32,7 @@ int close(int fd);
 ssize_t read(int fd, void* buf, size_t count);
 ssize_t write(int fd, const void* buf, size_t count);
 int ftruncate(int fd, off_t length);
+int stat(const char* pathname, struct stat* buf);
 int ioctl(int fd, int request, void* argp);
 int mkdir(const char* pathname, mode_t mode);
 int mknod(const char* pathname, mode_t mode, dev_t dev);

@@ -32,6 +32,7 @@
     F(pipe)                                                                    \
     F(read)                                                                    \
     F(socket)                                                                  \
+    F(stat)                                                                    \
     F(waitpid)                                                                 \
     F(write)                                                                   \
     F(yield)

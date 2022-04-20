@@ -63,6 +63,15 @@ file_description* fs_open(struct file* file, int flags, mode_t mode) {
     return desc;
 }
 
+int fs_stat(struct file* file, struct stat* buf) {
+    if (file->stat)
+        return file->stat(file, buf);
+    buf->st_rdev = file->device_id;
+    buf->st_mode = file->mode;
+    buf->st_size = 0;
+    return 0;
+}
+
 int fs_close(file_description* desc) {
     ASSERT(desc->ref_count > 0);
     if (--desc->ref_count > 0)

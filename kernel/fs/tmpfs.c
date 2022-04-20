@@ -11,6 +11,14 @@ typedef struct tmpfs_node {
     size_t capacity, size;
 } tmpfs_node;
 
+static int tmpfs_stat(struct file* file, struct stat* buf) {
+    tmpfs_node* node = (tmpfs_node*)file;
+    buf->st_mode = file->mode;
+    buf->st_rdev = 0;
+    buf->st_size = node->size;
+    return 0;
+}
+
 static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t count) {
     tmpfs_node* node = (tmpfs_node*)desc->file;
     if ((size_t)desc->offset >= node->size)
@@ -85,6 +93,7 @@ static struct file* tmpfs_create_child(struct file* file, const char* name,
     if (!child_file->name)
         return ERR_PTR(-ENOMEM);
     child_file->mode = mode;
+    child_file->stat = tmpfs_stat;
     if (S_ISDIR(mode)) {
         child_file->lookup = tree_node_lookup;
         child_file->create_child = tmpfs_create_child;
@@ -109,6 +118,7 @@ struct file* tmpfs_create_root(void) {
     if (!file->name)
         return ERR_PTR(-ENOMEM);
     file->mode = S_IFDIR;
+    file->stat = tmpfs_stat;
     file->lookup = tree_node_lookup;
     file->create_child = tmpfs_create_child;
     file->readdir = tree_node_readdir;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "types.h"
+
 #define S_IFMT 0170000
 #define S_IFDIR 0040000
 #define S_IFCHR 0020000
@@ -16,3 +18,9 @@
 #define S_ISFIFO(m) (((m)&S_IFMT) == S_IFIFO)
 #define S_ISLNK(m) (((m)&S_IFMT) == S_IFLNK)
 #define S_ISSOCK(m) (((m)&S_IFMT) == S_IFSOCK)
+
+struct stat {
+    mode_t st_mode;
+    dev_t st_rdev;
+    off_t st_size;
+};

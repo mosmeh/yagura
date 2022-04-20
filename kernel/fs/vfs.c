@@ -323,6 +323,21 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
     return fs_open(file, flags, mode);
 }
 
+int vfs_stat(const char* pathname, struct stat* buf) {
+    struct file* file = vfs_resolve_path(pathname, current->cwd, NULL, NULL);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+
+    if (S_ISBLK(file->mode) || S_ISCHR(file->mode)) {
+        struct file* device_file = get_device(file->device_id);
+        if (!device_file)
+            return -ENODEV;
+        file = device_file;
+    }
+
+    return fs_stat(file, buf);
+}
+
 struct file* vfs_create(const char* pathname, mode_t mode) {
     struct file* parent = NULL;
     const char* basename = NULL;

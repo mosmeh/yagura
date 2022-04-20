@@ -45,6 +45,10 @@ uintptr_t sys_ftruncate(int fd, off_t length) {
     return fs_truncate(desc, length);
 }
 
+uintptr_t sys_stat(const char* pathname, struct stat* buf) {
+    return vfs_stat(pathname, buf);
+}
+
 uintptr_t sys_ioctl(int fd, int request, void* argp) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))

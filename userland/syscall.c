@@ -131,6 +131,11 @@ int ftruncate(int fd, off_t length) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int stat(const char* pathname, struct stat* buf) {
+    int rc = syscall(SYS_stat, (uintptr_t)pathname, (uintptr_t)buf, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 int ioctl(int fd, int request, void* argp) {
     int rc = syscall(SYS_ioctl, fd, request, (uintptr_t)argp);
     RETURN_WITH_ERRNO(rc, int)

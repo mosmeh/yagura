@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kernel/api/stat.h>
 #include <kernel/api/types.h>
 #include <kernel/forward.h>
 #include <stdbool.h>
@@ -30,6 +31,7 @@ typedef struct file* (*lookup_fn)(struct file*, const char* name);
 typedef struct file* (*create_child_fn)(struct file*, const char* name,
                                         mode_t mode);
 typedef int (*open_fn)(struct file*, int flags, mode_t mode);
+typedef int (*stat_fn)(struct file*, struct stat* buf);
 
 typedef int (*close_fn)(file_description*);
 typedef ssize_t (*read_fn)(file_description*, void* buffer, size_t count);
@@ -46,6 +48,7 @@ struct file {
     lookup_fn lookup;
     create_child_fn create_child;
     open_fn open;
+    stat_fn stat;
     close_fn close;
     read_fn read;
     write_fn write;
@@ -61,6 +64,7 @@ struct file {
 struct file* fs_lookup(struct file*, const char* name);
 struct file* fs_create_child(struct file*, const char* name, mode_t mode);
 file_description* fs_open(struct file*, int flags, mode_t mode);
+int fs_stat(struct file*, struct stat* buf);
 
 int fs_close(file_description*);
 ssize_t fs_read(file_description*, void* buffer, size_t count);
@@ -74,6 +78,7 @@ long fs_readdir(file_description*, void* dirp, unsigned int count);
 int vfs_mount(const char* path, struct file* root_file);
 int vfs_register_device(struct file* device_file);
 file_description* vfs_open(const char* pathname, int flags, mode_t mode);
+int vfs_stat(const char* pathname, struct stat* buf);
 struct file* vfs_create(const char* pathname, mode_t mode);
 char* vfs_canonicalize_path(const char* pathname, const char* parent_path);
 struct file* vfs_resolve_path(const char* pathname, const char* parent_path,
