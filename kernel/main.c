@@ -45,15 +45,19 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     const multiboot_info_t* mb_info =
         (const multiboot_info_t*)(mb_info_paddr + KERNEL_VADDR);
+
+    const multiboot_module_t* initrd_mod =
+        (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
+    uintptr_t initrd_paddr = initrd_mod->mod_start;
+    uintptr_t initrd_size = initrd_mod->mod_end - initrd_mod->mod_start;
+
     memory_init(mb_info);
     kmalloc_init();
     process_init();
 
     ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));
 
-    const multiboot_module_t* initrd_mod =
-        (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
-    initrd_populate_root_fs(initrd_mod->mod_start + KERNEL_VADDR);
+    initrd_populate_root_fs(initrd_paddr, initrd_size);
 
     ASSERT_OK(vfs_mount("/tmp", tmpfs_create_root()));
     ASSERT_OK(vfs_mount("/dev/shm", shmfs_create_root()));

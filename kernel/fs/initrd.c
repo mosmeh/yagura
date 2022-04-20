@@ -1,5 +1,8 @@
 #include "fs.h"
+#include <common/extra.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/boot_defs.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <string.h>
 
@@ -29,8 +32,16 @@ static size_t parse_octal(const char* s, size_t len) {
 
 #define PARSE(field) parse_octal(field, sizeof(field))
 
-void initrd_populate_root_fs(uintptr_t addr) {
-    uintptr_t cursor = addr;
+void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
+    uintptr_t vaddr = memory_alloc_kernel_virtual_addr_range(size);
+    ASSERT_OK(vaddr);
+
+    uintptr_t region_start = round_down(paddr, PAGE_SIZE);
+    uintptr_t region_end = round_up(paddr + size, PAGE_SIZE);
+    ASSERT_OK(memory_map_to_physical_range(
+        vaddr, region_start, region_end - region_start, MEMORY_SHARED));
+
+    uintptr_t cursor = vaddr + (paddr - region_start);
     for (;;) {
         const struct cpio_odc_header* header =
             (const struct cpio_odc_header*)cursor;
