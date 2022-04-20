@@ -40,6 +40,7 @@ OBJS := \
 	pit.o \
 	process.o \
 	pseudo_device.o \
+	ring_buf.o \
 	scheduler.o \
 	serial.o \
 	syscall/exec.o \

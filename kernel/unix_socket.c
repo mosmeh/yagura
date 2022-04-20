@@ -1,33 +1,11 @@
-#include "api/err.h"
 #include "api/stat.h"
 #include "fs/fs.h"
 #include "kmalloc.h"
-#include "lock.h"
 #include "panic.h"
+#include "ring_buf.h"
 #include "scheduler.h"
 #include "socket.h"
-#include <stdatomic.h>
-#include <stdbool.h>
 #include <string.h>
-
-#define BUF_CAPACITY 1024
-
-typedef struct locked_buf {
-    mutex lock;
-    void* inner_buf;
-    atomic_size_t size;
-    size_t offset;
-} locked_buf;
-
-static int locked_buf_init(locked_buf* buf) {
-    memset(buf, 0, sizeof(locked_buf));
-    mutex_init(&buf->lock);
-    atomic_init(&buf->size, 0);
-    buf->inner_buf = kmalloc(BUF_CAPACITY);
-    if (!buf->inner_buf)
-        return -ENOMEM;
-    return 0;
-}
 
 typedef struct unix_socket {
     struct file base_file;
@@ -40,68 +18,60 @@ typedef struct unix_socket {
     atomic_bool connected;
     file_description* connector_fd;
 
-    locked_buf server_to_client_buf;
-    locked_buf client_to_server_buf;
+    ring_buf server_to_client_buf;
+    ring_buf client_to_server_buf;
 } unix_socket;
 
-static locked_buf* get_buf_to_read(unix_socket* socket,
-                                   file_description* desc) {
+static ring_buf* get_buf_to_read(unix_socket* socket, file_description* desc) {
     bool is_client = socket->connector_fd == desc;
     return is_client ? &socket->server_to_client_buf
                      : &socket->client_to_server_buf;
 }
 
-static locked_buf* get_buf_to_write(unix_socket* socket,
-                                    file_description* desc) {
+static ring_buf* get_buf_to_write(unix_socket* socket, file_description* desc) {
     bool is_client = socket->connector_fd == desc;
     return is_client ? &socket->client_to_server_buf
                      : &socket->server_to_client_buf;
 }
 
-static bool read_should_unblock(atomic_size_t* size) {
-    return atomic_load_explicit(size, memory_order_acquire) > 0;
+static bool read_should_unblock(ring_buf* buf) {
+    return !ring_buf_is_empty(buf);
 }
 
 static ssize_t unix_socket_read(file_description* desc, void* buffer,
                                 size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
-    locked_buf* buf = get_buf_to_read(socket, desc);
-    scheduler_block(read_should_unblock, &buf->size);
+    ring_buf* buf = get_buf_to_read(socket, desc);
+    scheduler_block(read_should_unblock, buf);
 
     mutex_lock(&buf->lock);
-
-    if (buf->offset + count >= buf->size)
-        count = buf->size - buf->offset;
-    memcpy(buffer, (void*)((uintptr_t)buf->inner_buf + buf->offset), count);
-    buf->offset += count;
-
-    if (buf->offset >= buf->size)
-        buf->size = buf->offset = 0;
-
+    if (ring_buf_is_empty(buf)) {
+        mutex_unlock(&buf->lock);
+        return 0;
+    }
+    ssize_t nread = ring_buf_read(buf, buffer, count);
     mutex_unlock(&buf->lock);
-    return count;
+    return nread;
 }
 
-static bool write_should_unblock(atomic_size_t* size) {
-    return atomic_load_explicit(size, memory_order_acquire) == 0;
+static bool write_should_unblock(ring_buf* buf) {
+    return !ring_buf_is_full(buf);
 }
 
 static ssize_t unix_socket_write(file_description* desc, const void* buffer,
                                  size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
-    locked_buf* buf = get_buf_to_write(socket, desc);
-    scheduler_block(write_should_unblock, &buf->size);
+    ring_buf* buf = get_buf_to_write(socket, desc);
+    scheduler_block(write_should_unblock, buf);
 
     mutex_lock(&buf->lock);
-
-    if (count >= BUF_CAPACITY)
-        count = BUF_CAPACITY - buf->offset;
-    memcpy(buf->inner_buf, buffer, count);
-    buf->offset = 0;
-    buf->size = count;
-
+    if (ring_buf_is_full(buf)) {
+        mutex_unlock(&buf->lock);
+        return 0;
+    }
+    ssize_t nwritten = ring_buf_write(buf, buffer, count);
     mutex_unlock(&buf->lock);
-    return count;
+    return nwritten;
 }
 
 unix_socket* unix_socket_create(void) {
@@ -119,10 +89,10 @@ unix_socket* unix_socket_create(void) {
     mutex_init(&socket->pending_queue_lock);
     atomic_init(&socket->connected, false);
 
-    int rc = locked_buf_init(&socket->client_to_server_buf);
+    int rc = ring_buf_init(&socket->client_to_server_buf);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
-    rc = locked_buf_init(&socket->server_to_client_buf);
+    rc = ring_buf_init(&socket->server_to_client_buf);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
