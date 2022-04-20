@@ -50,8 +50,9 @@ int main(int argc, char* const argv[]) {
     int fb_fd = open("/dev/fb0", O_RDWR);
     if (fb_fd < 0) {
         if (errno == ENOENT)
-            return EXIT_SUCCESS;
-        perror("open");
+            dprintf(2, "Framebuffer is not available\n");
+        else
+            perror("open");
         return EXIT_FAILURE;
     }
     struct fb_info fb_info;

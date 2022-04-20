@@ -1,5 +1,6 @@
 #include "stdlib.h"
 #include "syscall.h"
+#include <kernel/api/errno.h>
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/mman.h>
@@ -94,7 +95,10 @@ static uint32_t calc_pixel_value(double x0, double y0) {
 int main(void) {
     int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0) {
-        perror("open");
+        if (errno == ENOENT)
+            dprintf(2, "Framebuffer is not available\n");
+        else
+            perror("open");
         return EXIT_FAILURE;
     }
     struct fb_info fb_info;
