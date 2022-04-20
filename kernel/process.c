@@ -112,7 +112,18 @@ uintptr_t process_alloc_user_virtual_addr_range(uintptr_t size) {
     return aligned_ptr;
 }
 
-int process_alloc_file_descriptor(file_description* desc) {
+int process_alloc_file_descriptor(int fd, file_description* desc) {
+    if (fd >= FD_TABLE_CAPACITY)
+        return -EBADF;
+
+    if (fd >= 0) {
+        file_description** entry = current->fd_table.entries + fd;
+        if (*entry)
+            return -EEXIST;
+        *entry = desc;
+        return fd;
+    }
+
     file_description** it = current->fd_table.entries;
     for (int i = 0; i < FD_TABLE_CAPACITY; ++i, ++it) {
         if (*it)

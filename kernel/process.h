@@ -35,6 +35,8 @@ noreturn void process_exit(int status);
 
 uintptr_t process_alloc_user_virtual_addr_range(uintptr_t size);
 
-int process_alloc_file_descriptor(file_description*);
+// if fd < 0, allocates lowest-numbered file descriptor that was unused
+int process_alloc_file_descriptor(int fd, file_description*);
+
 int process_free_file_descriptor(int fd);
 file_description* process_get_file_description(int fd);

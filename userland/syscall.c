@@ -151,6 +151,16 @@ long getdents(int fd, void* dirp, size_t count) {
     RETURN_WITH_ERRNO(rc, long)
 }
 
+int dup(int oldfd) {
+    int rc = syscall(SYS_dup, oldfd, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
+int dup2(int oldfd, int newfd) {
+    int rc = syscall(SYS_dup2, oldfd, newfd, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 int socket(int domain, int type, int protocol) {
     int rc = syscall(SYS_socket, domain, type, protocol);
     RETURN_WITH_ERRNO(rc, int)

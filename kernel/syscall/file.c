@@ -8,7 +8,7 @@ uintptr_t sys_open(const char* pathname, int flags, unsigned mode) {
     file_description* desc = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    return process_alloc_file_descriptor(desc);
+    return process_alloc_file_descriptor(-1, desc);
 }
 
 uintptr_t sys_close(int fd) {
@@ -81,4 +81,35 @@ uintptr_t sys_getdents(int fd, void* dirp, size_t count) {
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     return fs_readdir(desc, dirp, count);
+}
+
+uintptr_t sys_dup(int oldfd) {
+    file_description* desc = process_get_file_description(oldfd);
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
+    int ret = process_alloc_file_descriptor(-1, desc);
+    if (IS_ERR(ret))
+        return ret;
+    ++desc->ref_count;
+    return ret;
+}
+
+uintptr_t sys_dup2(int oldfd, int newfd) {
+    file_description* oldfd_desc = process_get_file_description(oldfd);
+    if (IS_ERR(oldfd_desc))
+        return PTR_ERR(oldfd_desc);
+    file_description* newfd_desc = process_get_file_description(newfd);
+    if (IS_OK(newfd_desc)) {
+        int rc = fs_close(newfd_desc);
+        if (IS_ERR(rc))
+            return rc;
+        rc = process_free_file_descriptor(newfd);
+        if (IS_ERR(rc))
+            return rc;
+    }
+    int ret = process_alloc_file_descriptor(newfd, oldfd_desc);
+    if (IS_ERR(ret))
+        return ret;
+    ++oldfd_desc->ref_count;
+    return ret;
 }

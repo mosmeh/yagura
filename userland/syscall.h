@@ -35,6 +35,8 @@ int ioctl(int fd, int request, void* argp);
 int mkdir(const char* pathname, mode_t mode);
 int mknod(const char* pathname, mode_t mode, dev_t dev);
 long getdents(int fd, void* dirp, size_t count);
+int dup(int oldfd);
+int dup2(int oldfd, int newfd);
 
 int socket(int domain, int type, int protocol);
 int bind(int sockfd, const sockaddr* addr, socklen_t addrlen);

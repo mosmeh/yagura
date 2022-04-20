@@ -12,6 +12,8 @@
     F(close)                                                                   \
     F(connect)                                                                 \
     F(dbgputs)                                                                 \
+    F(dup)                                                                     \
+    F(dup2)                                                                    \
     F(execve)                                                                  \
     F(exit)                                                                    \
     F(fork)                                                                    \

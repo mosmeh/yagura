@@ -18,7 +18,7 @@ uintptr_t sys_socket(int domain, int type, int protocol) {
     file_description* desc = fs_open((struct file*)socket, O_RDWR, 0);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    return process_alloc_file_descriptor(desc);
+    return process_alloc_file_descriptor(-1, desc);
 }
 
 uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
@@ -78,7 +78,7 @@ uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
         fs_open((struct file*)connector, O_RDWR, 0);
     if (IS_ERR(connector_desc))
         return PTR_ERR(connector_desc);
-    return process_alloc_file_descriptor(connector_desc);
+    return process_alloc_file_descriptor(-1, connector_desc);
 }
 
 uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
