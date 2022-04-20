@@ -15,6 +15,7 @@ OBJS := \
 	console/console.o \
 	console/psf.o \
 	console/tty.o \
+	fifo.o \
 	fs/fs.o \
 	fs/initrd.o \
 	fs/shmfs.o \

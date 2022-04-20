@@ -161,6 +161,11 @@ int dup2(int oldfd, int newfd) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int pipe(int pipefd[2]) {
+    int rc = syscall(SYS_pipe, (uintptr_t)pipefd, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 int socket(int domain, int type, int protocol) {
     int rc = syscall(SYS_socket, domain, type, protocol);
     RETURN_WITH_ERRNO(rc, int)

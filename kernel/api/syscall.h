@@ -29,6 +29,7 @@
     F(mmap)                                                                    \
     F(nanosleep)                                                               \
     F(open)                                                                    \
+    F(pipe)                                                                    \
     F(read)                                                                    \
     F(socket)                                                                  \
     F(waitpid)                                                                 \

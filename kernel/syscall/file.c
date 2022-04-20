@@ -3,6 +3,7 @@
 #include <kernel/api/stat.h>
 #include <kernel/fs/fs.h>
 #include <kernel/process.h>
+#include <kernel/system.h>
 
 uintptr_t sys_open(const char* pathname, int flags, unsigned mode) {
     file_description* desc = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
@@ -112,4 +113,36 @@ uintptr_t sys_dup2(int oldfd, int newfd) {
         return ret;
     ++oldfd_desc->ref_count;
     return ret;
+}
+
+uintptr_t sys_pipe(int fifofd[2]) {
+    struct fifo* fifo = fifo_create();
+
+    file_description* reader_desc = fs_open((struct file*)fifo, O_RDONLY, 0);
+    if (IS_ERR(reader_desc))
+        return PTR_ERR(reader_desc);
+
+    file_description* writer_desc = fs_open((struct file*)fifo, O_WRONLY, 0);
+    if (IS_ERR(writer_desc))
+        return PTR_ERR(writer_desc);
+
+    int reader_fd = process_alloc_file_descriptor(-1, reader_desc);
+    if (IS_ERR(reader_fd)) {
+        fs_close(reader_desc);
+        fs_close(writer_desc);
+        return reader_fd;
+    }
+
+    int writer_fd = process_alloc_file_descriptor(-1, writer_desc);
+    if (IS_ERR(writer_fd)) {
+        fs_close(reader_desc);
+        fs_close(writer_desc);
+        process_free_file_descriptor(reader_fd);
+        return writer_fd;
+    }
+
+    fifofd[0] = reader_fd;
+    fifofd[1] = writer_fd;
+
+    return 0;
 }
