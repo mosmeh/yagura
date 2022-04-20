@@ -5,7 +5,7 @@
 #include <kernel/fs/fs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
-#include <kernel/memory.h>
+#include <kernel/memory/memory.h>
 #include <kernel/multiboot.h>
 #include <stdbool.h>
 #include <string.h>

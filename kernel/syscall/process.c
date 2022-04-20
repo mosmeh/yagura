@@ -4,7 +4,7 @@
 #include <kernel/api/time.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
-#include <kernel/memory.h>
+#include <kernel/memory/memory.h>
 #include <kernel/process.h>
 #include <kernel/scheduler.h>
 #include <kernel/system.h>

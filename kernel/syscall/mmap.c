@@ -4,7 +4,7 @@
 #include <kernel/api/stat.h>
 #include <kernel/api/syscall.h>
 #include <kernel/boot_defs.h>
-#include <kernel/memory.h>
+#include <kernel/memory/memory.h>
 #include <kernel/process.h>
 #include <string.h>
 

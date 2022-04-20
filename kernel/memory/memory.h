@@ -1,6 +1,6 @@
 #pragma once
 
-#include "forward.h"
+#include <kernel/forward.h>
 #include <stdint.h>
 
 #define MEMORY_WRITE 0x2
@@ -28,3 +28,6 @@ int memory_map_to_physical_range(uintptr_t virtual_addr,
 uint16_t memory_prot_to_map_flags(int prot);
 
 uintptr_t memory_alloc_kernel_virtual_addr_range(uintptr_t size);
+
+void page_allocator_init(const multiboot_info_t* mb_info);
+uintptr_t page_allocator_alloc(void);

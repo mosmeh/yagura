@@ -3,6 +3,7 @@
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "memory.h"
+#include "memory/memory.h"
 #include "panic.h"
 #include "scheduler.h"
 #include "system.h"

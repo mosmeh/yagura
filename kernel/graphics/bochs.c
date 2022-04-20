@@ -7,7 +7,7 @@
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
 #include <kernel/lock.h>
-#include <kernel/memory.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/pci.h>
 #include <kernel/system.h>

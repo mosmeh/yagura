@@ -12,7 +12,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/kmalloc.h>
 #include <kernel/lock.h>
-#include <kernel/memory.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/scheduler.h>
 #include <string.h>

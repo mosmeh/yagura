@@ -7,6 +7,7 @@
 #include "kmalloc.h"
 #include "kprintf.h"
 #include "memory.h"
+#include "memory/memory.h"
 #include "multiboot.h"
 #include "panic.h"
 #include "process.h"

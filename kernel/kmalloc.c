@@ -3,6 +3,7 @@
 #include "boot_defs.h"
 #include "lock.h"
 #include "memory.h"
+#include "memory/memory.h"
 #include "panic.h"
 #include "system.h"
 #include <common/extra.h>
