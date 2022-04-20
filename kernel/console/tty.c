@@ -364,7 +364,7 @@ struct file* tty_device_create(void) {
     tty_device* dev = kmalloc(sizeof(tty_device));
     if (!dev)
         return ERR_PTR(-ENOMEM);
-    memset(dev, 0, sizeof(tty_device));
+    *dev = (tty_device){0};
     mutex_init(&dev->lock);
 
     struct file* file = (struct file*)dev;

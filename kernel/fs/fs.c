@@ -13,7 +13,8 @@ int file_descriptor_table_init(file_descriptor_table* table) {
     if (!table->entries)
         return -ENOMEM;
 
-    memset(table->entries, 0, FD_TABLE_CAPACITY * sizeof(file_description*));
+    for (size_t i = 0; i < FD_TABLE_CAPACITY; ++i)
+        table->entries[i] = NULL;
     return 0;
 }
 

@@ -121,7 +121,7 @@ struct fifo* fifo_create(void) {
     struct fifo* fifo = kmalloc(sizeof(struct fifo));
     if (!fifo)
         return ERR_PTR(-ENOMEM);
-    memset(fifo, 0, sizeof(struct fifo));
+    *fifo = (struct fifo){0};
 
     atomic_init(&fifo->num_readers, 0);
     atomic_init(&fifo->num_writers, 0);

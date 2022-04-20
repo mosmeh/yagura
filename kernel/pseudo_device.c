@@ -40,7 +40,7 @@ struct file* null_device_create(void) {
     struct file* file = kmalloc(sizeof(struct file));
     if (!file)
         return ERR_PTR(-ENOMEM);
-    memset(file, 0, sizeof(struct file));
+    *file = (struct file){0};
 
     file->name = kstrdup("null_device");
     if (!file->name)
@@ -57,7 +57,7 @@ struct file* zero_device_create(void) {
     struct file* file = kmalloc(sizeof(struct file));
     if (!file)
         return ERR_PTR(-ENOMEM);
-    memset(file, 0, sizeof(struct file));
+    *file = (struct file){0};
 
     file->name = kstrdup("zero_device");
     if (!file->name)
@@ -74,7 +74,7 @@ struct file* full_device_create(void) {
     struct file* file = kmalloc(sizeof(struct file));
     if (!file)
         return ERR_PTR(-ENOMEM);
-    memset(file, 0, sizeof(struct file));
+    *file = (struct file){0};
 
     file->name = kstrdup("full_device");
     if (!file->name)

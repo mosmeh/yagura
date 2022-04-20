@@ -28,7 +28,7 @@ void process_init(void) {
 
     current = kaligned_alloc(alignof(process), sizeof(process));
     ASSERT(current);
-    memset(current, 0, sizeof(process));
+    *current = (process){0};
     current->id = process_generate_next_pid();
     current->fpu_state = initial_fpu_state;
     current->pd =
@@ -47,7 +47,7 @@ process* process_create_kernel_process(void (*entry_point)(void)) {
     process* p = kaligned_alloc(alignof(process), sizeof(process));
     if (!p)
         return ERR_PTR(-ENOMEM);
-    memset(p, 0, sizeof(process));
+    *p = (process){0};
 
     p->id = process_generate_next_pid();
     p->eip = (uintptr_t)entry_point;

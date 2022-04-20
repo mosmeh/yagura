@@ -58,7 +58,8 @@ static struct file* shmfs_create_child(struct file* file, const char* name,
     shmfs_node* child = kmalloc(sizeof(shmfs_node));
     if (!child)
         return ERR_PTR(-ENOMEM);
-    memset(child, 0, sizeof(shmfs_node));
+    *child = (shmfs_node){0};
+
     struct file* child_file = (struct file*)child;
     child_file->name = kstrdup(name);
     if (!child_file->name)
@@ -74,7 +75,8 @@ struct file* shmfs_create_root(void) {
     shmfs_node* node = kmalloc(sizeof(shmfs_node));
     if (!node)
         return ERR_PTR(-ENOMEM);
-    memset(node, 0, sizeof(shmfs_node));
+    *node = (shmfs_node){0};
+
     struct file* file = (struct file*)node;
     file->name = kstrdup("shmfs");
     if (!file->name)

@@ -7,7 +7,6 @@
 #define BUF_CAPACITY 1024
 
 int ring_buf_init(ring_buf* buf) {
-    memset(buf, 0, sizeof(ring_buf));
     mutex_init(&buf->lock);
     buf->inner_buf = kmalloc(BUF_CAPACITY);
     if (!buf->inner_buf)

@@ -78,7 +78,7 @@ unix_socket* unix_socket_create(void) {
     unix_socket* socket = kmalloc(sizeof(unix_socket));
     if (!socket)
         return ERR_PTR(-ENOMEM);
-    memset(socket, 0, sizeof(unix_socket));
+    *socket = (unix_socket){0};
 
     struct file* file = &socket->base_file;
     file->mode = S_IFSOCK;

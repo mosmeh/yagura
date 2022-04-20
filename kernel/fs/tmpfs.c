@@ -78,7 +78,8 @@ static struct file* tmpfs_create_child(struct file* file, const char* name,
     tmpfs_node* child = kmalloc(sizeof(tmpfs_node));
     if (!child)
         return ERR_PTR(-ENOMEM);
-    memset(child, 0, sizeof(tmpfs_node));
+    *child = (tmpfs_node){0};
+
     struct file* child_file = (struct file*)child;
     child_file->name = kstrdup(name);
     if (!child_file->name)
@@ -101,7 +102,8 @@ struct file* tmpfs_create_root(void) {
     tmpfs_node* root = kmalloc(sizeof(tmpfs_node));
     if (!root)
         return ERR_PTR(-ENOMEM);
-    memset(root, 0, sizeof(tmpfs_node));
+    *root = (tmpfs_node){0};
+
     struct file* file = (struct file*)root;
     file->name = kstrdup("tmpfs");
     if (!file->name)

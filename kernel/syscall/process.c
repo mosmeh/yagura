@@ -25,7 +25,7 @@ uintptr_t sys_fork(registers* regs) {
     process* p = kaligned_alloc(alignof(process), sizeof(process));
     if (!p)
         return -ENOMEM;
-    memset(p, 0, sizeof(process));
+    *p = (process){0};
 
     p->pd = mem_clone_current_page_directory();
     if (IS_ERR(p->pd))

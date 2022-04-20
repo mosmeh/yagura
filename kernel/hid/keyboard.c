@@ -155,8 +155,7 @@ struct file* ps2_keyboard_device_create(void) {
     struct file* file = kmalloc(sizeof(struct file));
     if (!file)
         return ERR_PTR(-ENOMEM);
-
-    memset(file, 0, sizeof(struct file));
+    *file = (struct file){0};
 
     file->name = kstrdup("ps2_keyboard_device");
     if (!file->name)

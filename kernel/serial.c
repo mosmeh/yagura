@@ -93,7 +93,8 @@ struct file* serial_device_create(uint16_t port) {
     serial_device* dev = kmalloc(sizeof(serial_device));
     if (!dev)
         return ERR_PTR(-ENOMEM);
-    memset(dev, 0, sizeof(serial_device));
+    *dev = (serial_device){0};
+
     dev->port = port;
     mutex_init(&dev->lock);
 

@@ -4,6 +4,7 @@
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/fs/fs.h>
+#include <string.h>
 
 static struct font* load_psf1(const char* filename) {
     file_description* desc = vfs_open(filename, O_RDONLY, 0);
@@ -33,6 +34,7 @@ static struct font* load_psf1(const char* filename) {
         return ERR_PTR(-EINVAL);
 
     if (header.mode & PSF1_MODEHASTAB) {
+        memset(font->ascii_to_glyph, 0, sizeof(font->ascii_to_glyph));
         for (size_t i = 0; i < num_glyphs; ++i) {
             for (;;) {
                 uint16_t uc;
@@ -85,6 +87,7 @@ static struct font* load_psf2(const char* filename) {
         return ERR_PTR(-EINVAL);
 
     if (header.flags & PSF2_HAS_UNICODE_TABLE) {
+        memset(font->ascii_to_glyph, 0, sizeof(font->ascii_to_glyph));
         for (size_t i = 0; i < header.numglyph; ++i) {
             for (;;) {
                 uint8_t uc;
