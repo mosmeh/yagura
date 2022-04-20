@@ -73,22 +73,25 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     if (!pathname || !argv || !envp)
         return -EFAULT;
 
+    struct stat stat;
+    int rc = vfs_stat(pathname, &stat);
+    if (IS_ERR(rc))
+        return rc;
+    if (!S_ISREG(stat.st_mode))
+        return -EACCES;
+    if ((size_t)stat.st_size < sizeof(Elf32_Ehdr))
+        return -ENOEXEC;
+
     file_description* desc = vfs_open(pathname, O_RDONLY, 0);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    if (!S_ISREG(desc->file->mode))
-        return -EACCES;
 
-    void* buf = kmalloc(65536);
+    void* buf = kmalloc(stat.st_size);
     if (!buf)
         return -ENOMEM;
-    ssize_t nread = fs_read(desc, buf, 65536);
+    ssize_t nread = fs_read(desc, buf, stat.st_size);
     if (IS_ERR(nread))
         return nread;
-    if ((size_t)nread < sizeof(Elf32_Ehdr))
-        return -ENOEXEC;
-    if (nread >= 65536)
-        UNIMPLEMENTED();
 
     Elf32_Ehdr* ehdr = (Elf32_Ehdr*)buf;
     if (!IS_ELF(*ehdr) || ehdr->e_ident[EI_CLASS] != ELFCLASS32 ||
