@@ -106,60 +106,6 @@ static volatile page_table* get_page_table(size_t pd_idx) {
     return (volatile page_table*)(0xffc00000 + PAGE_SIZE * pd_idx);
 }
 
-// quickmap temporarily maps a physical page to the fixed virtual address,
-// which is at the final page of the kernel page directory
-
-#define QUICKMAP_VADDR (KERNEL_VADDR + PAGE_SIZE * 1023)
-
-static uintptr_t quickmap(uintptr_t paddr, uint32_t flags) {
-    volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
-    volatile page_table_entry* pte = pt->entries + 1023;
-    ASSERT(pte->raw == 0);
-    pte->raw = paddr | flags;
-    pte->present = true;
-    flush_tlb_single(QUICKMAP_VADDR);
-    return QUICKMAP_VADDR;
-}
-
-static void unquickmap(void) {
-    volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
-    volatile page_table_entry* pte = pt->entries + 1023;
-    ASSERT(pte->present);
-    pte->raw = 0;
-    flush_tlb_single(QUICKMAP_VADDR);
-}
-
-static page_table* clone_page_table(const volatile page_table* src,
-                                    uintptr_t src_vaddr) {
-    page_table* dst = kaligned_alloc(PAGE_SIZE, sizeof(page_table));
-    if (!dst)
-        return ERR_PTR(-ENOMEM);
-
-    for (size_t i = 0; i < 1024; ++i) {
-        if (!src->entries[i].present) {
-            dst->entries[i].raw = 0;
-            continue;
-        }
-
-        if (src->entries[i].raw & MEM_SHARED) {
-            dst->entries[i].raw = src->entries[i].raw;
-            continue;
-        }
-
-        uintptr_t dst_physical_addr = alloc_physical_page();
-        if (IS_ERR(dst_physical_addr))
-            return ERR_CAST(dst_physical_addr);
-
-        dst->entries[i].raw = dst_physical_addr | (src->entries[i].raw & 0xfff);
-
-        uintptr_t mapped_dst_page = quickmap(dst_physical_addr, MEM_WRITE);
-        memcpy((void*)mapped_dst_page, (void*)(src_vaddr + PAGE_SIZE * i),
-               PAGE_SIZE);
-        unquickmap();
-    }
-    return dst;
-}
-
 static volatile page_table* get_or_create_page_table(uintptr_t vaddr) {
     size_t pd_idx = vaddr >> 22;
 
@@ -333,12 +279,72 @@ page_directory* mem_create_page_directory(void) {
     return dst;
 }
 
+// quickmap temporarily maps a physical page to the fixed virtual address,
+// which is at the final page of the kernel page directory
+
+#define QUICKMAP_VADDR (KERNEL_VADDR + PAGE_SIZE * 1023)
+
+// this is locked in mem_clone_current_page_directory
+static mutex quickmap_lock;
+
+static uintptr_t quickmap(uintptr_t paddr, uint32_t flags) {
+    volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
+    volatile page_table_entry* pte = pt->entries + 1023;
+    ASSERT(pte->raw == 0);
+    pte->raw = paddr | flags;
+    pte->present = true;
+    flush_tlb_single(QUICKMAP_VADDR);
+    return QUICKMAP_VADDR;
+}
+
+static void unquickmap(void) {
+    volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
+    volatile page_table_entry* pte = pt->entries + 1023;
+    ASSERT(pte->present);
+    pte->raw = 0;
+    flush_tlb_single(QUICKMAP_VADDR);
+}
+
+static page_table* clone_page_table(const volatile page_table* src,
+                                    uintptr_t src_vaddr) {
+    page_table* dst = kaligned_alloc(PAGE_SIZE, sizeof(page_table));
+    if (!dst)
+        return ERR_PTR(-ENOMEM);
+
+    for (size_t i = 0; i < 1024; ++i) {
+        if (!src->entries[i].present) {
+            dst->entries[i].raw = 0;
+            continue;
+        }
+
+        if (src->entries[i].raw & MEM_SHARED) {
+            dst->entries[i].raw = src->entries[i].raw;
+            continue;
+        }
+
+        uintptr_t dst_physical_addr = alloc_physical_page();
+        if (IS_ERR(dst_physical_addr))
+            return ERR_CAST(dst_physical_addr);
+
+        dst->entries[i].raw = dst_physical_addr | (src->entries[i].raw & 0xfff);
+
+        uintptr_t mapped_dst_page = quickmap(dst_physical_addr, MEM_WRITE);
+        memcpy((void*)mapped_dst_page, (void*)(src_vaddr + PAGE_SIZE * i),
+               PAGE_SIZE);
+        unquickmap();
+    }
+    return dst;
+}
+
 page_directory* mem_clone_current_page_directory(void) {
     page_directory* dst = mem_create_page_directory();
     if (IS_ERR(dst))
         return dst;
 
-    // userland
+    // copy userland region
+
+    mutex_lock(&quickmap_lock);
+
     for (size_t i = 0; i < KERNEL_PDE_IDX; ++i) {
         if (!current_pd->entries[i].present) {
             dst->entries[i].raw = 0;
@@ -347,12 +353,16 @@ page_directory* mem_clone_current_page_directory(void) {
 
         volatile page_table* pt = get_page_table(i);
         page_table* cloned_pt = clone_page_table(pt, i * 0x400000);
-        if (IS_ERR(cloned_pt))
+        if (IS_ERR(cloned_pt)) {
+            mutex_unlock(&quickmap_lock);
             return ERR_CAST(cloned_pt);
+        }
 
         dst->entries[i].raw = mem_to_physical_addr((uintptr_t)cloned_pt) |
                               (current_pd->entries[i].raw & 0xfff);
     }
+
+    mutex_unlock(&quickmap_lock);
 
     return dst;
 }
