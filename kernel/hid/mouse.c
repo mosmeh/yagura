@@ -21,8 +21,8 @@ static uint8_t buf[3];
 static size_t state = 0;
 
 static mouse_packet queue[QUEUE_SIZE];
-static size_t queue_head = 0;
-static size_t queue_tail = 0;
+static size_t queue_read_idx = 0;
+static size_t queue_write_idx = 0;
 
 static void irq_handler(registers* reg) {
     (void)reg;
@@ -47,8 +47,8 @@ static void irq_handler(registers* reg) {
         if (buf[0] & 0xc0)
             dx = dy = 0;
 
-        queue[queue_tail] = (mouse_packet){dx, dy, buf[0] & 7};
-        queue_tail = (queue_tail + 1) % QUEUE_SIZE;
+        queue[queue_write_idx] = (mouse_packet){dx, dy, buf[0] & 7};
+        queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
 
         state = 0;
         return;
@@ -66,7 +66,7 @@ void ps2_mouse_init(void) {
 
 static bool read_should_unblock(void) {
     bool int_flag = push_cli();
-    bool should_unblock = queue_head != queue_tail;
+    bool should_unblock = queue_read_idx != queue_write_idx;
     pop_cli(int_flag);
     return should_unblock;
 }
@@ -82,12 +82,12 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
     bool int_flag = push_cli();
 
     while (count > 0) {
-        if (queue_head == queue_tail || count < sizeof(mouse_packet))
+        if (queue_read_idx == queue_write_idx || count < sizeof(mouse_packet))
             break;
-        *out++ = queue[queue_head];
+        *out++ = queue[queue_read_idx];
         nread += sizeof(mouse_packet);
         count -= sizeof(mouse_packet);
-        queue_head = (queue_head + 1) % QUEUE_SIZE;
+        queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
     }
 
     pop_cli(int_flag);

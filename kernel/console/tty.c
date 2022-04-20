@@ -299,14 +299,14 @@ void tty_init(void) {
 #define QUEUE_SIZE 1024
 
 static char queue[QUEUE_SIZE];
-static size_t queue_head = 0;
-static size_t queue_tail = 0;
+static size_t queue_read_idx = 0;
+static size_t queue_write_idx = 0;
 
 void tty_on_key(const key_event* event) {
     if (event->pressed && event->key &&
         !(event->modifiers & ~KEY_MODIFIER_SHIFT)) {
-        queue[queue_tail] = event->key;
-        queue_tail = (queue_tail + 1) % QUEUE_SIZE;
+        queue[queue_write_idx] = event->key;
+        queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
     }
 }
 
@@ -317,7 +317,7 @@ typedef struct tty_device {
 
 static bool read_should_unblock(void) {
     bool int_flag = push_cli();
-    bool should_unblock = queue_head != queue_tail;
+    bool should_unblock = queue_read_idx != queue_write_idx;
     pop_cli(int_flag);
     return should_unblock;
 }
@@ -333,12 +333,12 @@ static ssize_t tty_device_read(file_description* desc, void* buffer,
     bool int_flag = push_cli();
 
     while (count > 0) {
-        if (queue_head == queue_tail)
+        if (queue_read_idx == queue_write_idx)
             break;
-        *out++ = queue[queue_head];
+        *out++ = queue[queue_read_idx];
         ++nread;
         --count;
-        queue_head = (queue_head + 1) % QUEUE_SIZE;
+        queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
     }
 
     pop_cli(int_flag);

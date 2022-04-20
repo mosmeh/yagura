@@ -49,8 +49,8 @@ static void set_state(uint8_t which, bool pressed) {
 }
 
 static key_event queue[QUEUE_SIZE];
-static size_t queue_head = 0;
-static size_t queue_tail = 0;
+static size_t queue_read_idx = 0;
+static size_t queue_write_idx = 0;
 
 static void irq_handler(registers* reg) {
     (void)reg;
@@ -101,8 +101,8 @@ static void irq_handler(registers* reg) {
                              ? scancode_to_shifted_key
                              : scancode_to_key;
 
-    key_event* event = queue + queue_tail;
-    queue_tail = (queue_tail + 1) % QUEUE_SIZE;
+    key_event* event = queue + queue_write_idx;
+    queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
 
     event->scancode = ch;
     if (received_e0)
@@ -122,7 +122,7 @@ void ps2_keyboard_init(void) {
 
 static bool read_should_unblock(void) {
     bool int_flag = push_cli();
-    bool should_unblock = queue_head != queue_tail;
+    bool should_unblock = queue_read_idx != queue_write_idx;
     pop_cli(int_flag);
     return should_unblock;
 }
@@ -138,12 +138,12 @@ static ssize_t ps2_keyboard_device_read(file_description* desc, void* buffer,
     bool int_flag = push_cli();
 
     while (count > 0) {
-        if (queue_head == queue_tail || count < sizeof(key_event))
+        if (queue_read_idx == queue_write_idx || count < sizeof(key_event))
             break;
-        *out++ = queue[queue_head];
+        *out++ = queue[queue_read_idx];
         nread += sizeof(key_event);
         count -= sizeof(key_event);
-        queue_head = (queue_head + 1) % QUEUE_SIZE;
+        queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
     }
 
     pop_cli(int_flag);
