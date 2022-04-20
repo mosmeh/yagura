@@ -33,6 +33,7 @@
     F(read)                                                                    \
     F(socket)                                                                  \
     F(stat)                                                                    \
+    F(times)                                                                   \
     F(waitpid)                                                                 \
     F(write)                                                                   \
     F(yield)

@@ -109,6 +109,13 @@ noreturn void process_exit(int status) {
     UNREACHABLE();
 }
 
+void process_tick(bool in_kernel) {
+    if (in_kernel)
+        ++current->kernel_ticks;
+    else
+        ++current->user_ticks;
+}
+
 uintptr_t process_alloc_user_virtual_addr_range(uintptr_t size) {
     uintptr_t current_ptr = current->heap_next_vaddr;
     uintptr_t aligned_ptr = round_up(current_ptr, PAGE_SIZE);

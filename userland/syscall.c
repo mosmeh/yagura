@@ -56,6 +56,11 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
     RETURN_WITH_ERRNO(rc, pid_t)
 }
 
+clock_t times(struct tms* buf) {
+    int rc = syscall(SYS_times, (uintptr_t)buf, 0, 0);
+    RETURN_WITH_ERRNO(rc, clock_t)
+}
+
 int nanosleep(const struct timespec* req, struct timespec* rem) {
     int rc = syscall(SYS_nanosleep, (uintptr_t)req, (uintptr_t)rem, 0);
     RETURN_WITH_ERRNO(rc, int)

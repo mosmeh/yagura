@@ -2,6 +2,7 @@
 #include <kernel/api/err.h>
 #include <kernel/api/stat.h>
 #include <kernel/api/time.h>
+#include <kernel/api/times.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/memory/memory.h>
@@ -33,12 +34,15 @@ uintptr_t sys_fork(registers* regs) {
 
     p->id = process_generate_next_pid();
     p->eip = (uintptr_t)return_to_userland;
-    p->heap_next_vaddr = current->heap_next_vaddr;
-    p->fpu_state = current->fpu_state;
     p->ebx = current->ebx;
     p->esi = current->esi;
     p->edi = current->edi;
-    p->next = NULL;
+    p->fpu_state = current->fpu_state;
+
+    p->heap_next_vaddr = current->heap_next_vaddr;
+
+    p->user_ticks = current->user_ticks;
+    p->kernel_ticks = current->kernel_ticks;
 
     p->cwd = kstrdup(current->cwd);
     if (!p->cwd)
@@ -75,6 +79,12 @@ pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
         return -ENOTSUP;
     scheduler_block(waitpid_should_unblock, &pid);
     return pid;
+}
+
+uintptr_t sys_times(struct tms* buf) {
+    buf->tms_utime = current->user_ticks;
+    buf->tms_stime = current->kernel_ticks;
+    return uptime;
 }
 
 static bool sleep_should_unblock(const uint32_t* deadline) {

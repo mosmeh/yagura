@@ -2,6 +2,7 @@
 #include "asm_wrapper.h"
 #include "interrupts.h"
 #include "panic.h"
+#include "process.h"
 #include "scheduler.h"
 
 #define TIMER0_CTL 0x40
@@ -17,6 +18,7 @@ static void pit_handler(registers* regs) {
     (void)regs;
     ASSERT(!interrupts_enabled());
     ++uptime;
+    process_tick((regs->cs & 3) == 0);
     scheduler_yield(true);
 }
 

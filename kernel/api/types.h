@@ -9,3 +9,4 @@ typedef uint16_t mode_t;
 typedef int32_t ssize_t;
 typedef int32_t pid_t;
 typedef uint32_t time_t;
+typedef uint32_t clock_t;

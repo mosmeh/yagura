@@ -3,6 +3,7 @@
 #include <kernel/api/socket.h>
 #include <kernel/api/stat.h>
 #include <kernel/api/time.h>
+#include <kernel/api/times.h>
 #include <kernel/api/types.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -16,6 +17,7 @@ pid_t getpid(void);
 int sched_yield(void);
 int execve(const char* pathname, char* const argv[], char* const envp[]);
 pid_t waitpid(pid_t pid, int* wstatus, int options);
+clock_t times(struct tms* buf);
 int nanosleep(const struct timespec* req, struct timespec* rem);
 char* getcwd(char* buf, size_t size);
 int chdir(const char* path);

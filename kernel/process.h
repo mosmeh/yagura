@@ -19,6 +19,9 @@ typedef struct process {
     bool (*should_unblock)(void*);
     void* blocker_data;
 
+    size_t user_ticks;
+    size_t kernel_ticks;
+
     struct process* next; // for ready_queue or blocked_processes
 } process;
 
@@ -32,6 +35,8 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void));
 
 pid_t process_generate_next_pid(void);
 noreturn void process_exit(int status);
+
+void process_tick(bool in_kernel);
 
 uintptr_t process_alloc_user_virtual_addr_range(uintptr_t size);
 
