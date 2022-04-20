@@ -43,7 +43,7 @@ static uint32_t swap_bytes(uint32_t x) {
 
 int main(int argc, char* const argv[]) {
     if (argc < 2) {
-        dprintf(2, "Usage: view FILE\n");
+        dprintf(2, "Usage: imgview FILE\n");
         return EXIT_FAILURE;
     }
 

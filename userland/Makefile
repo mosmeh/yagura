@@ -15,6 +15,7 @@ TARGET_NAMES := \
 	echo \
 	env \
 	fs-test \
+	imgview \
 	init \
 	ls \
 	mandelbrot \
@@ -23,8 +24,7 @@ TARGET_NAMES := \
 	sh \
 	sleep \
 	socket-test \
-	touch \
-	view
+	touch
 OUTDIR := ../base/bin
 
 TARGETS := $(TARGET_NAMES:%=$(OUTDIR)/%)
