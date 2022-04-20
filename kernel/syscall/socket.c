@@ -15,12 +15,9 @@ uintptr_t sys_socket(int domain, int type, int protocol) {
     unix_socket* socket = unix_socket_create();
     if (IS_ERR(socket))
         return PTR_ERR(socket);
-    file_description* desc = kmalloc(sizeof(file_description));
-    if (!desc)
-        return -ENOMEM;
-    desc->file = (struct file*)socket;
-    desc->offset = 0;
-    desc->flags = O_RDWR;
+    file_description* desc = fs_open((struct file*)socket, O_RDWR, 0);
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
     return process_alloc_file_descriptor(desc);
 }
 
@@ -77,12 +74,10 @@ uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
 
     unix_socket* listener = (unix_socket*)desc->file;
     unix_socket* connector = unix_socket_accept(listener);
-    file_description* connector_desc = kmalloc(sizeof(file_description));
-    if (!connector_desc)
-        return -ENOMEM;
-    connector_desc->file = (struct file*)connector;
-    connector_desc->offset = 0;
-    connector_desc->flags = O_RDWR;
+    file_description* connector_desc =
+        fs_open((struct file*)connector, O_RDWR, 0);
+    if (IS_ERR(connector_desc))
+        return PTR_ERR(connector_desc);
     return process_alloc_file_descriptor(connector_desc);
 }
 

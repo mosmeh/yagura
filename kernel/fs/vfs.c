@@ -320,17 +320,7 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
         file = device_file;
     }
 
-    int rc = fs_open(file, flags, mode);
-    if (IS_ERR(rc))
-        return ERR_PTR(rc);
-
-    file_description* desc = kmalloc(sizeof(file_description));
-    if (!desc)
-        return ERR_PTR(-ENOMEM);
-    desc->file = file;
-    desc->offset = 0;
-    desc->flags = flags;
-    return desc;
+    return fs_open(file, flags, mode);
 }
 
 struct file* vfs_create(const char* pathname, mode_t mode) {

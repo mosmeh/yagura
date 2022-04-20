@@ -23,16 +23,12 @@ int file_descriptor_table_clone_from(file_descriptor_table* to,
     if (!to->entries)
         return -ENOMEM;
 
+    memcpy(to->entries, from->entries,
+           FD_TABLE_CAPACITY * sizeof(file_description*));
+
     for (size_t i = 0; i < FD_TABLE_CAPACITY; ++i) {
-        if (from->entries[i]) {
-            file_description* dst = kmalloc(sizeof(file_description));
-            if (!dst)
-                return -ENOMEM;
-            *dst = *from->entries[i];
-            to->entries[i] = dst;
-        } else {
-            to->entries[i] = NULL;
-        }
+        if (from->entries[i])
+            ++from->entries[i]->ref_count;
     }
     return 0;
 }
@@ -50,13 +46,26 @@ struct file* fs_create_child(struct file* file, const char* name, mode_t mode) {
     return file->create_child(file, name, mode);
 }
 
-int fs_open(struct file* file, int flags, mode_t mode) {
-    if (file->open)
-        return file->open(file, flags, mode);
-    return 0;
+file_description* fs_open(struct file* file, int flags, mode_t mode) {
+    if (file->open) {
+        int rc = file->open(file, flags, mode);
+        if (IS_ERR(rc))
+            return ERR_PTR(rc);
+    }
+    file_description* desc = kmalloc(sizeof(file_description));
+    if (!desc)
+        return ERR_PTR(-ENOMEM);
+    desc->file = file;
+    desc->offset = 0;
+    desc->flags = flags;
+    desc->ref_count = 1;
+    return desc;
 }
 
 int fs_close(file_description* desc) {
+    ASSERT(desc->ref_count > 0);
+    if (--desc->ref_count > 0)
+        return 0;
     struct file* file = desc->file;
     if (file->close)
         return file->close(desc);

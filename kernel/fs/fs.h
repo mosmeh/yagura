@@ -15,6 +15,7 @@ typedef struct file_description {
     struct file* file;
     off_t offset;
     int flags;
+    size_t ref_count;
 } file_description;
 
 typedef struct file_descriptor_table {
@@ -59,7 +60,7 @@ struct file {
 
 struct file* fs_lookup(struct file*, const char* name);
 struct file* fs_create_child(struct file*, const char* name, mode_t mode);
-int fs_open(struct file*, int flags, mode_t mode);
+file_description* fs_open(struct file*, int flags, mode_t mode);
 
 int fs_close(file_description*);
 ssize_t fs_read(file_description*, void* buffer, size_t count);
