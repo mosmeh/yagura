@@ -18,6 +18,7 @@ uintptr_t memory_virtual_to_physical_addr(uintptr_t virtual_addr);
 page_directory* memory_current_page_directory(void);
 page_directory* memory_create_page_directory(void);
 page_directory* memory_clone_current_page_directory(void);
+void memory_destroy_current_page_directory(void);
 void memory_switch_page_directory(page_directory* pd);
 
 int memory_map_to_anonymous_region(uintptr_t virtual_addr, uintptr_t size,
@@ -31,3 +32,5 @@ uintptr_t memory_alloc_kernel_virtual_addr_range(uintptr_t size);
 
 void page_allocator_init(const multiboot_info_t* mb_info);
 uintptr_t page_allocator_alloc(void);
+void page_allocator_ref_page(uintptr_t physical_addr);
+void page_allocator_unref_page(uintptr_t physical_addr);

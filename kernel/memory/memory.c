@@ -124,6 +124,9 @@ static int map_page_at_fixed_physical_addr(uintptr_t vaddr, uintptr_t paddr,
 
     volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
     ASSERT(!pte->present);
+
+    page_allocator_ref_page(paddr);
+
     pte->raw = paddr | flags;
     pte->present = true;
     flush_tlb_single(vaddr);
@@ -189,6 +192,7 @@ static page_table* clone_page_table(const volatile page_table* src,
 
         if (src->entries[i].raw & MEMORY_SHARED) {
             dst->entries[i].raw = src->entries[i].raw;
+            page_allocator_ref_page(src->entries[i].raw & ~0xfff);
             continue;
         }
 
@@ -236,6 +240,22 @@ page_directory* memory_clone_current_page_directory(void) {
     mutex_unlock(&quickmap_lock);
 
     return dst;
+}
+
+static void destroy_page_table(volatile page_table* pt) {
+    for (size_t i = 0; i < 1024; ++i) {
+        if (!pt->entries[i].present)
+            continue;
+        page_allocator_unref_page(pt->entries[i].raw & ~0xfff);
+    }
+}
+
+void memory_destroy_current_page_directory(void) {
+    for (size_t i = 0; i < KERNEL_PDE_IDX; ++i) {
+        if (!current_pd->entries[i].present)
+            continue;
+        destroy_page_table(get_page_table(i));
+    }
 }
 
 void memory_switch_page_directory(page_directory* pd) {

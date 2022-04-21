@@ -6,13 +6,20 @@
 #include <kernel/lock.h>
 #include <kernel/multiboot.h>
 #include <kernel/panic.h>
+#include <stdbool.h>
 
 #define MAX_NUM_PAGES (1024 * 1024)
 #define BITMAP_MAX_LEN (MAX_NUM_PAGES / 32)
 
 static size_t bitmap_len;
 static uint32_t bitmap[BITMAP_MAX_LEN];
+static uint8_t ref_counts[MAX_NUM_PAGES];
 static mutex lock;
+
+static bool bitmap_get(size_t i) {
+    ASSERT((i >> 5) < bitmap_len);
+    return bitmap[i >> 5] & (1 << (i & 31));
+}
 
 static void bitmap_set(size_t i) {
     ASSERT((i >> 5) < bitmap_len);
@@ -113,9 +120,15 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
     }
 
     size_t num_pages = 0;
-    for (size_t i = 0; i < bitmap_len; ++i) {
-        for (size_t b = 0; b < 32; ++b)
-            num_pages += (bitmap[i] >> b) & 1;
+    for (size_t i = 0; i < bitmap_len * 32; ++i) {
+        if (bitmap_get(i)) {
+            ++num_pages;
+        } else {
+            // By setting initial reference counts to be non-zero values,
+            // the reference counts of these pages will never reach zero,
+            // avoiding accidentaly marking the pages available for allocation.
+            ref_counts[i] = UINT8_MAX;
+        }
     }
     kprintf("#Physical pages: %u (%u MiB)\n", num_pages,
             num_pages * PAGE_SIZE / 0x100000);
@@ -147,7 +160,41 @@ uintptr_t page_allocator_alloc(void) {
     }
 
     bitmap_clear(first_set);
+    ASSERT(ref_counts[first_set] == 0);
+    ref_counts[first_set] = 1;
 
     mutex_unlock(&lock);
     return first_set * PAGE_SIZE;
+}
+
+void page_allocator_ref_page(uintptr_t physical_addr) {
+    ASSERT(physical_addr % PAGE_SIZE == 0);
+    size_t idx = physical_addr / PAGE_SIZE;
+
+    mutex_lock(&lock);
+
+    if (ref_counts[idx] < UINT8_MAX)
+        ++ref_counts[idx];
+
+    mutex_unlock(&lock);
+}
+
+void page_allocator_unref_page(uintptr_t physical_addr) {
+    ASSERT(physical_addr % PAGE_SIZE == 0);
+    size_t idx = physical_addr / PAGE_SIZE;
+
+    mutex_lock(&lock);
+
+    ASSERT(ref_counts[idx] > 0);
+
+    // When the reference count is UINT8_MAX, we can't tell whether it actually
+    // has exactly UINT8_MAX references or the count was saturated.
+    // To be safe, we never decrement the reference count if count == UINT8_MAX
+    // assuming the count was saturated.
+    if (ref_counts[idx] < UINT8_MAX) {
+        if (--ref_counts[idx] == 0)
+            bitmap_set(idx);
+    }
+
+    mutex_unlock(&lock);
 }
