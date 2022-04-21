@@ -117,6 +117,7 @@ static void irq_handler(registers* reg) {
 }
 
 void ps2_keyboard_init(void) {
+    ps2_write(PS2_COMMAND, PS2_ENABLE_PORT1);
     idt_register_interrupt_handler(IRQ(1), irq_handler);
 }
 

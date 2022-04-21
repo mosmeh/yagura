@@ -58,9 +58,9 @@ static void irq_handler(registers* reg) {
 }
 
 void ps2_mouse_init(void) {
+    ps2_write(PS2_COMMAND, PS2_ENABLE_PORT2);
     write_mouse(PS2_MOUSE_SET_DEFAULTS);
     write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
-
     idt_register_interrupt_handler(IRQ(12), irq_handler);
 }
 

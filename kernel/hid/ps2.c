@@ -7,13 +7,11 @@ void ps2_init(void) {
     ps2_write(PS2_COMMAND, PS2_DISABLE_PORT1);
     ps2_write(PS2_COMMAND, PS2_DISABLE_PORT2);
 
-    ps2_write(PS2_COMMAND, 0x20); // read config
+    ps2_write(PS2_COMMAND, PS2_READ_CONFIG);
     uint8_t config = ps2_read(PS2_DATA);
-    ps2_write(PS2_COMMAND, 0x60);    // write config
-    ps2_write(PS2_DATA, config | 3); // enable IRQ1 and IRQ12
-
-    ps2_write(PS2_COMMAND, PS2_ENABLE_PORT1);
-    ps2_write(PS2_COMMAND, PS2_ENABLE_PORT2);
+    config |= PS2_INTERRUPT_PORT1 | PS2_INTERRUPT_PORT2;
+    ps2_write(PS2_COMMAND, PS2_WRITE_CONFIG);
+    ps2_write(PS2_DATA, config);
 
     ps2_keyboard_init();
     ps2_mouse_init();
