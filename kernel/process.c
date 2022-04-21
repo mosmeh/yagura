@@ -93,11 +93,15 @@ noreturn void process_exit(int status) {
     if (status != 0)
         kprintf("\x1b[31mProcess %d exited with status %d\x1b[m\n", current->id,
                 status);
+
     file_description** it = current->fd_table.entries;
     for (int i = 0; i < FD_TABLE_CAPACITY; ++i, ++it) {
         if (*it)
             fs_close(*it);
     }
+
+    memory_destroy_current_page_directory();
+
     scheduler_yield(false);
     UNREACHABLE();
 }
