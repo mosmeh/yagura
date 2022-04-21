@@ -1,15 +1,25 @@
 #include "syscall.h"
 #include <kernel/api/errno.h>
+#include <kernel/api/reboot.h>
 #include <kernel/interrupts.h>
 #include <kernel/kprintf.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
 
-noreturn uintptr_t sys_halt(void) {
-    kprintf("System halted\n");
-    cli();
-    for (;;)
-        hlt();
+uintptr_t sys_reboot(int howto) {
+    switch (howto) {
+    case RB_AUTOBOOT:
+        kputs("Restarting system.\n");
+        reboot();
+    case RB_HALT:
+        kputs("System halted.\n");
+        halt();
+    case RB_POWEROFF:
+        kputs("Power down.\n");
+        poweroff();
+    default:
+        return -1;
+    }
 }
 
 uintptr_t sys_dbgputs(const char* str) { return kputs(str); }

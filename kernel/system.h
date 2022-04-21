@@ -2,6 +2,7 @@
 
 #include <stdalign.h>
 #include <stdint.h>
+#include <stdnoreturn.h>
 
 typedef struct registers {
     uint32_t ss, gs, fs, es, ds;
@@ -23,6 +24,10 @@ void syscall_init(void);
 
 extern uint32_t uptime;
 void pit_init(void);
+
+noreturn void reboot(void);
+noreturn void halt(void);
+noreturn void poweroff(void);
 
 struct file* null_device_create(void);
 struct file* zero_device_create(void);

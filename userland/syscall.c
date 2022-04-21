@@ -80,9 +80,9 @@ int chdir(const char* path) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
-noreturn void halt(void) {
-    syscall(SYS_halt, 0, 0, 0);
-    __builtin_unreachable();
+int reboot(int howto) {
+    int rc = syscall(SYS_reboot, howto, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,

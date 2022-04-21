@@ -1,13 +1,31 @@
 #include "system.h"
 #include "asm_wrapper.h"
+#include "hid/hid.h"
 #include "kprintf.h"
 #include "panic.h"
 
-noreturn void panic(const char* message, const char* file, size_t line) {
-    kprintf("%s at %s:%u\n", message, file, line);
+noreturn void reboot(void) {
+    out8(PS2_COMMAND, 0xfe);
+    halt();
+}
+
+noreturn void halt(void) {
     cli();
     for (;;)
         hlt();
+}
+
+noreturn void poweroff(void) {
+    // this works only on emulators
+    out16(0x604, 0x2000);  // QEMU
+    out16(0x4004, 0x3400); // Virtualbox
+    out16(0xb004, 0x2000); // Bochs and older versions of QEMU
+    halt();
+}
+
+noreturn void panic(const char* message, const char* file, size_t line) {
+    kprintf("%s at %s:%u\n", message, file, line);
+    halt();
 }
 
 void dump_registers(const registers* regs) {

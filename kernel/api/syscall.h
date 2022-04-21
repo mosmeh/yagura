@@ -21,7 +21,6 @@
     F(getcwd)                                                                  \
     F(getdents)                                                                \
     F(getpid)                                                                  \
-    F(halt)                                                                    \
     F(ioctl)                                                                   \
     F(listen)                                                                  \
     F(mkdir)                                                                   \
@@ -31,6 +30,7 @@
     F(open)                                                                    \
     F(pipe)                                                                    \
     F(read)                                                                    \
+    F(reboot)                                                                  \
     F(socket)                                                                  \
     F(stat)                                                                    \
     F(times)                                                                   \

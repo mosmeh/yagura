@@ -22,7 +22,7 @@ int nanosleep(const struct timespec* req, struct timespec* rem);
 char* getcwd(char* buf, size_t size);
 int chdir(const char* path);
 
-noreturn void halt(void);
+int reboot(int howto);
 
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,
            off_t offset);
