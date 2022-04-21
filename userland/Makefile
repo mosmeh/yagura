@@ -14,6 +14,7 @@ TARGET_NAMES := \
 	cp \
 	echo \
 	env \
+	fib \
 	fs-test \
 	imgview \
 	init \
