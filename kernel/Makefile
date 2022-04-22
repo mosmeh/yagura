@@ -12,6 +12,7 @@ TARGET := kernel
 
 OBJS := \
 	boot.o \
+	cmdline.o \
 	console/console.o \
 	console/psf.o \
 	console/tty.o \

@@ -48,6 +48,8 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     const multiboot_info_t* mb_info =
         (const multiboot_info_t*)(mb_info_paddr + KERNEL_VADDR);
 
+    cmdline_init(mb_info);
+
     const multiboot_module_t* initrd_mod =
         (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
     uintptr_t initrd_paddr = initrd_mod->mod_start;
