@@ -17,6 +17,8 @@
 #include "system.h"
 
 static noreturn void init(void) {
+    current->id = process_generate_next_pid();
+
     static char* argv[] = {NULL};
     static char* envp[] = {NULL};
     ASSERT_OK(sys_execve("/bin/init", argv, envp));

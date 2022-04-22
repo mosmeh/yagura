@@ -2,7 +2,7 @@
 #include "syscall.h"
 #include <kernel/api/fcntl.h>
 
-pid_t spawn(const char* filename) {
+static pid_t spawn(const char* filename) {
     pid_t pid = fork();
     if (pid == 0) {
         static char* argv[] = {NULL};
@@ -16,6 +16,7 @@ pid_t spawn(const char* filename) {
 }
 
 int main(void) {
+    ASSERT(getpid() == 1);
     ASSERT(open("/dev/console", O_RDONLY) == 0);
     ASSERT(open("/dev/console", O_WRONLY) == 1);
     ASSERT(open("/dev/console", O_WRONLY) == 2);
