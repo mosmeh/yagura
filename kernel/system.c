@@ -3,6 +3,7 @@
 #include "hid/hid.h"
 #include "kprintf.h"
 #include "panic.h"
+#include <string.h>
 
 noreturn void reboot(void) {
     out8(PS2_COMMAND, 0xfe);
@@ -25,6 +26,12 @@ noreturn void poweroff(void) {
 
 noreturn void panic(const char* message, const char* file, size_t line) {
     kprintf("%s at %s:%u\n", message, file, line);
+
+    const char* mode = cmdline_get("panic");
+    if (mode) {
+        if (!strcmp(mode, "poweroff"))
+            poweroff();
+    }
     halt();
 }
 
