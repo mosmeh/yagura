@@ -15,7 +15,6 @@ TARGET_NAMES := \
 	echo \
 	env \
 	fib \
-	fs-test \
 	imgview \
 	init \
 	ls \
@@ -23,9 +22,9 @@ TARGET_NAMES := \
 	mkdir \
 	mouse-cursor \
 	reboot \
+	run-tests \
 	sh \
 	sleep \
-	socket-test \
 	touch
 OUTDIR := ../base/bin
 
