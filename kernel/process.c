@@ -26,12 +26,12 @@ void process_init(void) {
     __asm__ volatile("fxsave %0"
                      : "=m"(*(struct fpu_state*)&initial_fpu_state));
 
-    atomic_init(&next_pid, 0);
+    atomic_init(&next_pid, 1);
 
     current = kaligned_alloc(alignof(process), sizeof(process));
     ASSERT(current);
     *current = (process){0};
-    current->id = process_generate_next_pid();
+    current->id = 0;
     current->fpu_state = initial_fpu_state;
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
@@ -51,7 +51,7 @@ process* process_create_kernel_process(void (*entry_point)(void)) {
         return ERR_PTR(-ENOMEM);
     *p = (process){0};
 
-    p->id = process_generate_next_pid();
+    p->id = 0;
     p->eip = (uintptr_t)entry_point;
     p->fpu_state = initial_fpu_state;
     p->heap_next_vaddr = USER_HEAP_START;

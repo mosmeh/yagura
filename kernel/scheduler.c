@@ -82,10 +82,6 @@ process* scheduler_find_process_by_pid(pid_t pid) {
     if (current->id == pid)
         return current;
 
-    ASSERT(idle);
-    if (idle->id == pid)
-        return idle;
-
     bool int_flag = push_cli();
 
     process* it = ready_queue;
