@@ -54,26 +54,30 @@ void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
             break;
 
         size_t mode = PARSE(header->c_mode);
-        size_t rdev = PARSE(header->c_rdev);
-
-        file_description* desc =
-            vfs_open(filename, O_CREAT | O_EXCL | O_WRONLY, mode);
-        ASSERT_OK(desc);
-
-        desc->file->device_id = rdev;
-
         size_t file_size = PARSE(header->c_filesize);
-        const unsigned char* file_content =
-            (const unsigned char*)(cursor + sizeof(struct cpio_odc_header) +
-                                   name_size);
-        for (size_t count = 0; count < file_size;) {
-            ssize_t nwritten =
-                fs_write(desc, file_content + count, file_size - count);
-            ASSERT_OK(nwritten);
-            count += nwritten;
+
+        if (S_ISDIR(mode)) {
+            ASSERT_OK(vfs_create(filename, mode));
+        } else {
+            file_description* desc =
+                vfs_open(filename, O_CREAT | O_EXCL | O_WRONLY, mode);
+            ASSERT_OK(desc);
+
+            desc->file->device_id = PARSE(header->c_rdev);
+
+            const unsigned char* file_content =
+                (const unsigned char*)(cursor + sizeof(struct cpio_odc_header) +
+                                       name_size);
+            for (size_t count = 0; count < file_size;) {
+                ssize_t nwritten =
+                    fs_write(desc, file_content + count, file_size - count);
+                ASSERT_OK(nwritten);
+                count += nwritten;
+            }
+
+            ASSERT_OK(fs_close(desc));
         }
 
-        ASSERT_OK(fs_close(desc));
         cursor += sizeof(struct cpio_odc_header) + name_size + file_size;
     }
 }
