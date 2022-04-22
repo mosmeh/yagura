@@ -26,6 +26,8 @@ int memory_map_to_anonymous_region(uintptr_t virtual_addr, uintptr_t size,
 int memory_map_to_physical_range(uintptr_t virtual_addr,
                                  uintptr_t physical_addr, uintptr_t size,
                                  uint16_t flags);
+int memory_copy_mapping(uintptr_t to_virtual_addr, uintptr_t from_virtual_addr,
+                        uintptr_t size, uint16_t flags);
 uint16_t memory_prot_to_map_flags(int prot);
 
 uintptr_t memory_alloc_kernel_virtual_addr_range(uintptr_t size);

@@ -137,6 +137,26 @@ static int map_page_at_fixed_physical_addr(uintptr_t vaddr, uintptr_t paddr,
     return 0;
 }
 
+static int copy_page_mapping(uintptr_t to_vaddr, uintptr_t from_vaddr,
+                             uint32_t flags) {
+    volatile page_table_entry* from_pte = get_pte(from_vaddr);
+    ASSERT(from_pte && from_pte->present);
+
+    volatile page_table_entry* to_pte = get_or_create_pte(to_vaddr);
+    if (IS_ERR(to_pte))
+        return PTR_ERR(to_pte);
+    ASSERT(!to_pte->present);
+
+    uintptr_t paddr = from_pte->raw & ~0xfff;
+    page_allocator_ref_page(paddr);
+
+    to_pte->raw = paddr | flags;
+    to_pte->present = true;
+    flush_tlb_single(to_vaddr);
+
+    return 0;
+}
+
 page_directory* memory_create_page_directory(void) {
     page_directory* dst = kaligned_alloc(PAGE_SIZE, sizeof(page_directory));
     if (!dst)
@@ -306,6 +326,22 @@ int memory_map_to_physical_range(uintptr_t vaddr, uintptr_t paddr,
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
         int rc = map_page_at_fixed_physical_addr(vaddr + offset, paddr + offset,
                                                  flags);
+        if (IS_ERR(rc))
+            return rc;
+    }
+
+    return 0;
+}
+
+int memory_copy_mapping(uintptr_t to_vaddr, uintptr_t from_vaddr,
+                        uintptr_t size, uint16_t flags) {
+    ASSERT((to_vaddr % PAGE_SIZE) == 0);
+    ASSERT((from_vaddr % PAGE_SIZE) == 0);
+    ASSERT((size % PAGE_SIZE) == 0);
+
+    for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
+        int rc =
+            copy_page_mapping(to_vaddr + offset, from_vaddr + offset, flags);
         if (IS_ERR(rc))
             return rc;
     }
