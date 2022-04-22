@@ -55,7 +55,7 @@ static page_directory* current_pd;
 
 page_directory* memory_current_page_directory(void) { return current_pd; }
 
-static volatile page_table* get_page_table(size_t pd_idx) {
+static volatile page_table* get_page_table_from_idx(size_t pd_idx) {
     ASSERT(pd_idx < 1024);
     return (volatile page_table*)(0xffc00000 + PAGE_SIZE * pd_idx);
 }
@@ -74,7 +74,7 @@ static volatile page_table* get_or_create_page_table(uintptr_t vaddr) {
         created = true;
     }
 
-    volatile page_table* pt = get_page_table(vaddr >> 22);
+    volatile page_table* pt = get_page_table_from_idx(vaddr >> 22);
     if (created)
         memset((void*)pt, 0, sizeof(page_table));
 
@@ -87,7 +87,14 @@ static volatile page_table_entry* get_pte(uintptr_t vaddr) {
     if (!pde->present)
         return NULL;
 
-    volatile page_table* pt = get_page_table(pd_idx);
+    volatile page_table* pt = get_page_table_from_idx(pd_idx);
+    return pt->entries + ((vaddr >> 12) & 0x3ff);
+}
+
+static volatile page_table_entry* get_or_create_pte(uintptr_t vaddr) {
+    volatile page_table* pt = get_or_create_page_table(vaddr);
+    if (IS_ERR(pt))
+        return ERR_CAST(pt);
     return pt->entries + ((vaddr >> 12) & 0x3ff);
 }
 
@@ -98,11 +105,9 @@ uintptr_t memory_virtual_to_physical_addr(uintptr_t vaddr) {
 }
 
 static int map_page_anywhere(uintptr_t vaddr, uint32_t flags) {
-    volatile page_table* pt = get_or_create_page_table(vaddr);
-    if (IS_ERR(pt))
-        return PTR_ERR(pt);
-
-    volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
+    volatile page_table_entry* pte = get_or_create_pte(vaddr);
+    if (IS_ERR(pte))
+        return PTR_ERR(pte);
     ASSERT(!pte->present);
 
     uintptr_t physical_page_addr = page_allocator_alloc();
@@ -118,11 +123,9 @@ static int map_page_anywhere(uintptr_t vaddr, uint32_t flags) {
 
 static int map_page_at_fixed_physical_addr(uintptr_t vaddr, uintptr_t paddr,
                                            uint32_t flags) {
-    volatile page_table* pt = get_or_create_page_table(vaddr);
-    if (IS_ERR(pt))
-        return PTR_ERR(pt);
-
-    volatile page_table_entry* pte = pt->entries + ((vaddr >> 12) & 0x3ff);
+    volatile page_table_entry* pte = get_or_create_pte(vaddr);
+    if (IS_ERR(pte))
+        return PTR_ERR(pte);
     ASSERT(!pte->present);
 
     page_allocator_ref_page(paddr);
@@ -161,7 +164,7 @@ page_directory* memory_create_page_directory(void) {
 static mutex quickmap_lock;
 
 static uintptr_t quickmap(uintptr_t paddr, uint32_t flags) {
-    volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
+    volatile page_table* pt = get_page_table_from_idx(KERNEL_PDE_IDX);
     volatile page_table_entry* pte = pt->entries + 1023;
     ASSERT(pte->raw == 0);
     pte->raw = paddr | flags;
@@ -171,7 +174,7 @@ static uintptr_t quickmap(uintptr_t paddr, uint32_t flags) {
 }
 
 static void unquickmap(void) {
-    volatile page_table* pt = get_page_table(KERNEL_PDE_IDX);
+    volatile page_table* pt = get_page_table_from_idx(KERNEL_PDE_IDX);
     volatile page_table_entry* pte = pt->entries + 1023;
     ASSERT(pte->present);
     pte->raw = 0;
@@ -225,7 +228,7 @@ page_directory* memory_clone_current_page_directory(void) {
             continue;
         }
 
-        volatile page_table* pt = get_page_table(i);
+        volatile page_table* pt = get_page_table_from_idx(i);
         page_table* cloned_pt = clone_page_table(pt, i * 0x400000);
         if (IS_ERR(cloned_pt)) {
             mutex_unlock(&quickmap_lock);
@@ -254,7 +257,7 @@ void memory_destroy_current_page_directory(void) {
     for (size_t i = 0; i < KERNEL_PDE_IDX; ++i) {
         if (!current_pd->entries[i].present)
             continue;
-        destroy_page_table(get_page_table(i));
+        destroy_page_table(get_page_table_from_idx(i));
     }
 }
 
