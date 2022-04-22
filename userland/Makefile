@@ -17,6 +17,7 @@ TARGET_NAMES := \
 	fib \
 	imgview \
 	init \
+	init-test \
 	ls \
 	mandelbrot \
 	mkdir \

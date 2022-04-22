@@ -30,3 +30,6 @@ clean:
 
 run: kernel initrd
 	./run.sh
+
+test: kernel initrd
+	./run_tests.sh
