@@ -265,10 +265,9 @@ void memory_switch_page_directory(page_directory* pd) {
 
     write_cr3(paddr);
     current_pd = pd;
+    ASSERT(paddr == memory_virtual_to_physical_addr(0xfffff000));
 
     pop_cli(int_flag);
-
-    ASSERT(paddr == memory_virtual_to_physical_addr(0xfffff000));
 }
 
 extern unsigned char kernel_page_directory[];
