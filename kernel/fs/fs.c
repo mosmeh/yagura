@@ -48,6 +48,8 @@ struct file* fs_create_child(struct file* file, const char* name, mode_t mode) {
 }
 
 file_description* fs_open(struct file* file, int flags, mode_t mode) {
+    if (S_ISDIR(file->mode) && (flags & O_WRONLY))
+        return ERR_PTR(-EISDIR);
     if (file->open) {
         int rc = file->open(file, flags, mode);
         if (IS_ERR(rc))
