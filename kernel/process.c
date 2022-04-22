@@ -97,6 +97,9 @@ noreturn void process_exit(int status) {
         kprintf("\x1b[31mProcess %d exited with status %d\x1b[m\n", current->id,
                 status);
 
+    if (current->id == 1)
+        PANIC("init process exited");
+
     file_description** it = current->fd_table.entries;
     for (int i = 0; i < FD_TABLE_CAPACITY; ++i, ++it) {
         if (*it)
