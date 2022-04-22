@@ -22,7 +22,7 @@ int main(void) {
 
     chdir("/root");
 
-    spawn("/bin/mouse_cursor");
+    spawn("/bin/mouse-cursor");
 
     for (;;) {
         pid_t pid = spawn("/bin/sh");

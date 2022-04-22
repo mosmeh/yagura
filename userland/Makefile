@@ -21,7 +21,7 @@ TARGET_NAMES := \
 	ls \
 	mandelbrot \
 	mkdir \
-	mouse_cursor \
+	mouse-cursor \
 	reboot \
 	sh \
 	sleep \
