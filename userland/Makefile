@@ -28,7 +28,8 @@ TARGET_NAMES := \
 	run-tests \
 	sh \
 	sleep \
-	touch
+	touch \
+	wc
 OUTDIR := ../base/bin
 
 TARGETS := $(TARGET_NAMES:%=$(OUTDIR)/%)
