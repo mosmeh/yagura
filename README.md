@@ -4,6 +4,8 @@
 
 A Unix-like operating system for x86
 
+![](screenshot.png)
+
 ## How to run
 
 First, install dependencies:
