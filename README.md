@@ -1,5 +1,7 @@
 # yagura
 
+[![build](https://github.com/mosmeh/yagura/workflows/build/badge.svg)](https://github.com/mosmeh/yagura/actions)
+
 A Unix-like operating system for x86
 
 ## How to run
