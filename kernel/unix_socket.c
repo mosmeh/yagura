@@ -1,26 +1,8 @@
-#include "api/stat.h"
-#include "fs/fs.h"
 #include "kmalloc.h"
 #include "panic.h"
-#include "ring_buf.h"
 #include "scheduler.h"
 #include "socket.h"
 #include <string.h>
-
-typedef struct unix_socket {
-    struct file base_file;
-    int backlog;
-
-    mutex pending_queue_lock;
-    atomic_size_t num_pending;
-    struct unix_socket* next; // pending queue
-
-    atomic_bool connected;
-    file_description* connector_fd;
-
-    ring_buf server_to_client_buf;
-    ring_buf client_to_server_buf;
-} unix_socket;
 
 static ring_buf* get_buf_to_read(unix_socket* socket, file_description* desc) {
     bool is_client = socket->connector_fd == desc;

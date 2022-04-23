@@ -88,6 +88,9 @@ uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
         return PTR_ERR(desc);
     if (!S_ISSOCK(desc->file->mode))
         return -ENOTSOCK;
+    unix_socket* socket = (unix_socket*)desc->file;
+    if (socket->connected)
+        return -EISCONN;
 
     if (addrlen != sizeof(sockaddr_un))
         return -EINVAL;
