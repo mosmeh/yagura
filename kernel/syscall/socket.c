@@ -62,11 +62,7 @@ uintptr_t sys_listen(int sockfd, int backlog) {
     return 0;
 }
 
-// NOLINTNEXTLINE(readability-non-const-parameter)
 uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
-    (void)addr;
-    (void)addrlen;
-
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
@@ -79,7 +75,20 @@ uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
         fs_open((struct file*)connector, O_RDWR, 0);
     if (IS_ERR(connector_desc))
         return PTR_ERR(connector_desc);
-    return process_alloc_file_descriptor(-1, connector_desc);
+
+    int fd = process_alloc_file_descriptor(-1, connector_desc);
+    if (IS_ERR(fd))
+        return fd;
+
+    if (addr) {
+        sockaddr_un* addr_un = (sockaddr_un*)addr;
+        addr_un->sun_family = AF_UNIX;
+        addr_un->sun_path[0] = 0;
+    }
+    if (addrlen)
+        *addrlen = sizeof(sockaddr_un);
+
+    return fd;
 }
 
 uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
