@@ -29,13 +29,14 @@ uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
         return -ENOTSOCK;
     unix_socket* socket = (unix_socket*)desc->file;
 
-    if (addrlen != sizeof(sockaddr_un))
+    if (addrlen <= sizeof(sa_family_t) || sizeof(sockaddr_un) < addrlen)
         return -EINVAL;
     const sockaddr_un* addr_un = (const sockaddr_un*)addr;
     if (addr->sa_family != AF_UNIX)
         return -EINVAL;
 
-    const char* path = kstrndup(addr_un->sun_path, sizeof(addr_un->sun_path));
+    const char* path =
+        kstrndup(addr_un->sun_path, addrlen - offsetof(sockaddr_un, sun_path));
     if (!path)
         return -ENOMEM;
 
@@ -92,12 +93,13 @@ uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
     if (socket->connected)
         return -EISCONN;
 
-    if (addrlen != sizeof(sockaddr_un))
+    if (addrlen <= sizeof(sa_family_t) || sizeof(sockaddr_un) < addrlen)
         return -EINVAL;
     const sockaddr_un* addr_un = (const sockaddr_un*)addr;
     if (addr->sa_family != AF_UNIX)
         return -EINVAL;
-    const char* path = kstrndup(addr_un->sun_path, sizeof(addr_un->sun_path));
+    const char* path =
+        kstrndup(addr_un->sun_path, addrlen - offsetof(sockaddr_un, sun_path));
     if (!path)
         return -ENOMEM;
     file_description* listener_desc = vfs_open(path, 0, 0);
