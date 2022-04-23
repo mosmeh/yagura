@@ -22,6 +22,7 @@ TARGET_NAMES := \
 	mandelbrot \
 	mkdir \
 	mouse-cursor \
+	pwd \
 	reboot \
 	run-tests \
 	sh \
