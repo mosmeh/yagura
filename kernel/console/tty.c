@@ -39,14 +39,21 @@ static uintptr_t fb_addr;
 static struct fb_info fb_info;
 static size_t console_width;
 static size_t console_height;
-static size_t console_x = 0;
-static size_t console_y = 0;
+static size_t cursor_x = 0;
+static size_t cursor_y = 0;
 static enum { STATE_GROUND, STATE_ESC, STATE_CSI } state = STATE_GROUND;
 static uint32_t fg_color = DEFAULT_FG_COLOR;
 static uint32_t bg_color = DEFAULT_BG_COLOR;
 static struct cell* cells;
 static bool* line_is_dirty;
 static bool whole_screen_should_be_cleared = false;
+
+static void set_cursor(size_t x, size_t y) {
+    line_is_dirty[cursor_y] = true;
+    line_is_dirty[y] = true;
+    cursor_x = x;
+    cursor_y = y;
+}
 
 static void clear_line_at(size_t x, size_t y, size_t length) {
     struct cell* cell = cells + x + y * console_width;
@@ -82,6 +89,10 @@ static void scroll_up(void) {
 }
 
 static void flush_cell_at(size_t x, size_t y, struct cell* cell) {
+    bool is_cursor = x == cursor_x && y == cursor_y;
+    uint32_t fg = is_cursor ? cell->bg_color : cell->fg_color;
+    uint32_t bg = is_cursor ? cell->fg_color : cell->bg_color;
+
     const unsigned char* glyph =
         font->glyphs +
         font->ascii_to_glyph[(size_t)cell->ch] * font->bytes_per_glyph;
@@ -94,8 +105,7 @@ static void flush_cell_at(size_t x, size_t y, struct cell* cell) {
             uint32_t swapped = ((val >> 24) & 0xff) | ((val << 8) & 0xff0000) |
                                ((val >> 8) & 0xff00) |
                                ((val << 24) & 0xff000000);
-            *pixel++ = swapped & (1 << (32 - px - 1)) ? cell->fg_color
-                                                      : cell->bg_color;
+            *pixel++ = swapped & (1 << (32 - px - 1)) ? fg : bg;
         }
         glyph += font->bytes_per_glyph / font->glyph_height;
         row_addr += fb_info.pitch;
@@ -129,33 +139,30 @@ static void handle_ground(char c) {
         state = STATE_ESC;
         return;
     case '\r':
-        console_x = 0;
+        set_cursor(0, cursor_y);
         break;
     case '\n':
-        console_x = 0;
-        ++console_y;
+        set_cursor(0, cursor_y + 1);
         break;
     case '\b':
-        if (console_x > 0)
-            --console_x;
+        if (cursor_x > 0)
+            set_cursor(cursor_x - 1, cursor_y);
         break;
     case '\t':
-        console_x = round_up(console_x + 1, TAB_STOP);
+        set_cursor(round_up(cursor_x + 1, TAB_STOP), cursor_y);
         break;
     default:
         if ((unsigned)c > 127)
             return;
-        write_char_at(console_x, console_y, c);
-        ++console_x;
+        write_char_at(cursor_x, cursor_y, c);
+        set_cursor(cursor_x + 1, cursor_y);
         break;
     }
-    if (console_x >= console_width) {
-        console_x = 0;
-        ++console_y;
-    }
-    if (console_y >= console_height) {
+    if (cursor_x >= console_width)
+        set_cursor(0, cursor_y + 1);
+    if (cursor_y >= console_height) {
         scroll_up();
-        --console_y;
+        set_cursor(cursor_x, cursor_y - 1);
     }
 }
 
@@ -193,24 +200,23 @@ static void handle_csi_cup(void) {
         param = strtok_r(NULL, sep, &saved_ptr);
     }
 
-    console_x = x;
-    console_y = y;
+    set_cursor(x, y);
 }
 
 // Erase in Display
 static void handle_csi_ed() {
     switch (atoi(param_buf)) {
     case 0:
-        clear_line_at(console_x, console_y, console_width - console_x);
-        for (size_t y = console_y + 1; y < console_height; ++y)
+        clear_line_at(cursor_x, cursor_y, console_width - cursor_x);
+        for (size_t y = cursor_y + 1; y < console_height; ++y)
             clear_line_at(0, y, console_width);
         break;
     case 1:
-        if (console_y > 0) {
-            for (size_t y = 0; y < console_y - 1; ++y)
+        if (cursor_y > 0) {
+            for (size_t y = 0; y < cursor_y - 1; ++y)
                 clear_line_at(0, y, console_width);
         }
-        clear_line_at(0, console_y, console_x + 1);
+        clear_line_at(0, cursor_y, cursor_x + 1);
         break;
     case 2:
         clear_screen();
@@ -222,13 +228,13 @@ static void handle_csi_ed() {
 static void handle_csi_el() {
     switch (atoi(param_buf)) {
     case 0:
-        clear_line_at(console_x, console_y, console_width - console_x);
+        clear_line_at(cursor_x, cursor_y, console_width - cursor_x);
         break;
     case 1:
-        clear_line_at(0, console_y, console_x + 1);
+        clear_line_at(0, cursor_y, cursor_x + 1);
         break;
     case 2:
-        clear_line_at(0, console_y, console_width);
+        clear_line_at(0, cursor_y, console_width);
         break;
     }
 }
