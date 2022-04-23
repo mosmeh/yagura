@@ -12,6 +12,7 @@ TARGET_NAMES := \
 	cat \
 	clear \
 	cp \
+	date \
 	echo \
 	env \
 	fib \
