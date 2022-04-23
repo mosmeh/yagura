@@ -25,3 +25,15 @@ static inline unsigned day_of_year(unsigned year, unsigned month,
         result += days_in_month(year, m);
     return result;
 }
+
+static inline unsigned day_of_week(unsigned year, unsigned month,
+                                   unsigned day) {
+    // Zeller's congruence
+    if (month <= 2) {
+        --year;
+        month += 12;
+    }
+    return (day + (13 * month + 8) / 5 + year + year / 4 - year / 100 +
+            year / 400) %
+           7;
+}

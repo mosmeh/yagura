@@ -1,5 +1,6 @@
 #include "stdlib.h"
 #include "syscall.h"
+#include <common/calendar.h>
 #include <common/extra.h>
 #include <common/string.h>
 #include <kernel/api/dirent.h>
@@ -10,7 +11,6 @@
 #include <kernel/api/syscall.h>
 #include <stdalign.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -245,4 +245,54 @@ time_t time(time_t* tloc) {
     if (tloc)
         *tloc = tp.tv_sec;
     return tp.tv_sec;
+}
+
+static int32_t divmodi64(int64_t a, int32_t b, int32_t* rem) {
+    int32_t q;
+    int32_t r;
+    __asm__("idivl %[b]"
+            : "=a"(q), "=d"(r)
+            : "d"((int32_t)(a >> 32)),
+              "a"((int32_t)(a & 0xffffffff)), [b] "rm"(b));
+    *rem = r;
+    return q;
+}
+
+struct tm* gmtime_r(const time_t* t, struct tm* tm) {
+    static int const seconds_per_day = 60 * 60 * 24;
+
+    time_t time = *t;
+
+    unsigned year = 1970;
+    for (;; ++year) {
+        time_t seconds_in_this_year =
+            (time_t)days_in_year(year) * seconds_per_day;
+        if (time < seconds_in_this_year)
+            break;
+        time -= seconds_in_this_year;
+    }
+    tm->tm_year = year - 1900;
+
+    int seconds;
+    time_t days = divmodi64(time, seconds_per_day, &seconds);
+    tm->tm_yday = days;
+    tm->tm_sec = seconds % 60;
+
+    int minutes = seconds / 60;
+    tm->tm_hour = minutes / 60;
+    tm->tm_min = minutes % 60;
+
+    unsigned month;
+    for (month = 1; month < 12; ++month) {
+        time_t days_in_this_month = (time_t)days_in_month(year, month);
+        if (days < days_in_this_month)
+            break;
+        days -= days_in_this_month;
+    }
+
+    tm->tm_mon = month - 1;
+    tm->tm_mday = days + 1;
+    tm->tm_wday = day_of_week(year, month, tm->tm_mday);
+
+    return tm;
 }

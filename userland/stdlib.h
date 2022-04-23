@@ -49,3 +49,4 @@ struct dirent* readdir(DIR* dirp);
 clock_t clock(void);
 
 time_t time(time_t* tloc);
+struct tm* gmtime_r(time_t const* t, struct tm* tm);
