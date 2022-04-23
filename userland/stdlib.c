@@ -296,3 +296,16 @@ struct tm* gmtime_r(const time_t* t, struct tm* tm) {
 
     return tm;
 }
+
+char* asctime_r(const struct tm* time_ptr, char* buf) {
+    static const char* day_names[] = {"Sun", "Mon", "Tue", "Wed",
+                                      "Thu", "Fri", "Sat"};
+    static const char* month_names[] = {"Jan", "Feb", "Mar", "Apr",
+                                        "May", "Jun", "Jul", "Aug",
+                                        "Sep", "Oct", "Nov", "Dec"};
+    int len = sprintf(
+        buf, "%s %s %2d %02d:%02d:%02d %d", day_names[time_ptr->tm_wday],
+        month_names[time_ptr->tm_mon], time_ptr->tm_mday, time_ptr->tm_hour,
+        time_ptr->tm_min, time_ptr->tm_sec, time_ptr->tm_year + 1900);
+    return len > 0 ? buf : NULL;
+}
