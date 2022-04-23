@@ -20,3 +20,6 @@ typedef struct file_description file_description;
 
 // socket.h
 typedef struct unix_socket unix_socket;
+
+// api/time.h
+struct timespec;

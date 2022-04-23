@@ -97,6 +97,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     syscall_init();
     scheduler_init();
+    time_init();
     pit_init();
     kprintf("\x1b[32mInitialization done\x1b[m\n");
 

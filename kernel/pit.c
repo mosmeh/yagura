@@ -4,6 +4,7 @@
 #include "panic.h"
 #include "process.h"
 #include "scheduler.h"
+#include "system.h"
 
 #define TIMER0_CTL 0x40
 #define PIT_CTL 0x43
@@ -18,6 +19,7 @@ static void pit_handler(registers* regs) {
     (void)regs;
     ASSERT(!interrupts_enabled());
     ++uptime;
+    time_tick();
     process_tick((regs->cs & 3) == 0);
     scheduler_yield(true);
 }

@@ -53,6 +53,7 @@ OBJS := \
 	syscall/socket.o \
 	syscall/syscall.o \
 	system.o \
+	time.o \
 	unix_socket.o \
  	../common/stdio.o \
 	../common/stdlib.o \
