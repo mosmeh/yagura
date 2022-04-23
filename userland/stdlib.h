@@ -47,3 +47,5 @@ int closedir(DIR* dirp);
 struct dirent* readdir(DIR* dirp);
 
 clock_t clock(void);
+
+time_t time(time_t* tloc);

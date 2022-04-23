@@ -237,3 +237,12 @@ clock_t clock(void) {
     times(&tms);
     return tms.tms_utime + tms.tms_stime;
 }
+
+time_t time(time_t* tloc) {
+    struct timespec tp;
+    if (clock_gettime(CLOCK_REALTIME, &tp) < 0)
+        return -1;
+    if (tloc)
+        *tloc = tp.tv_sec;
+    return tp.tv_sec;
+}
