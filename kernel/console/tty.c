@@ -28,6 +28,12 @@ static const uint32_t palette[] = {
     0x729fcf,         0xad7fa8,         0x34e2e2, 0xeeeeec,
 };
 
+struct cell {
+    char ch;
+    uint32_t fg_color;
+    uint32_t bg_color;
+};
+
 static struct font* font;
 static uintptr_t fb_addr;
 static struct fb_info fb_info;
@@ -38,24 +44,47 @@ static size_t console_y = 0;
 static enum { STATE_GROUND, STATE_ESC, STATE_CSI } state = STATE_GROUND;
 static uint32_t fg_color = DEFAULT_FG_COLOR;
 static uint32_t bg_color = DEFAULT_BG_COLOR;
+static struct cell* cells;
+static bool* line_is_dirty;
+static bool whole_screen_should_be_cleared = false;
 
 static void clear_line_at(size_t x, size_t y, size_t length) {
-    uintptr_t row_addr = fb_addr + x * font->glyph_width * sizeof(uint32_t) +
-                         y * font->glyph_height * fb_info.pitch;
-    for (size_t y = 0; y < font->glyph_height; ++y) {
-        memset32((uint32_t*)row_addr, bg_color, length * font->glyph_width);
-        row_addr += fb_info.pitch;
+    struct cell* cell = cells + x + y * console_width;
+    for (size_t i = 0; i < length; ++i) {
+        cell->ch = ' ';
+        cell->fg_color = DEFAULT_FG_COLOR;
+        cell->bg_color = DEFAULT_BG_COLOR;
+        ++cell;
     }
+    line_is_dirty[y] = true;
 }
 
 static void clear_screen(void) {
-    memset32((void*)fb_addr, bg_color,
-             fb_info.pitch * fb_info.height / sizeof(uint32_t));
+    for (size_t y = 0; y < console_height; ++y)
+        clear_line_at(0, y, console_width);
+    whole_screen_should_be_cleared = true;
 }
 
 static void write_char_at(size_t x, size_t y, char c) {
+    struct cell* cell = cells + x + y * console_width;
+    cell->ch = c;
+    cell->fg_color = fg_color;
+    cell->bg_color = bg_color;
+    line_is_dirty[y] = true;
+}
+
+static void scroll_up(void) {
+    memmove(cells, cells + console_width,
+            console_width * (console_height - 1) * sizeof(struct cell));
+    for (size_t y = 0; y < console_height - 1; ++y)
+        line_is_dirty[y] = true;
+    clear_line_at(0, console_height - 1, console_width);
+}
+
+static void flush_cell_at(size_t x, size_t y, struct cell* cell) {
     const unsigned char* glyph =
-        font->glyphs + font->ascii_to_glyph[(size_t)c] * font->bytes_per_glyph;
+        font->glyphs +
+        font->ascii_to_glyph[(size_t)cell->ch] * font->bytes_per_glyph;
     uintptr_t row_addr = fb_addr + x * font->glyph_width * sizeof(uint32_t) +
                          y * font->glyph_height * fb_info.pitch;
     for (size_t py = 0; py < font->glyph_height; ++py) {
@@ -65,10 +94,32 @@ static void write_char_at(size_t x, size_t y, char c) {
             uint32_t swapped = ((val >> 24) & 0xff) | ((val << 8) & 0xff0000) |
                                ((val >> 8) & 0xff00) |
                                ((val << 24) & 0xff000000);
-            *pixel++ = swapped & (1 << (32 - px - 1)) ? fg_color : bg_color;
+            *pixel++ = swapped & (1 << (32 - px - 1)) ? cell->fg_color
+                                                      : cell->bg_color;
         }
         glyph += font->bytes_per_glyph / font->glyph_height;
         row_addr += fb_info.pitch;
+    }
+}
+
+static void flush(void) {
+    if (whole_screen_should_be_cleared) {
+        memset32((uint32_t*)fb_addr, bg_color,
+                 fb_info.pitch * fb_info.height / sizeof(uint32_t));
+        whole_screen_should_be_cleared = false;
+    }
+
+    struct cell* row_cells = cells;
+    bool* dirty = line_is_dirty;
+    for (size_t y = 0; y < console_height; ++y) {
+        if (*dirty) {
+            struct cell* cell = row_cells;
+            for (size_t x = 0; x < console_width; ++x)
+                flush_cell_at(x, y, cell++);
+            *dirty = false;
+        }
+        row_cells += console_width;
+        ++dirty;
     }
 }
 
@@ -103,10 +154,7 @@ static void handle_ground(char c) {
         ++console_y;
     }
     if (console_y >= console_height) {
-        memmove((void*)fb_addr,
-                (void*)(fb_addr + fb_info.pitch * font->glyph_height),
-                fb_info.pitch * (console_height - 1) * font->glyph_height);
-        clear_line_at(0, console_height - 1, console_width);
+        scroll_up();
         --console_y;
     }
 }
@@ -283,6 +331,11 @@ void tty_init(void) {
     console_width = fb_info.width / font->glyph_width;
     console_height = fb_info.height / font->glyph_height;
 
+    cells = kmalloc(console_width * console_height * sizeof(struct cell));
+    ASSERT(cells);
+    line_is_dirty = kmalloc(console_height * sizeof(bool));
+    ASSERT(line_is_dirty);
+
     size_t fb_size = fb_info.pitch * fb_info.height;
     uintptr_t vaddr = memory_alloc_kernel_virtual_addr_range(fb_size);
     ASSERT_OK(vaddr);
@@ -292,6 +345,7 @@ void tty_init(void) {
     ASSERT_OK(fs_close(desc));
 
     clear_screen();
+    flush();
 
     initialized = true;
 }
@@ -355,6 +409,7 @@ static ssize_t tty_device_write(file_description* desc, const void* buffer,
 
     for (size_t i = 0; i < count; ++i)
         on_char(chars[i]);
+    flush();
 
     mutex_unlock(&dev->lock);
     return count;
