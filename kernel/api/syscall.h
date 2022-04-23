@@ -9,6 +9,7 @@
     F(accept)                                                                  \
     F(bind)                                                                    \
     F(chdir)                                                                   \
+    F(clock_gettime)                                                           \
     F(close)                                                                   \
     F(connect)                                                                 \
     F(dbgputs)                                                                 \

@@ -1,6 +1,7 @@
 #include "syscall.h"
 #include <kernel/api/errno.h>
 #include <kernel/api/reboot.h>
+#include <kernel/api/time.h>
 #include <kernel/interrupts.h>
 #include <kernel/kprintf.h>
 #include <kernel/panic.h>
@@ -23,6 +24,16 @@ uintptr_t sys_reboot(int howto) {
 }
 
 uintptr_t sys_dbgputs(const char* str) { return kputs(str); }
+
+uintptr_t sys_clock_gettime(clockid_t clk_id, struct timespec* tp) {
+    switch (clk_id) {
+    case CLOCK_REALTIME:
+    case CLOCK_MONOTONIC:
+        return time_now(tp);
+    default:
+        return -EINVAL;
+    }
+}
 
 typedef uintptr_t (*syscall_handler_fn)();
 

@@ -200,3 +200,8 @@ int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
     int rc = syscall(SYS_connect, sockfd, (uintptr_t)addr, addrlen);
     RETURN_WITH_ERRNO(rc, int)
 }
+
+int clock_gettime(clockid_t clk_id, struct timespec* tp) {
+    int rc = syscall(SYS_clock_gettime, clk_id, (uintptr_t)tp, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
