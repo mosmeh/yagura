@@ -12,3 +12,5 @@ static inline int isspace(int c) {
     }
     return 0;
 }
+
+static inline int isprint(int c) { return 0x20 <= c && c <= 0x7e; }
