@@ -57,6 +57,10 @@ static void handle_ground(struct line_editor* ed, char c) {
             ed->dirty = true;
         }
         return;
+    case 'L' - '@': // ^L
+        printf("\x1b[H\x1b[2J");
+        ed->dirty = true;
+        return;
     }
 }
 
