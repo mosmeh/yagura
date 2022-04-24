@@ -180,6 +180,58 @@ static void handle_state_esc(char c) {
     handle_ground(c);
 }
 
+// Cursor Up
+static void handle_csi_cuu(void) {
+    unsigned dy = atoi(param_buf);
+    if (dy == 0)
+        dy = 1;
+    if (dy > cursor_y)
+        set_cursor(cursor_x, 0);
+    else
+        set_cursor(cursor_x, cursor_y - dy);
+}
+
+// Cursor Down
+static void handle_csi_cud(void) {
+    unsigned dy = atoi(param_buf);
+    if (dy == 0)
+        dy = 1;
+    if (dy + cursor_y >= console_height)
+        set_cursor(cursor_x, console_height - 1);
+    else
+        set_cursor(cursor_x, cursor_y + dy);
+}
+
+// Cursor Forward
+static void handle_csi_cuf(void) {
+    unsigned dx = atoi(param_buf);
+    if (dx == 0)
+        dx = 1;
+    if (dx + cursor_x >= console_width)
+        set_cursor(console_width - 1, cursor_y);
+    else
+        set_cursor(cursor_x + dx, cursor_y);
+}
+
+// Cursor Back
+static void handle_csi_cub(void) {
+    unsigned dx = atoi(param_buf);
+    if (dx == 0)
+        dx = 1;
+    if (dx > cursor_x)
+        set_cursor(0, cursor_y);
+    else
+        set_cursor(cursor_x - dx, cursor_y);
+}
+
+// Cursor Horizontal Absolute
+static void handle_csi_cha(void) {
+    unsigned x = atoi(param_buf);
+    if (x > 0)
+        --x;
+    set_cursor(x, cursor_y);
+}
+
 // Cursor Position
 static void handle_csi_cup(void) {
     size_t x = 0;
@@ -290,6 +342,21 @@ static void handle_state_csi(char c) {
     param_buf[param_buf_idx] = '\0';
 
     switch (c) {
+    case 'A':
+        handle_csi_cuu();
+        break;
+    case 'B':
+        handle_csi_cud();
+        break;
+    case 'C':
+        handle_csi_cuf();
+        break;
+    case 'D':
+        handle_csi_cub();
+        break;
+    case 'G':
+        handle_csi_cha();
+        break;
     case 'H':
         handle_csi_cup();
         break;
