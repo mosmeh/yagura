@@ -429,12 +429,55 @@ static char queue[QUEUE_SIZE];
 static size_t queue_read_idx = 0;
 static size_t queue_write_idx = 0;
 
+static void queue_push_char(char c) {
+    queue[queue_write_idx] = c;
+    queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
+}
+
+static void queue_push_str(const char* s) {
+    for (; *s; ++s)
+        queue_push_char(*s);
+}
+
 void tty_on_key(const key_event* event) {
-    if (event->pressed && event->key &&
-        !(event->modifiers & ~KEY_MODIFIER_SHIFT)) {
-        queue[queue_write_idx] = event->key;
-        queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
+    if (!event->pressed)
+        return;
+    switch (event->keycode) {
+    case KEYCODE_UP:
+        queue_push_str("\x1b[A");
+        return;
+    case KEYCODE_DOWN:
+        queue_push_str("\x1b[B");
+        return;
+    case KEYCODE_RIGHT:
+        queue_push_str("\x1b[C");
+        return;
+    case KEYCODE_LEFT:
+        queue_push_str("\x1b[D");
+        return;
+    case KEYCODE_HOME:
+        queue_push_str("\x1b[H");
+        return;
+    case KEYCODE_END:
+        queue_push_str("\x1b[F");
+        return;
+    case KEYCODE_DELETE:
+        queue_push_str("\x1b[3~");
+        return;
+    default:
+        break;
     }
+
+    if (!event->key)
+        return;
+    char key = event->key;
+    if (event->modifiers & KEY_MODIFIER_CTRL) {
+        if ('a' <= key && key <= 'z')
+            key -= '`';
+        else if (key == '\\')
+            key = 0x1c;
+    }
+    queue_push_char(key);
 }
 
 typedef struct tty_device {
