@@ -27,6 +27,7 @@
     F(mkdir)                                                                   \
     F(mknod)                                                                   \
     F(mmap)                                                                    \
+    F(munmap)                                                                  \
     F(nanosleep)                                                               \
     F(open)                                                                    \
     F(pipe)                                                                    \

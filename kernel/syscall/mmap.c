@@ -48,3 +48,11 @@ uintptr_t sys_mmap(const mmap_params* params) {
     return fs_mmap(desc, addr, params->length, params->prot, params->offset,
                    params->flags & MAP_SHARED);
 }
+
+uintptr_t sys_munmap(void* addr, size_t length) {
+    if ((uintptr_t)addr % PAGE_SIZE)
+        return -EINVAL;
+    memory_unmap((uintptr_t)addr, length);
+    return range_allocator_free(&current->vaddr_allocator, (uintptr_t)addr,
+                                length);
+}

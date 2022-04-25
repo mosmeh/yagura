@@ -157,6 +157,14 @@ static int copy_page_mapping(uintptr_t to_vaddr, uintptr_t from_vaddr,
     return 0;
 }
 
+static void unmap_page(uintptr_t vaddr) {
+    volatile page_table_entry* pte = get_pte(vaddr);
+    ASSERT(pte && pte->present);
+    page_allocator_unref_page(pte->raw & ~0xfff);
+    pte->raw = 0;
+    flush_tlb_single(vaddr);
+}
+
 page_directory* memory_create_page_directory(void) {
     page_directory* dst = kaligned_alloc(PAGE_SIZE, sizeof(page_directory));
     if (!dst)
@@ -351,6 +359,14 @@ int memory_copy_mapping(uintptr_t to_vaddr, uintptr_t from_vaddr,
     }
 
     return 0;
+}
+
+void memory_unmap(uintptr_t vaddr, uintptr_t size) {
+    ASSERT((vaddr % PAGE_SIZE) == 0);
+    size = round_up(size, PAGE_SIZE);
+
+    for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE)
+        unmap_page(vaddr + offset);
 }
 
 uint16_t memory_prot_to_map_flags(int prot) {

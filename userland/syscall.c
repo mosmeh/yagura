@@ -99,6 +99,11 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd,
     RETURN_WITH_ERRNO(rc, void*)
 }
 
+int munmap(void* addr, size_t length) {
+    int rc = syscall(SYS_munmap, (uintptr_t)addr, length, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 int dbgputs(const char* str) {
     int rc = syscall(SYS_dbgputs, (uintptr_t)str, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
