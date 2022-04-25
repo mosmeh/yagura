@@ -111,15 +111,15 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    mouse_packet packet;
+    mouse_event event;
     for (;;) {
-        ssize_t nread = read(mouse_fd, &packet, sizeof(mouse_packet));
+        ssize_t nread = read(mouse_fd, &event, sizeof(mouse_event));
         if (nread < 0) {
             perror("read");
             return EXIT_FAILURE;
         }
         restore_fb();
-        move_cursor_to(cursor_x + packet.dx, cursor_y - packet.dy);
+        move_cursor_to(cursor_x + event.dx, cursor_y - event.dy);
     }
 
     close(mouse_fd);

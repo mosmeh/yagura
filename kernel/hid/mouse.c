@@ -20,7 +20,7 @@ static void write_mouse(uint8_t data) {
 static uint8_t buf[3];
 static size_t state = 0;
 
-static mouse_packet queue[QUEUE_SIZE];
+static mouse_event queue[QUEUE_SIZE];
 static size_t queue_read_idx = 0;
 static size_t queue_write_idx = 0;
 
@@ -47,7 +47,7 @@ static void irq_handler(registers* reg) {
         if (buf[0] & 0xc0)
             dx = dy = 0;
 
-        queue[queue_write_idx] = (mouse_packet){dx, dy, buf[0] & 7};
+        queue[queue_write_idx] = (mouse_event){dx, dy, buf[0] & 7};
         queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
 
         state = 0;
@@ -76,17 +76,17 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
     (void)desc;
 
     size_t nread = 0;
-    mouse_packet* out = (mouse_packet*)buffer;
+    mouse_event* out = (mouse_event*)buffer;
     scheduler_block(read_should_unblock, NULL);
 
     bool int_flag = push_cli();
 
     while (count > 0) {
-        if (queue_read_idx == queue_write_idx || count < sizeof(mouse_packet))
+        if (queue_read_idx == queue_write_idx || count < sizeof(mouse_event))
             break;
         *out++ = queue[queue_read_idx];
-        nread += sizeof(mouse_packet);
-        count -= sizeof(mouse_packet);
+        nread += sizeof(mouse_event);
+        count -= sizeof(mouse_event);
         queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
     }
 
