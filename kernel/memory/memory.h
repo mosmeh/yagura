@@ -3,6 +3,12 @@
 #include <kernel/forward.h>
 #include <stdint.h>
 
+// kernel heap starts right after the quickmap page
+#define KERNEL_HEAP_START (KERNEL_VADDR + 1024 * PAGE_SIZE)
+
+// last 4MiB is for recursive mapping
+#define KERNEL_HEAP_END 0xffc00000
+
 #define MEMORY_WRITE 0x2
 #define MEMORY_USER 0x4
 #define MEMORY_GLOBAL 0x100

@@ -301,6 +301,10 @@ void memory_init(const multiboot_info_t* mb_info) {
     kprintf("Kernel page directory: P0x%x\n", (uintptr_t)kernel_page_directory);
 
     page_allocator_init(mb_info);
+
+    for (size_t addr = KERNEL_HEAP_START; addr < KERNEL_HEAP_END;
+         addr += 1024 * PAGE_SIZE)
+        ASSERT_OK(get_or_create_page_table(addr));
 }
 
 int memory_map_to_anonymous_region(uintptr_t vaddr, uintptr_t size,
