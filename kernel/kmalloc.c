@@ -1,50 +1,42 @@
 #include "kmalloc.h"
-#include "api/err.h"
 #include "boot_defs.h"
-#include "lock.h"
-#include "memory.h"
 #include "memory/memory.h"
 #include "panic.h"
 #include "system.h"
 #include <common/extra.h>
 #include <common/string.h>
-#include <stdalign.h>
 #include <string.h>
 
-#define KMALLOC_HEAP_SIZE 0x1000000
+#define MAGIC 0x1d578e50
 
-static mutex lock;
-
-static uintptr_t heap_start;
-static uintptr_t ptr;
-
-void kmalloc_init(void) {
-    mutex_init(&lock);
-
-    heap_start = ptr =
-        memory_alloc_kernel_virtual_addr_range(KMALLOC_HEAP_SIZE);
-    ASSERT_OK(heap_start);
-    ASSERT_OK(memory_map_to_anonymous_region(heap_start, KMALLOC_HEAP_SIZE,
-                                             MEMORY_WRITE | MEMORY_GLOBAL));
-}
+struct header {
+    uint32_t magic;
+    size_t size;
+    unsigned char data[];
+};
 
 void* kaligned_alloc(size_t alignment, size_t size) {
     if (size == 0)
         return NULL;
 
-    mutex_lock(&lock);
+    ASSERT(alignment <= PAGE_SIZE);
 
-    uintptr_t aligned_ptr = round_up(ptr, alignment);
-    uintptr_t next_ptr = aligned_ptr + size;
-    if (next_ptr > heap_start + KMALLOC_HEAP_SIZE)
+    size_t data_offset = round_up(sizeof(struct header), alignment);
+    size_t real_size = data_offset + size;
+    uintptr_t addr = kernel_vaddr_allocator_alloc(real_size);
+    if (IS_ERR(addr))
+        return NULL;
+    if (IS_ERR(memory_map_to_anonymous_region(addr, real_size,
+                                              MEMORY_WRITE | MEMORY_GLOBAL)))
         return NULL;
 
-    memset((void*)aligned_ptr, 0, size);
+    struct header* header = (struct header*)addr;
+    header->magic = MAGIC;
+    header->size = real_size;
 
-    ptr = next_ptr;
-
-    mutex_unlock(&lock);
-    return (void*)aligned_ptr;
+    void* ptr = (void*)((uintptr_t)addr + data_offset);
+    memset(ptr, 0, size);
+    return ptr;
 }
 
 void* kmalloc(size_t size) {

@@ -313,6 +313,8 @@ void memory_init(const multiboot_info_t* mb_info) {
     for (size_t addr = KERNEL_HEAP_START; addr < KERNEL_HEAP_END;
          addr += 1024 * PAGE_SIZE)
         ASSERT_OK(get_or_create_page_table(addr));
+
+    kernel_vaddr_allocator_init();
 }
 
 int memory_map_to_anonymous_region(uintptr_t vaddr, uintptr_t size,
@@ -374,20 +376,4 @@ uint16_t memory_prot_to_map_flags(int prot) {
     if (prot & PROT_WRITE)
         flags |= MEMORY_WRITE;
     return flags;
-}
-
-// kernel heap starts right after the quickmap page
-static uintptr_t heap_next_vaddr = KERNEL_VADDR + 1024 * PAGE_SIZE;
-
-uintptr_t memory_alloc_kernel_virtual_addr_range(uintptr_t size) {
-    uintptr_t current_ptr = heap_next_vaddr;
-    uintptr_t aligned_ptr = round_up(current_ptr, PAGE_SIZE);
-    uintptr_t next_ptr = aligned_ptr + size;
-    if (next_ptr > 0xffc00000) // last 4MiB is for recursive mapping
-        return -ENOMEM;
-    if (next_ptr < heap_next_vaddr) // wrapped around
-        return -ENOMEM;
-
-    heap_next_vaddr = next_ptr;
-    return aligned_ptr;
 }

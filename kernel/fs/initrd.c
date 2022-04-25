@@ -33,13 +33,14 @@ static size_t parse_octal(const char* s, size_t len) {
 #define PARSE(field) parse_octal(field, sizeof(field))
 
 void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
-    uintptr_t vaddr = memory_alloc_kernel_virtual_addr_range(size);
-    ASSERT_OK(vaddr);
-
     uintptr_t region_start = round_down(paddr, PAGE_SIZE);
-    uintptr_t region_end = round_up(paddr + size, PAGE_SIZE);
-    ASSERT_OK(memory_map_to_physical_range(
-        vaddr, region_start, region_end - region_start, MEMORY_SHARED));
+    uintptr_t region_end = paddr + size;
+    size_t region_size = region_end - region_start;
+
+    uintptr_t vaddr = kernel_vaddr_allocator_alloc(region_size);
+    ASSERT_OK(vaddr);
+    ASSERT_OK(memory_map_to_physical_range(vaddr, region_start, region_size,
+                                           MEMORY_SHARED));
 
     uintptr_t cursor = vaddr + (paddr - region_start);
     for (;;) {

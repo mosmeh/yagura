@@ -10,6 +10,10 @@
 // last 4MiB is for recursive mapping
 #define KERNEL_HEAP_END 0xffc00000
 
+void kernel_vaddr_allocator_init(void);
+uintptr_t kernel_vaddr_allocator_alloc(size_t size);
+void kernel_vaddr_allocator_free(uintptr_t addr, size_t size);
+
 typedef struct range_allocator {
     uintptr_t start;
     uintptr_t end;
@@ -50,8 +54,6 @@ int memory_copy_mapping(uintptr_t to_virtual_addr, uintptr_t from_virtual_addr,
                         uintptr_t size, uint16_t flags);
 void memory_unmap(uintptr_t virtual_addr, uintptr_t size);
 uint16_t memory_prot_to_map_flags(int prot);
-
-uintptr_t memory_alloc_kernel_virtual_addr_range(uintptr_t size);
 
 void page_allocator_init(const multiboot_info_t* mb_info);
 uintptr_t page_allocator_alloc(void);

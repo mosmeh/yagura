@@ -4,7 +4,6 @@
 #include "graphics/graphics.h"
 #include "hid/hid.h"
 #include "interrupts.h"
-#include "kmalloc.h"
 #include "kprintf.h"
 #include "memory.h"
 #include "memory/memory.h"
@@ -59,7 +58,6 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     uintptr_t initrd_size = initrd_mod->mod_end - initrd_mod->mod_start;
 
     memory_init(mb_info);
-    kmalloc_init();
     process_init();
 
     ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));

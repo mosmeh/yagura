@@ -8,6 +8,7 @@
 #include <kernel/api/mman.h>
 #include <kernel/api/stat.h>
 #include <kernel/api/sysmacros.h>
+#include <kernel/boot_defs.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
 #include <kernel/kmalloc.h>
@@ -410,7 +411,7 @@ void tty_init(void) {
     ASSERT(line_is_dirty);
 
     size_t fb_size = fb_info.pitch * fb_info.height;
-    uintptr_t vaddr = memory_alloc_kernel_virtual_addr_range(fb_size);
+    uintptr_t vaddr = kernel_vaddr_allocator_alloc(fb_size);
     ASSERT_OK(vaddr);
     fb_addr = fs_mmap(desc, vaddr, fb_size, PROT_READ | PROT_WRITE, 0, true);
     ASSERT_OK(fb_addr);
