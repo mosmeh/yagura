@@ -5,17 +5,22 @@
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/mman.h>
+#include <kernel/api/unistd.h>
 #include <string.h>
 
-static void shmfs_reader(void) {
+static noreturn void shm_reader(void) {
     int fd = open("/dev/shm/test-fs", O_RDWR);
     ASSERT_OK(fd);
-    int* buf = mmap(NULL, 30000 * sizeof(int), PROT_READ | PROT_WRITE,
-                    MAP_SHARED, fd, 0);
+    size_t size = 50000 * sizeof(int);
+    ASSERT_OK(ftruncate(fd, size));
+    int* buf = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     ASSERT(buf != MAP_FAILED);
     for (int i = 0; i < 30000; ++i)
         ASSERT(buf[i] == i);
+    for (int i = 30000; i < 50000; ++i)
+        buf[i] = i;
     ASSERT_OK(close(fd));
+    ASSERT_OK(munmap(buf, size));
     exit(0);
 }
 
@@ -97,18 +102,46 @@ static void test_fs(void) {
     {
         int fd = open("/dev/shm/test-fs", O_RDWR | O_CREAT | O_EXCL);
         ASSERT_OK(fd);
-        ASSERT_OK(ftruncate(fd, 30000 * sizeof(int)));
-        int* buf = mmap(NULL, 30000 * sizeof(int), PROT_READ | PROT_WRITE,
-                        MAP_SHARED, fd, 0);
+        size_t size = 30000 * sizeof(int);
+        ASSERT_OK(ftruncate(fd, size));
+        int* buf = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         ASSERT(buf != MAP_FAILED);
         for (int i = 0; i < 30000; ++i)
             buf[i] = i;
-        ASSERT_OK(close(fd));
         pid_t pid = fork();
         ASSERT_OK(pid);
         if (pid == 0)
-            shmfs_reader();
+            shm_reader();
         ASSERT_OK(waitpid(pid, NULL, 0));
+        ASSERT_OK(close(fd));
+        ASSERT_OK(munmap(buf, size));
+    }
+    {
+        int fd = open("/dev/shm/test-fs", O_RDWR);
+        ASSERT_OK(fd);
+        size_t size = 50000 * sizeof(int);
+        int* buf = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+        ASSERT(buf != MAP_FAILED);
+        for (int i = 0; i < 30000; ++i)
+            ASSERT(buf[i] == i);
+        for (int i = 30000; i < 50000; ++i)
+            ASSERT(buf[i] == i);
+        ASSERT_OK(munmap(buf, size));
+        ASSERT_OK(close(fd));
+    }
+    {
+        int fd = open("/dev/shm/test-fs", O_RDWR);
+        ASSERT_OK(fd);
+        size_t size = 50000 * sizeof(int);
+        int* buf = malloc(size);
+        ASSERT(buf);
+        ASSERT((size_t)read(fd, buf, size) == size);
+        ASSERT_OK(close(fd));
+        for (int i = 0; i < 30000; ++i)
+            ASSERT(buf[i] == i);
+        for (int i = 30000; i < 50000; ++i)
+            ASSERT(buf[i] == i);
+        free(buf);
     }
 }
 
@@ -196,12 +229,14 @@ static void* shared_mmap_addr;
 static void mmap_reader(void) {
     for (size_t i = 0; i < 100; ++i)
         ASSERT(((uint32_t*)shared_mmap_addr)[i] == i);
+    ASSERT_OK(munmap(shared_mmap_addr, 5000));
     exit(0);
 }
 
 static void test_mmap_shared(void) {
     puts("mmap(MAP_SHARED)");
-    shared_mmap_addr = mmap(NULL, 5000, PROT_READ | PROT_WRITE,
+    size_t size = 5000;
+    shared_mmap_addr = mmap(NULL, size, PROT_READ | PROT_WRITE,
 
                             MAP_SHARED | MAP_ANONYMOUS, 0, 0);
     ASSERT(shared_mmap_addr != MAP_FAILED);
@@ -212,6 +247,7 @@ static void test_mmap_shared(void) {
     if (pid == 0)
         mmap_reader();
     ASSERT_OK(waitpid(pid, NULL, 0));
+    ASSERT_OK(munmap(shared_mmap_addr, size));
 }
 
 static void test_framebuffer(void) {
@@ -235,6 +271,7 @@ static void test_framebuffer(void) {
     memcpy(buf, fb, size);
     memcpy(fb, buf, size);
     free(buf);
+    ASSERT_OK(munmap(fb, size));
 }
 
 static void test_malloc(void) {
