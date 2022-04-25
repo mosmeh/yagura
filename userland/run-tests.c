@@ -237,11 +237,25 @@ static void test_framebuffer(void) {
     free(buf);
 }
 
+static void test_malloc(void) {
+    puts("malloc");
+    free(malloc(0));
+    for (size_t i = 0; i < 10000; ++i) {
+        void* buf = malloc(1);
+        ASSERT(buf);
+        void* buf2 = malloc(100000);
+        ASSERT(buf2);
+        free(buf);
+        free(buf2);
+    }
+}
+
 int main(void) {
     test_fs();
     test_socket();
     test_mmap_shared();
     test_framebuffer();
+    test_malloc();
 
     return EXIT_SUCCESS;
 }
