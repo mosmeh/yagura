@@ -42,6 +42,7 @@ static size_t console_width;
 static size_t console_height;
 static size_t cursor_x = 0;
 static size_t cursor_y = 0;
+static bool is_cursor_visible = true;
 static enum { STATE_GROUND, STATE_ESC, STATE_CSI } state = STATE_GROUND;
 static uint32_t fg_color = DEFAULT_FG_COLOR;
 static uint32_t bg_color = DEFAULT_BG_COLOR;
@@ -90,7 +91,7 @@ static void scroll_up(void) {
 }
 
 static void flush_cell_at(size_t x, size_t y, struct cell* cell) {
-    bool is_cursor = x == cursor_x && y == cursor_y;
+    bool is_cursor = is_cursor_visible && x == cursor_x && y == cursor_y;
     uint32_t fg = is_cursor ? cell->bg_color : cell->fg_color;
     uint32_t bg = is_cursor ? cell->fg_color : cell->bg_color;
 
@@ -335,6 +336,20 @@ static void handle_csi_sgr(void) {
     }
 }
 
+// Text Cursor Enable Mode
+static void handle_csi_dectcem(char c) {
+    if (strcmp(param_buf, "?25") != 0)
+        return;
+    switch (c) {
+    case 'h':
+        is_cursor_visible = true;
+        return;
+    case 'l':
+        is_cursor_visible = false;
+        return;
+    }
+}
+
 static void handle_state_csi(char c) {
     if (c < 0x40) {
         param_buf[param_buf_idx++] = c;
@@ -369,6 +384,10 @@ static void handle_state_csi(char c) {
         break;
     case 'm':
         handle_csi_sgr();
+        break;
+    case 'h':
+    case 'l':
+        handle_csi_dectcem(c);
         break;
     }
 
