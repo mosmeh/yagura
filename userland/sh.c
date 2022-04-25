@@ -3,6 +3,7 @@
 #include <common/ctype.h>
 #include <common/stdlib.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/api/unistd.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -507,27 +508,27 @@ static int run_pipe(const struct pipe_node* node, char* const envp[]) {
     if (pid < 0)
         return -1;
     if (pid == 0) {
-        dup2(pipefd[1], 1);
+        dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[0]);
         close(pipefd[1]);
         if (run_command(node->left, envp) < 0) {
             perror("run_command");
             abort();
         }
-        close(1);
+        close(STDOUT_FILENO);
         exit(EXIT_SUCCESS);
     }
 
-    int saved_stdin = dup(0);
-    dup2(pipefd[0], 0);
+    int saved_stdin = dup(STDIN_FILENO);
+    dup2(pipefd[0], STDIN_FILENO);
     close(pipefd[0]);
     close(pipefd[1]);
     if (run_command(node->right, envp) < 0) {
-        dup2(saved_stdin, 0);
+        dup2(saved_stdin, STDIN_FILENO);
         close(saved_stdin);
         return -1;
     }
-    dup2(saved_stdin, 0);
+    dup2(saved_stdin, STDIN_FILENO);
     close(saved_stdin);
 
     return waitpid(pid, NULL, 0);
@@ -537,15 +538,15 @@ static int run_redirect(const struct redirect_node* node, char* const envp[]) {
     int fd = open(node->to, O_WRONLY | O_CREAT, 0);
     if (fd < 0)
         return -1;
-    int saved_stdout = dup(1);
-    dup2(fd, 1);
+    int saved_stdout = dup(STDOUT_FILENO);
+    dup2(fd, STDOUT_FILENO);
     close(fd);
     if (run_command(node->from, envp) < 0) {
-        dup2(saved_stdout, 1);
+        dup2(saved_stdout, STDOUT_FILENO);
         close(saved_stdout);
         return -1;
     }
-    dup2(saved_stdout, 1);
+    dup2(saved_stdout, STDOUT_FILENO);
     close(saved_stdout);
     return 0;
 }
@@ -603,13 +604,13 @@ int main(int argc, char* const argv[], char* const envp[]) {
         case RESULT_EMPTY:
             continue;
         case RESULT_NOMEM_ERROR:
-            dprintf(2, "Out of memory\n");
+            dprintf(STDERR_FILENO, "Out of memory\n");
             return EXIT_FAILURE;
         case RESULT_SYNTAX_ERROR:
-            dprintf(2, "Syntax error\n");
+            dprintf(STDERR_FILENO, "Syntax error\n");
             continue;
         case RESULT_TOO_MANY_ARGS_ERROR:
-            dprintf(2, "Too many arguments\n");
+            dprintf(STDERR_FILENO, "Too many arguments\n");
             continue;
         default:
             UNREACHABLE();

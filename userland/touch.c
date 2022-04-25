@@ -1,10 +1,11 @@
 #include "stdlib.h"
 #include "syscall.h"
 #include <kernel/api/fcntl.h>
+#include <kernel/api/unistd.h>
 
 int main(int argc, char* const argv[]) {
     if (argc < 2) {
-        dprintf(2, "Usage: touch FILE\n");
+        dprintf(STDERR_FILENO, "Usage: touch FILE\n");
         return EXIT_FAILURE;
     }
 

@@ -9,6 +9,7 @@
 #include <kernel/api/mman.h>
 #include <kernel/api/signum.h>
 #include <kernel/api/syscall.h>
+#include <kernel/api/unistd.h>
 #include <stdalign.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -27,7 +28,7 @@ void _start(int argc, char* const argv[], char* const envp[]) {
 noreturn void abort(void) { exit(128 + SIGABRT); }
 
 noreturn void panic(const char* message, const char* file, size_t line) {
-    dprintf(2, "%s at %s:%u\n", message, file, line);
+    dprintf(STDERR_FILENO, "%s at %s:%u\n", message, file, line);
     abort();
 }
 
@@ -98,16 +99,16 @@ char* strdup(const char* src) {
 
 int putchar(int ch) {
     char c = ch;
-    if (write(1, &c, 1) < 0)
+    if (write(STDOUT_FILENO, &c, 1) < 0)
         return -1;
     return ch;
 }
 
 int puts(const char* str) {
-    int rc = write(1, str, strlen(str));
+    int rc = write(STDOUT_FILENO, str, strlen(str));
     if (rc < 0)
         return -1;
-    if (write(1, "\n", 1) < 0)
+    if (write(STDOUT_FILENO, "\n", 1) < 0)
         return -1;
     return rc + 1;
 }
@@ -115,7 +116,7 @@ int puts(const char* str) {
 int printf(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int ret = vdprintf(1, format, args);
+    int ret = vdprintf(STDOUT_FILENO, format, args);
     va_end(args);
     return ret;
 }
@@ -146,7 +147,9 @@ char* strerror(int errnum) {
     return "Unknown error";
 }
 
-void perror(const char* s) { dprintf(2, "%s: %s\n", s, strerror(errno)); }
+void perror(const char* s) {
+    dprintf(STDERR_FILENO, "%s: %s\n", s, strerror(errno));
+}
 
 char* getenv(const char* name) {
     for (char** env = environ; *env; ++env) {

@@ -1,10 +1,11 @@
 #include "stdlib.h"
 #include "syscall.h"
 #include <common/stdlib.h>
+#include <kernel/api/unistd.h>
 
 int main(int argc, char* const argv[]) {
     if (argc < 2) {
-        dprintf(2, "Usage: sleep NUMBER\n");
+        dprintf(STDERR_FILENO, "Usage: sleep NUMBER\n");
         return EXIT_FAILURE;
     }
     struct timespec req = {.tv_sec = atoi(argv[1]), .tv_nsec = 0};

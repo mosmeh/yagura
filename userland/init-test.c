@@ -2,12 +2,13 @@
 #include "syscall.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/api/reboot.h>
+#include <kernel/api/unistd.h>
 
 int main(void) {
     ASSERT(getpid() == 1);
-    ASSERT(open("/dev/console", O_RDONLY) == 0);
-    ASSERT(open("/dev/console", O_WRONLY) == 1);
-    ASSERT(open("/dev/console", O_WRONLY) == 2);
+    ASSERT(open("/dev/console", O_RDONLY) == STDIN_FILENO);
+    ASSERT(open("/dev/console", O_WRONLY) == STDOUT_FILENO);
+    ASSERT(open("/dev/console", O_WRONLY) == STDERR_FILENO);
 
     pid_t pid = fork();
     if (pid < 0) {

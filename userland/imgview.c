@@ -5,6 +5,7 @@
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/mman.h>
+#include <kernel/api/unistd.h>
 #include <string.h>
 
 #define QOI_OP_INDEX 0x00
@@ -43,14 +44,14 @@ static uint32_t swap_bytes(uint32_t x) {
 
 int main(int argc, char* const argv[]) {
     if (argc < 2) {
-        dprintf(2, "Usage: imgview FILE\n");
+        dprintf(STDERR_FILENO, "Usage: imgview FILE\n");
         return EXIT_FAILURE;
     }
 
     int fb_fd = open("/dev/fb0", O_RDWR);
     if (fb_fd < 0) {
         if (errno == ENOENT)
-            dprintf(2, "Framebuffer is not available\n");
+            dprintf(STDERR_FILENO, "Framebuffer is not available\n");
         else
             perror("open");
         return EXIT_FAILURE;
@@ -85,7 +86,7 @@ int main(int argc, char* const argv[]) {
     }
     if ((size_t)nread < sizeof(struct qoi_header) ||
         strncmp(header.magic, "qoif", 4) != 0) {
-        dprintf(2, "Not a QOI file\n");
+        dprintf(STDERR_FILENO, "Not a QOI file\n");
         close(img_fd);
         return EXIT_FAILURE;
     }

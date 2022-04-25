@@ -1,12 +1,13 @@
 #include "stdlib.h"
 #include "syscall.h"
 #include <kernel/api/fcntl.h>
+#include <kernel/api/unistd.h>
 
 #define BUF_SIZE 1024
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
-        dprintf(2, "Usage: cp SOURCE DEST\n");
+        dprintf(STDERR_FILENO, "Usage: cp SOURCE DEST\n");
         return EXIT_FAILURE;
     }
 

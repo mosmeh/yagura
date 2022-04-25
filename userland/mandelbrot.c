@@ -4,6 +4,7 @@
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/mman.h>
+#include <kernel/api/unistd.h>
 #include <math.h>
 
 #define MAX_ITER 100
@@ -96,7 +97,7 @@ int main(void) {
     int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0) {
         if (errno == ENOENT)
-            dprintf(2, "Framebuffer is not available\n");
+            dprintf(STDERR_FILENO, "Framebuffer is not available\n");
         else
             perror("open");
         return EXIT_FAILURE;
