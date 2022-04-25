@@ -2,6 +2,9 @@
 #include <kernel/api/errno.h>
 #include <kernel/api/reboot.h>
 #include <kernel/api/time.h>
+#include <kernel/api/unistd.h>
+#include <kernel/boot_defs.h>
+#include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
 #include <kernel/kprintf.h>
 #include <kernel/panic.h>
@@ -20,6 +23,21 @@ uintptr_t sys_reboot(int howto) {
         poweroff();
     default:
         return -1;
+    }
+}
+
+uintptr_t sys_sysconf(int name) {
+    switch (name) {
+    case _SC_MONOTONIC_CLOCK:
+        return 1;
+    case _SC_OPEN_MAX:
+        return OPEN_MAX;
+    case _SC_PAGESIZE:
+        return PAGE_SIZE;
+    case _SC_CLK_TCK:
+        return CLK_TCK;
+    default:
+        return -EINVAL;
     }
 }
 

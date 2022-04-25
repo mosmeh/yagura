@@ -10,7 +10,7 @@
 #define PATH_SEPARATOR_STR "/"
 #define ROOT_DIR PATH_SEPARATOR_STR
 
-#define FD_TABLE_CAPACITY 1024
+#define OPEN_MAX 1024
 
 typedef struct file_description {
     struct file* file;

@@ -101,7 +101,7 @@ noreturn void process_exit(int status) {
         PANIC("init process exited");
 
     file_description** it = current->fd_table.entries;
-    for (int i = 0; i < FD_TABLE_CAPACITY; ++i, ++it) {
+    for (int i = 0; i < OPEN_MAX; ++i, ++it) {
         if (*it)
             fs_close(*it);
     }
@@ -123,7 +123,7 @@ void process_tick(bool in_kernel) {
 }
 
 int process_alloc_file_descriptor(int fd, file_description* desc) {
-    if (fd >= FD_TABLE_CAPACITY)
+    if (fd >= OPEN_MAX)
         return -EBADF;
 
     if (fd >= 0) {
@@ -135,7 +135,7 @@ int process_alloc_file_descriptor(int fd, file_description* desc) {
     }
 
     file_description** it = current->fd_table.entries;
-    for (int i = 0; i < FD_TABLE_CAPACITY; ++i, ++it) {
+    for (int i = 0; i < OPEN_MAX; ++i, ++it) {
         if (*it)
             continue;
         *it = desc;
@@ -145,7 +145,7 @@ int process_alloc_file_descriptor(int fd, file_description* desc) {
 }
 
 int process_free_file_descriptor(int fd) {
-    if (fd >= FD_TABLE_CAPACITY)
+    if (fd >= OPEN_MAX)
         return -EBADF;
 
     file_description** desc = current->fd_table.entries + fd;
@@ -156,7 +156,7 @@ int process_free_file_descriptor(int fd) {
 }
 
 file_description* process_get_file_description(int fd) {
-    if (fd >= FD_TABLE_CAPACITY)
+    if (fd >= OPEN_MAX)
         return ERR_PTR(-EBADF);
 
     file_description** desc = current->fd_table.entries + fd;

@@ -23,6 +23,7 @@ char* getcwd(char* buf, size_t size);
 int chdir(const char* path);
 
 int reboot(int howto);
+long sysconf(int name);
 
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,
            off_t offset);

@@ -35,6 +35,7 @@
     F(reboot)                                                                  \
     F(socket)                                                                  \
     F(stat)                                                                    \
+    F(sysconf)                                                                 \
     F(times)                                                                   \
     F(waitpid)                                                                 \
     F(write)                                                                   \

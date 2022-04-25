@@ -85,6 +85,11 @@ int reboot(int howto) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+long sysconf(int name) {
+    int rc = syscall(SYS_sysconf, name, 0, 0);
+    RETURN_WITH_ERRNO(rc, long)
+}
+
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,
            off_t offset) {
     mmap_params params;

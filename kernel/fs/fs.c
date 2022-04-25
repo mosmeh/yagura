@@ -9,25 +9,24 @@
 #include <string.h>
 
 int file_descriptor_table_init(file_descriptor_table* table) {
-    table->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description*));
+    table->entries = kmalloc(OPEN_MAX * sizeof(file_description*));
     if (!table->entries)
         return -ENOMEM;
 
-    for (size_t i = 0; i < FD_TABLE_CAPACITY; ++i)
+    for (size_t i = 0; i < OPEN_MAX; ++i)
         table->entries[i] = NULL;
     return 0;
 }
 
 int file_descriptor_table_clone_from(file_descriptor_table* to,
                                      const file_descriptor_table* from) {
-    to->entries = kmalloc(FD_TABLE_CAPACITY * sizeof(file_description*));
+    to->entries = kmalloc(OPEN_MAX * sizeof(file_description*));
     if (!to->entries)
         return -ENOMEM;
 
-    memcpy(to->entries, from->entries,
-           FD_TABLE_CAPACITY * sizeof(file_description*));
+    memcpy(to->entries, from->entries, OPEN_MAX * sizeof(file_description*));
 
-    for (size_t i = 0; i < FD_TABLE_CAPACITY; ++i) {
+    for (size_t i = 0; i < OPEN_MAX; ++i) {
         if (from->entries[i])
             ++from->entries[i]->ref_count;
     }

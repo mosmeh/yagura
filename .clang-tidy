@@ -9,6 +9,7 @@ Checks: >
     portability-*,
     readability-*,
     -bugprone-easily-swappable-parameters,
+    -bugprone-reserved-identifier,
     -cert-dcl37-c,
     -cert-dcl51-cpp,
     -cert-err34-c,
@@ -22,7 +23,5 @@ Checks: >
 CheckOptions:
     - key: bugprone-narrowing-conversions.WarnOnIntegerNarrowingConversion
       value: false
-    - key: bugprone-reserved-identifier.AllowedIdentifiers
-      value: _start
     - key: readability-function-cognitive-complexity.Threshold
       value: 100
