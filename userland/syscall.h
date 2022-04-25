@@ -1,10 +1,10 @@
 #pragma once
 
-#include <kernel/api/socket.h>
-#include <kernel/api/stat.h>
+#include <kernel/api/sys/socket.h>
+#include <kernel/api/sys/stat.h>
+#include <kernel/api/sys/times.h>
+#include <kernel/api/sys/types.h>
 #include <kernel/api/time.h>
-#include <kernel/api/times.h>
-#include <kernel/api/types.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdnoreturn.h>

@@ -1,5 +1,5 @@
 #include "api/fcntl.h"
-#include "api/stat.h"
+#include "api/sys/stat.h"
 #include "fs/fs.h"
 #include "kmalloc.h"
 #include "panic.h"

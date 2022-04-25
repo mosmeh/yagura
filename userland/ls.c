@@ -2,7 +2,7 @@
 #include "syscall.h"
 #include <common/extra.h>
 #include <kernel/api/dirent.h>
-#include <kernel/api/stat.h>
+#include <kernel/api/sys/stat.h>
 #include <string.h>
 
 static int get_format(const struct dirent* dent, const char** out_format,

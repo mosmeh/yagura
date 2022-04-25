@@ -1,8 +1,8 @@
 #include <common/extra.h>
 #include <kernel/api/err.h>
-#include <kernel/api/mman.h>
-#include <kernel/api/stat.h>
-#include <kernel/api/syscall.h>
+#include <kernel/api/sys/mman.h>
+#include <kernel/api/sys/stat.h>
+#include <kernel/api/sys/syscall.h>
 #include <kernel/boot_defs.h>
 #include <kernel/memory/memory.h>
 #include <kernel/process.h>

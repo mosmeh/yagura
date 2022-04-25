@@ -3,7 +3,7 @@
 #include <kernel/api/errno.h>
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/mman.h>
+#include <kernel/api/sys/mman.h>
 #include <kernel/api/unistd.h>
 #include <math.h>
 

@@ -2,8 +2,8 @@
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/stat.h>
-#include <kernel/api/sysmacros.h>
+#include <kernel/api/sys/stat.h>
+#include <kernel/api/sys/sysmacros.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
 #include <kernel/panic.h>

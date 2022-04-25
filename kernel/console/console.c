@@ -3,8 +3,8 @@
 #include "kernel/serial.h"
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/stat.h>
-#include <kernel/api/sysmacros.h>
+#include <kernel/api/sys/stat.h>
+#include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/scheduler.h>

@@ -1,6 +1,6 @@
 #include "api/err.h"
-#include "api/stat.h"
-#include "api/sysmacros.h"
+#include "api/sys/stat.h"
+#include "api/sys/sysmacros.h"
 #include "fs/fs.h"
 #include "kmalloc.h"
 #include "system.h"

@@ -1,8 +1,8 @@
 #include <common/string.h>
 #include <kernel/api/err.h>
-#include <kernel/api/stat.h>
+#include <kernel/api/sys/stat.h>
+#include <kernel/api/sys/times.h>
 #include <kernel/api/time.h>
-#include <kernel/api/times.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/memory/memory.h>

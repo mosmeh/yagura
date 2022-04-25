@@ -1,7 +1,7 @@
 #include "tree.h"
 #include <common/extra.h>
 #include <kernel/api/err.h>
-#include <kernel/api/stat.h>
+#include <kernel/api/sys/stat.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
 #include <kernel/memory/memory.h>

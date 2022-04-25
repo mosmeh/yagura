@@ -6,9 +6,9 @@
 #include <kernel/api/dirent.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/mman.h>
 #include <kernel/api/signum.h>
-#include <kernel/api/syscall.h>
+#include <kernel/api/sys/mman.h>
+#include <kernel/api/sys/syscall.h>
 #include <kernel/api/unistd.h>
 #include <stdalign.h>
 #include <stdarg.h>

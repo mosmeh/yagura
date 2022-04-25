@@ -1,7 +1,7 @@
 #pragma once
 
-#include <kernel/api/stat.h>
-#include <kernel/api/types.h>
+#include <kernel/api/sys/stat.h>
+#include <kernel/api/sys/types.h>
 #include <kernel/forward.h>
 #include <stdbool.h>
 #include <stddef.h>

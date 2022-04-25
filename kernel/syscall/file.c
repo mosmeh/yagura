@@ -1,6 +1,6 @@
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/stat.h>
+#include <kernel/api/sys/stat.h>
 #include <kernel/fs/fs.h>
 #include <kernel/process.h>
 #include <kernel/system.h>

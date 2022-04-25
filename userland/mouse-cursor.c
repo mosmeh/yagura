@@ -5,7 +5,7 @@
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/hid.h>
-#include <kernel/api/mman.h>
+#include <kernel/api/sys/mman.h>
 #include <string.h>
 
 #define CURSOR_WIDTH 8

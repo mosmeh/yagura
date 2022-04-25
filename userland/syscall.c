@@ -3,7 +3,7 @@
 #include <common/extra.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/syscall.h>
+#include <kernel/api/sys/syscall.h>
 #include <stdarg.h>
 
 uintptr_t syscall(uint32_t num, uintptr_t arg1, uintptr_t arg2,

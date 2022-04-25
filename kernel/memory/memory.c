@@ -1,6 +1,6 @@
 #include "memory.h"
 #include <common/extra.h>
-#include <kernel/api/mman.h>
+#include <kernel/api/sys/mman.h>
 #include <kernel/boot_defs.h>
 #include <kernel/interrupts.h>
 #include <kernel/kmalloc.h>

@@ -3,7 +3,7 @@
 #include <kernel/api/elf.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/stat.h>
+#include <kernel/api/sys/stat.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/boot_defs.h>
 #include <kernel/kmalloc.h>
