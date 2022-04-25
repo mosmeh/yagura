@@ -80,7 +80,7 @@ void time_init(void) {
 
 void time_tick(void) {
     static const long nanos = 1000000000;
-    now.tv_nsec += nanos / CLOCKS_PER_SEC;
+    now.tv_nsec += nanos / CLK_TCK;
     if (now.tv_nsec >= nanos) {
         ++now.tv_sec;
         now.tv_nsec -= nanos;

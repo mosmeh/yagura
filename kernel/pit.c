@@ -25,7 +25,7 @@ static void pit_handler(registers* regs) {
 }
 
 void pit_init(void) {
-    uint16_t div = BASE_FREQUENCY / CLOCKS_PER_SEC;
+    uint16_t div = BASE_FREQUENCY / CLK_TCK;
     out8(PIT_CTL, TIMER0_SELECT | WRITE_WORD | MODE_SQUARE_WAVE);
     out8(TIMER0_CTL, div & 0xff);
     out8(TIMER0_CTL, div >> 8);

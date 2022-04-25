@@ -95,8 +95,8 @@ static bool sleep_should_unblock(const uint32_t* deadline) {
 }
 
 uintptr_t sys_nanosleep(const struct timespec* req, struct timespec* rem) {
-    uint32_t deadline = uptime + req->tv_sec * CLOCKS_PER_SEC +
-                        req->tv_nsec * CLOCKS_PER_SEC / 1000000000;
+    uint32_t deadline =
+        uptime + req->tv_sec * CLK_TCK + req->tv_nsec * CLK_TCK / 1000000000;
     scheduler_block(sleep_should_unblock, &deadline);
     if (rem)
         rem->tv_sec = rem->tv_nsec = 0;

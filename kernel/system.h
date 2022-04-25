@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <stdnoreturn.h>
 
+#define CLK_TCK 250
+
 typedef struct registers {
     uint32_t ss, gs, fs, es, ds;
     uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;

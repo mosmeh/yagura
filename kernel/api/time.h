@@ -2,8 +2,6 @@
 
 #include "types.h"
 
-#define CLOCKS_PER_SEC 250
-
 enum { CLOCK_REALTIME, CLOCK_MONOTONIC };
 
 typedef int clockid_t;
