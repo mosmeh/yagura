@@ -23,53 +23,55 @@ uintptr_t sys_yield(void) {
 void return_to_userland(registers);
 
 uintptr_t sys_fork(registers* regs) {
-    process* p = kaligned_alloc(alignof(process), sizeof(process));
-    if (!p)
+    struct process* process =
+        kaligned_alloc(alignof(struct process), sizeof(struct process));
+    if (!process)
         return -ENOMEM;
-    *p = (process){0};
+    *process = (struct process){0};
 
-    p->pd = memory_clone_current_page_directory();
-    if (IS_ERR(p->pd))
-        return PTR_ERR(p->pd);
+    process->pd = memory_clone_current_page_directory();
+    if (IS_ERR(process->pd))
+        return PTR_ERR(process->pd);
 
-    p->id = process_generate_next_pid();
-    p->eip = (uintptr_t)return_to_userland;
-    p->ebx = current->ebx;
-    p->esi = current->esi;
-    p->edi = current->edi;
-    p->fpu_state = current->fpu_state;
+    process->id = process_generate_next_pid();
+    process->eip = (uintptr_t)return_to_userland;
+    process->ebx = current->ebx;
+    process->esi = current->esi;
+    process->edi = current->edi;
+    process->fpu_state = current->fpu_state;
 
-    int rc =
-        range_allocator_clone(&p->vaddr_allocator, &current->vaddr_allocator);
+    int rc = range_allocator_clone(&process->vaddr_allocator,
+                                   &current->vaddr_allocator);
     if (IS_ERR(rc))
         return rc;
 
-    p->user_ticks = current->user_ticks;
-    p->kernel_ticks = current->kernel_ticks;
+    process->user_ticks = current->user_ticks;
+    process->kernel_ticks = current->kernel_ticks;
 
-    p->cwd = kstrdup(current->cwd);
-    if (!p->cwd)
+    process->cwd = kstrdup(current->cwd);
+    if (!process->cwd)
         return -ENOMEM;
 
-    rc = file_descriptor_table_clone_from(&p->fd_table, &current->fd_table);
+    rc = file_descriptor_table_clone_from(&process->fd_table,
+                                          &current->fd_table);
     if (IS_ERR(rc))
         return rc;
 
     void* stack = kmalloc(STACK_SIZE);
     if (!stack)
         return -ENOMEM;
-    p->stack_top = (uintptr_t)stack + STACK_SIZE;
-    p->esp = p->ebp = p->stack_top;
+    process->stack_top = (uintptr_t)stack + STACK_SIZE;
+    process->esp = process->ebp = process->stack_top;
 
     // push the argument of return_to_userland()
-    p->esp -= sizeof(registers);
-    registers* child_regs = (registers*)p->esp;
+    process->esp -= sizeof(registers);
+    registers* child_regs = (registers*)process->esp;
     *child_regs = *regs;
     child_regs->eax = 0; // fork() returns 0 in the child
 
-    scheduler_enqueue(p);
+    scheduler_enqueue(process);
 
-    return p->id;
+    return process->id;
 }
 
 static bool waitpid_should_unblock(const pid_t* pid) {

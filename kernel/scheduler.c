@@ -6,41 +6,41 @@
 #include "process.h"
 #include "system.h"
 
-static process* ready_queue;
-static process* blocked_processes;
-static process* idle;
+static struct process* ready_queue;
+static struct process* blocked_processes;
+static struct process* idle;
 
-void scheduler_enqueue(process* p) {
+void scheduler_enqueue(struct process* process) {
     bool int_flag = push_cli();
 
-    p->next = NULL;
+    process->next = NULL;
     if (ready_queue) {
-        process* it = ready_queue;
+        struct process* it = ready_queue;
         while (it->next)
             it = it->next;
-        it->next = p;
+        it->next = process;
     } else {
-        ready_queue = p;
+        ready_queue = process;
     }
 
     pop_cli(int_flag);
 }
 
-static process* scheduler_deque(void) {
+static struct process* scheduler_deque(void) {
     if (!ready_queue)
         return idle;
-    process* p = ready_queue;
-    ready_queue = p->next;
-    p->next = NULL;
-    return p;
+    struct process* process = ready_queue;
+    ready_queue = process->next;
+    process->next = NULL;
+    return process;
 }
 
 static void unblock_processes(void) {
     if (!blocked_processes)
         return;
 
-    process* prev = NULL;
-    process* it = blocked_processes;
+    struct process* prev = NULL;
+    struct process* it = blocked_processes;
     for (;;) {
         ASSERT(it->should_unblock);
         if (it->should_unblock(it->blocker_data)) {
@@ -77,14 +77,14 @@ void scheduler_init(void) {
     ASSERT_OK(idle);
 }
 
-process* scheduler_find_process_by_pid(pid_t pid) {
+struct process* scheduler_find_process_by_pid(pid_t pid) {
     ASSERT(current);
     if (current->id == pid)
         return current;
 
     bool int_flag = push_cli();
 
-    process* it = ready_queue;
+    struct process* it = ready_queue;
     while (it) {
         if (it->id == pid)
             goto found;
@@ -183,7 +183,7 @@ void scheduler_block(bool (*should_unblock)(void*), void* data) {
 
     current->next = NULL;
     if (blocked_processes) {
-        process* it = blocked_processes;
+        struct process* it = blocked_processes;
         while (it->next)
             it = it->next;
         it->next = current;

@@ -1,11 +1,10 @@
 #pragma once
 
-#include "forward.h"
 #include <stdatomic.h>
 #include <stdint.h>
 
 typedef struct mutex {
-    volatile process* holder;
+    volatile struct process* holder;
     volatile uint32_t level;
     volatile atomic_bool lock;
 } mutex;

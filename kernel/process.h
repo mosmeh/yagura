@@ -5,7 +5,7 @@
 #include "system.h"
 #include <stdnoreturn.h>
 
-typedef struct process {
+struct process {
     pid_t id;
     uint32_t eip, esp, ebp, ebx, esi, edi;
     struct fpu_state fpu_state;
@@ -24,14 +24,14 @@ typedef struct process {
     size_t kernel_ticks;
 
     struct process* next; // for ready_queue or blocked_processes
-} process;
+};
 
-extern process* current;
+extern struct process* current;
 extern const struct fpu_state initial_fpu_state;
 
 void process_init(void);
 
-process* process_create_kernel_process(void (*entry_point)(void));
+struct process* process_create_kernel_process(void (*entry_point)(void));
 pid_t process_spawn_kernel_process(void (*entry_point)(void));
 
 pid_t process_generate_next_pid(void);

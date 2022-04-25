@@ -14,7 +14,7 @@
 
 #define USER_HEAP_START 0x100000
 
-process* current;
+struct process* current;
 const struct fpu_state initial_fpu_state;
 static atomic_int next_pid;
 
@@ -28,9 +28,9 @@ void process_init(void) {
 
     atomic_init(&next_pid, 1);
 
-    current = kaligned_alloc(alignof(process), sizeof(process));
+    current = kaligned_alloc(alignof(struct process), sizeof(struct process));
     ASSERT(current);
-    *current = (process){0};
+    *current = (struct process){0};
     current->id = 0;
     current->fpu_state = initial_fpu_state;
     current->pd =
@@ -46,44 +46,46 @@ void process_init(void) {
     gdt_set_kernel_stack(current->stack_top);
 }
 
-process* process_create_kernel_process(void (*entry_point)(void)) {
-    process* p = kaligned_alloc(alignof(process), sizeof(process));
-    if (!p)
+struct process* process_create_kernel_process(void (*entry_point)(void)) {
+    struct process* process =
+        kaligned_alloc(alignof(struct process), sizeof(struct process));
+    if (!process)
         return ERR_PTR(-ENOMEM);
-    *p = (process){0};
+    *process = (struct process){0};
 
-    p->id = 0;
-    p->eip = (uintptr_t)entry_point;
-    p->fpu_state = initial_fpu_state;
-    range_allocator_init(&p->vaddr_allocator, USER_HEAP_START, KERNEL_VADDR);
+    process->id = 0;
+    process->eip = (uintptr_t)entry_point;
+    process->fpu_state = initial_fpu_state;
+    range_allocator_init(&process->vaddr_allocator, USER_HEAP_START,
+                         KERNEL_VADDR);
 
-    p->pd = memory_create_page_directory();
-    if (IS_ERR(p->pd))
-        return ERR_CAST(p->pd);
+    process->pd = memory_create_page_directory();
+    if (IS_ERR(process->pd))
+        return ERR_CAST(process->pd);
 
-    p->cwd = kstrdup(ROOT_DIR);
-    if (!p->cwd)
+    process->cwd = kstrdup(ROOT_DIR);
+    if (!process->cwd)
         return ERR_PTR(-ENOMEM);
 
-    int rc = file_descriptor_table_init(&p->fd_table);
+    int rc = file_descriptor_table_init(&process->fd_table);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
     void* stack = kmalloc(STACK_SIZE);
     if (!stack)
         return ERR_PTR(-ENOMEM);
-    p->stack_top = (uintptr_t)stack + STACK_SIZE;
-    p->esp = p->ebp = p->stack_top;
+    process->stack_top = (uintptr_t)stack + STACK_SIZE;
+    process->esp = process->ebp = process->stack_top;
 
-    return p;
+    return process;
 }
 
 pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
-    process* p = process_create_kernel_process(entry_point);
-    if (IS_ERR(p))
-        return PTR_ERR(p);
-    scheduler_enqueue(p);
-    return p->id;
+    struct process* process = process_create_kernel_process(entry_point);
+    if (IS_ERR(process))
+        return PTR_ERR(process);
+    scheduler_enqueue(process);
+    return process->id;
 }
 
 pid_t process_generate_next_pid(void) {
