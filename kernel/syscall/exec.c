@@ -203,6 +203,7 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     push_value(&sp, argc);
     push_value(&sp, 0); // fake return address
 
+    range_allocator_destroy(&current->vaddr_allocator);
     current->vaddr_allocator = vaddr_allocator;
 
     cli();

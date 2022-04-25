@@ -108,6 +108,8 @@ noreturn void process_exit(int status) {
 
     memory_destroy_current_page_directory();
 
+    range_allocator_destroy(&current->vaddr_allocator);
+
     scheduler_yield(false);
     UNREACHABLE();
 }

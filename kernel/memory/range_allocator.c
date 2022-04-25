@@ -25,6 +25,16 @@ int range_allocator_init(range_allocator* allocator, uintptr_t start,
     return 0;
 }
 
+void range_allocator_destroy(range_allocator* allocator) {
+    ASSERT(allocator->ranges);
+    struct range* it = allocator->ranges;
+    while (it) {
+        struct range* next = it->next;
+        kfree(it);
+        it = next;
+    }
+}
+
 uintptr_t range_allocator_alloc(range_allocator* allocator, size_t size) {
     ASSERT(allocator->ranges);
     size = round_up(size, PAGE_SIZE);
@@ -44,6 +54,7 @@ uintptr_t range_allocator_alloc(range_allocator* allocator, size_t size) {
                 ASSERT(allocator->ranges == it);
                 allocator->ranges = it->next;
             }
+            kfree(it);
         } else {
             it->base += size;
             it->size -= size;
@@ -75,6 +86,7 @@ int range_allocator_free(range_allocator* allocator, uintptr_t addr,
             // we're filling a gap
             prev->size += it->size;
             prev->next = it->next;
+            kfree(it);
         }
         return 0;
     }
