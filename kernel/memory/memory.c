@@ -310,7 +310,7 @@ void memory_init(const multiboot_info_t* mb_info) {
 int memory_map_to_anonymous_region(uintptr_t vaddr, uintptr_t size,
                                    uint16_t flags) {
     ASSERT((vaddr % PAGE_SIZE) == 0);
-    ASSERT((size % PAGE_SIZE) == 0);
+    size = round_up(size, PAGE_SIZE);
 
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
         int rc = map_page_anywhere(vaddr + offset, flags);
@@ -325,7 +325,7 @@ int memory_map_to_physical_range(uintptr_t vaddr, uintptr_t paddr,
                                  uintptr_t size, uint16_t flags) {
     ASSERT((vaddr % PAGE_SIZE) == 0);
     ASSERT((paddr % PAGE_SIZE) == 0);
-    ASSERT((size % PAGE_SIZE) == 0);
+    size = round_up(size, PAGE_SIZE);
 
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
         int rc = map_page_at_fixed_physical_addr(vaddr + offset, paddr + offset,
@@ -341,7 +341,7 @@ int memory_copy_mapping(uintptr_t to_vaddr, uintptr_t from_vaddr,
                         uintptr_t size, uint16_t flags) {
     ASSERT((to_vaddr % PAGE_SIZE) == 0);
     ASSERT((from_vaddr % PAGE_SIZE) == 0);
-    ASSERT((size % PAGE_SIZE) == 0);
+    size = round_up(size, PAGE_SIZE);
 
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
         int rc =
