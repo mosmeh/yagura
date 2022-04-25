@@ -12,7 +12,7 @@
 #include <kernel/process.h>
 #include <string.h>
 
-static ssize_t copy_strings(char** dst[], char* const src[]) {
+static ssize_t copy_strings(char** buf, char** dst[], char* const src[]) {
     size_t count = 0;
     size_t total_size = 0;
     for (char* const* it = src; *it; ++it) {
@@ -21,16 +21,19 @@ static ssize_t copy_strings(char** dst[], char* const src[]) {
     }
 
     if (count == 0) {
+        *buf = NULL;
         *dst = NULL;
         return 0;
     }
 
-    char* buf = kmalloc(total_size);
-    if (!buf)
+    *buf = kmalloc(total_size);
+    if (!*buf)
         return -ENOMEM;
 
-    char* dst_str = buf;
+    char* dst_str = *buf;
     *dst = kmalloc(count * sizeof(char*));
+    if (!*dst)
+        return -ENOMEM;
 
     for (size_t i = 0; i < count; ++i) {
         size_t size = strlen(src[i]) + 1;
@@ -104,13 +107,15 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 
     // after switching page directory we will no longer be able to access
     // argv and envp, so we copy them here.
-    char** copied_argv;
-    ssize_t argc = copy_strings(&copied_argv, argv);
+    char* argv_buf = NULL;
+    char** copied_argv = NULL;
+    ssize_t argc = copy_strings(&argv_buf, &copied_argv, argv);
     if (IS_ERR(argc))
         return argc;
 
-    char** copied_envp;
-    ssize_t num_envp = copy_strings(&copied_envp, envp);
+    char* envp_buf = NULL;
+    char** copied_envp = NULL;
+    ssize_t num_envp = copy_strings(&envp_buf, &copied_envp, envp);
     if (IS_ERR(num_envp))
         return num_envp;
 
@@ -176,24 +181,30 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     uintptr_t sp = stack_base + STACK_SIZE;
     memset((void*)stack_base, 0, STACK_SIZE);
 
-    uintptr_t* envp_ptrs;
+    uintptr_t* envp_ptrs = NULL;
     ret = push_strings(&sp, &envp_ptrs, copied_envp, num_envp);
+    kfree(envp_buf);
+    kfree(copied_envp);
     if (IS_ERR(ret))
         goto fail;
 
-    uintptr_t* argv_ptrs;
+    uintptr_t* argv_ptrs = NULL;
     ret = push_strings(&sp, &argv_ptrs, copied_argv, argc);
+    kfree(argv_buf);
+    kfree(copied_argv);
     if (IS_ERR(ret))
         goto fail;
 
     push_value(&sp, 0);
     for (ssize_t i = 0; i < num_envp; ++i)
         push_value(&sp, envp_ptrs[i]);
+    kfree(envp_ptrs);
     uintptr_t user_envp = sp;
 
     push_value(&sp, 0);
     for (ssize_t i = 0; i < argc; ++i)
         push_value(&sp, argv_ptrs[i]);
+    kfree(argv_ptrs);
     uintptr_t user_argv = sp;
 
     sp = round_down(sp, 16);

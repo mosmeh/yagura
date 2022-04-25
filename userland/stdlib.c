@@ -217,7 +217,11 @@ DIR* opendir(const char* name) {
     return dirp;
 }
 
-int closedir(DIR* dirp) { return close(dirp->fd); }
+int closedir(DIR* dirp) {
+    int rc = close(dirp->fd);
+    free(dirp);
+    return rc;
+}
 
 struct dirent* readdir(DIR* dirp) {
     if (dirp->buf_cursor >= dirp->buf_size) {
