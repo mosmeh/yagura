@@ -32,46 +32,42 @@ noreturn void panic(const char* message, const char* file, size_t line) {
     abort();
 }
 
-#define MALLOC_HEAP_SIZE 0x100000
+#define MALLOC_MAGIC 0xab4fde8d
 
-static struct {
-    bool initialized;
-    uintptr_t heap_start;
-    uintptr_t ptr;
-    size_t num_allocs;
-} malloc_ctx;
+struct malloc_header {
+    uint32_t magic;
+    size_t size;
+    unsigned char data[];
+};
 
-static void malloc_init_if_needed(void) {
-    if (malloc_ctx.initialized)
-        return;
-
-    void* heap = mmap(NULL, MALLOC_HEAP_SIZE, PROT_READ | PROT_WRITE,
-                      MAP_PRIVATE | MAP_ANONYMOUS, 0, 0);
-    ASSERT(heap != MAP_FAILED);
-    malloc_ctx.heap_start = malloc_ctx.ptr = (uintptr_t)heap;
-    malloc_ctx.num_allocs = 0;
-    malloc_ctx.initialized = true;
-}
+static size_t page_size;
 
 void* aligned_alloc(size_t alignment, size_t size) {
     if (size == 0)
         return NULL;
 
-    malloc_init_if_needed();
+    if (!page_size)
+        page_size = sysconf(_SC_PAGESIZE);
 
-    uintptr_t aligned_ptr = round_up(malloc_ctx.ptr, alignment);
-    uintptr_t next_ptr = aligned_ptr + size;
-    if (next_ptr > malloc_ctx.heap_start + MALLOC_HEAP_SIZE) {
+    ASSERT(alignment <= page_size);
+
+    size_t data_offset =
+        round_up(offsetof(struct malloc_header, data), alignment);
+    size_t real_size = data_offset + size;
+    void* addr = mmap(NULL, real_size, PROT_READ | PROT_WRITE,
+                      MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
+    if (addr == MAP_FAILED) {
         errno = ENOMEM;
         return NULL;
     }
 
-    memset((void*)aligned_ptr, 0, size);
+    struct malloc_header* header = (struct malloc_header*)addr;
+    header->magic = MALLOC_MAGIC;
+    header->size = real_size;
 
-    malloc_ctx.ptr = next_ptr;
-    ++malloc_ctx.num_allocs;
-
-    return (void*)aligned_ptr;
+    void* ptr = (void*)((uintptr_t)addr + data_offset);
+    memset(ptr, 0, size);
+    return ptr;
 }
 
 void* malloc(size_t size) { return aligned_alloc(alignof(max_align_t), size); }
@@ -79,11 +75,13 @@ void* malloc(size_t size) { return aligned_alloc(alignof(max_align_t), size); }
 void free(void* ptr) {
     if (!ptr)
         return;
-
-    ASSERT(malloc_ctx.initialized);
-    ASSERT(malloc_ctx.num_allocs > 0);
-    if (--malloc_ctx.num_allocs == 0)
-        malloc_ctx.ptr = malloc_ctx.heap_start;
+    ASSERT(page_size);
+    uintptr_t addr = round_down((uintptr_t)ptr, page_size);
+    if ((uintptr_t)ptr - addr < sizeof(struct malloc_header))
+        addr -= page_size;
+    struct malloc_header* header = (struct malloc_header*)addr;
+    ASSERT(header->magic == MALLOC_MAGIC);
+    ASSERT_OK(munmap((void*)header, header->size));
 }
 
 char* strdup(const char* src) {
