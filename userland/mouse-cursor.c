@@ -119,7 +119,7 @@ int main(void) {
             return EXIT_FAILURE;
         }
         restore_fb();
-        move_cursor_to(cursor_x + event.dx, cursor_y - event.dy);
+        move_cursor_to(cursor_x + event.dx, cursor_y + event.dy);
     }
 
     close(mouse_fd);

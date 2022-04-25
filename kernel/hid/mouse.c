@@ -47,7 +47,7 @@ static void irq_handler(registers* reg) {
         if (buf[0] & 0xc0)
             dx = dy = 0;
 
-        queue[queue_write_idx] = (mouse_event){dx, dy, buf[0] & 7};
+        queue[queue_write_idx] = (mouse_event){dx, -dy, buf[0] & 7};
         queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
 
         state = 0;
