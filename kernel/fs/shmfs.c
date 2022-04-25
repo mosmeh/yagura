@@ -14,9 +14,9 @@ typedef struct shmfs_node {
 } shmfs_node;
 
 static uintptr_t shmfs_mmap(file_description* desc, uintptr_t addr,
-                            size_t length, int prot, off_t offset,
-                            bool shared) {
-    if (offset != 0 || !shared)
+                            size_t length, off_t offset,
+                            uint16_t memory_flags) {
+    if (offset != 0 || !(memory_flags & MEMORY_SHARED))
         return -EINVAL;
 
     shmfs_node* node = (shmfs_node*)desc->file;
@@ -24,8 +24,7 @@ static uintptr_t shmfs_mmap(file_description* desc, uintptr_t addr,
         return -EINVAL;
 
     int rc =
-        memory_copy_mapping(addr, (uintptr_t)node->buf, length,
-                            memory_prot_to_map_flags(prot) | MEMORY_SHARED);
+        memory_copy_mapping(addr, (uintptr_t)node->buf, length, memory_flags);
     if (IS_ERR(rc))
         return rc;
     return addr;

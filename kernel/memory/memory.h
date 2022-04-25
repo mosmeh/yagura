@@ -54,7 +54,6 @@ int memory_map_to_physical_range(uintptr_t virtual_addr,
 int memory_copy_mapping(uintptr_t to_virtual_addr, uintptr_t from_virtual_addr,
                         uintptr_t size, uint16_t flags);
 void memory_unmap(uintptr_t virtual_addr, uintptr_t size);
-uint16_t memory_prot_to_map_flags(int prot);
 
 void page_allocator_init(const multiboot_info_t* mb_info);
 uintptr_t page_allocator_alloc(void);

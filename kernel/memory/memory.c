@@ -370,10 +370,3 @@ void memory_unmap(uintptr_t vaddr, uintptr_t size) {
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE)
         unmap_page(vaddr + offset);
 }
-
-uint16_t memory_prot_to_map_flags(int prot) {
-    uint32_t flags = MEMORY_USER;
-    if (prot & PROT_WRITE)
-        flags |= MEMORY_WRITE;
-    return flags;
-}

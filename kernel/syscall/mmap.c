@@ -22,16 +22,18 @@ uintptr_t sys_mmap(const mmap_params* params) {
     if (IS_ERR(addr))
         return addr;
 
+    uint16_t memory_flags = MEMORY_USER;
+    if (params->prot & PROT_WRITE)
+        memory_flags |= MEMORY_WRITE;
+    if (params->flags & MAP_SHARED)
+        memory_flags |= MEMORY_SHARED;
+
     if (params->flags & MAP_ANONYMOUS) {
         if (params->offset != 0)
             return -ENOTSUP;
 
-        int map_flags = memory_prot_to_map_flags(params->prot);
-        if (params->flags & MAP_SHARED)
-            map_flags |= MEMORY_SHARED;
-
         int rc =
-            memory_map_to_anonymous_region(addr, params->length, map_flags);
+            memory_map_to_anonymous_region(addr, params->length, memory_flags);
         if (IS_ERR(rc))
             return rc;
 
@@ -45,8 +47,7 @@ uintptr_t sys_mmap(const mmap_params* params) {
     if (S_ISDIR(desc->file->mode))
         return -ENODEV;
 
-    return fs_mmap(desc, addr, params->length, params->prot, params->offset,
-                   params->flags & MAP_SHARED);
+    return fs_mmap(desc, addr, params->length, params->offset, memory_flags);
 }
 
 uintptr_t sys_munmap(void* addr, size_t length) {

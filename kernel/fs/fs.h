@@ -38,7 +38,7 @@ typedef ssize_t (*read_fn)(file_description*, void* buffer, size_t count);
 typedef ssize_t (*write_fn)(file_description*, const void* buffer,
                             size_t count);
 typedef uintptr_t (*mmap_fn)(file_description*, uintptr_t addr, size_t length,
-                             int prot, off_t offset, bool shared);
+                             off_t offset, uint16_t memory_flags);
 typedef int (*truncate_fn)(file_description*, off_t length);
 typedef int (*ioctl_fn)(file_description*, int request, void* argp);
 typedef long (*readdir_fn)(file_description*, void* dirp, unsigned int count);
@@ -69,8 +69,8 @@ int fs_stat(struct file*, struct stat* buf);
 int fs_close(file_description*);
 ssize_t fs_read(file_description*, void* buffer, size_t count);
 ssize_t fs_write(file_description*, const void* buffer, size_t count);
-uintptr_t fs_mmap(file_description*, uintptr_t addr, size_t length, int prot,
-                  off_t offset, bool shared);
+uintptr_t fs_mmap(file_description*, uintptr_t addr, size_t length,
+                  off_t offset, uint16_t memory_flags);
 int fs_truncate(file_description*, off_t length);
 int fs_ioctl(file_description*, int request, void* argp);
 long fs_readdir(file_description*, void* dirp, unsigned int count);

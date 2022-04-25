@@ -413,7 +413,8 @@ void tty_init(void) {
     size_t fb_size = fb_info.pitch * fb_info.height;
     uintptr_t vaddr = kernel_vaddr_allocator_alloc(fb_size);
     ASSERT_OK(vaddr);
-    fb_addr = fs_mmap(desc, vaddr, fb_size, PROT_READ | PROT_WRITE, 0, true);
+    fb_addr = fs_mmap(desc, vaddr, fb_size, 0,
+                      MEMORY_WRITE | MEMORY_SHARED | MEMORY_GLOBAL);
     ASSERT_OK(fb_addr);
 
     ASSERT_OK(fs_close(desc));

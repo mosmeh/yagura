@@ -5,6 +5,7 @@
 #include <kernel/api/mman.h>
 #include <kernel/api/stat.h>
 #include <kernel/kmalloc.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <string.h>
 
@@ -105,16 +106,17 @@ ssize_t fs_write(file_description* desc, const void* buffer, size_t count) {
     return file->write(desc, buffer, count);
 }
 
-uintptr_t fs_mmap(file_description* desc, uintptr_t vaddr, size_t length,
-                  int prot, off_t offset, bool shared) {
+uintptr_t fs_mmap(file_description* desc, uintptr_t addr, size_t length,
+                  off_t offset, uint16_t memory_flags) {
     struct file* file = desc->file;
     if (!file->mmap)
         return -ENODEV;
     if (!(desc->flags & O_RDONLY))
         return -EACCES;
-    if (shared && (prot | PROT_WRITE) && ((desc->flags & O_RDWR) != O_RDWR))
+    if ((memory_flags & MEMORY_SHARED) && (memory_flags & MEMORY_WRITE) &&
+        ((desc->flags & O_RDWR) != O_RDWR))
         return -EACCES;
-    return file->mmap(desc, vaddr, length, prot, offset, shared);
+    return file->mmap(desc, addr, length, offset, memory_flags);
 }
 
 int fs_truncate(file_description* desc, off_t length) {
