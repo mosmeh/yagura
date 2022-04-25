@@ -39,6 +39,7 @@ OBJS := \
 	main.o \
 	memory/memory.o \
 	memory/page_allocator.o \
+	memory/range_allocator.o \
 	pci.o \
 	pit.o \
 	process.o \

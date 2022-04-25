@@ -39,7 +39,10 @@ uintptr_t sys_fork(registers* regs) {
     p->edi = current->edi;
     p->fpu_state = current->fpu_state;
 
-    p->heap_next_vaddr = current->heap_next_vaddr;
+    int rc =
+        range_allocator_clone(&p->vaddr_allocator, &current->vaddr_allocator);
+    if (IS_ERR(rc))
+        return rc;
 
     p->user_ticks = current->user_ticks;
     p->kernel_ticks = current->kernel_ticks;
@@ -48,7 +51,7 @@ uintptr_t sys_fork(registers* regs) {
     if (!p->cwd)
         return -ENOMEM;
 
-    int rc = file_descriptor_table_clone_from(&p->fd_table, &current->fd_table);
+    rc = file_descriptor_table_clone_from(&p->fd_table, &current->fd_table);
     if (IS_ERR(rc))
         return rc;
 

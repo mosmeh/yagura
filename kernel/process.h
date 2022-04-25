@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fs/fs.h"
+#include "memory/memory.h"
 #include "system.h"
 #include <stdnoreturn.h>
 
@@ -11,7 +12,7 @@ typedef struct process {
 
     page_directory* pd;
     uintptr_t stack_top;
-    uintptr_t heap_next_vaddr;
+    range_allocator vaddr_allocator;
 
     char* cwd;
     file_descriptor_table fd_table;
@@ -37,8 +38,6 @@ pid_t process_generate_next_pid(void);
 noreturn void process_exit(int status);
 
 void process_tick(bool in_kernel);
-
-uintptr_t process_alloc_user_virtual_addr_range(uintptr_t size);
 
 // if fd < 0, allocates lowest-numbered file descriptor that was unused
 int process_alloc_file_descriptor(int fd, file_description*);

@@ -36,7 +36,8 @@ void process_init(void) {
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
-    current->heap_next_vaddr = USER_HEAP_START;
+    range_allocator_init(&current->vaddr_allocator, USER_HEAP_START,
+                         KERNEL_VADDR);
     current->cwd = kstrdup(ROOT_DIR);
     ASSERT(current->cwd);
     ASSERT_OK(file_descriptor_table_init(&current->fd_table));
@@ -54,8 +55,7 @@ process* process_create_kernel_process(void (*entry_point)(void)) {
     p->id = 0;
     p->eip = (uintptr_t)entry_point;
     p->fpu_state = initial_fpu_state;
-    p->heap_next_vaddr = USER_HEAP_START;
-    p->next = NULL;
+    range_allocator_init(&p->vaddr_allocator, USER_HEAP_START, KERNEL_VADDR);
 
     p->pd = memory_create_page_directory();
     if (IS_ERR(p->pd))
@@ -117,17 +117,6 @@ void process_tick(bool in_kernel) {
         ++current->kernel_ticks;
     else
         ++current->user_ticks;
-}
-
-uintptr_t process_alloc_user_virtual_addr_range(uintptr_t size) {
-    uintptr_t current_ptr = current->heap_next_vaddr;
-    uintptr_t aligned_ptr = round_up(current_ptr, PAGE_SIZE);
-    uintptr_t next_ptr = aligned_ptr + size;
-    if (next_ptr > KERNEL_VADDR)
-        return -ENOMEM;
-
-    current->heap_next_vaddr = next_ptr;
-    return aligned_ptr;
 }
 
 int process_alloc_file_descriptor(int fd, file_description* desc) {

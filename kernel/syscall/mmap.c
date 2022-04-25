@@ -10,17 +10,17 @@
 
 uintptr_t sys_mmap(const mmap_params* params) {
     if (params->length == 0 || params->offset < 0 ||
+        (params->offset % PAGE_SIZE) ||
         !((params->flags & MAP_PRIVATE) ^ (params->flags & MAP_SHARED)))
         return -EINVAL;
 
     if ((params->flags & MAP_FIXED) || !(params->prot & PROT_READ))
         return -ENOTSUP;
 
-    size_t length = round_up(params->length, PAGE_SIZE);
-
-    uintptr_t vaddr = process_alloc_user_virtual_addr_range(length);
-    if (IS_ERR(vaddr))
-        return vaddr;
+    uintptr_t addr =
+        range_allocator_alloc(&current->vaddr_allocator, params->length);
+    if (IS_ERR(addr))
+        return addr;
 
     if (params->flags & MAP_ANONYMOUS) {
         if (params->offset != 0)
@@ -30,12 +30,13 @@ uintptr_t sys_mmap(const mmap_params* params) {
         if (params->flags & MAP_SHARED)
             map_flags |= MEMORY_SHARED;
 
-        int rc = memory_map_to_anonymous_region(vaddr, length, map_flags);
+        int rc =
+            memory_map_to_anonymous_region(addr, params->length, map_flags);
         if (IS_ERR(rc))
             return rc;
 
-        memset((void*)vaddr, 0, length);
-        return vaddr;
+        memset((void*)addr, 0, params->length);
+        return addr;
     }
 
     file_description* desc = process_get_file_description(params->fd);
@@ -44,6 +45,6 @@ uintptr_t sys_mmap(const mmap_params* params) {
     if (S_ISDIR(desc->file->mode))
         return -ENODEV;
 
-    return fs_mmap(desc, vaddr, length, params->prot, params->offset,
+    return fs_mmap(desc, addr, params->length, params->prot, params->offset,
                    params->flags & MAP_SHARED);
 }

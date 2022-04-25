@@ -115,7 +115,6 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         return num_envp;
 
     page_directory* prev_pd = memory_current_page_directory();
-    uintptr_t prev_heap_next_vaddr = current->heap_next_vaddr;
 
     page_directory* new_pd = memory_create_page_directory();
     if (IS_ERR(new_pd))
@@ -157,16 +156,13 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
             max_segment_addr = region_end;
     }
 
-    // make sure we didn't make any userland virtual memory allocations, which
-    // could overlap newly loaded segments
-    ASSERT(current->heap_next_vaddr == prev_heap_next_vaddr);
-
-    current->heap_next_vaddr = max_segment_addr;
+    range_allocator vaddr_allocator;
+    range_allocator_init(&vaddr_allocator, max_segment_addr, KERNEL_VADDR);
 
     // we keep extra pages before and after stack unmapped to detect stack
     // overflow and underflow by causing page faults
     uintptr_t stack_region =
-        process_alloc_user_virtual_addr_range(2 * PAGE_SIZE + STACK_SIZE);
+        range_allocator_alloc(&vaddr_allocator, 2 * PAGE_SIZE + STACK_SIZE);
     if (IS_ERR(stack_region)) {
         ret = stack_region;
         goto fail;
@@ -207,6 +203,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     push_value(&sp, argc);
     push_value(&sp, 0); // fake return address
 
+    current->vaddr_allocator = vaddr_allocator;
+
     cli();
 
     current->eip = ehdr->e_entry;
@@ -237,7 +235,6 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 fail:
     ASSERT(IS_ERR(ret));
     current->pd = prev_pd;
-    current->heap_next_vaddr = prev_heap_next_vaddr;
     memory_switch_page_directory(prev_pd);
     return ret;
 }
