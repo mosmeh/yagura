@@ -1,49 +1,190 @@
 #include "stdlib.h"
 #include "syscall.h"
 #include <common/ctype.h>
+#include <common/stdlib.h>
 #include <kernel/api/fcntl.h>
 #include <stdbool.h>
 #include <string.h>
 
-static int read_line(char* out_cmd) {
-    size_t len = 0;
+#define BUF_SIZE 1024
+
+struct line_editor {
+    char input_buf[BUF_SIZE];
+    size_t input_len;
+    size_t cursor;
+    enum { STATE_GROUND, STATE_ESC, STATE_CSI, STATE_ACCEPTED } state;
+    bool dirty;
+    char param_buf[BUF_SIZE];
+    size_t param_len;
+};
+
+static void handle_ground(struct line_editor* ed, char c) {
+    if (isprint(c)) {
+        memmove(ed->input_buf + ed->cursor + 1, ed->input_buf + ed->cursor,
+                ed->input_len - ed->cursor);
+        ed->input_buf[ed->cursor++] = c;
+        ++ed->input_len;
+        ed->dirty = true;
+        return;
+    }
+    switch (c) {
+    case '\x1b':
+        ed->state = STATE_ESC;
+        return;
+    case '\r':
+    case '\n':
+        ed->state = STATE_ACCEPTED;
+        return;
+    case '\b':
+    case '\x7f': // ^H
+        if (ed->cursor == 0)
+            return;
+        memmove(ed->input_buf + ed->cursor - 1, ed->input_buf + ed->cursor,
+                ed->input_len - ed->cursor);
+        ed->input_buf[--ed->input_len] = 0;
+        --ed->cursor;
+        ed->dirty = true;
+        return;
+    case 'U' - '@': // ^U
+        memset(ed->input_buf, 0, ed->input_len);
+        ed->input_len = ed->cursor = 0;
+        ed->dirty = true;
+        return;
+    case 'D' - '@': // ^D
+        if (ed->input_len == 0) {
+            strcpy(ed->input_buf, "exit");
+            ed->state = STATE_ACCEPTED;
+            ed->dirty = true;
+        }
+        return;
+    }
+}
+
+static void handle_state_esc(struct line_editor* ed, char c) {
+    switch (c) {
+    case '[':
+        ed->param_len = 0;
+        ed->state = STATE_CSI;
+        return;
+    }
+    ed->state = STATE_GROUND;
+    handle_ground(ed, c);
+}
+
+static void on_home(struct line_editor* ed) {
+    ed->cursor = 0;
+    ed->dirty = true;
+}
+
+static void on_end(struct line_editor* ed) {
+    ed->cursor = ed->input_len;
+    ed->dirty = true;
+}
+
+static void handle_csi_vt(struct line_editor* ed) {
+    int code = atoi(ed->param_buf);
+    switch (code) {
+    case 1:
+    case 7:
+        on_home(ed);
+        return;
+    case 4:
+    case 8:
+        on_end(ed);
+        return;
+    case 3: // delete
+        if (ed->cursor < ed->input_len) {
+            memmove(ed->input_buf + ed->cursor, ed->input_buf + ed->cursor + 1,
+                    ed->input_len - ed->cursor - 1);
+            ed->input_buf[--ed->input_len] = 0;
+            ed->dirty = true;
+        }
+        return;
+    }
+}
+
+static void handle_state_csi(struct line_editor* ed, char c) {
+    if (c < 0x40) {
+        ed->param_buf[ed->param_len++] = c;
+        return;
+    }
+    ed->param_buf[ed->param_len] = '\0';
+
+    switch (c) {
+    case 'C': // right
+        if (ed->cursor < ed->input_len) {
+            ++ed->cursor;
+            ed->dirty = true;
+        }
+        break;
+    case 'D': // left
+        if (ed->cursor > 0) {
+            --ed->cursor;
+            ed->dirty = true;
+        }
+        break;
+    case 'H':
+        on_home(ed);
+        break;
+    case 'F':
+        on_end(ed);
+        break;
+    case '~':
+        handle_csi_vt(ed);
+        break;
+    }
+
+    ed->state = STATE_GROUND;
+}
+
+static void on_char(struct line_editor* ed, char c) {
+    switch (ed->state) {
+    case STATE_GROUND:
+        handle_ground(ed, c);
+        return;
+    case STATE_ESC:
+        handle_state_esc(ed, c);
+        return;
+    case STATE_CSI:
+        handle_state_csi(ed, c);
+        return;
+    default:
+        UNREACHABLE();
+    }
+}
+
+static char* read_input(struct line_editor* ed) {
+    ed->state = STATE_GROUND;
+    memset(ed->input_buf, 0, BUF_SIZE);
+    ed->input_len = ed->cursor = 0;
+    ed->dirty = true;
+
+    char cwd_buf[BUF_SIZE];
+    memset(cwd_buf, 0, BUF_SIZE);
+    getcwd(cwd_buf, 1024);
+
     for (;;) {
+        if (ed->dirty) {
+            printf("\x1b[G"              // go to x=1
+                   "\x1b[36m%s\x1b[m $ " // print prompt
+                   "%s"                  // print current input buffer
+                   "\x1b[K"              // clear rest of line
+                   "\x1b[%uG",           // set cursor position
+                   cwd_buf, ed->input_buf,
+                   strlen(cwd_buf) + 3 + ed->cursor + 1);
+            ed->dirty = false;
+        }
+
         char c;
         ssize_t nread = read(0, &c, 1);
         if (nread < 0)
-            return -1;
+            return NULL;
         if (nread == 0)
             continue;
-        switch (c) {
-        case '\r':
-        case '\n':
-            out_cmd[len] = '\0';
-            return 0;
-        case '\b':
-        case '\x7f': // ^H
-            if (len == 0)
-                continue;
-            out_cmd[--len] = '\0';
-            printf("\b \b");
-            break;
-        case 'U' - '@': // ^U
-            memset(out_cmd, 0, len);
-            for (; len > 0; --len)
-                printf("\b \b");
-            break;
-        case '\t':
-            break;
-        case 'D' - '@': // ^D
-            if (len == 0) {
-                strcpy(out_cmd, "exit");
-                return 0;
-            }
-            break;
-        default:
-            out_cmd[len++] = c;
-            putchar(c);
-            break;
-        }
+        on_char(ed, c);
+
+        if (ed->state == STATE_ACCEPTED)
+            return ed->input_buf;
     }
 }
 
@@ -436,27 +577,21 @@ static int run_command(const struct node* node, char* const envp[]) {
     UNREACHABLE();
 }
 
-#define BUF_SIZE 1024
-
 int main(int argc, char* const argv[], char* const envp[]) {
     (void)argc;
     (void)argv;
 
     for (;;) {
-        static char buf[BUF_SIZE];
-        memset(buf, 0, BUF_SIZE);
-        getcwd(buf, 1024);
-        printf("\x1b[36m%s\x1b[m $ ", buf);
-
-        memset(buf, 0, BUF_SIZE);
-        if (read_line(buf) < 0) {
-            perror("read_line");
+        static struct line_editor editor;
+        char* input = read_input(&editor);
+        if (!input) {
+            perror("read_input");
             return EXIT_FAILURE;
         }
         putchar('\n');
 
         static struct parser parser;
-        struct node* node = parse(&parser, buf);
+        struct node* node = parse(&parser, input);
         switch (parser.result) {
         case RESULT_SUCCESS:
             ASSERT(node);
