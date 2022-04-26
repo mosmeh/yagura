@@ -170,11 +170,13 @@ static char* read_input(struct line_editor* ed) {
 
     for (;;) {
         if (ed->dirty) {
-            printf("\x1b[G"              // go to x=1
+            printf("\x1b[?25l"           // hide cursor
+                   "\x1b[G"              // go to x=1
                    "\x1b[36m%s\x1b[m $ " // print prompt
                    "%s"                  // print current input buffer
                    "\x1b[K"              // clear rest of line
-                   "\x1b[%uG",           // set cursor position
+                   "\x1b[%uG"            // set cursor position
+                   "\x1b[?25h",          // show cursor
                    cwd_buf, ed->input_buf,
                    strlen(cwd_buf) + 3 + ed->cursor + 1);
             ed->dirty = false;
