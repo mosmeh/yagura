@@ -22,18 +22,18 @@ uintptr_t sys_mmap(const mmap_params* params) {
     if (IS_ERR(addr))
         return addr;
 
-    uint16_t memory_flags = MEMORY_USER;
+    uint16_t page_flags = PAGE_USER;
     if (params->prot & PROT_WRITE)
-        memory_flags |= MEMORY_WRITE;
+        page_flags |= PAGE_WRITE;
     if (params->flags & MAP_SHARED)
-        memory_flags |= MEMORY_SHARED;
+        page_flags |= PAGE_SHARED;
 
     if (params->flags & MAP_ANONYMOUS) {
         if (params->offset != 0)
             return -ENOTSUP;
 
         int rc =
-            memory_map_to_anonymous_region(addr, params->length, memory_flags);
+            paging_map_to_anonymous_region(addr, params->length, page_flags);
         if (IS_ERR(rc))
             return rc;
 
@@ -47,13 +47,13 @@ uintptr_t sys_mmap(const mmap_params* params) {
     if (S_ISDIR(desc->file->mode))
         return -ENODEV;
 
-    return fs_mmap(desc, addr, params->length, params->offset, memory_flags);
+    return fs_mmap(desc, addr, params->length, params->offset, page_flags);
 }
 
 uintptr_t sys_munmap(void* addr, size_t length) {
     if ((uintptr_t)addr % PAGE_SIZE)
         return -EINVAL;
-    memory_unmap((uintptr_t)addr, length);
+    paging_unmap((uintptr_t)addr, length);
     return range_allocator_free(&current->vaddr_allocator, (uintptr_t)addr,
                                 length);
 }

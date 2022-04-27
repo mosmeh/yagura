@@ -30,14 +30,14 @@ bool multiboot_fb_init(const multiboot_info_t* mb_info) {
 
 static uintptr_t multiboot_fb_device_mmap(file_description* desc,
                                           uintptr_t addr, size_t length,
-                                          off_t offset, uint16_t memory_flags) {
+                                          off_t offset, uint16_t page_flags) {
     (void)desc;
     if (offset != 0)
         return -ENXIO;
-    if (!(memory_flags & MEMORY_SHARED))
+    if (!(page_flags & PAGE_SHARED))
         return -ENODEV;
 
-    int rc = memory_map_to_physical_range(addr, fb_paddr, length, memory_flags);
+    int rc = paging_map_to_physical_range(addr, fb_paddr, length, page_flags);
     if (IS_ERR(rc))
         return rc;
     return addr;

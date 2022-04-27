@@ -37,8 +37,8 @@ OBJS := \
 	lock.o \
 	main.o \
 	memory/kernel_vaddr_allocator.o \
-	memory/memory.o \
 	memory/page_allocator.o \
+	memory/paging.o \
 	memory/range_allocator.o \
 	pci.o \
 	pit.o \

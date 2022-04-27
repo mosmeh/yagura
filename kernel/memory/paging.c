@@ -53,7 +53,7 @@ typedef struct page_table {
 
 static page_directory* current_pd;
 
-page_directory* memory_current_page_directory(void) { return current_pd; }
+page_directory* paging_current_page_directory(void) { return current_pd; }
 
 static volatile page_table* get_page_table_from_idx(size_t pd_idx) {
     ASSERT(pd_idx < 1024);
@@ -98,7 +98,7 @@ static volatile page_table_entry* get_or_create_pte(uintptr_t vaddr) {
     return pt->entries + ((vaddr >> 12) & 0x3ff);
 }
 
-uintptr_t memory_virtual_to_physical_addr(uintptr_t vaddr) {
+uintptr_t paging_virtual_to_physical_addr(uintptr_t vaddr) {
     const volatile page_table_entry* pte = get_pte(vaddr);
     ASSERT(pte && pte->present);
     return (pte->raw & ~0xfff) | (vaddr & 0xfff);
@@ -165,7 +165,7 @@ static void unmap_page(uintptr_t vaddr) {
     flush_tlb_single(vaddr);
 }
 
-page_directory* memory_create_page_directory(void) {
+page_directory* paging_create_page_directory(void) {
     page_directory* dst = kaligned_alloc(PAGE_SIZE, sizeof(page_directory));
     if (!dst)
         return ERR_PTR(-ENOMEM);
@@ -177,7 +177,7 @@ page_directory* memory_create_page_directory(void) {
 
     // recursive
     page_directory_entry* last_entry = dst->entries + 1023;
-    last_entry->raw = memory_virtual_to_physical_addr((uintptr_t)dst);
+    last_entry->raw = paging_virtual_to_physical_addr((uintptr_t)dst);
     last_entry->present = last_entry->write = true;
 
     return dst;
@@ -188,7 +188,7 @@ page_directory* memory_create_page_directory(void) {
 
 #define QUICKMAP_VADDR (KERNEL_VADDR + PAGE_SIZE * 1023)
 
-// this is locked in memory_clone_current_page_directory
+// this is locked in paging_clone_current_page_directory
 static mutex quickmap_lock;
 
 static uintptr_t quickmap(uintptr_t paddr, uint32_t flags) {
@@ -221,7 +221,7 @@ static page_table* clone_page_table(const volatile page_table* src,
             continue;
         }
 
-        if (src->entries[i].raw & MEMORY_SHARED) {
+        if (src->entries[i].raw & PAGE_SHARED) {
             dst->entries[i].raw = src->entries[i].raw;
             page_allocator_ref_page(src->entries[i].raw & ~0xfff);
             continue;
@@ -233,7 +233,7 @@ static page_table* clone_page_table(const volatile page_table* src,
 
         dst->entries[i].raw = dst_physical_addr | (src->entries[i].raw & 0xfff);
 
-        uintptr_t mapped_dst_page = quickmap(dst_physical_addr, MEMORY_WRITE);
+        uintptr_t mapped_dst_page = quickmap(dst_physical_addr, PAGE_WRITE);
         memcpy((void*)mapped_dst_page, (void*)(src_vaddr + PAGE_SIZE * i),
                PAGE_SIZE);
         unquickmap();
@@ -241,8 +241,8 @@ static page_table* clone_page_table(const volatile page_table* src,
     return dst;
 }
 
-page_directory* memory_clone_current_page_directory(void) {
-    page_directory* dst = memory_create_page_directory();
+page_directory* paging_clone_current_page_directory(void) {
+    page_directory* dst = paging_create_page_directory();
     if (IS_ERR(dst))
         return dst;
 
@@ -264,7 +264,7 @@ page_directory* memory_clone_current_page_directory(void) {
         }
 
         dst->entries[i].raw =
-            memory_virtual_to_physical_addr((uintptr_t)cloned_pt) |
+            paging_virtual_to_physical_addr((uintptr_t)cloned_pt) |
             (current_pd->entries[i].raw & 0xfff);
     }
 
@@ -281,7 +281,7 @@ static void destroy_page_table(volatile page_table* pt) {
     }
 }
 
-void memory_destroy_current_page_directory(void) {
+void paging_destroy_current_page_directory(void) {
     for (size_t i = 0; i < KERNEL_PDE_IDX; ++i) {
         if (!current_pd->entries[i].present)
             continue;
@@ -289,21 +289,21 @@ void memory_destroy_current_page_directory(void) {
     }
 }
 
-void memory_switch_page_directory(page_directory* pd) {
-    uintptr_t paddr = memory_virtual_to_physical_addr((uintptr_t)pd);
+void paging_switch_page_directory(page_directory* pd) {
+    uintptr_t paddr = paging_virtual_to_physical_addr((uintptr_t)pd);
 
     bool int_flag = push_cli();
 
     write_cr3(paddr);
     current_pd = pd;
-    ASSERT(paddr == memory_virtual_to_physical_addr(0xfffff000));
+    ASSERT(paddr == paging_virtual_to_physical_addr(0xfffff000));
 
     pop_cli(int_flag);
 }
 
 extern unsigned char kernel_page_directory[];
 
-void memory_init(const multiboot_info_t* mb_info) {
+void paging_init(const multiboot_info_t* mb_info) {
     current_pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     kprintf("Kernel page directory: P0x%x\n", (uintptr_t)kernel_page_directory);
@@ -317,7 +317,7 @@ void memory_init(const multiboot_info_t* mb_info) {
     kernel_vaddr_allocator_init();
 }
 
-int memory_map_to_anonymous_region(uintptr_t vaddr, uintptr_t size,
+int paging_map_to_anonymous_region(uintptr_t vaddr, uintptr_t size,
                                    uint16_t flags) {
     ASSERT((vaddr % PAGE_SIZE) == 0);
     size = round_up(size, PAGE_SIZE);
@@ -331,7 +331,7 @@ int memory_map_to_anonymous_region(uintptr_t vaddr, uintptr_t size,
     return 0;
 }
 
-int memory_map_to_physical_range(uintptr_t vaddr, uintptr_t paddr,
+int paging_map_to_physical_range(uintptr_t vaddr, uintptr_t paddr,
                                  uintptr_t size, uint16_t flags) {
     ASSERT((vaddr % PAGE_SIZE) == 0);
     ASSERT((paddr % PAGE_SIZE) == 0);
@@ -347,7 +347,7 @@ int memory_map_to_physical_range(uintptr_t vaddr, uintptr_t paddr,
     return 0;
 }
 
-int memory_copy_mapping(uintptr_t to_vaddr, uintptr_t from_vaddr,
+int paging_copy_mapping(uintptr_t to_vaddr, uintptr_t from_vaddr,
                         uintptr_t size, uint16_t flags) {
     ASSERT((to_vaddr % PAGE_SIZE) == 0);
     ASSERT((from_vaddr % PAGE_SIZE) == 0);
@@ -363,7 +363,7 @@ int memory_copy_mapping(uintptr_t to_vaddr, uintptr_t from_vaddr,
     return 0;
 }
 
-void memory_unmap(uintptr_t vaddr, uintptr_t size) {
+void paging_unmap(uintptr_t vaddr, uintptr_t size) {
     ASSERT((vaddr % PAGE_SIZE) == 0);
     size = round_up(size, PAGE_SIZE);
 

@@ -433,7 +433,7 @@ void tty_init(void) {
     uintptr_t vaddr = kernel_vaddr_allocator_alloc(fb_size);
     ASSERT_OK(vaddr);
     fb_addr = fs_mmap(desc, vaddr, fb_size, 0,
-                      MEMORY_WRITE | MEMORY_SHARED | MEMORY_GLOBAL);
+                      PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL);
     ASSERT_OK(fb_addr);
 
     ASSERT_OK(fs_close(desc));

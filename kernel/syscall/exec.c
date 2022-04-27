@@ -119,14 +119,14 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     if (IS_ERR(num_envp))
         return num_envp;
 
-    page_directory* prev_pd = memory_current_page_directory();
+    page_directory* prev_pd = paging_current_page_directory();
 
-    page_directory* new_pd = memory_create_page_directory();
+    page_directory* new_pd = paging_create_page_directory();
     if (IS_ERR(new_pd))
         return PTR_ERR(new_pd);
 
     current->pd = new_pd;
-    memory_switch_page_directory(new_pd);
+    paging_switch_page_directory(new_pd);
 
     // after this point, we have to revert to prev_pd if we want to abort.
 
@@ -145,9 +145,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         uintptr_t region_start = round_down(phdr->p_vaddr, PAGE_SIZE);
         uintptr_t region_end =
             round_up(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
-        ret = memory_map_to_anonymous_region(region_start,
-                                             region_end - region_start,
-                                             MEMORY_USER | MEMORY_WRITE);
+        ret = paging_map_to_anonymous_region(
+            region_start, region_end - region_start, PAGE_USER | PAGE_WRITE);
         if (IS_ERR(ret))
             goto fail;
 
@@ -173,8 +172,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         goto fail;
     }
     uintptr_t stack_base = stack_region + PAGE_SIZE;
-    ret = memory_map_to_anonymous_region(stack_base, STACK_SIZE,
-                                         MEMORY_WRITE | MEMORY_USER);
+    ret = paging_map_to_anonymous_region(stack_base, STACK_SIZE,
+                                         PAGE_WRITE | PAGE_USER);
     if (IS_ERR(ret))
         goto fail;
 
@@ -247,6 +246,6 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 fail:
     ASSERT(IS_ERR(ret));
     current->pd = prev_pd;
-    memory_switch_page_directory(prev_pd);
+    paging_switch_page_directory(prev_pd);
     return ret;
 }

@@ -59,7 +59,7 @@ struct process* process_create_kernel_process(void (*entry_point)(void)) {
     range_allocator_init(&process->vaddr_allocator, USER_HEAP_START,
                          KERNEL_VADDR);
 
-    process->pd = memory_create_page_directory();
+    process->pd = paging_create_page_directory();
     if (IS_ERR(process->pd))
         return ERR_CAST(process->pd);
 
@@ -108,7 +108,7 @@ noreturn void process_exit(int status) {
             fs_close(*it);
     }
 
-    memory_destroy_current_page_directory();
+    paging_destroy_current_page_directory();
 
     kfree(current->cwd);
     range_allocator_destroy(&current->vaddr_allocator);

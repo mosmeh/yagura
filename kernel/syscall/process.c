@@ -29,7 +29,7 @@ uintptr_t sys_fork(registers* regs) {
         return -ENOMEM;
     *process = (struct process){0};
 
-    process->pd = memory_clone_current_page_directory();
+    process->pd = paging_clone_current_page_directory();
     if (IS_ERR(process->pd))
         return PTR_ERR(process->pd);
 

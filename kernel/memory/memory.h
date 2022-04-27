@@ -28,32 +28,32 @@ int range_allocator_free(range_allocator* allocator, uintptr_t addr,
                          size_t size);
 int range_allocator_clone(range_allocator* to, range_allocator* from);
 
-#define MEMORY_WRITE 0x2
-#define MEMORY_USER 0x4
-#define MEMORY_GLOBAL 0x100
+#define PAGE_WRITE 0x2
+#define PAGE_USER 0x4
+#define PAGE_GLOBAL 0x100
 
 // we use an unused bit in page table entries to indicate the page should be
 // linked, not copied, when cloning a page directory
-#define MEMORY_SHARED 0x200
+#define PAGE_SHARED 0x200
 
-void memory_init(const multiboot_info_t*);
+void paging_init(const multiboot_info_t*);
 
-uintptr_t memory_virtual_to_physical_addr(uintptr_t virtual_addr);
+uintptr_t paging_virtual_to_physical_addr(uintptr_t virtual_addr);
 
-page_directory* memory_current_page_directory(void);
-page_directory* memory_create_page_directory(void);
-page_directory* memory_clone_current_page_directory(void);
-void memory_destroy_current_page_directory(void);
-void memory_switch_page_directory(page_directory* pd);
+page_directory* paging_current_page_directory(void);
+page_directory* paging_create_page_directory(void);
+page_directory* paging_clone_current_page_directory(void);
+void paging_destroy_current_page_directory(void);
+void paging_switch_page_directory(page_directory* pd);
 
-int memory_map_to_anonymous_region(uintptr_t virtual_addr, uintptr_t size,
+int paging_map_to_anonymous_region(uintptr_t virtual_addr, uintptr_t size,
                                    uint16_t flags);
-int memory_map_to_physical_range(uintptr_t virtual_addr,
+int paging_map_to_physical_range(uintptr_t virtual_addr,
                                  uintptr_t physical_addr, uintptr_t size,
                                  uint16_t flags);
-int memory_copy_mapping(uintptr_t to_virtual_addr, uintptr_t from_virtual_addr,
+int paging_copy_mapping(uintptr_t to_virtual_addr, uintptr_t from_virtual_addr,
                         uintptr_t size, uint16_t flags);
-void memory_unmap(uintptr_t virtual_addr, uintptr_t size);
+void paging_unmap(uintptr_t virtual_addr, uintptr_t size);
 
 void page_allocator_init(const multiboot_info_t* mb_info);
 uintptr_t page_allocator_alloc(void);

@@ -107,16 +107,16 @@ ssize_t fs_write(file_description* desc, const void* buffer, size_t count) {
 }
 
 uintptr_t fs_mmap(file_description* desc, uintptr_t addr, size_t length,
-                  off_t offset, uint16_t memory_flags) {
+                  off_t offset, uint16_t page_flags) {
     struct file* file = desc->file;
     if (!file->mmap)
         return -ENODEV;
     if (!(desc->flags & O_RDONLY))
         return -EACCES;
-    if ((memory_flags & MEMORY_SHARED) && (memory_flags & MEMORY_WRITE) &&
+    if ((page_flags & PAGE_SHARED) && (page_flags & PAGE_WRITE) &&
         ((desc->flags & O_RDWR) != O_RDWR))
         return -EACCES;
-    return file->mmap(desc, addr, length, offset, memory_flags);
+    return file->mmap(desc, addr, length, offset, page_flags);
 }
 
 int fs_truncate(file_description* desc, off_t length) {

@@ -43,17 +43,17 @@ static int grow_buf(tmpfs_node* node, size_t requested_size) {
         return new_addr;
 
     if (node->buf_addr) {
-        int rc = memory_copy_mapping(new_addr, node->buf_addr, node->capacity,
-                                     MEMORY_WRITE | MEMORY_GLOBAL);
+        int rc = paging_copy_mapping(new_addr, node->buf_addr, node->capacity,
+                                     PAGE_WRITE | PAGE_GLOBAL);
         if (IS_ERR(rc))
             return rc;
     } else {
         ASSERT(node->capacity == 0);
     }
 
-    int rc = memory_map_to_anonymous_region(new_addr + node->capacity,
+    int rc = paging_map_to_anonymous_region(new_addr + node->capacity,
                                             new_capacity - node->capacity,
-                                            MEMORY_WRITE | MEMORY_GLOBAL);
+                                            PAGE_WRITE | PAGE_GLOBAL);
     if (IS_ERR(rc))
         return rc;
 
@@ -61,7 +61,7 @@ static int grow_buf(tmpfs_node* node, size_t requested_size) {
         memcpy((void*)new_addr, (void*)node->buf_addr, node->size);
     memset((void*)(new_addr + node->size), 0, new_capacity - node->size);
 
-    memory_unmap(node->buf_addr, node->capacity);
+    paging_unmap(node->buf_addr, node->capacity);
 
     node->buf_addr = new_addr;
     node->capacity = new_capacity;
@@ -85,16 +85,15 @@ static ssize_t tmpfs_write(file_description* desc, const void* buffer,
 }
 
 static uintptr_t tmpfs_mmap(file_description* desc, uintptr_t addr,
-                            size_t length, off_t offset,
-                            uint16_t memory_flags) {
-    if (offset != 0 || !(memory_flags & MEMORY_SHARED))
+                            size_t length, off_t offset, uint16_t page_flags) {
+    if (offset != 0 || !(page_flags & PAGE_SHARED))
         return -ENOTSUP;
 
     tmpfs_node* node = (tmpfs_node*)desc->file;
     if (length > node->size)
         return -EINVAL;
 
-    int rc = memory_copy_mapping(addr, node->buf_addr, length, memory_flags);
+    int rc = paging_copy_mapping(addr, node->buf_addr, length, page_flags);
     if (IS_ERR(rc))
         return rc;
     return addr;

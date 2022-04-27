@@ -39,8 +39,8 @@ void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
 
     uintptr_t vaddr = kernel_vaddr_allocator_alloc(region_size);
     ASSERT_OK(vaddr);
-    ASSERT_OK(memory_map_to_physical_range(vaddr, region_start, region_size,
-                                           MEMORY_SHARED));
+    ASSERT_OK(paging_map_to_physical_range(vaddr, region_start, region_size,
+                                           PAGE_SHARED));
 
     uintptr_t cursor = vaddr + (paddr - region_start);
     for (;;) {

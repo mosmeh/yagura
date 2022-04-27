@@ -112,7 +112,7 @@ static noreturn void switch_to_next_process(void) {
     current = scheduler_deque();
     ASSERT(current);
 
-    memory_switch_page_directory(current->pd);
+    paging_switch_page_directory(current->pd);
     gdt_set_kernel_stack(current->stack_top);
 
     __asm__ volatile("fxrstor %0" ::"m"(current->fpu_state));
