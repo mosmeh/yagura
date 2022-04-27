@@ -145,8 +145,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         uintptr_t region_start = round_down(phdr->p_vaddr, PAGE_SIZE);
         uintptr_t region_end =
             round_up(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
-        ret = paging_map_to_anonymous_region(
-            region_start, region_end - region_start, PAGE_USER | PAGE_WRITE);
+        ret = paging_map_to_free_pages(region_start, region_end - region_start,
+                                       PAGE_USER | PAGE_WRITE);
         if (IS_ERR(ret))
             goto fail;
 
@@ -172,8 +172,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         goto fail;
     }
     uintptr_t stack_base = stack_region + PAGE_SIZE;
-    ret = paging_map_to_anonymous_region(stack_base, STACK_SIZE,
-                                         PAGE_WRITE | PAGE_USER);
+    ret = paging_map_to_free_pages(stack_base, STACK_SIZE,
+                                   PAGE_WRITE | PAGE_USER);
     if (IS_ERR(ret))
         goto fail;
 

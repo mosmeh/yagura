@@ -51,9 +51,9 @@ static int grow_buf(tmpfs_node* node, size_t requested_size) {
         ASSERT(node->capacity == 0);
     }
 
-    int rc = paging_map_to_anonymous_region(new_addr + node->capacity,
-                                            new_capacity - node->capacity,
-                                            PAGE_WRITE | PAGE_GLOBAL);
+    int rc = paging_map_to_free_pages(new_addr + node->capacity,
+                                      new_capacity - node->capacity,
+                                      PAGE_WRITE | PAGE_GLOBAL);
     if (IS_ERR(rc))
         return rc;
 

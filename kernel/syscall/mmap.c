@@ -32,8 +32,7 @@ uintptr_t sys_mmap(const mmap_params* params) {
         if (params->offset != 0)
             return -ENOTSUP;
 
-        int rc =
-            paging_map_to_anonymous_region(addr, params->length, page_flags);
+        int rc = paging_map_to_free_pages(addr, params->length, page_flags);
         if (IS_ERR(rc))
             return rc;
 

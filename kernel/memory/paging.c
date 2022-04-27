@@ -104,7 +104,7 @@ uintptr_t paging_virtual_to_physical_addr(uintptr_t vaddr) {
     return (pte->raw & ~0xfff) | (vaddr & 0xfff);
 }
 
-static int map_page_anywhere(uintptr_t vaddr, uint32_t flags) {
+static int map_page_to_free_page(uintptr_t vaddr, uint32_t flags) {
     volatile page_table_entry* pte = get_or_create_pte(vaddr);
     if (IS_ERR(pte))
         return PTR_ERR(pte);
@@ -121,8 +121,8 @@ static int map_page_anywhere(uintptr_t vaddr, uint32_t flags) {
     return 0;
 }
 
-static int map_page_at_fixed_physical_addr(uintptr_t vaddr, uintptr_t paddr,
-                                           uint32_t flags) {
+static int map_page_to_physical_addr(uintptr_t vaddr, uintptr_t paddr,
+                                     uint32_t flags) {
     volatile page_table_entry* pte = get_or_create_pte(vaddr);
     if (IS_ERR(pte))
         return PTR_ERR(pte);
@@ -317,13 +317,12 @@ void paging_init(const multiboot_info_t* mb_info) {
     kernel_vaddr_allocator_init();
 }
 
-int paging_map_to_anonymous_region(uintptr_t vaddr, uintptr_t size,
-                                   uint16_t flags) {
+int paging_map_to_free_pages(uintptr_t vaddr, uintptr_t size, uint16_t flags) {
     ASSERT((vaddr % PAGE_SIZE) == 0);
     size = round_up(size, PAGE_SIZE);
 
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
-        int rc = map_page_anywhere(vaddr + offset, flags);
+        int rc = map_page_to_free_page(vaddr + offset, flags);
         if (IS_ERR(rc))
             return rc;
     }
@@ -338,8 +337,8 @@ int paging_map_to_physical_range(uintptr_t vaddr, uintptr_t paddr,
     size = round_up(size, PAGE_SIZE);
 
     for (uintptr_t offset = 0; offset < size; offset += PAGE_SIZE) {
-        int rc = map_page_at_fixed_physical_addr(vaddr + offset, paddr + offset,
-                                                 flags);
+        int rc =
+            map_page_to_physical_addr(vaddr + offset, paddr + offset, flags);
         if (IS_ERR(rc))
             return rc;
     }

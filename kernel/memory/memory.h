@@ -46,8 +46,8 @@ page_directory* paging_clone_current_page_directory(void);
 void paging_destroy_current_page_directory(void);
 void paging_switch_page_directory(page_directory* pd);
 
-int paging_map_to_anonymous_region(uintptr_t virtual_addr, uintptr_t size,
-                                   uint16_t flags);
+int paging_map_to_free_pages(uintptr_t virtual_addr, uintptr_t size,
+                             uint16_t flags);
 int paging_map_to_physical_range(uintptr_t virtual_addr,
                                  uintptr_t physical_addr, uintptr_t size,
                                  uint16_t flags);

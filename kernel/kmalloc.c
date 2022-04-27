@@ -26,8 +26,8 @@ void* kaligned_alloc(size_t alignment, size_t size) {
     uintptr_t addr = kernel_vaddr_allocator_alloc(real_size);
     if (IS_ERR(addr))
         return NULL;
-    if (IS_ERR(paging_map_to_anonymous_region(addr, real_size,
-                                              PAGE_WRITE | PAGE_GLOBAL)))
+    if (IS_ERR(paging_map_to_free_pages(addr, real_size,
+                                        PAGE_WRITE | PAGE_GLOBAL)))
         return NULL;
 
     struct header* header = (struct header*)addr;
