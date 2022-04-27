@@ -8,37 +8,66 @@
 #include <kernel/process.h>
 #include <string.h>
 
-static ssize_t copy_strings(char** buf, char** dst[], char* const src[]) {
-    size_t count = 0;
+typedef struct string_list {
+    size_t count;
+    char* buf;
+    char** elements;
+} string_list;
+
+static int string_list_create(string_list* strings, char* const src[]) {
+    strings->count = 0;
     size_t total_size = 0;
     for (char* const* it = src; *it; ++it) {
         total_size += strlen(*it) + 1;
-        ++count;
+        ++strings->count;
     }
 
-    if (count == 0) {
-        *buf = NULL;
-        *dst = NULL;
+    if (strings->count == 0) {
+        strings->buf = NULL;
+        strings->elements = NULL;
         return 0;
     }
 
-    *buf = kmalloc(total_size);
-    if (!*buf)
+    strings->buf = kmalloc(total_size);
+    if (!strings->buf)
         return -ENOMEM;
 
-    char* dst_str = *buf;
-    *dst = kmalloc(count * sizeof(char*));
-    if (!*dst)
+    strings->elements = kmalloc(strings->count * sizeof(char*));
+    if (!strings->elements)
         return -ENOMEM;
 
-    for (size_t i = 0; i < count; ++i) {
+    char* cursor = strings->buf;
+    for (size_t i = 0; i < strings->count; ++i) {
         size_t size = strlen(src[i]) + 1;
-        strlcpy(dst_str, src[i], size);
-        (*dst)[i] = dst_str;
-        dst_str += size;
+        strlcpy(cursor, src[i], size);
+        strings->elements[i] = cursor;
+        cursor += size;
     }
 
-    return count;
+    return 0;
+}
+
+static void string_list_destroy(string_list* strings) {
+    if (strings->buf) {
+        kfree(strings->buf);
+        strings->buf = NULL;
+    }
+    if (strings->elements) {
+        kfree(strings->elements);
+        strings->elements = NULL;
+    }
+}
+
+typedef struct ptr_list {
+    size_t count;
+    uintptr_t* elements;
+} ptr_list;
+
+static void ptr_list_destroy(ptr_list* ptrs) {
+    if (ptrs->elements) {
+        kfree(ptrs->elements);
+        ptrs->elements = NULL;
+    }
 }
 
 static void push_value(uintptr_t* sp, uintptr_t value) {
@@ -46,25 +75,32 @@ static void push_value(uintptr_t* sp, uintptr_t value) {
     *(uintptr_t*)*sp = value;
 }
 
-static int push_strings(uintptr_t* sp, uintptr_t** dst_ptrs,
-                        char* const src_strings[], size_t count) {
-    if (count == 0) {
-        *dst_ptrs = NULL;
+static int push_strings(uintptr_t* sp, ptr_list* ptrs,
+                        const string_list* strings) {
+    ptrs->count = strings->count;
+
+    if (strings->count == 0) {
+        ptrs->elements = NULL;
         return 0;
     }
 
-    *dst_ptrs = kmalloc(count * sizeof(uintptr_t));
-    if (!*dst_ptrs)
+    ptrs->elements = kmalloc(strings->count * sizeof(uintptr_t));
+    if (!ptrs->elements)
         return -ENOMEM;
 
-    for (size_t i = 0; i < count; ++i) {
-        size_t size = strlen(src_strings[i]) + 1;
+    for (size_t i = 0; i < strings->count; ++i) {
+        size_t size = strlen(strings->elements[i]) + 1;
         *sp -= next_power_of_two(size);
-        strlcpy((char*)*sp, src_strings[i], size);
-        (*dst_ptrs)[count - i - 1] = *sp;
+        strlcpy((char*)*sp, strings->elements[i], size);
+        ptrs->elements[ptrs->count - i - 1] = *sp;
     }
 
     return 0;
+}
+
+static void push_ptrs(uintptr_t* sp, const ptr_list* ptrs) {
+    for (size_t i = 0; i < ptrs->count; ++i)
+        push_value(sp, ptrs->elements[i]);
 }
 
 uintptr_t sys_execve(const char* pathname, char* const argv[],
@@ -103,17 +139,15 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 
     // after switching page directory we will no longer be able to access
     // argv and envp, so we copy them here.
-    char* argv_buf = NULL;
-    char** copied_argv = NULL;
-    ssize_t argc = copy_strings(&argv_buf, &copied_argv, argv);
-    if (IS_ERR(argc))
-        return argc;
+    struct string_list copied_argv;
+    rc = string_list_create(&copied_argv, argv);
+    if (IS_ERR(rc))
+        return rc;
 
-    char* envp_buf = NULL;
-    char** copied_envp = NULL;
-    ssize_t num_envp = copy_strings(&envp_buf, &copied_envp, envp);
-    if (IS_ERR(num_envp))
-        return num_envp;
+    struct string_list copied_envp;
+    rc = string_list_create(&copied_envp, envp);
+    if (IS_ERR(rc))
+        return rc;
 
     page_directory* prev_pd = paging_current_page_directory();
 
@@ -176,31 +210,29 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     uintptr_t sp = stack_base + STACK_SIZE;
     memset((void*)stack_base, 0, STACK_SIZE);
 
-    uintptr_t* envp_ptrs = NULL;
-    ret = push_strings(&sp, &envp_ptrs, copied_envp, num_envp);
-    kfree(envp_buf);
-    kfree(copied_envp);
+    int argc = copied_argv.count;
+
+    ptr_list envp_ptrs;
+    ret = push_strings(&sp, &envp_ptrs, &copied_envp);
+    string_list_destroy(&copied_envp);
     if (IS_ERR(ret))
         goto fail;
 
-    uintptr_t* argv_ptrs = NULL;
-    ret = push_strings(&sp, &argv_ptrs, copied_argv, argc);
-    kfree(argv_buf);
-    kfree(copied_argv);
+    ptr_list argv_ptrs;
+    ret = push_strings(&sp, &argv_ptrs, &copied_argv);
+    string_list_destroy(&copied_argv);
     if (IS_ERR(ret))
         goto fail;
 
     push_value(&sp, 0);
-    for (ssize_t i = 0; i < num_envp; ++i)
-        push_value(&sp, envp_ptrs[i]);
-    kfree(envp_ptrs);
+    push_ptrs(&sp, &envp_ptrs);
     uintptr_t user_envp = sp;
+    ptr_list_destroy(&envp_ptrs);
 
     push_value(&sp, 0);
-    for (ssize_t i = 0; i < argc; ++i)
-        push_value(&sp, argv_ptrs[i]);
-    kfree(argv_ptrs);
+    push_ptrs(&sp, &argv_ptrs);
     uintptr_t user_argv = sp;
+    ptr_list_destroy(&argv_ptrs);
 
     sp = round_down(sp, 16);
 
@@ -241,7 +273,14 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 
 fail:
     ASSERT(IS_ERR(ret));
+
+    string_list_destroy(&copied_envp);
+    string_list_destroy(&copied_argv);
+    ptr_list_destroy(&envp_ptrs);
+    ptr_list_destroy(&argv_ptrs);
+
     current->pd = prev_pd;
     paging_switch_page_directory(prev_pd);
+
     return ret;
 }
