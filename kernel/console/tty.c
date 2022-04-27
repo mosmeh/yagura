@@ -241,10 +241,10 @@ static void handle_csi_cup(void) {
     for (size_t i = 0; param; ++i) {
         switch (i) {
         case 0:
-            x = atoi(param) - 1;
+            y = atoi(param) - 1;
             break;
         case 1:
-            y = atoi(param) - 1;
+            x = atoi(param) - 1;
             break;
         }
         param = strtok_r(NULL, sep, &saved_ptr);
