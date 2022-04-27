@@ -1,7 +1,6 @@
 #pragma once
 
 #include "sys/types.h"
-#include <stddef.h>
 
 #define DT_UNKNOWN 0
 #define DT_FIFO 1
@@ -13,8 +12,9 @@
 #define DT_SOCK 12
 #define DT_WHT 14
 
-typedef struct dirent {
-    size_t record_len;
-    uint8_t type;
-    char name[];
-} dirent;
+struct dirent {
+    uint16_t d_reclen;
+    uint8_t d_type;
+    uint8_t d_namlen;
+    char d_name[];
+};

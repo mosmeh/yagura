@@ -233,7 +233,7 @@ struct dirent* readdir(DIR* dirp) {
         dirp->buf_cursor = 0;
     }
     struct dirent* dent = (struct dirent*)(dirp->buf + dirp->buf_cursor);
-    dirp->buf_cursor += dent->record_len;
+    dirp->buf_cursor += dent->d_reclen;
     return dent;
 }
 

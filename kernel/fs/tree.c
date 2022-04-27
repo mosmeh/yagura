@@ -59,15 +59,17 @@ long tree_node_readdir(file_description* desc, void* dirp, unsigned int count) {
 
     while (count > 0 && child) {
         struct file* file = &child->base_file;
-        size_t name_size = strlen(file->name) + 1;
-        size_t size = offsetof(dirent, name) + name_size;
+        size_t name_len = strlen(file->name);
+        size_t name_size = name_len + 1;
+        size_t size = offsetof(struct dirent, d_name) + name_size;
         if (count < size)
             break;
 
-        dirent* dent = (dirent*)buf;
-        dent->type = mode_to_dirent_type(file->mode);
-        dent->record_len = size;
-        strlcpy(dent->name, file->name, name_size);
+        struct dirent* dent = (struct dirent*)buf;
+        dent->d_type = mode_to_dirent_type(file->mode);
+        dent->d_reclen = size;
+        dent->d_namlen = name_len;
+        strlcpy(dent->d_name, file->name, name_size);
 
         ++desc->offset;
         child = child->next_sibling;
