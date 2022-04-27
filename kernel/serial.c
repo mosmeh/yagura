@@ -1,13 +1,11 @@
 #include "serial.h"
 #include "api/err.h"
-#include "api/sys/stat.h"
 #include "api/sys/sysmacros.h"
 #include "fs/fs.h"
 #include "interrupts.h"
-#include "kmalloc.h"
 #include "lock.h"
+#include "memory/memory.h"
 #include "scheduler.h"
-#include <string.h>
 
 #define DATA_READY 0x1
 #define TRANSMITTER_HOLDING_REGISTER_EMPTY 0x20

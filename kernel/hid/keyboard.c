@@ -1,14 +1,11 @@
 #include "hid.h"
-#include <kernel/api/hid.h>
-#include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/console/console.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
-#include <kernel/kmalloc.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/scheduler.h>
-#include <string.h>
 
 #define QUEUE_SIZE 128
 

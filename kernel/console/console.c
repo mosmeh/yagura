@@ -1,14 +1,9 @@
 #include "console.h"
 #include "kernel/panic.h"
-#include "kernel/serial.h"
-#include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
-#include <kernel/kmalloc.h>
-#include <kernel/scheduler.h>
-#include <string.h>
+#include <kernel/memory/memory.h>
 
 static file_description* tty = NULL;
 static file_description* ttyS0 = NULL;

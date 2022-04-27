@@ -1,8 +1,7 @@
-#include "kmalloc.h"
+#include "memory/memory.h"
 #include "panic.h"
 #include "scheduler.h"
 #include "socket.h"
-#include <string.h>
 
 static ring_buf* get_buf_to_read(unix_socket* socket, file_description* desc) {
     bool is_client = socket->connector_fd == desc;

@@ -1,14 +1,10 @@
 #include <kernel/api/err.h>
 #include <kernel/api/fb.h>
-#include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
-#include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
 #include <kernel/memory/memory.h>
 #include <kernel/multiboot.h>
-#include <stdbool.h>
-#include <string.h>
 
 static uintptr_t fb_paddr;
 static struct fb_info fb_info;

@@ -1,9 +1,6 @@
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/socket.h>
-#include <kernel/api/sys/stat.h>
-#include <kernel/kmalloc.h>
-#include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/socket.h>
 

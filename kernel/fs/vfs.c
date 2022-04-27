@@ -1,14 +1,11 @@
 #include "fs.h"
 #include <common/string.h>
-#include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/sysmacros.h>
-#include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
-#include <stdbool.h>
 #include <string.h>
 
 typedef struct mount_point {

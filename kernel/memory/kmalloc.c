@@ -1,10 +1,9 @@
-#include "kmalloc.h"
-#include "boot_defs.h"
-#include "memory/memory.h"
-#include "panic.h"
-#include "system.h"
+#include "memory.h"
 #include <common/extra.h>
 #include <common/string.h>
+#include <kernel/boot_defs.h>
+#include <kernel/panic.h>
+#include <kernel/system.h>
 #include <string.h>
 
 #define MAGIC 0x1d578e50

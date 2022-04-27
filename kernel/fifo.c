@@ -1,12 +1,10 @@
 #include "api/fcntl.h"
-#include "api/sys/stat.h"
 #include "fs/fs.h"
-#include "kmalloc.h"
+#include "memory/memory.h"
 #include "panic.h"
 #include "ring_buf.h"
 #include "scheduler.h"
 #include "system.h"
-#include <string.h>
 
 #define BUF_CAPACITY 1024
 

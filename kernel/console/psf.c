@@ -1,9 +1,9 @@
 #include "psf.h"
-#include "kernel/kmalloc.h"
 #include <common/extra.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/fs/fs.h>
+#include <kernel/memory/memory.h>
 #include <string.h>
 
 static struct font* load_psf1(const char* filename) {

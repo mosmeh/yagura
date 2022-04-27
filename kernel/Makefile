@@ -32,11 +32,11 @@ OBJS := \
 	idt.o \
 	interrupt.o \
 	irq.o \
-	kmalloc.o \
 	kprintf.o \
 	lock.o \
 	main.o \
 	memory/kernel_vaddr_allocator.o \
+	memory/kmalloc.o \
 	memory/page_allocator.o \
 	memory/paging.o \
 	memory/range_allocator.o \

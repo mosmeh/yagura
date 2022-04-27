@@ -1,13 +1,9 @@
 #include <common/extra.h>
 #include <common/string.h>
 #include <kernel/api/elf.h>
-#include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/sys/stat.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/boot_defs.h>
-#include <kernel/kmalloc.h>
-#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <string.h>

@@ -1,16 +1,11 @@
 #include "process.h"
 #include "boot_defs.h"
 #include "interrupts.h"
-#include "kmalloc.h"
 #include "kprintf.h"
-#include "memory.h"
 #include "memory/memory.h"
 #include "panic.h"
 #include "scheduler.h"
-#include "system.h"
-#include <common/extra.h>
 #include <stdatomic.h>
-#include <string.h>
 
 #define USER_HEAP_START 0x100000
 

@@ -1,13 +1,11 @@
 #include "hid.h"
 #include <kernel/api/hid.h>
-#include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
-#include <kernel/kmalloc.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/scheduler.h>
-#include <string.h>
 
 static void write_mouse(uint8_t data) {
     ps2_write(PS2_COMMAND, 0xd4);

@@ -1,8 +1,6 @@
 #include "ring_buf.h"
 #include "api/errno.h"
-#include "kmalloc.h"
-#include "scheduler.h"
-#include <string.h>
+#include "memory/memory.h"
 
 #define BUF_CAPACITY 1024
 

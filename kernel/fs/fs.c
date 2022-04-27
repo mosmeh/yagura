@@ -1,10 +1,6 @@
 #include "fs.h"
 #include <kernel/api/dirent.h>
-#include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/api/sys/mman.h>
-#include <kernel/api/sys/stat.h>
-#include <kernel/kmalloc.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <string.h>

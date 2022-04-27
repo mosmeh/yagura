@@ -55,6 +55,13 @@ int paging_copy_mapping(uintptr_t to_virtual_addr, uintptr_t from_virtual_addr,
                         uintptr_t size, uint16_t flags);
 void paging_unmap(uintptr_t virtual_addr, uintptr_t size);
 
+void* kmalloc(size_t size);
+void* kaligned_alloc(size_t alignment, size_t size);
+void kfree(void* ptr);
+
+char* kstrdup(const char*);
+char* kstrndup(const char*, size_t n);
+
 void page_allocator_init(const multiboot_info_t* mb_info);
 uintptr_t page_allocator_alloc(void);
 void page_allocator_ref_page(uintptr_t physical_addr);

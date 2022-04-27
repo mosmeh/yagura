@@ -1,9 +1,7 @@
 #include "memory.h"
 #include <common/extra.h>
-#include <kernel/api/sys/mman.h>
 #include <kernel/boot_defs.h>
 #include <kernel/interrupts.h>
-#include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
 #include <kernel/lock.h>
 #include <kernel/panic.h>
@@ -309,12 +307,11 @@ void paging_init(const multiboot_info_t* mb_info) {
     kprintf("Kernel page directory: P0x%x\n", (uintptr_t)kernel_page_directory);
 
     page_allocator_init(mb_info);
+    kernel_vaddr_allocator_init();
 
     for (size_t addr = KERNEL_HEAP_START; addr < KERNEL_HEAP_END;
          addr += 1024 * PAGE_SIZE)
         ASSERT_OK(get_or_create_page_table(addr));
-
-    kernel_vaddr_allocator_init();
 }
 
 int paging_map_to_free_pages(uintptr_t vaddr, uintptr_t size, uint16_t flags) {

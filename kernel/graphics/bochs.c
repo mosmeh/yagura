@@ -1,17 +1,12 @@
 #include <kernel/api/err.h>
 #include <kernel/api/fb.h>
-#include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/fs/fs.h>
-#include <kernel/kmalloc.h>
 #include <kernel/kprintf.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
-#include <kernel/panic.h>
 #include <kernel/pci.h>
-#include <kernel/system.h>
-#include <string.h>
 
 #define VBE_DISPI_IOPORT_INDEX 0x01ce
 #define VBE_DISPI_IOPORT_DATA 0x01cf
