@@ -24,7 +24,7 @@ OBJS := \
 	fs/vfs.o \
 	gdt.o \
 	graphics/bochs.o \
-	graphics/graphics.o \
+	graphics/fb.o \
 	graphics/multiboot.o \
 	hid/keyboard.o \
 	hid/mouse.o \
