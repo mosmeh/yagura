@@ -1,6 +1,7 @@
 #include "memory.h"
 #include <common/extra.h>
 #include <kernel/boot_defs.h>
+#include <kernel/kprintf.h>
 #include <kernel/panic.h>
 
 struct range {
@@ -61,6 +62,7 @@ uintptr_t range_allocator_alloc(range_allocator* allocator, size_t size) {
         return base;
     }
 
+    kputs("Out of userland virtual address space\n");
     return -ENOMEM;
 }
 

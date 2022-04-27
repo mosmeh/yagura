@@ -2,6 +2,7 @@
 #include <common/extra.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/boot_defs.h>
+#include <kernel/kprintf.h>
 #include <kernel/lock.h>
 #include <kernel/panic.h>
 #include <stdbool.h>
@@ -75,6 +76,7 @@ uintptr_t kernel_vaddr_allocator_alloc(size_t size) {
     ssize_t first_fit = bitmap_find_first_fit(num_requested_pages);
     if (IS_ERR(first_fit)) {
         mutex_unlock(&lock);
+        kputs("Out of kernel virtual address space\n");
         return first_fit;
     }
 
