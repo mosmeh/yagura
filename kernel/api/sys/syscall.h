@@ -33,13 +33,13 @@
     F(pipe)                                                                    \
     F(read)                                                                    \
     F(reboot)                                                                  \
+    F(sched_yield)                                                             \
     F(socket)                                                                  \
     F(stat)                                                                    \
     F(sysconf)                                                                 \
     F(times)                                                                   \
     F(waitpid)                                                                 \
-    F(write)                                                                   \
-    F(yield)
+    F(write)
 
 enum {
 #define DEFINE_ITEM(name) SYS_##name,

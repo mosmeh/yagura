@@ -41,7 +41,7 @@ pid_t getpid(void) {
 }
 
 int sched_yield(void) {
-    int rc = syscall(SYS_yield, 0, 0, 0);
+    int rc = syscall(SYS_sched_yield, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
 }
 
