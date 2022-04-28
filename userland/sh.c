@@ -1,8 +1,10 @@
 #include "stdlib.h"
 #include "syscall.h"
 #include <common/ctype.h>
+#include <common/extra.h>
 #include <common/stdlib.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/api/sys/ioctl.h>
 #include <kernel/api/unistd.h>
 #include <stdbool.h>
 #include <string.h>
@@ -10,6 +12,7 @@
 #define BUF_SIZE 1024
 
 struct line_editor {
+    size_t terminal_width;
     char input_buf[BUF_SIZE];
     size_t input_len;
     size_t cursor;
@@ -164,22 +167,54 @@ static char* read_input(struct line_editor* ed) {
     ed->input_len = ed->cursor = 0;
     ed->dirty = true;
 
+    struct winsize winsize;
+    if (ioctl(STDERR_FILENO, TIOCGWINSZ, &winsize) < 0)
+        ed->terminal_width = 80;
+    else
+        ed->terminal_width = winsize.ws_col;
+
     char cwd_buf[BUF_SIZE];
     memset(cwd_buf, 0, BUF_SIZE);
     getcwd(cwd_buf, 1024);
 
+    size_t prompt_len = strlen(cwd_buf) + 3;
+
     for (;;) {
         if (ed->dirty) {
             dprintf(STDERR_FILENO,
-                    "\x1b[?25l"           // hide cursor
-                    "\x1b[G"              // go to x=1
-                    "\x1b[36m%s\x1b[m $ " // print prompt
-                    "%s"                  // print current input buffer
-                    "\x1b[K"              // clear rest of line
-                    "\x1b[%uG"            // set cursor position
-                    "\x1b[?25h",          // show cursor
-                    cwd_buf, ed->input_buf,
-                    strlen(cwd_buf) + 3 + ed->cursor + 1);
+                    "\x1b[?25l"            // hide cursor
+                    "\x1b[G"               // go to left end
+                    "\x1b[36m%s\x1b[m $ ", // print prompt
+                    cwd_buf);
+
+            bool clear_needed = prompt_len + ed->input_len < ed->terminal_width;
+            size_t cursor_x = prompt_len + ed->cursor;
+
+            if (cursor_x < ed->terminal_width) {
+                size_t len =
+                    MIN(ed->input_len, ed->terminal_width - prompt_len);
+                write(STDERR_FILENO, ed->input_buf, len);
+            } else {
+                const char* str =
+                    ed->input_buf + cursor_x - ed->terminal_width + 1;
+                size_t len =
+                    MIN(ed->input_len, ed->terminal_width - prompt_len + 1) - 1;
+                if (ed->cursor == ed->input_len &&
+                    cursor_x > ed->terminal_width) {
+                    --len;
+                    clear_needed = true;
+                }
+                cursor_x = ed->terminal_width;
+                write(STDERR_FILENO, str, len);
+            }
+
+            if (clear_needed)
+                dprintf(STDERR_FILENO, "\x1b[K");
+
+            dprintf(STDERR_FILENO,
+                    "\x1b[%uG"   // set cursor position
+                    "\x1b[?25h", // show cursor
+                    cursor_x + 1);
             ed->dirty = false;
         }
 
