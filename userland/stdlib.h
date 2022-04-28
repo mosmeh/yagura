@@ -30,6 +30,8 @@ int printf(const char* format, ...);
 int dprintf(int fd, const char* format, ...);
 int vdprintf(int fd, const char* format, va_list ap);
 
+int getchar(void);
+
 extern int errno;
 char* strerror(int errnum);
 void perror(const char*);

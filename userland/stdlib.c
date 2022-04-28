@@ -133,6 +133,13 @@ int vdprintf(int fd, const char* format, va_list ap) {
     return write(fd, buf, len);
 }
 
+int getchar(void) {
+    char c;
+    if (read(STDIN_FILENO, &c, 1) < 0)
+        return -1;
+    return c;
+}
+
 int errno;
 
 #define ERRNO_MSG(I, MSG) MSG,
