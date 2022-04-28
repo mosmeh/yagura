@@ -227,6 +227,8 @@ static void handle_csi_cha(void) {
     unsigned x = atoi(param_buf);
     if (x > 0)
         --x;
+    if (x >= console_width)
+        x = console_width - 1;
     set_cursor(x, cursor_y);
 }
 
@@ -241,15 +243,23 @@ static void handle_csi_cup(void) {
     for (size_t i = 0; param; ++i) {
         switch (i) {
         case 0:
-            y = atoi(param) - 1;
+            y = atoi(param);
+            if (y > 0)
+                --y;
             break;
         case 1:
-            x = atoi(param) - 1;
+            x = atoi(param);
+            if (x > 0)
+                --x;
             break;
         }
         param = strtok_r(NULL, sep, &saved_ptr);
     }
 
+    if (x >= console_width)
+        x = console_width - 1;
+    if (y >= console_height)
+        y = console_height - 1;
     set_cursor(x, y);
 }
 
