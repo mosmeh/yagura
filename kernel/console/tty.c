@@ -358,9 +358,11 @@ static void handle_csi_dectcem(char c) {
     switch (c) {
     case 'h':
         is_cursor_visible = true;
+        line_is_dirty[cursor_y] = true;
         return;
     case 'l':
         is_cursor_visible = false;
+        line_is_dirty[cursor_y] = true;
         return;
     }
 }
