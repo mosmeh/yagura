@@ -45,8 +45,10 @@ static uint8_t bg_color = DEFAULT_BG_COLOR;
 static struct cell* cells;
 static bool* line_is_dirty;
 static bool whole_screen_should_be_cleared = false;
+static bool stomp = false;
 
 static void set_cursor(size_t x, size_t y) {
+    stomp = false;
     line_is_dirty[cursor_y] = true;
     line_is_dirty[y] = true;
     cursor_x = x;
@@ -152,15 +154,22 @@ static void handle_ground(char c) {
     default:
         if ((unsigned)c > 127)
             return;
+        if (stomp)
+            set_cursor(0, cursor_y + 1);
+        if (cursor_y >= console_height) {
+            scroll_up();
+            set_cursor(cursor_x, console_height - 1);
+        }
         write_char_at(cursor_x, cursor_y, c);
         set_cursor(cursor_x + 1, cursor_y);
         break;
     }
-    if (cursor_x >= console_width)
-        set_cursor(0, cursor_y + 1);
-    if (cursor_y >= console_height) {
-        scroll_up();
-        set_cursor(cursor_x, cursor_y - 1);
+    if (cursor_x >= console_width) {
+        set_cursor(console_width - 1, cursor_y);
+
+        // event if we reach at the right end of a screen, we don't proceed to
+        // the next line until we write the next character
+        stomp = true;
     }
 }
 
