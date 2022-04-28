@@ -5,6 +5,7 @@
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/hid.h>
+#include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
@@ -569,6 +570,20 @@ static ssize_t tty_device_write(file_description* desc, const void* buffer,
     return count;
 }
 
+static int tty_device_ioctl(file_description* desc, int request, void* argp) {
+    (void)desc;
+    switch (request) {
+    case TIOCGWINSZ: {
+        struct winsize* winsize = (struct winsize*)argp;
+        winsize->ws_col = console_width;
+        winsize->ws_row = console_height;
+        winsize->ws_xpixel = winsize->ws_ypixel = 0;
+        return 0;
+    }
+    }
+    return -EINVAL;
+}
+
 struct file* tty_device_create(void) {
     tty_device* dev = kmalloc(sizeof(tty_device));
     if (!dev)
@@ -583,6 +598,7 @@ struct file* tty_device_create(void) {
     file->mode = S_IFCHR;
     file->read = tty_device_read;
     file->write = tty_device_write;
+    file->ioctl = tty_device_ioctl;
     file->device_id = makedev(5, 0);
     return file;
 }

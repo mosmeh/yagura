@@ -31,6 +31,12 @@ static ssize_t console_device_write(file_description* desc, const void* buffer,
     return fs_write(active_console, buffer, count);
 }
 
+static int console_device_ioctl(file_description* desc, int request,
+                                void* argp) {
+    (void)desc;
+    return fs_ioctl(active_console, request, argp);
+}
+
 struct file* console_device_create(void) {
     struct file* file = kmalloc(sizeof(struct file));
     if (!file)
@@ -42,6 +48,7 @@ struct file* console_device_create(void) {
     file->mode = S_IFCHR;
     file->read = console_device_read;
     file->write = console_device_write;
+    file->ioctl = console_device_ioctl;
     file->device_id = makedev(5, 1);
     return file;
 }
