@@ -128,5 +128,7 @@ int main(void) {
         row_addr += fb_info.pitch;
     }
 
+    (void)getchar();
+
     return EXIT_SUCCESS;
 }

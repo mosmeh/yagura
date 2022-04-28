@@ -160,5 +160,7 @@ int main(int argc, char* const argv[]) {
 
     close(img_fd);
 
+    (void)getchar();
+
     return EXIT_SUCCESS;
 }
