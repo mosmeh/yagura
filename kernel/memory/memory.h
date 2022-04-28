@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/forward.h>
+#include <kernel/lock.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -18,15 +19,14 @@ typedef struct range_allocator {
     uintptr_t start;
     uintptr_t end;
     struct range* ranges;
+    mutex lock;
 } range_allocator;
 
 int range_allocator_init(range_allocator* allocator, uintptr_t start,
                          uintptr_t end);
-void range_allocator_destroy(range_allocator* allocator);
 uintptr_t range_allocator_alloc(range_allocator* allocator, size_t size);
 int range_allocator_free(range_allocator* allocator, uintptr_t addr,
                          size_t size);
-int range_allocator_clone(range_allocator* to, range_allocator* from);
 
 #define PAGE_WRITE 0x2
 #define PAGE_USER 0x4

@@ -29,17 +29,14 @@ uintptr_t sys_fork(registers* regs) {
     if (IS_ERR(process->pd))
         return PTR_ERR(process->pd);
 
+    process->vaddr_allocator = current->vaddr_allocator;
+
     process->id = process_generate_next_pid();
     process->eip = (uintptr_t)return_to_userland;
     process->ebx = current->ebx;
     process->esi = current->esi;
     process->edi = current->edi;
     process->fpu_state = current->fpu_state;
-
-    int rc = range_allocator_clone(&process->vaddr_allocator,
-                                   &current->vaddr_allocator);
-    if (IS_ERR(rc))
-        return rc;
 
     process->user_ticks = current->user_ticks;
     process->kernel_ticks = current->kernel_ticks;
@@ -48,8 +45,8 @@ uintptr_t sys_fork(registers* regs) {
     if (!process->cwd)
         return -ENOMEM;
 
-    rc = file_descriptor_table_clone_from(&process->fd_table,
-                                          &current->fd_table);
+    int rc = file_descriptor_table_clone_from(&process->fd_table,
+                                              &current->fd_table);
     if (IS_ERR(rc))
         return rc;
 

@@ -7,8 +7,6 @@
 #include "scheduler.h"
 #include <stdatomic.h>
 
-#define USER_HEAP_START 0x100000
-
 struct process* current;
 const struct fpu_state initial_fpu_state;
 static atomic_int next_pid;
@@ -31,8 +29,6 @@ void process_init(void) {
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
-    range_allocator_init(&current->vaddr_allocator, USER_HEAP_START,
-                         KERNEL_VADDR);
     current->cwd = kstrdup(ROOT_DIR);
     ASSERT(current->cwd);
     ASSERT_OK(file_descriptor_table_init(&current->fd_table));
@@ -51,8 +47,6 @@ struct process* process_create_kernel_process(void (*entry_point)(void)) {
     process->id = 0;
     process->eip = (uintptr_t)entry_point;
     process->fpu_state = initial_fpu_state;
-    range_allocator_init(&process->vaddr_allocator, USER_HEAP_START,
-                         KERNEL_VADDR);
 
     process->pd = paging_create_page_directory();
     if (IS_ERR(process->pd))
@@ -106,7 +100,6 @@ noreturn void process_exit(int status) {
     paging_destroy_current_page_directory();
 
     kfree(current->cwd);
-    range_allocator_destroy(&current->vaddr_allocator);
 
     scheduler_yield(false);
     UNREACHABLE();
