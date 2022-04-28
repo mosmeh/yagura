@@ -22,7 +22,7 @@ void* kaligned_alloc(size_t alignment, size_t size) {
 
     size_t data_offset = round_up(sizeof(struct header), alignment);
     size_t real_size = data_offset + size;
-    uintptr_t addr = kernel_vaddr_allocator_alloc(real_size);
+    uintptr_t addr = range_allocator_alloc(&kernel_vaddr_allocator, real_size);
     if (IS_ERR(addr))
         return NULL;
     if (IS_ERR(paging_map_to_free_pages(addr, real_size,
@@ -52,7 +52,7 @@ void kfree(void* ptr) {
     ASSERT(header->magic == MAGIC);
     size_t size = header->size;
     paging_unmap(addr, size);
-    kernel_vaddr_allocator_free(addr, size);
+    range_allocator_free(&kernel_vaddr_allocator, addr, size);
 }
 
 char* kstrdup(const char* src) {

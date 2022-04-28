@@ -299,6 +299,8 @@ void paging_switch_page_directory(page_directory* pd) {
     pop_cli(int_flag);
 }
 
+range_allocator kernel_vaddr_allocator;
+
 extern unsigned char kernel_page_directory[];
 
 void paging_init(const multiboot_info_t* mb_info) {
@@ -307,7 +309,8 @@ void paging_init(const multiboot_info_t* mb_info) {
     kprintf("Kernel page directory: P0x%x\n", (uintptr_t)kernel_page_directory);
 
     page_allocator_init(mb_info);
-    kernel_vaddr_allocator_init();
+    range_allocator_init(&kernel_vaddr_allocator, KERNEL_HEAP_START,
+                         KERNEL_HEAP_END);
 
     for (size_t addr = KERNEL_HEAP_START; addr < KERNEL_HEAP_END;
          addr += 1024 * PAGE_SIZE)

@@ -448,7 +448,7 @@ void tty_init(void) {
     ASSERT(line_is_dirty);
 
     size_t fb_size = fb_info.pitch * fb_info.height;
-    uintptr_t vaddr = kernel_vaddr_allocator_alloc(fb_size);
+    uintptr_t vaddr = range_allocator_alloc(&kernel_vaddr_allocator, fb_size);
     ASSERT_OK(vaddr);
     fb_addr = fs_mmap(desc, vaddr, fb_size, 0,
                       PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL);

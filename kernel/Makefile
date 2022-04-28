@@ -35,7 +35,6 @@ OBJS := \
 	kprintf.o \
 	lock.o \
 	main.o \
-	memory/kernel_vaddr_allocator.o \
 	memory/kmalloc.o \
 	memory/page_allocator.o \
 	memory/paging.o \

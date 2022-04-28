@@ -35,7 +35,8 @@ static int grow_buf(tmpfs_node* node, size_t requested_size) {
     size_t new_capacity =
         round_up(MAX(node->capacity * 2, requested_size), PAGE_SIZE);
 
-    uintptr_t new_addr = kernel_vaddr_allocator_alloc(new_capacity);
+    uintptr_t new_addr =
+        range_allocator_alloc(&kernel_vaddr_allocator, new_capacity);
     if (IS_ERR(new_addr))
         return new_addr;
 
