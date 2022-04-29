@@ -7,6 +7,7 @@
 #include <kernel/api/hid.h>
 #include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/api/sys/types.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
 #include <kernel/lock.h>
@@ -481,6 +482,8 @@ static void queue_push_str(const char* s) {
         queue_push_char(*s);
 }
 
+static pid_t pgid;
+
 void tty_on_key(const key_event* event) {
     if (!event->pressed)
         return;
@@ -570,6 +573,16 @@ static ssize_t tty_device_write(file_description* desc, const void* buffer,
 static int tty_device_ioctl(file_description* desc, int request, void* argp) {
     (void)desc;
     switch (request) {
+    case TIOCGPGRP:
+        *(pid_t*)argp = pgid;
+        return 0;
+    case TIOCSPGRP: {
+        pid_t new_pgid = *(pid_t*)argp;
+        if (new_pgid < 0)
+            return -EINVAL;
+        pgid = new_pgid;
+        return 0;
+    }
     case TIOCGWINSZ: {
         struct winsize* winsize = (struct winsize*)argp;
         winsize->ws_col = console_width;
