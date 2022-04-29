@@ -27,7 +27,6 @@ void process_init(void) {
     current = kaligned_alloc(alignof(struct process), sizeof(struct process));
     ASSERT(current);
     *current = (struct process){0};
-    current->id = 0;
     current->fpu_state = initial_fpu_state;
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
@@ -47,7 +46,6 @@ struct process* process_create_kernel_process(void (*entry_point)(void)) {
         return ERR_PTR(-ENOMEM);
     *process = (struct process){0};
 
-    process->id = 0;
     process->eip = (uintptr_t)entry_point;
     process->fpu_state = initial_fpu_state;
 
@@ -77,7 +75,7 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
     if (IS_ERR(process))
         return PTR_ERR(process);
     scheduler_enqueue(process);
-    return process->id;
+    return process->pid;
 }
 
 pid_t process_generate_next_pid(void) {
@@ -86,21 +84,21 @@ pid_t process_generate_next_pid(void) {
 
 struct process* process_find_process_by_pid(pid_t pid) {
     ASSERT(current);
-    if (current->id == pid)
+    if (current->pid == pid)
         return current;
 
     bool int_flag = push_cli();
 
     struct process* it = ready_queue;
     while (it) {
-        if (it->id == pid)
+        if (it->pid == pid)
             goto found;
         it = it->next;
     }
 
     it = blocked_processes;
     while (it) {
-        if (it->id == pid)
+        if (it->pid == pid)
             goto found;
         it = it->next;
     }
@@ -109,7 +107,7 @@ struct process* process_find_process_by_pid(pid_t pid) {
 found:
     pop_cli(int_flag);
     if (it)
-        ASSERT(it->id == pid);
+        ASSERT(it->pid == pid);
     return it;
 }
 
@@ -117,10 +115,10 @@ noreturn void process_exit(int status) {
     ASSERT(interrupts_enabled());
 
     if (status != 0)
-        kprintf("\x1b[31mProcess %d exited with status %d\x1b[m\n", current->id,
-                status);
+        kprintf("\x1b[31mProcess %d exited with status %d\x1b[m\n",
+                current->pid, status);
 
-    if (current->id == 1)
+    if (current->pid == 1)
         PANIC("init process exited");
 
     file_description** it = current->fd_table.entries;

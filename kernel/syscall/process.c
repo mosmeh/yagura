@@ -9,7 +9,7 @@
 
 noreturn uintptr_t sys_exit(int status) { process_exit(status); }
 
-uintptr_t sys_getpid(void) { return current->id; }
+uintptr_t sys_getpid(void) { return current->pid; }
 
 uintptr_t sys_sched_yield(void) {
     scheduler_yield(true);
@@ -64,7 +64,7 @@ uintptr_t sys_fork(registers* regs) {
 
     scheduler_enqueue(process);
 
-    return process->id;
+    return process->pid;
 }
 
 static bool waitpid_should_unblock(const pid_t* pid) {

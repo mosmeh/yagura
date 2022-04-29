@@ -16,7 +16,7 @@
 #include "system.h"
 
 static noreturn void init(void) {
-    current->id = process_generate_next_pid();
+    current->pid = current->pgid = process_generate_next_pid();
 
     static char* argv[] = {NULL};
     static char* envp[] = {NULL};

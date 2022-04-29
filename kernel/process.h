@@ -6,7 +6,7 @@
 #include <stdnoreturn.h>
 
 struct process {
-    pid_t id;
+    pid_t pid, pgid;
     uint32_t eip, esp, ebp, ebx, esi, edi;
     struct fpu_state fpu_state;
 
