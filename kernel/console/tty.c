@@ -5,6 +5,7 @@
 #include <kernel/api/fb.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/hid.h>
+#include <kernel/api/signum.h>
 #include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/api/sys/types.h>
@@ -13,6 +14,7 @@
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
+#include <kernel/process.h>
 #include <kernel/scheduler.h>
 #include <string.h>
 
@@ -522,6 +524,16 @@ void tty_on_key(const key_event* event) {
         else if (key == '\\')
             key = 0x1c;
     }
+
+    switch (key) {
+    case 'C' - '@':
+        process_send_signal_to_group(pgid, SIGINT);
+        break;
+    case '\\' - '@':
+        process_send_signal_to_group(pgid, SIGQUIT);
+        break;
+    }
+
     queue_push_char(key);
 }
 
