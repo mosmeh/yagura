@@ -309,7 +309,7 @@ static void irq_handler(registers* reg) {
 
     received_e0 = false;
 
-    tty_on_key(event);
+    fb_console_on_key(event);
 }
 
 void ps2_keyboard_init(void) {

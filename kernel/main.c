@@ -77,8 +77,8 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     if (fb_init(mb_info)) {
         create_char_device("/dev/fb0", fb_device_create());
-        tty_init();
-        create_char_device("/dev/tty", tty_device_create());
+        fb_console_init();
+        create_char_device("/dev/tty", fb_console_device_create());
     }
 
     if (com1_is_available)

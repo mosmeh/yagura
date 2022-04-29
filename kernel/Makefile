@@ -14,8 +14,8 @@ OBJS := \
 	boot.o \
 	cmdline.o \
 	console/console.o \
+	console/fb_console.o \
 	console/psf.o \
-	console/tty.o \
 	fifo.o \
 	fs/fs.o \
 	fs/initrd.o \

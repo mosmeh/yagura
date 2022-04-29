@@ -433,7 +433,7 @@ static void on_char(char c) {
 
 static bool initialized = false;
 
-void tty_init(void) {
+void fb_console_init(void) {
     font = load_psf("/usr/share/fonts/ter-u16n.psf");
     ASSERT_OK(font);
 
@@ -486,7 +486,7 @@ static void queue_push_str(const char* s) {
 
 static pid_t pgid;
 
-void tty_on_key(const key_event* event) {
+void fb_console_on_key(const key_event* event) {
     if (!event->pressed)
         return;
     switch (event->keycode) {
@@ -544,8 +544,8 @@ static bool read_should_unblock(void) {
     return should_unblock;
 }
 
-static ssize_t tty_device_read(file_description* desc, void* buffer,
-                               size_t count) {
+static ssize_t fb_console_device_read(file_description* desc, void* buffer,
+                                      size_t count) {
     (void)desc;
 
     size_t nread = 0;
@@ -568,8 +568,8 @@ static ssize_t tty_device_read(file_description* desc, void* buffer,
     return nread;
 }
 
-static ssize_t tty_device_write(file_description* desc, const void* buffer,
-                                size_t count) {
+static ssize_t fb_console_device_write(file_description* desc,
+                                       const void* buffer, size_t count) {
     (void)desc;
     const char* chars = (char*)buffer;
     mutex_lock(&lock);
@@ -582,7 +582,8 @@ static ssize_t tty_device_write(file_description* desc, const void* buffer,
     return count;
 }
 
-static int tty_device_ioctl(file_description* desc, int request, void* argp) {
+static int fb_console_device_ioctl(file_description* desc, int request,
+                                   void* argp) {
     (void)desc;
     switch (request) {
     case TIOCGPGRP:
@@ -606,19 +607,19 @@ static int tty_device_ioctl(file_description* desc, int request, void* argp) {
     return -EINVAL;
 }
 
-struct file* tty_device_create(void) {
+struct file* fb_console_device_create(void) {
     struct file* file = kmalloc(sizeof(struct file));
     if (!file)
         return ERR_PTR(-ENOMEM);
     *file = (struct file){0};
 
-    file->name = kstrdup("tty_device");
+    file->name = kstrdup("fb_console_device");
     if (!file->name)
         return ERR_PTR(-ENOMEM);
     file->mode = S_IFCHR;
-    file->read = tty_device_read;
-    file->write = tty_device_write;
-    file->ioctl = tty_device_ioctl;
+    file->read = fb_console_device_read;
+    file->write = fb_console_device_write;
+    file->ioctl = fb_console_device_ioctl;
     file->device_id = makedev(5, 0);
     return file;
 }
