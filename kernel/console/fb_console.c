@@ -1,3 +1,4 @@
+#include "console.h"
 #include "psf.h"
 #include <common/extra.h>
 #include <common/stdlib.h>
@@ -518,14 +519,7 @@ void fb_console_on_key(const key_event* event) {
             key = 0x1c;
     }
 
-    switch (key) {
-    case 'C' - '@':
-        process_send_signal_to_group(pgid, SIGINT);
-        break;
-    case '\\' - '@':
-        process_send_signal_to_group(pgid, SIGQUIT);
-        break;
-    }
+    tty_maybe_send_signal(pgid, key);
 
     bool int_flag = push_cli();
     ring_buf_write_evicting_oldest(&input_buf, &key, 1);

@@ -10,6 +10,7 @@
 #include <kernel/serial.h>
 
 static ring_buf input_bufs[4];
+static pid_t pgid;
 
 void serial_console_init(void) {
     for (size_t i = 0; i < 4; ++i)
@@ -27,6 +28,9 @@ void serial_console_on_char(uint16_t port, char ch) {
     ring_buf* buf = get_input_buf_for_port(port);
     if (!buf)
         return;
+
+    tty_maybe_send_signal(pgid, ch);
+
     bool int_flag = push_cli();
     ring_buf_write_evicting_oldest(buf, &ch, 1);
     pop_cli(int_flag);
@@ -63,6 +67,26 @@ static ssize_t serial_console_device_write(file_description* desc,
     return serial_write(dev->port, (const char*)buffer, count);
 }
 
+static int serial_console_device_ioctl(file_description* desc, int request,
+                                       void* argp) {
+    (void)desc;
+    switch (request) {
+    case TIOCGPGRP:
+        *(pid_t*)argp = pgid;
+        return 0;
+    case TIOCSPGRP: {
+        pid_t new_pgid = *(pid_t*)argp;
+        if (new_pgid < 0)
+            return -EINVAL;
+        pgid = new_pgid;
+        return 0;
+    }
+    case TIOCGWINSZ:
+        return -ENOTSUP;
+    }
+    return -EINVAL;
+}
+
 struct file* serial_console_device_create(uint16_t port) {
     if (!serial_is_valid_port(port))
         return NULL;
@@ -82,6 +106,7 @@ struct file* serial_console_device_create(uint16_t port) {
     file->mode = S_IFCHR;
     file->read = serial_console_device_read;
     file->write = serial_console_device_write;
+    file->ioctl = serial_console_device_ioctl;
 
     file->device_id = makedev(4, 63 + (dev_t)serial_port_to_com_number(port));
 
