@@ -43,7 +43,7 @@ static void unblock_processes(void) {
     struct process* it = blocked_processes;
     for (;;) {
         ASSERT(it->should_unblock);
-        if (it->should_unblock(it->blocker_data)) {
+        if (it->pending_signals || it->should_unblock(it->blocker_data)) {
             if (prev)
                 prev->next = it->next;
             else
@@ -82,6 +82,8 @@ static noreturn void switch_to_next_process(void) {
 
     paging_switch_page_directory(current->pd);
     gdt_set_kernel_stack(current->stack_top);
+
+    process_handle_pending_signals();
 
     __asm__ volatile("fxrstor %0" ::"m"(current->fpu_state));
 

@@ -23,6 +23,8 @@ struct process {
     size_t user_ticks;
     size_t kernel_ticks;
 
+    uint32_t pending_signals;
+
     struct process* next; // for ready_queue or blocked_processes
 };
 
@@ -45,3 +47,7 @@ int process_alloc_file_descriptor(int fd, file_description*);
 
 int process_free_file_descriptor(int fd);
 file_description* process_get_file_description(int fd);
+
+int process_send_signal_to_one(pid_t pid, int signum);
+int process_send_signal_to_group(pid_t pgid, int signum);
+void process_handle_pending_signals(void);

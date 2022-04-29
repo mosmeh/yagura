@@ -1,4 +1,5 @@
 #include "process.h"
+#include "api/signum.h"
 #include "boot_defs.h"
 #include "interrupts.h"
 #include "kprintf.h"
@@ -184,4 +185,135 @@ file_description* process_get_file_description(int fd) {
         return ERR_PTR(-EBADF);
 
     return *desc;
+}
+
+enum {
+    DISP_TERM,
+    DISP_IGN,
+    DISP_CORE,
+    DISP_STOP,
+    DISP_CONT,
+};
+
+static int get_default_disposition_for_signal(int signum) {
+    switch (signum) {
+    case SIGHUP:
+    case SIGINT:
+    case SIGKILL:
+    case SIGPIPE:
+    case SIGALRM:
+    case SIGUSR1:
+    case SIGUSR2:
+    case SIGVTALRM:
+    case SIGSTKFLT:
+    case SIGIO:
+    case SIGPROF:
+    case SIGPWR:
+    case SIGTERM:
+        return DISP_TERM;
+    case SIGCHLD:
+    case SIGURG:
+    case SIGWINCH:
+        return DISP_IGN;
+    case SIGQUIT:
+    case SIGILL:
+    case SIGTRAP:
+    case SIGABRT:
+    case SIGBUS:
+    case SIGFPE:
+    case SIGSEGV:
+    case SIGXCPU:
+    case SIGXFSZ:
+    case SIGSYS:
+        return DISP_CORE;
+    case SIGSTOP:
+    case SIGTSTP:
+    case SIGTTIN:
+    case SIGTTOU:
+        return DISP_STOP;
+    case SIGCONT:
+        return DISP_CONT;
+    default:
+        UNREACHABLE();
+    }
+}
+
+static int send_signal(struct process* process, int signum) {
+    if (signum < 0 || NSIG <= signum)
+        return -EINVAL;
+
+    int disp = get_default_disposition_for_signal(signum);
+    switch (disp) {
+    case DISP_TERM:
+    case DISP_CORE:
+        break;
+    case DISP_IGN:
+        return 0;
+    case DISP_STOP:
+    case DISP_CONT:
+        UNIMPLEMENTED();
+    }
+
+    process->pending_signals |= 1 << signum;
+
+    if (process == current)
+        process_handle_pending_signals();
+    return 0;
+}
+
+int process_send_signal_to_one(pid_t pid, int signum) {
+    struct process* process = process_find_process_by_pid(pid);
+    if (!process)
+        return -ESRCH;
+    return send_signal(process, signum);
+}
+
+int process_send_signal_to_group(pid_t pgid, int signum) {
+    ASSERT(current);
+    if (current->pgid == pgid)
+        send_signal(current, signum);
+
+    bool int_flag = push_cli();
+
+    struct process* it = ready_queue;
+    while (it) {
+        if (it->pgid == pgid)
+            send_signal(it, signum);
+        it = it->next;
+    }
+
+    it = blocked_processes;
+    while (it) {
+        if (it->pgid == pgid)
+            send_signal(it, signum);
+        it = it->next;
+    }
+
+    pop_cli(int_flag);
+    return 0;
+}
+
+void process_handle_pending_signals(void) {
+    if (!current->pending_signals)
+        return;
+
+    while (current->pending_signals) {
+        int b = __builtin_ffs(current->pending_signals);
+        ASSERT(b > 0);
+        int signum = b - 1;
+        current->pending_signals &= ~(1 << signum);
+        int disp = get_default_disposition_for_signal(signum);
+        switch (disp) {
+        case DISP_TERM:
+        case DISP_CORE:
+            sti();
+            process_exit(128 + signum);
+            break;
+        case DISP_IGN:
+            continue;
+        case DISP_STOP:
+        case DISP_CONT:
+            UNIMPLEMENTED();
+        }
+    }
 }
