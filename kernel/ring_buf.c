@@ -62,3 +62,18 @@ ssize_t ring_buf_write(ring_buf* buf, const void* buffer, size_t count) {
     atomic_store_explicit(&buf->write_idx, write_idx, memory_order_release);
     return nwritten;
 }
+
+ssize_t ring_buf_write_evicting_oldest(ring_buf* buf, const void* buffer,
+                                       size_t count) {
+    size_t nwritten = 0;
+    unsigned char* dest = buf->inner_buf;
+    const unsigned char* src = buffer;
+    size_t write_idx =
+        atomic_load_explicit(&buf->write_idx, memory_order_acquire);
+    while (nwritten < count) {
+        dest[write_idx] = src[nwritten++];
+        write_idx = (write_idx + 1) % BUF_CAPACITY;
+    }
+    atomic_store_explicit(&buf->write_idx, write_idx, memory_order_release);
+    return nwritten;
+}
