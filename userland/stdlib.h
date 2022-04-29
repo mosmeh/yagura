@@ -53,3 +53,6 @@ clock_t clock(void);
 time_t time(time_t* tloc);
 struct tm* gmtime_r(time_t const* t, struct tm* tm);
 char* asctime_r(const struct tm* time_ptr, char* buf);
+
+pid_t tcgetpgrp(int fd);
+int tcsetpgrp(int fd, pid_t pgrp);

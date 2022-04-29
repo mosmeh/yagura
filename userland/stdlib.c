@@ -7,6 +7,7 @@
 #include <kernel/api/errno.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/signum.h>
+#include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/mman.h>
 #include <kernel/api/sys/syscall.h>
 #include <kernel/api/unistd.h>
@@ -321,3 +322,7 @@ char* asctime_r(const struct tm* time_ptr, char* buf) {
         time_ptr->tm_min, time_ptr->tm_sec, time_ptr->tm_year + 1900);
     return len > 0 ? buf : NULL;
 }
+
+pid_t tcgetpgrp(int fd) { return ioctl(fd, TIOCGPGRP, NULL); }
+
+int tcsetpgrp(int fd, pid_t pgrp) { return ioctl(fd, TIOCSPGRP, &pgrp); }

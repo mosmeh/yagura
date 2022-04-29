@@ -1,6 +1,6 @@
 #pragma once
 
-enum { TIOCGWINSZ };
+enum { TIOCGPGRP, TIOCSPGRP, TIOCGWINSZ };
 
 struct winsize {
     unsigned short ws_row;
