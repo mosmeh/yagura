@@ -9,6 +9,7 @@ typedef struct tmpfs_node {
     struct tree_node base_tree;
     uintptr_t buf_addr;
     size_t capacity, size;
+    mutex lock;
 } tmpfs_node;
 
 static int tmpfs_stat(struct file* file, struct stat* buf) {
@@ -21,13 +22,19 @@ static int tmpfs_stat(struct file* file, struct stat* buf) {
 
 static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t count) {
     tmpfs_node* node = (tmpfs_node*)desc->file;
-    if ((size_t)desc->offset >= node->size)
+    mutex_lock(&node->lock);
+
+    if ((size_t)desc->offset >= node->size) {
+        mutex_unlock(&node->lock);
         return 0;
+    }
     if (desc->offset + count >= node->size)
         count = node->size - desc->offset;
 
     memcpy(buffer, (void*)(node->buf_addr + desc->offset), count);
     desc->offset += count;
+
+    mutex_unlock(&node->lock);
     return count;
 }
 
@@ -69,16 +76,22 @@ static int grow_buf(tmpfs_node* node, size_t requested_size) {
 static ssize_t tmpfs_write(file_description* desc, const void* buffer,
                            size_t count) {
     tmpfs_node* node = (tmpfs_node*)desc->file;
+    mutex_lock(&node->lock);
+
     if (desc->offset + count >= node->capacity) {
         int rc = grow_buf(node, desc->offset + count);
-        if (IS_ERR(rc))
+        if (IS_ERR(rc)) {
+            mutex_unlock(&node->lock);
             return rc;
+        }
     }
 
     memcpy((void*)(node->buf_addr + desc->offset), buffer, count);
     desc->offset += count;
     if (node->size < (size_t)desc->offset)
         node->size = desc->offset;
+
+    mutex_unlock(&node->lock);
     return count;
 }
 
@@ -88,18 +101,28 @@ static uintptr_t tmpfs_mmap(file_description* desc, uintptr_t addr,
         return -ENOTSUP;
 
     tmpfs_node* node = (tmpfs_node*)desc->file;
-    if (length > node->size)
+    mutex_lock(&node->lock);
+
+    if (length > node->size) {
+        mutex_unlock(&node->lock);
         return -EINVAL;
+    }
 
     int rc = paging_copy_mapping(addr, node->buf_addr, length, page_flags);
-    if (IS_ERR(rc))
+    if (IS_ERR(rc)) {
+        mutex_unlock(&node->lock);
         return rc;
+    }
+
+    mutex_unlock(&node->lock);
     return addr;
 }
 
 static int tmpfs_truncate(file_description* desc, off_t length) {
     tmpfs_node* node = (tmpfs_node*)desc->file;
     size_t slength = (size_t)length;
+
+    mutex_lock(&node->lock);
 
     if (slength <= node->size) {
         memset((void*)(node->buf_addr + slength), 0, node->size - slength);
@@ -108,11 +131,15 @@ static int tmpfs_truncate(file_description* desc, off_t length) {
     } else {
         // slength >= capacity
         int rc = grow_buf(node, slength);
-        if (IS_ERR(rc))
+        if (IS_ERR(rc)) {
+            mutex_unlock(&node->lock);
             return rc;
+        }
     }
 
     node->size = slength;
+
+    mutex_unlock(&node->lock);
     return 0;
 }
 
@@ -123,6 +150,8 @@ static struct file* tmpfs_create_child(struct file* file, const char* name,
     if (!child)
         return ERR_PTR(-ENOMEM);
     *child = (tmpfs_node){0};
+
+    mutex_init(&child->lock);
 
     struct file* child_file = (struct file*)child;
     child_file->name = kstrdup(name);
@@ -140,7 +169,10 @@ static struct file* tmpfs_create_child(struct file* file, const char* name,
         child_file->mmap = tmpfs_mmap;
         child_file->truncate = tmpfs_truncate;
     }
+
+    mutex_lock(&node->lock);
     tree_node_append_child((tree_node*)node, (tree_node*)child);
+    mutex_unlock(&node->lock);
     return child_file;
 }
 
@@ -149,6 +181,8 @@ struct file* tmpfs_create_root(void) {
     if (!root)
         return ERR_PTR(-ENOMEM);
     *root = (tmpfs_node){0};
+
+    mutex_init(&root->lock);
 
     struct file* file = (struct file*)root;
     file->name = kstrdup("tmpfs");
