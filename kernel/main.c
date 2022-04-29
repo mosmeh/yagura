@@ -90,8 +90,8 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     if (serial_enable_port(SERIAL_COM3))
         create_char_device("/dev/ttyS3", serial_device_create(SERIAL_COM4));
 
-    console_init();
-    create_char_device("/dev/console", console_device_create());
+    system_console_init();
+    create_char_device("/dev/console", system_console_device_create());
 
     syscall_init();
     scheduler_init();
