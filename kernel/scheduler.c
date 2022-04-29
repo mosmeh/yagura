@@ -43,6 +43,7 @@ static void unblock_processes(void) {
     struct process* it = blocked_processes;
     for (;;) {
         ASSERT(it->should_unblock);
+        bool removed = false;
         if (it->pending_signals || it->should_unblock(it->blocker_data)) {
             if (prev)
                 prev->next = it->next;
@@ -52,10 +53,12 @@ static void unblock_processes(void) {
             it->should_unblock = NULL;
             it->blocker_data = NULL;
             scheduler_enqueue(it);
+            removed = true;
         }
         if (!it->next)
             return;
-        prev = it;
+        if (!removed)
+            prev = it;
         it = it->next;
     }
 }
