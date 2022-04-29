@@ -35,6 +35,7 @@ struct process* process_create_kernel_process(void (*entry_point)(void));
 pid_t process_spawn_kernel_process(void (*entry_point)(void));
 
 pid_t process_generate_next_pid(void);
+struct process* process_find_process_by_pid(pid_t);
 noreturn void process_exit(int status);
 
 void process_tick(bool in_kernel);

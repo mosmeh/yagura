@@ -11,6 +11,9 @@ struct process* current;
 const struct fpu_state initial_fpu_state;
 static atomic_int next_pid;
 
+extern struct process* ready_queue;
+extern struct process* blocked_processes;
+
 extern unsigned char kernel_page_directory[];
 extern unsigned char stack_top[];
 
@@ -79,6 +82,35 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
 
 pid_t process_generate_next_pid(void) {
     return atomic_fetch_add_explicit(&next_pid, 1, memory_order_acq_rel);
+}
+
+struct process* process_find_process_by_pid(pid_t pid) {
+    ASSERT(current);
+    if (current->id == pid)
+        return current;
+
+    bool int_flag = push_cli();
+
+    struct process* it = ready_queue;
+    while (it) {
+        if (it->id == pid)
+            goto found;
+        it = it->next;
+    }
+
+    it = blocked_processes;
+    while (it) {
+        if (it->id == pid)
+            goto found;
+        it = it->next;
+    }
+
+    it = NULL;
+found:
+    pop_cli(int_flag);
+    if (it)
+        ASSERT(it->id == pid);
+    return it;
 }
 
 noreturn void process_exit(int status) {

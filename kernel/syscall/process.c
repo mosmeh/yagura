@@ -68,7 +68,7 @@ uintptr_t sys_fork(registers* regs) {
 }
 
 static bool waitpid_should_unblock(const pid_t* pid) {
-    return !scheduler_find_process_by_pid(*pid);
+    return !process_find_process_by_pid(*pid);
 }
 
 // NOLINTNEXTLINE(readability-non-const-parameter)

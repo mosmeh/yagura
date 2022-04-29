@@ -6,8 +6,8 @@
 #include "process.h"
 #include "system.h"
 
-static struct process* ready_queue;
-static struct process* blocked_processes;
+struct process* ready_queue;
+struct process* blocked_processes;
 static struct process* idle;
 
 void scheduler_enqueue(struct process* process) {
@@ -69,41 +69,9 @@ static noreturn void do_idle(void) {
     }
 }
 
-extern unsigned char kernel_page_directory[];
-extern unsigned char stack_top[];
-
 void scheduler_init(void) {
     idle = process_create_kernel_process(do_idle);
     ASSERT_OK(idle);
-}
-
-struct process* scheduler_find_process_by_pid(pid_t pid) {
-    ASSERT(current);
-    if (current->id == pid)
-        return current;
-
-    bool int_flag = push_cli();
-
-    struct process* it = ready_queue;
-    while (it) {
-        if (it->id == pid)
-            goto found;
-        it = it->next;
-    }
-
-    it = blocked_processes;
-    while (it) {
-        if (it->id == pid)
-            goto found;
-        it = it->next;
-    }
-
-    it = NULL;
-found:
-    pop_cli(int_flag);
-    if (it)
-        ASSERT(it->id == pid);
-    return it;
 }
 
 static noreturn void switch_to_next_process(void) {
