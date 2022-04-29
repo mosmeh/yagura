@@ -11,6 +11,28 @@ noreturn uintptr_t sys_exit(int status) { process_exit(status); }
 
 uintptr_t sys_getpid(void) { return current->pid; }
 
+uintptr_t sys_setpgid(pid_t pid, pid_t pgid) {
+    if (pgid < 0)
+        return -EINVAL;
+
+    pid_t target_pid = pid ? pid : current->pid;
+    struct process* target = process_find_process_by_pid(target_pid);
+    if (!target)
+        return -ESRCH;
+
+    target->pgid = pgid ? pgid : target_pid;
+    return 0;
+}
+
+uintptr_t sys_getpgid(pid_t pid) {
+    if (pid == 0)
+        return current->pgid;
+    struct process* process = process_find_process_by_pid(pid);
+    if (!process)
+        return -ESRCH;
+    return process->pgid;
+}
+
 uintptr_t sys_sched_yield(void) {
     scheduler_yield(true);
     return 0;
@@ -31,7 +53,8 @@ uintptr_t sys_fork(registers* regs) {
 
     process->vaddr_allocator = current->vaddr_allocator;
 
-    process->id = process_generate_next_pid();
+    process->pid = process_generate_next_pid();
+    process->pgid = current->pgid;
     process->eip = (uintptr_t)return_to_userland;
     process->ebx = current->ebx;
     process->esi = current->esi;

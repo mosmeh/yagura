@@ -21,6 +21,7 @@
     F(ftruncate)                                                               \
     F(getcwd)                                                                  \
     F(getdents)                                                                \
+    F(getpgid)                                                                 \
     F(getpid)                                                                  \
     F(ioctl)                                                                   \
     F(listen)                                                                  \
@@ -34,6 +35,7 @@
     F(read)                                                                    \
     F(reboot)                                                                  \
     F(sched_yield)                                                             \
+    F(setpgid)                                                                 \
     F(socket)                                                                  \
     F(stat)                                                                    \
     F(sysconf)                                                                 \

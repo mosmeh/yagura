@@ -40,6 +40,16 @@ pid_t getpid(void) {
     RETURN_WITH_ERRNO(rc, pid_t)
 }
 
+int setpgid(pid_t pid, pid_t pgid) {
+    int rc = syscall(SYS_setpgid, pid, pgid, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
+pid_t getpgid(pid_t pid) {
+    int rc = syscall(SYS_getpgid, pid, 0, 0);
+    RETURN_WITH_ERRNO(rc, pid_t)
+}
+
 int sched_yield(void) {
     int rc = syscall(SYS_sched_yield, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, int)

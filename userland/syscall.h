@@ -14,6 +14,8 @@ uintptr_t syscall(uint32_t num, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3);
 noreturn void exit(int status);
 pid_t fork(void);
 pid_t getpid(void);
+int setpgid(pid_t pid, pid_t pgid);
+pid_t getpgid(pid_t pid);
 int sched_yield(void);
 int execve(const char* pathname, char* const argv[], char* const envp[]);
 pid_t waitpid(pid_t pid, int* wstatus, int options);
