@@ -14,12 +14,12 @@ int ring_buf_init(ring_buf* buf) {
     return 0;
 }
 
-bool ring_buf_is_empty(ring_buf* buf) {
+bool ring_buf_is_empty(const ring_buf* buf) {
     return atomic_load_explicit(&buf->write_idx, memory_order_acquire) ==
            atomic_load_explicit(&buf->read_idx, memory_order_acquire);
 }
 
-bool ring_buf_is_full(ring_buf* buf) {
+bool ring_buf_is_full(const ring_buf* buf) {
     size_t write_idx =
         atomic_load_explicit(&buf->write_idx, memory_order_acquire);
     size_t read_idx =

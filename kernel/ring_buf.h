@@ -11,8 +11,8 @@ typedef struct ring_buf {
 } ring_buf;
 
 int ring_buf_init(ring_buf*);
-bool ring_buf_is_empty(ring_buf*);
-bool ring_buf_is_full(ring_buf*);
+bool ring_buf_is_empty(const ring_buf*);
+bool ring_buf_is_full(const ring_buf*);
 ssize_t ring_buf_write(ring_buf*, const void* buffer, size_t count);
 ssize_t ring_buf_write_evicting_oldest(ring_buf*, const void* buffer,
                                        size_t count);

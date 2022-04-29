@@ -38,7 +38,7 @@ static int fifo_close(file_description* desc) {
     return 0;
 }
 
-static bool read_should_unblock(struct fifo* fifo) {
+static bool read_should_unblock(const struct fifo* fifo) {
     bool no_writer =
         atomic_load_explicit(&fifo->num_writers, memory_order_acquire) == 0;
     return no_writer || !ring_buf_is_empty(&fifo->buf);
@@ -76,7 +76,7 @@ static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
     return nread;
 }
 
-static bool write_should_unblock(struct fifo* fifo) {
+static bool write_should_unblock(const struct fifo* fifo) {
     bool no_reader =
         atomic_load_explicit(&fifo->num_readers, memory_order_acquire) == 0;
     return no_reader || !ring_buf_is_full(&fifo->buf);
