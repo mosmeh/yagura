@@ -5,7 +5,14 @@
 
 static pid_t spawn(const char* filename) {
     pid_t pid = fork();
+    if (pid < 0)
+        return -1;
     if (pid == 0) {
+        if (setpgid(0, 0) < 0) {
+            perror("setpgid");
+            abort();
+        }
+
         static char* argv[] = {NULL};
         static char* envp[] = {"PATH=/bin", "HOME=/root", NULL};
         if (execve(filename, argv, envp) < 0) {
@@ -28,6 +35,10 @@ int main(void) {
 
     for (;;) {
         pid_t pid = spawn("/bin/sh");
+        if (pid < 0) {
+            perror("spawn");
+            continue;
+        }
         if (waitpid(pid, NULL, 0) < 0) {
             perror("waitpid");
             return EXIT_FAILURE;
