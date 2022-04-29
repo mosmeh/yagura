@@ -56,6 +56,13 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
         size_t pad_len = 0;
 
         ch = *format++;
+        if (ch == '%') {
+            buffer[idx++] = '%';
+            if (idx >= size)
+                goto too_long;
+            continue;
+        }
+
         if (ch == '0') {
             pad0 = true;
             ch = *format++;
