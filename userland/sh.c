@@ -12,7 +12,6 @@
 #define BUF_SIZE 1024
 
 struct line_editor {
-    size_t terminal_width;
     char input_buf[BUF_SIZE];
     size_t input_len;
     size_t cursor;
@@ -161,17 +160,11 @@ static void on_char(struct line_editor* ed, char c) {
     }
 }
 
-static char* read_input(struct line_editor* ed) {
+static char* read_input(struct line_editor* ed, size_t terminal_width) {
     ed->state = STATE_GROUND;
     memset(ed->input_buf, 0, BUF_SIZE);
     ed->input_len = ed->cursor = 0;
     ed->dirty = true;
-
-    struct winsize winsize;
-    if (ioctl(STDERR_FILENO, TIOCGWINSZ, &winsize) < 0)
-        ed->terminal_width = 80;
-    else
-        ed->terminal_width = winsize.ws_col;
 
     char cwd_buf[BUF_SIZE];
     memset(cwd_buf, 0, BUF_SIZE);
@@ -187,24 +180,21 @@ static char* read_input(struct line_editor* ed) {
                     "\x1b[36m%s\x1b[m $ ", // print prompt
                     cwd_buf);
 
-            bool clear_needed = prompt_len + ed->input_len < ed->terminal_width;
+            bool clear_needed = prompt_len + ed->input_len < terminal_width;
             size_t cursor_x = prompt_len + ed->cursor;
 
-            if (cursor_x < ed->terminal_width) {
-                size_t len =
-                    MIN(ed->input_len, ed->terminal_width - prompt_len);
+            if (cursor_x < terminal_width) {
+                size_t len = MIN(ed->input_len, terminal_width - prompt_len);
                 write(STDERR_FILENO, ed->input_buf, len);
             } else {
-                const char* str =
-                    ed->input_buf + cursor_x - ed->terminal_width + 1;
+                const char* str = ed->input_buf + cursor_x - terminal_width + 1;
                 size_t len =
-                    MIN(ed->input_len, ed->terminal_width - prompt_len + 1) - 1;
-                if (ed->cursor == ed->input_len &&
-                    cursor_x > ed->terminal_width) {
+                    MIN(ed->input_len, terminal_width - prompt_len + 1) - 1;
+                if (ed->cursor == ed->input_len && cursor_x > terminal_width) {
                     --len;
                     clear_needed = true;
                 }
-                cursor_x = ed->terminal_width;
+                cursor_x = terminal_width;
                 write(STDERR_FILENO, str, len);
             }
 
@@ -624,9 +614,15 @@ int main(int argc, char* const argv[], char* const envp[]) {
     (void)argc;
     (void)argv;
 
+    struct winsize winsize;
+    if (ioctl(STDERR_FILENO, TIOCGWINSZ, &winsize) < 0) {
+        winsize.ws_col = 80;
+        winsize.ws_row = 25;
+    }
+
     for (;;) {
         static struct line_editor editor;
-        char* input = read_input(&editor);
+        char* input = read_input(&editor, winsize.ws_col);
         if (!input) {
             perror("read_input");
             return EXIT_FAILURE;
@@ -656,6 +652,24 @@ int main(int argc, char* const argv[], char* const envp[]) {
 
         if (run_command(node, envp) < 0)
             perror("run_command");
+
+        // print 1 line worth of spaces so that we always ends up on a new line
+        size_t num_spaces = winsize.ws_col - 1;
+        char* spaces = malloc(num_spaces + 1);
+        if (!spaces) {
+            perror("malloc");
+            return EXIT_FAILURE;
+        }
+        memset(spaces, ' ', num_spaces);
+        spaces[num_spaces] = 0;
+        dprintf(STDERR_FILENO,
+                "\x1b[?25l"            // hide cursor
+                "\x1b[90;107m%%\x1b[m" // show end of line mark
+                "%s"
+                "\x1b[G"     // go to left end
+                "\x1b[?25h", // show cursor
+                spaces);
+        free(spaces);
     }
     return EXIT_SUCCESS;
 }
