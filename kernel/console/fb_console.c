@@ -15,6 +15,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+#include <kernel/ring_buf.h>
 #include <kernel/scheduler.h>
 #include <string.h>
 
@@ -50,7 +51,6 @@ static struct cell* cells;
 static bool* line_is_dirty;
 static bool whole_screen_should_be_cleared = false;
 static bool stomp = false;
-static mutex lock;
 
 static void set_cursor(size_t x, size_t y) {
     stomp = false;
@@ -432,6 +432,8 @@ static void on_char(char c) {
 }
 
 static bool initialized = false;
+static ring_buf input_buf;
+static mutex lock;
 
 void fb_console_init(void) {
     font = load_psf("/usr/share/fonts/ter-u16n.psf");
@@ -463,25 +465,16 @@ void fb_console_init(void) {
     clear_screen();
     flush();
 
+    ring_buf_init(&input_buf);
     mutex_init(&lock);
 
     initialized = true;
 }
 
-#define QUEUE_SIZE 1024
-
-static char queue[QUEUE_SIZE];
-static size_t queue_read_idx = 0;
-static size_t queue_write_idx = 0;
-
-static void queue_push_char(char c) {
-    queue[queue_write_idx] = c;
-    queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
-}
-
-static void queue_push_str(const char* s) {
-    for (; *s; ++s)
-        queue_push_char(*s);
+static void input_buf_write_str(const char* s) {
+    bool int_flag = push_cli();
+    ring_buf_write_evicting_oldest(&input_buf, s, strlen(s));
+    pop_cli(int_flag);
 }
 
 static pid_t pgid;
@@ -491,25 +484,25 @@ void fb_console_on_key(const key_event* event) {
         return;
     switch (event->keycode) {
     case KEYCODE_UP:
-        queue_push_str("\x1b[A");
+        input_buf_write_str("\x1b[A");
         return;
     case KEYCODE_DOWN:
-        queue_push_str("\x1b[B");
+        input_buf_write_str("\x1b[B");
         return;
     case KEYCODE_RIGHT:
-        queue_push_str("\x1b[C");
+        input_buf_write_str("\x1b[C");
         return;
     case KEYCODE_LEFT:
-        queue_push_str("\x1b[D");
+        input_buf_write_str("\x1b[D");
         return;
     case KEYCODE_HOME:
-        queue_push_str("\x1b[H");
+        input_buf_write_str("\x1b[H");
         return;
     case KEYCODE_END:
-        queue_push_str("\x1b[F");
+        input_buf_write_str("\x1b[F");
         return;
     case KEYCODE_DELETE:
-        queue_push_str("\x1b[3~");
+        input_buf_write_str("\x1b[3~");
         return;
     default:
         break;
@@ -534,12 +527,14 @@ void fb_console_on_key(const key_event* event) {
         break;
     }
 
-    queue_push_char(key);
+    bool int_flag = push_cli();
+    ring_buf_write_evicting_oldest(&input_buf, &key, 1);
+    pop_cli(int_flag);
 }
 
 static bool read_should_unblock(void) {
     bool int_flag = push_cli();
-    bool should_unblock = queue_read_idx != queue_write_idx;
+    bool should_unblock = !ring_buf_is_empty(&input_buf);
     pop_cli(int_flag);
     return should_unblock;
 }
@@ -547,22 +542,10 @@ static bool read_should_unblock(void) {
 static ssize_t fb_console_device_read(file_description* desc, void* buffer,
                                       size_t count) {
     (void)desc;
-
-    size_t nread = 0;
-    char* out = (char*)buffer;
     scheduler_block(read_should_unblock, NULL);
 
     bool int_flag = push_cli();
-
-    while (count > 0) {
-        if (queue_read_idx == queue_write_idx)
-            break;
-        *out++ = queue[queue_read_idx];
-        ++nread;
-        --count;
-        queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
-    }
-
+    ssize_t nread = ring_buf_read(&input_buf, buffer, count);
     pop_cli(int_flag);
 
     return nread;
