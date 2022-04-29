@@ -47,6 +47,7 @@ static struct cell* cells;
 static bool* line_is_dirty;
 static bool whole_screen_should_be_cleared = false;
 static bool stomp = false;
+static mutex lock;
 
 static void set_cursor(size_t x, size_t y) {
     stomp = false;
@@ -459,6 +460,8 @@ void tty_init(void) {
     clear_screen();
     flush();
 
+    mutex_init(&lock);
+
     initialized = true;
 }
 
@@ -519,11 +522,6 @@ void tty_on_key(const key_event* event) {
     queue_push_char(key);
 }
 
-typedef struct tty_device {
-    struct file base_file;
-    mutex lock;
-} tty_device;
-
 static bool read_should_unblock(void) {
     bool int_flag = push_cli();
     bool should_unblock = queue_read_idx != queue_write_idx;
@@ -557,16 +555,15 @@ static ssize_t tty_device_read(file_description* desc, void* buffer,
 
 static ssize_t tty_device_write(file_description* desc, const void* buffer,
                                 size_t count) {
-    tty_device* dev = (tty_device*)desc->file;
+    (void)desc;
     const char* chars = (char*)buffer;
-
-    mutex_lock(&dev->lock);
+    mutex_lock(&lock);
 
     for (size_t i = 0; i < count; ++i)
         on_char(chars[i]);
     flush();
 
-    mutex_unlock(&dev->lock);
+    mutex_unlock(&lock);
     return count;
 }
 
@@ -585,13 +582,11 @@ static int tty_device_ioctl(file_description* desc, int request, void* argp) {
 }
 
 struct file* tty_device_create(void) {
-    tty_device* dev = kmalloc(sizeof(tty_device));
-    if (!dev)
+    struct file* file = kmalloc(sizeof(struct file));
+    if (!file)
         return ERR_PTR(-ENOMEM);
-    *dev = (tty_device){0};
-    mutex_init(&dev->lock);
+    *file = (struct file){0};
 
-    struct file* file = (struct file*)dev;
     file->name = kstrdup("tty_device");
     if (!file->name)
         return ERR_PTR(-ENOMEM);
