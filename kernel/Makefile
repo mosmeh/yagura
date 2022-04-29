@@ -15,6 +15,7 @@ OBJS := \
 	cmdline.o \
 	console/fb_console.o \
 	console/psf.o \
+	console/serial_console.o \
 	console/system_console.o \
 	fifo.o \
 	fs/fs.o \

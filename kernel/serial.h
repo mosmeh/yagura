@@ -12,4 +12,28 @@
 
 bool serial_enable_port(uint16_t port);
 size_t serial_write(uint16_t port, const char* s, size_t count);
-struct file* serial_device_create(uint16_t port);
+
+static inline bool serial_is_valid_port(uint16_t port) {
+    switch (port) {
+    case SERIAL_COM1:
+    case SERIAL_COM2:
+    case SERIAL_COM3:
+    case SERIAL_COM4:
+        return true;
+    }
+    return false;
+}
+
+static inline uint8_t serial_port_to_com_number(uint16_t port) {
+    switch (port) {
+    case SERIAL_COM1:
+        return 1;
+    case SERIAL_COM2:
+        return 2;
+    case SERIAL_COM3:
+        return 3;
+    case SERIAL_COM4:
+        return 4;
+    }
+    return 0;
+}

@@ -7,5 +7,9 @@ void fb_console_init(void);
 void fb_console_on_key(const key_event*);
 struct file* fb_console_device_create(void);
 
+void serial_console_init(void);
+void serial_console_on_char(uint16_t port, char);
+struct file* serial_console_device_create(uint16_t port);
+
 void system_console_init(void);
 struct file* system_console_device_create(void);
