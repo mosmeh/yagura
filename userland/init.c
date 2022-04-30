@@ -39,10 +39,9 @@ int main(void) {
             perror("spawn");
             continue;
         }
-        if (waitpid(pid, NULL, 0) < 0) {
-            perror("waitpid");
-            return EXIT_FAILURE;
-        }
+        while (waitpid(-1, NULL, 0) != pid)
+            ;
     }
-    return EXIT_SUCCESS;
+
+    UNREACHABLE();
 }
