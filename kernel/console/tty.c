@@ -20,19 +20,19 @@
 
 #define TAB_STOP 8
 
-#define DEFAULT_FG_COLOR 0xd0d0d0
-#define DEFAULT_BG_COLOR 0x191919
+#define DEFAULT_FG_COLOR 0
+#define DEFAULT_BG_COLOR 7
 
 static const uint32_t palette[] = {
-    DEFAULT_BG_COLOR, 0xcc0000,         0x4e9a06, 0xc4a000, 0x3465a4, 0x75507b,
-    0x06989a,         DEFAULT_FG_COLOR, 0x555753, 0xef2929, 0x8ae234, 0xfce94f,
-    0x729fcf,         0xad7fa8,         0x34e2e2, 0xeeeeec,
+    0xd0d0d0, 0xcc0000, 0x4e9a06, 0xc4a000, 0x3465a4, 0x75507b,
+    0x06989a, 0x191919, 0x555753, 0xef2929, 0x8ae234, 0xfce94f,
+    0x729fcf, 0xad7fa8, 0x34e2e2, 0xeeeeec,
 };
 
 struct cell {
     char ch;
-    uint32_t fg_color;
-    uint32_t bg_color;
+    uint8_t fg_color;
+    uint8_t bg_color;
 };
 
 static struct font* font;
@@ -44,8 +44,8 @@ static size_t cursor_x = 0;
 static size_t cursor_y = 0;
 static bool is_cursor_visible = true;
 static enum { STATE_GROUND, STATE_ESC, STATE_CSI } state = STATE_GROUND;
-static uint32_t fg_color = DEFAULT_FG_COLOR;
-static uint32_t bg_color = DEFAULT_BG_COLOR;
+static uint8_t fg_color = DEFAULT_FG_COLOR;
+static uint8_t bg_color = DEFAULT_BG_COLOR;
 static struct cell* cells;
 static bool* line_is_dirty;
 static bool whole_screen_should_be_cleared = false;
@@ -92,8 +92,8 @@ static void scroll_up(void) {
 
 static void flush_cell_at(size_t x, size_t y, struct cell* cell) {
     bool is_cursor = is_cursor_visible && x == cursor_x && y == cursor_y;
-    uint32_t fg = is_cursor ? cell->bg_color : cell->fg_color;
-    uint32_t bg = is_cursor ? cell->fg_color : cell->bg_color;
+    uint32_t fg = palette[is_cursor ? cell->bg_color : cell->fg_color];
+    uint32_t bg = palette[is_cursor ? cell->fg_color : cell->bg_color];
 
     const unsigned char* glyph =
         font->glyphs +
@@ -116,7 +116,7 @@ static void flush_cell_at(size_t x, size_t y, struct cell* cell) {
 
 static void flush(void) {
     if (whole_screen_should_be_cleared) {
-        memset32((uint32_t*)fb_addr, bg_color,
+        memset32((uint32_t*)fb_addr, palette[bg_color],
                  fb_info.pitch * fb_info.height / sizeof(uint32_t));
         whole_screen_should_be_cleared = false;
     }
@@ -314,24 +314,24 @@ static void handle_csi_sgr(void) {
         } else if (num == 1) {
             bold = true;
         } else if (num == 7) {
-            uint32_t tmp = fg_color;
+            uint8_t tmp = fg_color;
             fg_color = bg_color;
             bg_color = tmp;
         } else if (num == 22) {
             fg_color = DEFAULT_FG_COLOR;
             bold = false;
         } else if (30 <= num && num <= 37) {
-            fg_color = palette[num - 30 + (bold ? 8 : 0)];
+            fg_color = num - 30 + (bold ? 8 : 0);
         } else if (num == 38) {
             fg_color = DEFAULT_FG_COLOR;
         } else if (40 <= num && num <= 47) {
-            bg_color = palette[num - 40 + (bold ? 8 : 0)];
+            bg_color = num - 40 + (bold ? 8 : 0);
         } else if (num == 48) {
             bg_color = DEFAULT_BG_COLOR;
         } else if (90 <= num && num <= 97) {
-            fg_color = palette[num - 90 + 8];
+            fg_color = num - 90 + 8;
         } else if (100 <= num && num <= 107) {
-            bg_color = palette[num - 100 + 8];
+            bg_color = num - 100 + 8;
         }
     }
 }
