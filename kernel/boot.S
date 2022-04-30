@@ -84,6 +84,12 @@ paging_enabled:
   pushl %ebx # Multiboot info struct
   pushl %eax # Multiboot magic
 
+  movl $0x277, %ecx # IA32_PAT
+  rdmsr
+  andl $~0x7, %edx
+  orl $1, %edx # PAT4 = WC
+  wrmsr
+
   call start
 
   cli

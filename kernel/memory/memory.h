@@ -29,6 +29,7 @@ extern range_allocator kernel_vaddr_allocator;
 
 #define PAGE_WRITE 0x2
 #define PAGE_USER 0x4
+#define PAGE_PAT 0x80
 #define PAGE_GLOBAL 0x100
 
 // we use an unused bit in page table entries to indicate the page should be

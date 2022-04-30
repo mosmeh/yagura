@@ -33,7 +33,8 @@ static uintptr_t multiboot_fb_device_mmap(file_description* desc,
     if (!(page_flags & PAGE_SHARED))
         return -ENODEV;
 
-    int rc = paging_map_to_physical_range(addr, fb_paddr, length, page_flags);
+    int rc = paging_map_to_physical_range(addr, fb_paddr, length,
+                                          page_flags | PAGE_PAT);
     if (IS_ERR(rc))
         return rc;
     return addr;
