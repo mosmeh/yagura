@@ -55,6 +55,7 @@ uintptr_t sys_fork(registers* regs) {
     process->vaddr_allocator = current->vaddr_allocator;
 
     process->pid = process_generate_next_pid();
+    process->ppid = current->pid;
     process->pgid = current->pgid;
     process->eip = (uintptr_t)return_to_userland;
     process->ebx = current->ebx;
@@ -93,7 +94,8 @@ uintptr_t sys_fork(registers* regs) {
 }
 
 struct waitpid_blocker {
-    pid_t pid;
+    pid_t param_pid;
+    pid_t current_pid, current_pgid;
     struct process* process;
 };
 
@@ -105,8 +107,19 @@ static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
 
     while (it) {
         if (it->state == PROCESS_STATE_ZOMBIE) {
-            if (it->pid == blocker->pid)
-                break;
+            if (blocker->param_pid < -1) {
+                if (it->pgid == -blocker->param_pid)
+                    break;
+            } else if (blocker->param_pid == -1) {
+                if (it->ppid == blocker->current_pid)
+                    break;
+            } else if (blocker->param_pid == 0) {
+                if (it->pgid == blocker->current_pgid)
+                    break;
+            } else {
+                if (it->pid == blocker->param_pid)
+                    break;
+            }
         }
 
         prev = it;
@@ -124,17 +137,22 @@ static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
     return true;
 }
 
-// NOLINTNEXTLINE(readability-non-const-parameter)
 pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
-    if (pid <= 0 || wstatus || options != 0)
+    if (options != 0)
         return -ENOTSUP;
 
-    struct waitpid_blocker blocker = {.pid = pid, .process = NULL};
+    struct waitpid_blocker blocker = {.param_pid = pid,
+                                      .current_pid = current->pid,
+                                      .current_pgid = current->pgid,
+                                      .process = NULL};
     scheduler_block(waitpid_shoud_unblock, &blocker);
 
     struct process* process = blocker.process;
     ASSERT(process);
     scheduler_unregister(process);
+
+    if (wstatus)
+        *wstatus = process->exit_status;
 
     pid_t result = process->pid;
     kfree(process);

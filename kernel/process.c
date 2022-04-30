@@ -95,6 +95,17 @@ struct process* process_find_process_by_pid(pid_t pid) {
     return it;
 }
 
+struct process* process_find_process_by_ppid(pid_t ppid) {
+    bool int_flag = push_cli();
+    struct process* it = all_processes;
+    for (; it; it = it->next_in_all_processes) {
+        if (it->ppid == ppid)
+            break;
+    }
+    pop_cli(int_flag);
+    return it;
+}
+
 static noreturn void die(void) {
     ASSERT(interrupts_enabled());
 
@@ -112,6 +123,18 @@ static noreturn void die(void) {
     paging_destroy_current_page_directory();
     kfree(current->cwd);
 
+    cli();
+    {
+        struct process* it = all_processes;
+        while (it) {
+            // Orphaned child process is adopted by init process.
+            if (it->ppid == current->pid)
+                it->ppid = 1;
+            it = it->next_in_all_processes;
+        }
+    }
+    sti();
+
     current->state = PROCESS_STATE_ZOMBIE;
 
     scheduler_yield(false);
@@ -122,6 +145,14 @@ noreturn void process_exit(int status) {
     if (status != 0)
         kprintf("\x1b[31mProcess %d exited with status %d\x1b[m\n",
                 current->pid, status);
+    current->exit_status = (status & 0xff) << 8;
+    die();
+}
+
+noreturn void process_terminate_with_signal(int signum) {
+    kprintf("\x1b[31mProcess %d was terminated with signal %d\x1b[m\n",
+            current->pid, signum);
+    current->exit_status = signum & 0xff;
     die();
 }
 
@@ -287,7 +318,7 @@ void process_handle_pending_signals(void) {
         case DISP_TERM:
         case DISP_CORE:
             sti();
-            process_exit(128 + signum);
+            process_terminate_with_signal(signum);
             break;
         case DISP_IGN:
             continue;

@@ -6,7 +6,7 @@
 #include <stdnoreturn.h>
 
 struct process {
-    pid_t pid, pgid;
+    pid_t pid, ppid, pgid;
     uint32_t eip, esp, ebp, ebx, esi, edi;
     struct fpu_state fpu_state;
 
@@ -15,6 +15,7 @@ struct process {
         PROCESS_STATE_BLOCKED,
         PROCESS_STATE_ZOMBIE
     } state;
+    int exit_status;
 
     page_directory* pd;
     uintptr_t stack_top;
@@ -45,7 +46,9 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void));
 
 pid_t process_generate_next_pid(void);
 struct process* process_find_process_by_pid(pid_t);
+struct process* process_find_process_by_ppid(pid_t ppid);
 noreturn void process_exit(int status);
+noreturn void process_terminate_with_signal(int signum);
 
 void process_tick(bool in_kernel);
 
