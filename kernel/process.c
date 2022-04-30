@@ -107,11 +107,10 @@ struct process* process_find_process_by_ppid(pid_t ppid) {
 }
 
 static noreturn void die(void) {
-    ASSERT(interrupts_enabled());
-
     if (current->pid == 1)
         PANIC("init process exited");
 
+    sti();
     {
         file_description** it = current->fd_table.entries;
         for (int i = 0; i < OPEN_MAX; ++i, ++it) {
@@ -133,12 +132,16 @@ static noreturn void die(void) {
             it = it->next_in_all_processes;
         }
     }
-    sti();
 
-    current->state = PROCESS_STATE_ZOMBIE;
+    current->state = PROCESS_STATE_DEAD;
 
     scheduler_yield(false);
     UNREACHABLE();
+}
+
+void process_die_if_needed(void) {
+    if (current->state == PROCESS_STATE_DYING)
+        die();
 }
 
 noreturn void process_exit(int status) {
@@ -149,11 +152,18 @@ noreturn void process_exit(int status) {
     die();
 }
 
-noreturn void process_terminate_with_signal(int signum) {
+noreturn void process_crash_in_userland(int signum) {
+    kprintf("\x1b[31mProcess %d crashed with signal %d\x1b[m\n", current->pid,
+            signum);
+    current->exit_status = signum & 0xff;
+    die();
+}
+
+static void terminate_with_signal(int signum) {
     kprintf("\x1b[31mProcess %d was terminated with signal %d\x1b[m\n",
             current->pid, signum);
     current->exit_status = signum & 0xff;
-    die();
+    current->state = PROCESS_STATE_DYING;
 }
 
 void process_tick(bool in_kernel) {
@@ -333,8 +343,7 @@ void process_handle_pending_signals(void) {
         switch (disp) {
         case DISP_TERM:
         case DISP_CORE:
-            sti();
-            process_terminate_with_signal(signum);
+            terminate_with_signal(signum);
             break;
         case DISP_IGN:
             continue;

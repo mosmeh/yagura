@@ -75,7 +75,9 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
 
     size_t nread = 0;
     mouse_event* out = (mouse_event*)buffer;
-    scheduler_block(read_should_unblock, NULL);
+    int rc = scheduler_block(read_should_unblock, NULL);
+    if (IS_ERR(rc))
+        return rc;
 
     bool int_flag = push_cli();
 

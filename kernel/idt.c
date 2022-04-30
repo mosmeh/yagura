@@ -71,8 +71,7 @@ static noreturn void crash(registers* regs, int signum) {
     dump_registers(regs);
     if ((regs->cs & 3) != 3)
         PANIC("Kernel crashed");
-    sti();
-    process_terminate_with_signal(signum);
+    process_crash_in_userland(signum);
 }
 
 #define DEFINE_ISR_WITHOUT_ERROR_CODE(num)                                     \

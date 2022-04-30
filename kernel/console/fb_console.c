@@ -536,7 +536,9 @@ static bool read_should_unblock(void) {
 static ssize_t fb_console_device_read(file_description* desc, void* buffer,
                                       size_t count) {
     (void)desc;
-    scheduler_block(read_should_unblock, NULL);
+    int rc = scheduler_block(read_should_unblock, NULL);
+    if (IS_ERR(rc))
+        return rc;
 
     bool int_flag = push_cli();
     ssize_t nread = ring_buf_read(&input_buf, buffer, count);

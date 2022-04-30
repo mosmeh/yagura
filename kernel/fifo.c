@@ -47,7 +47,9 @@ static bool read_should_unblock(const struct fifo* fifo) {
 static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
     struct fifo* fifo = (struct fifo*)desc->file;
     ring_buf* buf = &fifo->buf;
-    scheduler_block(read_should_unblock, fifo);
+    int rc = scheduler_block(read_should_unblock, fifo);
+    if (IS_ERR(rc))
+        return rc;
 
     mutex_lock(&buf->lock);
     bool no_writer =
@@ -86,7 +88,9 @@ static ssize_t fifo_write(file_description* desc, const void* buffer,
                           size_t count) {
     struct fifo* fifo = (struct fifo*)desc->file;
     ring_buf* buf = &fifo->buf;
-    scheduler_block(write_should_unblock, fifo);
+    int rc = scheduler_block(write_should_unblock, fifo);
+    if (IS_ERR(rc))
+        return rc;
 
     mutex_lock(&buf->lock);
     if (atomic_load_explicit(&fifo->num_readers, memory_order_acquire) == 0)

@@ -1,4 +1,5 @@
 #include "scheduler.h"
+#include "api/errno.h"
 #include "interrupts.h"
 #include "memory.h"
 #include "memory/memory.h"
@@ -11,13 +12,14 @@ static struct process* ready_queue;
 static struct process* idle;
 
 void scheduler_register(struct process* process) {
+    ASSERT(process->state == PROCESS_STATE_RUNNING);
+
     bool int_flag = push_cli();
     process->next_in_all_processes = all_processes;
     all_processes = process;
     pop_cli(int_flag);
 
-    if (process->state == PROCESS_STATE_RUNNING)
-        scheduler_enqueue(process);
+    scheduler_enqueue(process);
 }
 
 void scheduler_unregister(struct process* process) {
@@ -40,9 +42,10 @@ void scheduler_unregister(struct process* process) {
 }
 
 void scheduler_enqueue(struct process* process) {
+    ASSERT(process->state != PROCESS_STATE_DEAD);
+
     bool int_flag = push_cli();
 
-    process->state = PROCESS_STATE_RUNNING;
     process->next_in_ready_queue = NULL;
     if (ready_queue) {
         struct process* it = ready_queue;
@@ -63,6 +66,7 @@ static struct process* scheduler_deque(void) {
     struct process* process = ready_queue;
     ready_queue = process->next_in_ready_queue;
     process->next_in_ready_queue = NULL;
+    ASSERT(process->state != PROCESS_STATE_DEAD);
     return process;
 }
 
@@ -80,6 +84,8 @@ static void unblock_processes(void) {
         if (it->pending_signals || it->should_unblock(it->blocker_data)) {
             it->should_unblock = NULL;
             it->blocker_data = NULL;
+            it->blocker_was_interrupted = it->pending_signals != 0;
+            it->state = PROCESS_STATE_RUNNING;
             scheduler_enqueue(it);
         }
     }
@@ -104,6 +110,7 @@ static noreturn void switch_to_next_process(void) {
 
     current = scheduler_deque();
     ASSERT(current);
+    ASSERT(current->state != PROCESS_STATE_DEAD);
 
     paging_switch_page_directory(current->pd);
     gdt_set_kernel_stack(current->stack_top);
@@ -164,16 +171,26 @@ void scheduler_yield(bool requeue_current) {
     switch_to_next_process();
 }
 
-void scheduler_block(bool (*should_unblock)(void*), void* data) {
+void scheduler_tick(bool in_kernel) {
+    if (!in_kernel)
+        process_die_if_needed();
+    process_tick(in_kernel);
+    scheduler_yield(true);
+}
+
+int scheduler_block(bool (*should_unblock)(void*), void* data) {
     ASSERT(!current->should_unblock);
     ASSERT(!current->blocker_data);
 
     if (should_unblock(data))
-        return;
+        return 0;
 
     current->state = PROCESS_STATE_BLOCKED;
     current->should_unblock = should_unblock;
     current->blocker_data = data;
+    current->blocker_was_interrupted = false;
 
     scheduler_yield(false);
+
+    return current->blocker_was_interrupted ? -EINTR : 0;
 }

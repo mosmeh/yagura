@@ -18,10 +18,12 @@ uint32_t uptime;
 static void pit_handler(registers* regs) {
     (void)regs;
     ASSERT(!interrupts_enabled());
+
     ++uptime;
     time_tick();
-    process_tick((regs->cs & 3) == 0);
-    scheduler_yield(true);
+
+    bool in_kernel = (regs->cs & 3) == 0;
+    scheduler_tick(in_kernel);
 }
 
 void pit_init(void) {

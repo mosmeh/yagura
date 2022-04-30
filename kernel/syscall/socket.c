@@ -68,6 +68,8 @@ uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
 
     unix_socket* listener = (unix_socket*)desc->file;
     unix_socket* connector = unix_socket_accept(listener);
+    if (IS_ERR(connector))
+        return PTR_ERR(connector);
     file_description* connector_desc =
         fs_open((struct file*)connector, O_RDWR, 0);
     if (IS_ERR(connector_desc))

@@ -13,7 +13,8 @@ struct process {
     enum {
         PROCESS_STATE_RUNNING,
         PROCESS_STATE_BLOCKED,
-        PROCESS_STATE_ZOMBIE
+        PROCESS_STATE_DYING,
+        PROCESS_STATE_DEAD
     } state;
     int exit_status;
 
@@ -26,6 +27,7 @@ struct process {
 
     bool (*should_unblock)(void*);
     void* blocker_data;
+    bool blocker_was_interrupted;
 
     size_t user_ticks;
     size_t kernel_ticks;
@@ -48,8 +50,9 @@ pid_t process_generate_next_pid(void);
 struct process* process_find_process_by_pid(pid_t);
 struct process* process_find_process_by_ppid(pid_t ppid);
 noreturn void process_exit(int status);
-noreturn void process_terminate_with_signal(int signum);
+noreturn void process_crash_in_userland(int signum);
 
+void process_die_if_needed(void);
 void process_tick(bool in_kernel);
 
 // if fd < 0, allocates lowest-numbered file descriptor that was unused

@@ -52,7 +52,9 @@ static ssize_t serial_console_device_read(file_description* desc, void* buffer,
                                           size_t count) {
     serial_console_device* dev = (serial_console_device*)desc->file;
     ring_buf* buf = get_input_buf_for_port(dev->port);
-    scheduler_block(read_should_unblock, buf);
+    int rc = scheduler_block(read_should_unblock, buf);
+    if (IS_ERR(rc))
+        return rc;
 
     bool int_flag = push_cli();
     ssize_t nread = ring_buf_read(buf, buffer, count);

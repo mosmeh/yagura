@@ -23,7 +23,9 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
                                 size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
     ring_buf* buf = get_buf_to_read(socket, desc);
-    scheduler_block(read_should_unblock, buf);
+    int rc = scheduler_block(read_should_unblock, buf);
+    if (IS_ERR(rc))
+        return rc;
 
     mutex_lock(&buf->lock);
     if (ring_buf_is_empty(buf)) {
@@ -43,7 +45,9 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
                                  size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
     ring_buf* buf = get_buf_to_write(socket, desc);
-    scheduler_block(write_should_unblock, buf);
+    int rc = scheduler_block(write_should_unblock, buf);
+    if (IS_ERR(rc))
+        return rc;
 
     mutex_lock(&buf->lock);
     if (ring_buf_is_full(buf)) {
@@ -119,7 +123,9 @@ static bool accept_should_unblock(atomic_size_t* num_pending) {
 }
 
 unix_socket* unix_socket_accept(unix_socket* listener) {
-    scheduler_block(accept_should_unblock, &listener->num_pending);
+    int rc = scheduler_block(accept_should_unblock, &listener->num_pending);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
 
     unix_socket* connector = deque_pending(listener);
     ASSERT(!atomic_exchange_explicit(&connector->connected, true,
@@ -140,6 +146,5 @@ int unix_socket_connect(file_description* connector_fd, unix_socket* listener) {
         return -ECONNREFUSED;
     enqueue_pending(listener, connector);
 
-    scheduler_block(connect_should_unblock, &connector->connected);
-    return 0;
+    return scheduler_block(connect_should_unblock, &connector->connected);
 }

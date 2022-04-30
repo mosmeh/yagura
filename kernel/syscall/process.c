@@ -116,7 +116,7 @@ static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
     struct process* it = all_processes;
 
     while (it) {
-        if (it->state == PROCESS_STATE_ZOMBIE) {
+        if (it->state == PROCESS_STATE_DEAD) {
             if (blocker->param_pid < -1) {
                 if (it->pgid == -blocker->param_pid)
                     break;
@@ -155,7 +155,9 @@ pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
                                       .current_pid = current->pid,
                                       .current_pgid = current->pgid,
                                       .process = NULL};
-    scheduler_block(waitpid_shoud_unblock, &blocker);
+    int rc = scheduler_block(waitpid_shoud_unblock, &blocker);
+    if (IS_ERR(rc))
+        return rc;
 
     struct process* process = blocker.process;
     ASSERT(process);
@@ -182,7 +184,9 @@ static bool sleep_should_unblock(const uint32_t* deadline) {
 uintptr_t sys_nanosleep(const struct timespec* req, struct timespec* rem) {
     uint32_t deadline =
         uptime + req->tv_sec * CLK_TCK + req->tv_nsec * CLK_TCK / 1000000000;
-    scheduler_block(sleep_should_unblock, &deadline);
+    int rc = scheduler_block(sleep_should_unblock, &deadline);
+    if (IS_ERR(rc))
+        return rc;
     if (rem)
         rem->tv_sec = rem->tv_nsec = 0;
     return 0;
