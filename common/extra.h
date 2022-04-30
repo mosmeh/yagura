@@ -9,6 +9,8 @@
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
+#define NODISCARD __attribute__((__warn_unused_result__))
+
 static inline uintptr_t round_up(uintptr_t x, size_t align) {
     return (x + (align - 1)) & ~(align - 1);
 }

@@ -3,6 +3,7 @@
 #include "fs/fs.h"
 #include "memory/memory.h"
 #include "system.h"
+#include <common/extra.h>
 #include <stdnoreturn.h>
 
 struct process {
@@ -56,12 +57,12 @@ void process_die_if_needed(void);
 void process_tick(bool in_kernel);
 
 // if fd < 0, allocates lowest-numbered file descriptor that was unused
-int process_alloc_file_descriptor(int fd, file_description*);
+NODISCARD int process_alloc_file_descriptor(int fd, file_description*);
 
-int process_free_file_descriptor(int fd);
+NODISCARD int process_free_file_descriptor(int fd);
 file_description* process_get_file_description(int fd);
 
-int process_send_signal_to_one(pid_t pid, int signum);
-int process_send_signal_to_group(pid_t pgid, int signum);
-int process_send_signal_to_all(int signum);
+NODISCARD int process_send_signal_to_one(pid_t pid, int signum);
+NODISCARD int process_send_signal_to_group(pid_t pgid, int signum);
+NODISCARD int process_send_signal_to_all(int signum);
 void process_handle_pending_signals(void);

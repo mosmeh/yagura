@@ -141,7 +141,8 @@ uintptr_t sys_pipe(int fifofd[2]) {
     if (IS_ERR(writer_fd)) {
         fs_close(reader_desc);
         fs_close(writer_desc);
-        process_free_file_descriptor(reader_fd);
+        int rc = process_free_file_descriptor(reader_fd);
+        (void)rc;
         return writer_fd;
     }
 

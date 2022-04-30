@@ -191,7 +191,10 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     }
 
     range_allocator vaddr_allocator;
-    range_allocator_init(&vaddr_allocator, max_segment_addr, KERNEL_VADDR);
+    ret =
+        range_allocator_init(&vaddr_allocator, max_segment_addr, KERNEL_VADDR);
+    if (IS_ERR(ret))
+        goto fail;
 
     // we keep extra pages before and after stack unmapped to detect stack
     // overflow and underflow by causing page faults

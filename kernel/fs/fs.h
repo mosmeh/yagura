@@ -1,5 +1,6 @@
 #pragma once
 
+#include <common/extra.h>
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/forward.h>
@@ -23,9 +24,10 @@ typedef struct file_descriptor_table {
     file_description** entries;
 } file_descriptor_table;
 
-int file_descriptor_table_init(file_descriptor_table*);
-int file_descriptor_table_clone_from(file_descriptor_table* to,
-                                     const file_descriptor_table* from);
+NODISCARD int file_descriptor_table_init(file_descriptor_table*);
+NODISCARD int
+file_descriptor_table_clone_from(file_descriptor_table* to,
+                                 const file_descriptor_table* from);
 
 typedef struct file* (*lookup_fn)(struct file*, const char* name);
 typedef struct file* (*create_child_fn)(struct file*, const char* name,
@@ -64,22 +66,23 @@ struct file {
 struct file* fs_lookup(struct file*, const char* name);
 struct file* fs_create_child(struct file*, const char* name, mode_t mode);
 file_description* fs_open(struct file*, int flags, mode_t mode);
-int fs_stat(struct file*, struct stat* buf);
+NODISCARD int fs_stat(struct file*, struct stat* buf);
 
 int fs_close(file_description*);
-ssize_t fs_read(file_description*, void* buffer, size_t count);
-ssize_t fs_write(file_description*, const void* buffer, size_t count);
-uintptr_t fs_mmap(file_description*, uintptr_t addr, size_t length,
-                  off_t offset, uint16_t page_flags);
-int fs_truncate(file_description*, off_t length);
-int fs_ioctl(file_description*, int request, void* argp);
-long fs_readdir(file_description*, void* dirp, unsigned int count);
+NODISCARD ssize_t fs_read(file_description*, void* buffer, size_t count);
+NODISCARD ssize_t fs_write(file_description*, const void* buffer, size_t count);
+NODISCARD uintptr_t fs_mmap(file_description*, uintptr_t addr, size_t length,
+                            off_t offset, uint16_t page_flags);
+NODISCARD int fs_truncate(file_description*, off_t length);
+NODISCARD int fs_ioctl(file_description*, int request, void* argp);
+NODISCARD long fs_readdir(file_description*, void* dirp, unsigned int count);
 
-int vfs_mount(const char* path, struct file* root_file);
-int vfs_register_device(struct file* device_file);
-file_description* vfs_open(const char* pathname, int flags, mode_t mode);
-int vfs_stat(const char* pathname, struct stat* buf);
-struct file* vfs_create(const char* pathname, mode_t mode);
+NODISCARD int vfs_mount(const char* path, struct file* root_file);
+NODISCARD int vfs_register_device(struct file* device_file);
+NODISCARD file_description* vfs_open(const char* pathname, int flags,
+                                     mode_t mode);
+NODISCARD int vfs_stat(const char* pathname, struct stat* buf);
+NODISCARD struct file* vfs_create(const char* pathname, mode_t mode);
 char* vfs_canonicalize_path(const char* pathname, const char* parent_path);
 struct file* vfs_resolve_path(const char* pathname, const char* parent_path,
                               struct file** out_parent,
@@ -90,3 +93,4 @@ uint8_t mode_to_dirent_type(mode_t);
 void initrd_populate_root_fs(uintptr_t physical_addr, size_t size);
 
 struct file* tmpfs_create_root(void);
+struct file* procfs_create_root(void);

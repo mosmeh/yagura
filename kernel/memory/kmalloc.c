@@ -48,11 +48,14 @@ void kfree(void* ptr) {
     uintptr_t addr = round_down((uintptr_t)ptr, PAGE_SIZE);
     if ((uintptr_t)ptr - addr < sizeof(struct header))
         addr -= PAGE_SIZE;
+
     struct header* header = (struct header*)addr;
     ASSERT(header->magic == MAGIC);
+
     size_t size = header->size;
     paging_unmap(addr, size);
-    range_allocator_free(&kernel_vaddr_allocator, addr, size);
+
+    ASSERT_OK(range_allocator_free(&kernel_vaddr_allocator, addr, size));
 }
 
 char* kstrdup(const char* src) {
