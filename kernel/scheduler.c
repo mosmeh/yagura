@@ -6,19 +6,49 @@
 #include "process.h"
 #include "system.h"
 
-struct process* ready_queue;
-struct process* blocked_processes;
+struct process* all_processes;
+static struct process* ready_queue;
 static struct process* idle;
+
+void scheduler_register(struct process* process) {
+    bool int_flag = push_cli();
+    process->next_in_all_processes = all_processes;
+    all_processes = process;
+    pop_cli(int_flag);
+
+    if (process->state == PROCESS_STATE_RUNNING)
+        scheduler_enqueue(process);
+}
+
+void scheduler_unregister(struct process* process) {
+    bool int_flag = push_cli();
+
+    struct process* prev = NULL;
+    for (struct process* it = all_processes; it;) {
+        if (it != process) {
+            prev = it;
+            it = it->next_in_all_processes;
+            continue;
+        }
+        if (prev)
+            prev->next_in_all_processes = it->next_in_all_processes;
+        else
+            all_processes = it->next_in_all_processes;
+    }
+
+    pop_cli(int_flag);
+}
 
 void scheduler_enqueue(struct process* process) {
     bool int_flag = push_cli();
 
-    process->next = NULL;
+    process->state = PROCESS_STATE_RUNNING;
+    process->next_in_ready_queue = NULL;
     if (ready_queue) {
         struct process* it = ready_queue;
-        while (it->next)
-            it = it->next;
-        it->next = process;
+        while (it->next_in_ready_queue)
+            it = it->next_in_ready_queue;
+        it->next_in_ready_queue = process;
     } else {
         ready_queue = process;
     }
@@ -27,39 +57,31 @@ void scheduler_enqueue(struct process* process) {
 }
 
 static struct process* scheduler_deque(void) {
+    ASSERT(!interrupts_enabled());
     if (!ready_queue)
         return idle;
     struct process* process = ready_queue;
-    ready_queue = process->next;
-    process->next = NULL;
+    ready_queue = process->next_in_ready_queue;
+    process->next_in_ready_queue = NULL;
     return process;
 }
 
 static void unblock_processes(void) {
-    if (!blocked_processes)
+    ASSERT(!interrupts_enabled());
+    if (!all_processes)
         return;
 
-    struct process* prev = NULL;
-    struct process* it = blocked_processes;
-    for (;;) {
-        ASSERT(it->should_unblock);
-        bool removed = false;
-        if (it->pending_signals || it->should_unblock(it->blocker_data)) {
-            if (prev)
-                prev->next = it->next;
-            else
-                blocked_processes = it->next;
+    for (struct process* it = all_processes; it;
+         it = it->next_in_all_processes) {
+        if (it->state != PROCESS_STATE_BLOCKED)
+            continue;
 
+        ASSERT(it->should_unblock);
+        if (it->pending_signals || it->should_unblock(it->blocker_data)) {
             it->should_unblock = NULL;
             it->blocker_data = NULL;
             scheduler_enqueue(it);
-            removed = true;
         }
-        if (!it->next)
-            return;
-        if (!removed)
-            prev = it;
-        it = it->next;
     }
 }
 
@@ -149,20 +171,9 @@ void scheduler_block(bool (*should_unblock)(void*), void* data) {
     if (should_unblock(data))
         return;
 
+    current->state = PROCESS_STATE_BLOCKED;
     current->should_unblock = should_unblock;
     current->blocker_data = data;
-
-    cli();
-
-    current->next = NULL;
-    if (blocked_processes) {
-        struct process* it = blocked_processes;
-        while (it->next)
-            it = it->next;
-        it->next = current;
-    } else {
-        blocked_processes = current;
-    }
 
     scheduler_yield(false);
 }

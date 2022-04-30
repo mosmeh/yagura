@@ -12,8 +12,7 @@ struct process* current;
 const struct fpu_state initial_fpu_state;
 static atomic_int next_pid;
 
-extern struct process* ready_queue;
-extern struct process* blocked_processes;
+extern struct process* all_processes;
 
 extern unsigned char kernel_page_directory[];
 extern unsigned char stack_top[];
@@ -28,14 +27,15 @@ void process_init(void) {
     current = kaligned_alloc(alignof(struct process), sizeof(struct process));
     ASSERT(current);
     *current = (struct process){0};
+
     current->fpu_state = initial_fpu_state;
+    current->state = PROCESS_STATE_RUNNING;
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
     current->cwd = kstrdup(ROOT_DIR);
     ASSERT(current->cwd);
     ASSERT_OK(file_descriptor_table_init(&current->fd_table));
-    current->next = NULL;
 
     gdt_set_kernel_stack(current->stack_top);
 }
@@ -49,6 +49,7 @@ struct process* process_create_kernel_process(void (*entry_point)(void)) {
 
     process->eip = (uintptr_t)entry_point;
     process->fpu_state = initial_fpu_state;
+    current->state = PROCESS_STATE_RUNNING;
 
     process->pd = paging_create_page_directory();
     if (IS_ERR(process->pd))
@@ -75,7 +76,7 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
     struct process* process = process_create_kernel_process(entry_point);
     if (IS_ERR(process))
         return PTR_ERR(process);
-    scheduler_enqueue(process);
+    scheduler_register(process);
     return process->pid;
 }
 
@@ -84,56 +85,44 @@ pid_t process_generate_next_pid(void) {
 }
 
 struct process* process_find_process_by_pid(pid_t pid) {
-    ASSERT(current);
-    if (current->pid == pid)
-        return current;
-
     bool int_flag = push_cli();
-
-    struct process* it = ready_queue;
-    while (it) {
+    struct process* it = all_processes;
+    for (; it; it = it->next_in_all_processes) {
         if (it->pid == pid)
-            goto found;
-        it = it->next;
+            break;
     }
-
-    it = blocked_processes;
-    while (it) {
-        if (it->pid == pid)
-            goto found;
-        it = it->next;
-    }
-
-    it = NULL;
-found:
     pop_cli(int_flag);
-    if (it)
-        ASSERT(it->pid == pid);
     return it;
 }
 
-noreturn void process_exit(int status) {
+static noreturn void die(void) {
     ASSERT(interrupts_enabled());
-
-    if (status != 0)
-        kprintf("\x1b[31mProcess %d exited with status %d\x1b[m\n",
-                current->pid, status);
 
     if (current->pid == 1)
         PANIC("init process exited");
 
-    file_description** it = current->fd_table.entries;
-    for (int i = 0; i < OPEN_MAX; ++i, ++it) {
-        if (*it)
-            fs_close(*it);
+    {
+        file_description** it = current->fd_table.entries;
+        for (int i = 0; i < OPEN_MAX; ++i, ++it) {
+            if (*it)
+                fs_close(*it);
+        }
     }
 
     paging_destroy_current_page_directory();
-
     kfree(current->cwd);
+
+    current->state = PROCESS_STATE_ZOMBIE;
 
     scheduler_yield(false);
     UNREACHABLE();
+}
+
+noreturn void process_exit(int status) {
+    if (status != 0)
+        kprintf("\x1b[31mProcess %d exited with status %d\x1b[m\n",
+                current->pid, status);
+    die();
 }
 
 void process_tick(bool in_kernel) {
@@ -269,26 +258,17 @@ int process_send_signal_to_one(pid_t pid, int signum) {
 }
 
 int process_send_signal_to_group(pid_t pgid, int signum) {
-    ASSERT(current);
-    if (current->pgid == pgid)
-        send_signal(current, signum);
-
     bool int_flag = push_cli();
-
-    struct process* it = ready_queue;
-    while (it) {
-        if (it->pgid == pgid)
-            send_signal(it, signum);
-        it = it->next;
+    for (struct process* it = all_processes; it;
+         it = it->next_in_all_processes) {
+        if (it->pgid != pgid)
+            continue;
+        int rc = send_signal(it, signum);
+        if (IS_ERR(rc)) {
+            pop_cli(int_flag);
+            return rc;
+        }
     }
-
-    it = blocked_processes;
-    while (it) {
-        if (it->pgid == pgid)
-            send_signal(it, signum);
-        it = it->next;
-    }
-
     pop_cli(int_flag);
     return 0;
 }

@@ -3,6 +3,7 @@
 #include <kernel/api/sys/times.h>
 #include <kernel/api/time.h>
 #include <kernel/boot_defs.h>
+#include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/scheduler.h>
 #include <string.h>
@@ -60,6 +61,7 @@ uintptr_t sys_fork(registers* regs) {
     process->esi = current->esi;
     process->edi = current->edi;
     process->fpu_state = current->fpu_state;
+    process->state = PROCESS_STATE_RUNNING;
 
     process->user_ticks = current->user_ticks;
     process->kernel_ticks = current->kernel_ticks;
@@ -85,21 +87,58 @@ uintptr_t sys_fork(registers* regs) {
     *child_regs = *regs;
     child_regs->eax = 0; // fork() returns 0 in the child
 
-    scheduler_enqueue(process);
+    scheduler_register(process);
 
     return process->pid;
 }
 
-static bool waitpid_should_unblock(const pid_t* pid) {
-    return !process_find_process_by_pid(*pid);
+struct waitpid_blocker {
+    pid_t pid;
+    struct process* process;
+};
+
+static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
+    extern struct process* all_processes;
+
+    struct process* prev = NULL;
+    struct process* it = all_processes;
+
+    while (it) {
+        if (it->state == PROCESS_STATE_ZOMBIE) {
+            if (it->pid == blocker->pid)
+                break;
+        }
+
+        prev = it;
+        it = it->next_in_all_processes;
+    }
+    if (!it)
+        return false;
+
+    if (prev)
+        prev->next_in_all_processes = it->next_in_all_processes;
+    else
+        all_processes = it->next_in_all_processes;
+    blocker->process = it;
+
+    return true;
 }
 
 // NOLINTNEXTLINE(readability-non-const-parameter)
 pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
     if (pid <= 0 || wstatus || options != 0)
         return -ENOTSUP;
-    scheduler_block(waitpid_should_unblock, &pid);
-    return pid;
+
+    struct waitpid_blocker blocker = {.pid = pid, .process = NULL};
+    scheduler_block(waitpid_shoud_unblock, &blocker);
+
+    struct process* process = blocker.process;
+    ASSERT(process);
+    scheduler_unregister(process);
+
+    pid_t result = process->pid;
+    kfree(process);
+    return result;
 }
 
 uintptr_t sys_times(struct tms* buf) {

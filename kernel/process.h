@@ -10,6 +10,12 @@ struct process {
     uint32_t eip, esp, ebp, ebx, esi, edi;
     struct fpu_state fpu_state;
 
+    enum {
+        PROCESS_STATE_RUNNING,
+        PROCESS_STATE_BLOCKED,
+        PROCESS_STATE_ZOMBIE
+    } state;
+
     page_directory* pd;
     uintptr_t stack_top;
     range_allocator vaddr_allocator;
@@ -25,7 +31,8 @@ struct process {
 
     uint32_t pending_signals;
 
-    struct process* next; // for ready_queue or blocked_processes
+    struct process* next_in_all_processes;
+    struct process* next_in_ready_queue;
 };
 
 extern struct process* current;
