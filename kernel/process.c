@@ -304,6 +304,22 @@ int process_send_signal_to_group(pid_t pgid, int signum) {
     return 0;
 }
 
+int process_send_signal_to_all(int signum) {
+    bool int_flag = push_cli();
+    for (struct process* it = all_processes; it;
+         it = it->next_in_all_processes) {
+        if (it->pid <= 1)
+            continue;
+        int rc = send_signal(it, signum);
+        if (IS_ERR(rc)) {
+            pop_cli(int_flag);
+            return rc;
+        }
+    }
+    pop_cli(int_flag);
+    return 0;
+}
+
 void process_handle_pending_signals(void) {
     if (!current->pending_signals)
         return;

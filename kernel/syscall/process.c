@@ -93,6 +93,16 @@ uintptr_t sys_fork(registers* regs) {
     return process->pid;
 }
 
+uintptr_t sys_kill(pid_t pid, int sig) {
+    if (pid > 0)
+        return process_send_signal_to_one(pid, sig);
+    if (pid == 0)
+        return process_send_signal_to_group(current->pgid, sig);
+    if (pid == -1)
+        return process_send_signal_to_all(sig);
+    return process_send_signal_to_group(-pid, sig);
+}
+
 struct waitpid_blocker {
     pid_t param_pid;
     pid_t current_pid, current_pgid;

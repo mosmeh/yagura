@@ -60,4 +60,5 @@ file_description* process_get_file_description(int fd);
 
 int process_send_signal_to_one(pid_t pid, int signum);
 int process_send_signal_to_group(pid_t pgid, int signum);
+int process_send_signal_to_all(int signum);
 void process_handle_pending_signals(void);

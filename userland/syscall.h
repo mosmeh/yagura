@@ -18,6 +18,7 @@ int setpgid(pid_t pid, pid_t pgid);
 pid_t getpgid(pid_t pid);
 int sched_yield(void);
 int execve(const char* pathname, char* const argv[], char* const envp[]);
+int kill(pid_t pid, int sig);
 pid_t waitpid(pid_t pid, int* wstatus, int options);
 clock_t times(struct tms* buf);
 int nanosleep(const struct timespec* req, struct timespec* rem);

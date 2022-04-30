@@ -61,6 +61,11 @@ int execve(const char* pathname, char* const argv[], char* const envp[]) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int kill(pid_t pid, int sig) {
+    int rc = syscall(SYS_kill, pid, sig, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 pid_t waitpid(pid_t pid, int* wstatus, int options) {
     int rc = syscall(SYS_waitpid, pid, (uintptr_t)wstatus, options);
     RETURN_WITH_ERRNO(rc, pid_t)

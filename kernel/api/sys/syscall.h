@@ -24,6 +24,7 @@
     F(getpgid)                                                                 \
     F(getpid)                                                                  \
     F(ioctl)                                                                   \
+    F(kill)                                                                    \
     F(listen)                                                                  \
     F(mkdir)                                                                   \
     F(mknod)                                                                   \
