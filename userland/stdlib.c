@@ -156,6 +156,47 @@ char* strerror(int errnum) {
     return "Unknown error";
 }
 
+const char* const sys_siglist[NSIG] = {
+    "Invalid signal",
+    "Hangup",
+    "Interrupt",
+    "Quit",
+    "Illegal instruction",
+    "Trace/breakpoint trap",
+    "Aborted",
+    "Bus error",
+    "Floating point exception",
+    "Killed",
+    "User defined signal 1",
+    "Segmentation violation",
+    "User defined signal 2",
+    "Broken pipe",
+    "Alarm clock",
+    "Terminated",
+    "Stack fault",
+    "Child exited",
+    "Continued",
+    "Stopped (signal)",
+    "Stopped",
+    "Stopped (tty input)",
+    "Stopped (tty output)",
+    "Urgent I/O condition)",
+    "CPU time limit exceeded",
+    "File size limit exceeded",
+    "Virtual timer expired",
+    "Profiling timer expired",
+    "Window changed",
+    "I/O possible",
+    "Power failure",
+    "Bad system call",
+};
+
+char* strsignal(int signum) {
+    if (0 <= signum && signum < NSIG)
+        return (char*)sys_siglist[signum];
+    return "Unknown signal";
+}
+
 void perror(const char* s) {
     dprintf(STDERR_FILENO, "%s: %s\n", s, strerror(errno));
 }

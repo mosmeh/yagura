@@ -36,6 +36,9 @@ extern int errno;
 char* strerror(int errnum);
 void perror(const char*);
 
+extern const char* const sys_siglist[];
+char* strsignal(int signum);
+
 extern char** environ;
 char* getenv(const char* name);
 
