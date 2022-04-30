@@ -26,7 +26,10 @@ void _start(int argc, char* const argv[], char* const envp[]) {
     exit(main(argc, argv, envp));
 }
 
-noreturn void abort(void) { exit(128 + SIGABRT); }
+noreturn void abort(void) {
+    kill(getpid(), SIGABRT);
+    UNREACHABLE();
+}
 
 noreturn void panic(const char* message, const char* file, size_t line) {
     dprintf(STDERR_FILENO, "%s at %s:%u\n", message, file, line);
