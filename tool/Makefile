@@ -10,10 +10,12 @@ DEPS := $(TARGETS:=.d)
 all: $(TARGETS)
 
 $(TARGETS): % : %.o
-	$(CC) $(CFLAGS) -o $@ $^
+	@echo "[LD] $@"
+	@$(CC) $(CFLAGS) -o $@ $^
 
 .c.o:
-	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+	@echo "[CC] $<"
+	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 clean:
 	$(RM) $(TARGETS) $(OBJS) $(DEPS)

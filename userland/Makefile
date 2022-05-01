@@ -55,10 +55,12 @@ COMMON_DEPS := $(COMMON_OBJS:.o=.d)
 all: $(TARGETS)
 
 $(TARGETS): $(OUTDIR)/% : $(COMMON_OBJS) %.o
-	$(CC) $(CFLAGS) -o $@ $^
+	@echo "[LD] $@"
+	@$(CC) $(CFLAGS) -o $@ $^
 
 .c.o:
-	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+	@echo "[CC] $<"
+	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 clean:
 	$(RM) $(TARGETS) $(TARGET_OBJS) $(TARGET_DEPS) $(COMMON_OBJS) $(COMMON_DEPS)

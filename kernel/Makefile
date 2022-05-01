@@ -61,13 +61,16 @@ DEPS := $(OBJS:.o=.d)
 all: $(TARGET)
 
 $(TARGET): $(OBJS) linker.ld
-	$(CC) $(CFLAGS) -Wl,-Tlinker.ld -Wl,--build-id=none -o $@ $(OBJS)
+	@echo "[LD] $@"
+	@$(CC) $(CFLAGS) -Wl,-Tlinker.ld -Wl,--build-id=none -o $@ $(OBJS)
 
 .c.o:
-	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+	@echo "[CC] $<"
+	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 .S.o:
-	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+	@echo "[AS] $<"
+	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 clean:
 	$(RM) $(TARGET) $(OBJS) $(DEPS)
