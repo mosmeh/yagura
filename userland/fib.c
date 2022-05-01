@@ -1,7 +1,7 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <kernel/api/time.h>
-#include <kernel/api/unistd.h>
+#include <panic.h>
+#include <stdio.h>
+#include <time.h>
+#include <unistd.h>
 
 #define MAX_N 45
 

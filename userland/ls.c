@@ -1,9 +1,10 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <common/extra.h>
-#include <kernel/api/dirent.h>
-#include <kernel/api/sys/stat.h>
+#include <dirent.h>
+#include <extra.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 static int get_format(const struct dirent* dent, const char** out_format,
                       size_t* out_len) {

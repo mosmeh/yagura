@@ -1,14 +1,15 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <common/ctype.h>
-#include <common/extra.h>
-#include <common/stdlib.h>
-#include <kernel/api/fcntl.h>
-#include <kernel/api/sys/ioctl.h>
-#include <kernel/api/sys/wait.h>
-#include <kernel/api/unistd.h>
+#include <ctype.h>
+#include <errno.h>
+#include <extra.h>
+#include <fcntl.h>
+#include <panic.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #define BUF_SIZE 1024
 

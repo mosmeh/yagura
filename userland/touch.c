@@ -1,7 +1,7 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <kernel/api/fcntl.h>
-#include <kernel/api/unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 int main(int argc, char* const argv[]) {
     if (argc < 2) {

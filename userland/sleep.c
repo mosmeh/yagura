@@ -1,7 +1,7 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <common/stdlib.h>
-#include <kernel/api/unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 
 int main(int argc, char* const argv[]) {
     if (argc < 2) {

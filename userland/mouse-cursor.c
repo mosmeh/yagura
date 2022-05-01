@@ -1,12 +1,15 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <common/extra.h>
-#include <kernel/api/errno.h>
-#include <kernel/api/fb.h>
-#include <kernel/api/fcntl.h>
-#include <kernel/api/hid.h>
-#include <kernel/api/sys/mman.h>
+#include <errno.h>
+#include <extra.h>
+#include <fb.h>
+#include <fcntl.h>
+#include <hid.h>
+#include <panic.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 #define CURSOR_WIDTH 8
 #define CURSOR_HEIGHT 14

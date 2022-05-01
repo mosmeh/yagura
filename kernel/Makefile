@@ -1,12 +1,4 @@
-CFLAGS := \
-	-std=c11 \
-	-m32 \
-	-static \
-	-nostdlib -ffreestanding \
-	-U_FORTIFY_SOURCE \
-	-I.. \
-	-Wall -Wextra -pedantic \
-	-O2 -g
+CFLAGS += -isystem..
 
 TARGET := kernel
 
@@ -57,9 +49,10 @@ OBJS := \
 	system.o \
 	time.o \
 	unix_socket.o \
+	../common/math.o \
+	../common/string.o \
  	../common/stdio.o \
-	../common/stdlib.o \
- 	../common/string.o
+ 	../common/stdlib.o
 
 DEPS := $(OBJS:.o=.d)
 

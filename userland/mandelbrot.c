@@ -1,11 +1,12 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <kernel/api/errno.h>
-#include <kernel/api/fb.h>
-#include <kernel/api/fcntl.h>
-#include <kernel/api/sys/mman.h>
-#include <kernel/api/unistd.h>
+#include <errno.h>
+#include <fb.h>
+#include <fcntl.h>
 #include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 #define MAX_ITER 100
 #define X_START -3.0

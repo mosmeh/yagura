@@ -1,9 +1,10 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <common/ctype.h>
-#include <kernel/api/fcntl.h>
+#include <ctype.h>
+#include <fcntl.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #define BUF_SIZE 1024
 

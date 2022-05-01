@@ -1,7 +1,7 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <kernel/api/fcntl.h>
-#include <kernel/api/unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #define BUF_SIZE 1024
 

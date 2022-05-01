@@ -1,7 +1,9 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <kernel/api/fcntl.h>
-#include <kernel/api/unistd.h>
+#include <fcntl.h>
+#include <panic.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static pid_t spawn(const char* filename) {
     pid_t pid = fork();

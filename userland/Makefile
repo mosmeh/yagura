@@ -1,12 +1,8 @@
-CFLAGS := \
-	-std=c11 \
-	-m32 \
-	-static \
-	-nostdlib -ffreestanding \
-	-U_FORTIFY_SOURCE \
-	-I.. \
-	-Wall -Wextra -pedantic \
-	-O2 -g
+CFLAGS += \
+	-isystemlib \
+	-isystem.. \
+	-isystem../common \
+	-isystem../kernel/api
 
 TARGET_NAMES := \
 	cat \
@@ -38,11 +34,19 @@ TARGET_DEPS := $(TARGET_NAMES:=.d)
 
 COMMON_OBJS := \
 	../common/math.o \
+	../common/string.o \
  	../common/stdio.o \
  	../common/stdlib.o \
-	../common/string.o \
-	stdlib.o \
-	syscall.o
+	lib/crt0.o \
+	lib/dirent.o \
+	lib/errno.o \
+	lib/panic.o \
+	lib/stdio.o \
+	lib/stdlib.o \
+	lib/string.o \
+	lib/syscall.o \
+	lib/time.o \
+	lib/unistd.o
 
 COMMON_DEPS := $(COMMON_OBJS:.o=.d)
 

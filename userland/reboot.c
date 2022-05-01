@@ -1,7 +1,8 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <kernel/api/reboot.h>
+#include <panic.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/reboot.h>
+#include <unistd.h>
 
 int main(int argc, char* const argv[]) {
     ASSERT(argc >= 1);

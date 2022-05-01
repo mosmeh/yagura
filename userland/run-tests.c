@@ -1,12 +1,17 @@
-#include "stdlib.h"
-#include "syscall.h"
-#include <common/extra.h>
-#include <kernel/api/errno.h>
-#include <kernel/api/fb.h>
-#include <kernel/api/fcntl.h>
-#include <kernel/api/sys/mman.h>
-#include <kernel/api/unistd.h>
+#include <errno.h>
+#include <extra.h>
+#include <fb.h>
+#include <fcntl.h>
+#include <panic.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 static noreturn void shm_reader(void) {
     int fd = open("/dev/shm/test-fs", O_RDWR);

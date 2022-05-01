@@ -1,6 +1,15 @@
 MAKEFLAGS += --jobs=$(shell nproc)
 SUBDIRS := kernel userland tool
 
+export CFLAGS := \
+	-std=c11 \
+	-m32 \
+	-static \
+	-nostdlib -ffreestanding \
+	-U_FORTIFY_SOURCE \
+	-Wall -Wextra -pedantic \
+	-O2 -g
+
 .PHONY: all run clean $(SUBDIRS) base
 
 all: kernel initrd

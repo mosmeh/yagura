@@ -1,5 +1,6 @@
-#include "stdlib.h"
-#include "syscall.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 int main(void) {
     static char buf[1024];
