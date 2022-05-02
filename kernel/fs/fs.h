@@ -74,6 +74,7 @@ NODISCARD ssize_t fs_write(file_description*, const void* buffer, size_t count);
 NODISCARD uintptr_t fs_mmap(file_description*, uintptr_t addr, size_t length,
                             off_t offset, uint16_t page_flags);
 NODISCARD int fs_truncate(file_description*, off_t length);
+NODISCARD off_t fs_lseek(file_description*, off_t offset, int whence);
 NODISCARD int fs_ioctl(file_description*, int request, void* argp);
 NODISCARD long fs_readdir(file_description*, void* dirp, unsigned int count);
 

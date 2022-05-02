@@ -1,6 +1,7 @@
 #include "fs.h"
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/api/stdio.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <string.h>
@@ -124,6 +125,32 @@ int fs_truncate(file_description* desc, off_t length) {
     if (!(desc->flags & O_WRONLY))
         return -EBADF;
     return file->truncate(desc, length);
+}
+
+off_t fs_lseek(file_description* desc, off_t offset, int whence) {
+    off_t new_offset;
+    switch (whence) {
+    case SEEK_SET:
+        new_offset = offset;
+        break;
+    case SEEK_CUR:
+        new_offset = desc->offset + offset;
+        break;
+    case SEEK_END: {
+        struct stat stat;
+        int rc = fs_stat(desc->file, &stat);
+        if (IS_ERR(rc))
+            return rc;
+        new_offset = stat.st_size + offset;
+        break;
+    }
+    default:
+        return -EINVAL;
+    }
+    if (new_offset < 0)
+        return -EINVAL;
+    desc->offset = new_offset;
+    return new_offset;
 }
 
 int fs_ioctl(file_description* desc, int request, void* argp) {

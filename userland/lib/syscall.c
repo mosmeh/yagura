@@ -134,6 +134,11 @@ int listen(int sockfd, int backlog) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+off_t lseek(int fd, off_t offset, int whence) {
+    int rc = syscall(SYS_lseek, fd, offset, whence);
+    RETURN_WITH_ERRNO(rc, off_t)
+}
+
 int mkdir(const char* pathname, mode_t mode) {
     int rc = syscall(SYS_mkdir, (uintptr_t)pathname, mode, 0);
     RETURN_WITH_ERRNO(rc, int)

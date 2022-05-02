@@ -26,6 +26,7 @@
     F(ioctl)                                                                   \
     F(kill)                                                                    \
     F(listen)                                                                  \
+    F(lseek)                                                                   \
     F(mkdir)                                                                   \
     F(mknod)                                                                   \
     F(mmap)                                                                    \
