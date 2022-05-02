@@ -13,3 +13,5 @@ int atoi(const char* str) {
     }
     return res;
 }
+
+int abs(int i) { return i < 0 ? -i : i; }
