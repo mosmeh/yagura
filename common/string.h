@@ -20,5 +20,6 @@ void str_replace_char(char* str, char from, char to);
 
 char* strchr(const char* str, int ch);
 char* strrchr(char const* str, int ch);
+char* strstr(const char* str, const char* substr);
 
 char* strtok_r(char* str, const char* sep, char** last);

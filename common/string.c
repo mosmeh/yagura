@@ -179,3 +179,12 @@ char* strtok_r(char* str, const char* sep, char** last) {
     *end = '\0';
     return str;
 }
+
+char* strstr(const char* str, const char* substr) {
+    while (*str) {
+        if (!strcmp(str, substr))
+            return (char*)str;
+        ++str;
+    }
+    return NULL;
+}
