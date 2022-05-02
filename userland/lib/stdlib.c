@@ -8,6 +8,7 @@
 #include "unistd.h"
 #include <extra.h>
 #include <stdalign.h>
+#include <stddef.h>
 
 noreturn void abort(void) {
     kill(getpid(), SIGABRT);
@@ -54,15 +55,51 @@ void* aligned_alloc(size_t alignment, size_t size) {
 
 void* malloc(size_t size) { return aligned_alloc(alignof(max_align_t), size); }
 
-void free(void* ptr) {
+void* calloc(size_t num, size_t size) {
+    size_t total_size = num * size;
+    void* ptr = malloc(total_size);
     if (!ptr)
-        return;
+        return NULL;
+    memset(ptr, 0, total_size);
+    return ptr;
+}
+
+static struct malloc_header* header_from_ptr(void* ptr) {
     ASSERT(page_size);
     uintptr_t addr = round_down((uintptr_t)ptr, page_size);
     if ((uintptr_t)ptr - addr < sizeof(struct malloc_header))
         addr -= page_size;
+
     struct malloc_header* header = (struct malloc_header*)addr;
     ASSERT(header->magic == MALLOC_MAGIC);
+    return header;
+}
+
+void* realloc(void* ptr, size_t new_size) {
+    if (!ptr)
+        return malloc(new_size);
+    if (new_size == 0) {
+        free(ptr);
+        return NULL;
+    }
+
+    struct malloc_header* old_header = header_from_ptr(ptr);
+
+    void* new_ptr = malloc(new_size);
+    if (!new_ptr)
+        return NULL;
+    struct malloc_header* new_header = header_from_ptr(new_ptr);
+
+    memcpy(new_header, old_header, old_header->size);
+    free(ptr);
+
+    return new_ptr;
+}
+
+void free(void* ptr) {
+    if (!ptr)
+        return;
+    struct malloc_header* header = header_from_ptr(ptr);
     ASSERT_OK(munmap((void*)header, header->size));
 }
 
