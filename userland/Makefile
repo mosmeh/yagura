@@ -35,6 +35,7 @@ TARGET_DEPS := $(TARGET_NAMES:=.d)
 COMMON_OBJS := \
 	../common/math.o \
 	../common/string.o \
+	../common/strings.o \
  	../common/stdio.o \
  	../common/stdlib.o \
 	lib/crt0.o \

@@ -51,6 +51,7 @@ OBJS := \
 	unix_socket.o \
 	../common/math.o \
 	../common/string.o \
+	../common/strings.o \
  	../common/stdio.o \
  	../common/stdlib.o
 
