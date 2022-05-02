@@ -22,9 +22,13 @@ int puts(const char* str) {
 int printf(const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int ret = vdprintf(STDOUT_FILENO, format, args);
+    int ret = vprintf(format, args);
     va_end(args);
     return ret;
+}
+
+int vprintf(const char* format, va_list ap) {
+    return vdprintf(STDOUT_FILENO, format, ap);
 }
 
 int dprintf(int fd, const char* format, ...) {

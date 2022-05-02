@@ -6,6 +6,7 @@
 int putchar(int ch);
 int puts(const char* str);
 int printf(const char* format, ...);
+int vprintf(const char* format, va_list ap);
 int dprintf(int fd, const char* format, ...);
 int vdprintf(int fd, const char* format, va_list ap);
 

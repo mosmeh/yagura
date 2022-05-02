@@ -13,6 +13,18 @@ int sprintf(char* buffer, const char* format, ...) {
     return ret;
 }
 
+int snprintf(char* buffer, size_t bufsz, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = vsnprintf(buffer, bufsz, format, args);
+    va_end(args);
+    return ret;
+}
+
+int vsprintf(char* buffer, const char* format, va_list args) {
+    return vsnprintf(buffer, SIZE_MAX, format, args);
+}
+
 static void itoa(int value, char* str, int radix) {
     char* c = str;
     unsigned uvalue = value;
@@ -41,6 +53,7 @@ static void itoa(int value, char* str, int radix) {
     }
 }
 
+// NOLINTNEXTLINE(readability-non-const-parameter)
 int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
     size_t idx = 0;
     char ch;
