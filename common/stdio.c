@@ -92,6 +92,7 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
                 goto too_long;
             break;
         case 'd':
+        case 'i':
         case 'u':
         case 'x': {
             char num_buf[20];
