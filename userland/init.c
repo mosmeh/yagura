@@ -5,7 +5,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static pid_t spawn(const char* filename) {
+static pid_t spawn(char* filename) {
     pid_t pid = fork();
     if (pid < 0)
         return -1;
@@ -15,7 +15,7 @@ static pid_t spawn(const char* filename) {
             abort();
         }
 
-        static char* argv[] = {NULL};
+        char* argv[] = {filename, NULL};
         static char* envp[] = {"PATH=/bin", "HOME=/root", NULL};
         if (execve(filename, argv, envp) < 0) {
             perror("execve");

@@ -18,9 +18,9 @@ int main(void) {
         abort();
     }
     if (pid == 0) {
-        static char* argv[] = {NULL};
+        static char* argv[] = {"/bin/run-tests", NULL};
         static char* envp[] = {NULL};
-        if (execve("/bin/run-tests", argv, envp) < 0) {
+        if (execve(argv[0], argv, envp) < 0) {
             perror("execve");
             abort();
         }

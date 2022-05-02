@@ -18,11 +18,11 @@
 static noreturn void init(void) {
     current->pid = current->pgid = process_generate_next_pid();
 
-    static char* argv[] = {NULL};
-    static char* envp[] = {NULL};
     const char* init_path = cmdline_get("init");
     if (!init_path)
         init_path = "/bin/init";
+    const char* argv[] = {init_path, NULL};
+    static const char* envp[] = {NULL};
     ASSERT_OK(sys_execve(init_path, argv, envp));
     UNREACHABLE();
 }
