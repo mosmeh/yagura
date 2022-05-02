@@ -139,6 +139,16 @@ char* strchr(const char* str, int ch) {
     return NULL;
 }
 
+char* strrchr(char const* str, int ch) {
+    char* last = NULL;
+    while (*str) {
+        if (*str == ch)
+            last = (char*)str;
+        ++str;
+    }
+    return last;
+}
+
 char* strtok_r(char* str, const char* sep, char** last) {
     if (!str) {
         if (!*last)

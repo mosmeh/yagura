@@ -19,5 +19,6 @@ size_t strlcpy(char* dst, const char* src, size_t size);
 void str_replace_char(char* str, char from, char to);
 
 char* strchr(const char* str, int ch);
+char* strrchr(char const* str, int ch);
 
 char* strtok_r(char* str, const char* sep, char** last);
