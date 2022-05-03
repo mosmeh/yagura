@@ -46,6 +46,13 @@ unsigned int sleep(unsigned int seconds) {
         return rem.tv_sec;
     return 0;
 }
+
+int usleep(useconds_t usec) {
+    struct timespec req = {.tv_sec = usec / 1000000,
+                           .tv_nsec = (usec % 1000000) * 1000};
+    return nanosleep(&req, NULL);
+}
+
 pid_t tcgetpgrp(int fd) { return ioctl(fd, TIOCGPGRP, NULL); }
 
 int tcsetpgrp(int fd, pid_t pgrp) { return ioctl(fd, TIOCSPGRP, &pgrp); }

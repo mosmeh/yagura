@@ -33,6 +33,7 @@ pid_t tcgetpgrp(int fd);
 int tcsetpgrp(int fd, pid_t pgrp);
 
 unsigned int sleep(unsigned int seconds);
+int usleep(useconds_t usec);
 
 int reboot(int howto);
 
