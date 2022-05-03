@@ -1,5 +1,5 @@
 compile_flags.txt
-*.[od]
+*.[oad]
 /kernel/kernel
 /base/bin/**
 !/base/**/.gitkeep

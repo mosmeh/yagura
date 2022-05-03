@@ -3,8 +3,9 @@ CFLAGS += \
 	-isystem.. \
 	-isystem../common \
 	-isystem../kernel/api
+LDFLAGS := -L.
 
-TARGET_NAMES := \
+BIN_TARGET_NAMES := \
 	cat \
 	clear \
 	cp \
@@ -28,11 +29,13 @@ TARGET_NAMES := \
 	wc
 OUTDIR := ../base/bin
 
-TARGETS := $(TARGET_NAMES:%=$(OUTDIR)/%)
-TARGET_OBJS := $(TARGET_NAMES:=.o)
-TARGET_DEPS := $(TARGET_NAMES:=.d)
+BIN_TARGETS := $(BIN_TARGET_NAMES:%=$(OUTDIR)/%)
+BIN_TARGET_OBJS := $(BIN_TARGET_NAMES:=.o)
+BIN_TARGET_DEPS := $(BIN_TARGET_NAMES:=.d)
 
-COMMON_OBJS := \
+LIB_TARGET := libc.a
+
+LIB_OBJS := \
 	../common/math.o \
 	../common/string.o \
 	../common/strings.o \
@@ -49,22 +52,26 @@ COMMON_OBJS := \
 	lib/time.o \
 	lib/unistd.o
 
-COMMON_DEPS := $(COMMON_OBJS:.o=.d)
+LIB_DEPS := $(LIB_OBJS:.o=.d)
 
 .PHONY: all clean
 
-all: $(TARGETS)
+all: $(BIN_TARGETS)
 
-$(TARGETS): $(OUTDIR)/% : $(COMMON_OBJS) %.o
+$(BIN_TARGETS): $(OUTDIR)/% : %.o $(LIB_TARGET)
 	@echo "[LD] $@"
-	@$(CC) $(CFLAGS) -o $@ $^
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< -lc
+
+$(LIB_TARGET): $(LIB_OBJS)
+	@echo "[AR] $@"
+	@$(AR) rcs $@ $^
 
 .c.o:
 	@echo "[CC] $<"
 	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 clean:
-	$(RM) $(TARGETS) $(TARGET_OBJS) $(TARGET_DEPS) $(COMMON_OBJS) $(COMMON_DEPS)
+	$(RM) $(BIN_TARGETS) $(BIN_TARGET_OBJS) $(BIN_TARGET_DEPS) $(LIB_TARGET) $(LIB_OBJS) $(LIB_DEPS)
 
--include $(TARGET_DEPS)
--include $(COMMON_DEPS)
+-include $(BIN_TARGET_DEPS)
+-include $(LIB_DEPS)
