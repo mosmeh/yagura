@@ -65,8 +65,8 @@ static void clear_line_at(size_t x, size_t y, size_t length) {
     struct cell* cell = cells + x + y * console_width;
     for (size_t i = 0; i < length; ++i) {
         cell->ch = ' ';
-        cell->fg_color = DEFAULT_FG_COLOR;
-        cell->bg_color = DEFAULT_BG_COLOR;
+        cell->fg_color = fg_color;
+        cell->bg_color = bg_color;
         ++cell;
     }
     line_is_dirty[y] = true;
