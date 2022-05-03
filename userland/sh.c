@@ -201,7 +201,7 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
             }
 
             if (clear_needed)
-                dprintf(STDERR_FILENO, "\x1b[K");
+                dprintf(STDERR_FILENO, "\x1b[J");
 
             dprintf(STDERR_FILENO,
                     "\x1b[%uG"   // set cursor position
