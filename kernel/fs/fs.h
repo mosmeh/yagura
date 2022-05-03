@@ -78,6 +78,9 @@ NODISCARD off_t fs_lseek(file_description*, off_t offset, int whence);
 NODISCARD int fs_ioctl(file_description*, int request, void* argp);
 NODISCARD long fs_readdir(file_description*, void* dirp, unsigned int count);
 
+NODISCARD int fs_block(file_description*,
+                       bool (*should_unblock)(file_description*));
+
 NODISCARD int vfs_mount(const char* path, struct file* root_file);
 NODISCARD int vfs_register_device(struct file* device_file);
 NODISCARD file_description* vfs_open(const char* pathname, int flags,

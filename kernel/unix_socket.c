@@ -15,7 +15,9 @@ static ring_buf* get_buf_to_write(unix_socket* socket, file_description* desc) {
                      : &socket->server_to_client_buf;
 }
 
-static bool read_should_unblock(ring_buf* buf) {
+static bool read_should_unblock(file_description* desc) {
+    unix_socket* socket = (unix_socket*)desc->file;
+    ring_buf* buf = get_buf_to_read(socket, desc);
     return !ring_buf_is_empty(buf);
 }
 
@@ -23,7 +25,7 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
                                 size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
     ring_buf* buf = get_buf_to_read(socket, desc);
-    int rc = scheduler_block(read_should_unblock, buf);
+    int rc = fs_block(desc, read_should_unblock);
     if (IS_ERR(rc))
         return rc;
 
@@ -37,7 +39,9 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
     return nread;
 }
 
-static bool write_should_unblock(ring_buf* buf) {
+static bool write_should_unblock(file_description* desc) {
+    unix_socket* socket = (unix_socket*)desc->file;
+    ring_buf* buf = get_buf_to_write(socket, desc);
     return !ring_buf_is_full(buf);
 }
 
@@ -45,7 +49,7 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
                                  size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
     ring_buf* buf = get_buf_to_write(socket, desc);
-    int rc = scheduler_block(write_should_unblock, buf);
+    int rc = fs_block(desc, write_should_unblock);
     if (IS_ERR(rc))
         return rc;
 

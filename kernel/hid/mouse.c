@@ -62,7 +62,8 @@ void ps2_mouse_init(void) {
     idt_register_interrupt_handler(IRQ(12), irq_handler);
 }
 
-static bool read_should_unblock(void) {
+static bool read_should_unblock(file_description* desc) {
+    (void)desc;
     bool int_flag = push_cli();
     bool should_unblock = queue_read_idx != queue_write_idx;
     pop_cli(int_flag);
@@ -75,7 +76,7 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
 
     size_t nread = 0;
     mouse_event* out = (mouse_event*)buffer;
-    int rc = scheduler_block(read_should_unblock, NULL);
+    int rc = fs_block(desc, read_should_unblock);
     if (IS_ERR(rc))
         return rc;
 

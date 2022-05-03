@@ -5,3 +5,4 @@
 #define O_RDWR (O_RDONLY | O_WRONLY)
 #define O_CREAT 0x8
 #define O_EXCL 0x10
+#define O_NONBLOCK 0x100

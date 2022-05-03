@@ -526,7 +526,8 @@ void fb_console_on_key(const key_event* event) {
     pop_cli(int_flag);
 }
 
-static bool read_should_unblock(void) {
+static bool read_should_unblock(file_description* desc) {
+    (void)desc;
     bool int_flag = push_cli();
     bool should_unblock = !ring_buf_is_empty(&input_buf);
     pop_cli(int_flag);
@@ -536,7 +537,7 @@ static bool read_should_unblock(void) {
 static ssize_t fb_console_device_read(file_description* desc, void* buffer,
                                       size_t count) {
     (void)desc;
-    int rc = scheduler_block(read_should_unblock, NULL);
+    int rc = fs_block(desc, read_should_unblock);
     if (IS_ERR(rc))
         return rc;
 

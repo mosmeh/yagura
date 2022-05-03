@@ -41,7 +41,9 @@ typedef struct serial_console_device {
     uint16_t port;
 } serial_console_device;
 
-static bool read_should_unblock(const ring_buf* buf) {
+static bool read_should_unblock(file_description* desc) {
+    serial_console_device* dev = (serial_console_device*)desc->file;
+    ring_buf* buf = get_input_buf_for_port(dev->port);
     bool int_flag = push_cli();
     bool should_unblock = !ring_buf_is_empty(buf);
     pop_cli(int_flag);
@@ -52,7 +54,7 @@ static ssize_t serial_console_device_read(file_description* desc, void* buffer,
                                           size_t count) {
     serial_console_device* dev = (serial_console_device*)desc->file;
     ring_buf* buf = get_input_buf_for_port(dev->port);
-    int rc = scheduler_block(read_should_unblock, buf);
+    int rc = fs_block(desc, read_should_unblock);
     if (IS_ERR(rc))
         return rc;
 

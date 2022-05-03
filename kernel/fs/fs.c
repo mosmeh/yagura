@@ -4,6 +4,7 @@
 #include <kernel/api/stdio.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
+#include <kernel/scheduler.h>
 #include <string.h>
 
 int file_descriptor_table_init(file_descriptor_table* table) {
@@ -165,6 +166,13 @@ long fs_readdir(file_description* desc, void* dirp, unsigned int count) {
     if (!file->readdir || !S_ISDIR(file->mode))
         return -ENOTDIR;
     return file->readdir(desc, dirp, count);
+}
+
+int fs_block(file_description* desc,
+             bool (*should_unblock)(file_description*)) {
+    if ((desc->flags & O_NONBLOCK) && !should_unblock(desc))
+        return -EAGAIN;
+    return scheduler_block(should_unblock, desc);
 }
 
 uint8_t mode_to_dirent_type(mode_t mode) {
