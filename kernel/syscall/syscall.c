@@ -84,7 +84,7 @@ static void syscall_handler(registers* regs) {
     if (regs->eax == SYS_fork)
         regs->eax = handler(regs);
     else
-        regs->eax = handler(regs->edx, regs->ecx, regs->ebx);
+        regs->eax = handler(regs->edx, regs->ecx, regs->ebx, regs->esi);
 
     process_die_if_needed();
 }
