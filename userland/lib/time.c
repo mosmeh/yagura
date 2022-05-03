@@ -18,6 +18,8 @@ time_t time(time_t* tloc) {
     return tp.tv_sec;
 }
 
+double difftime(time_t time1, time_t time0) { return (double)(time1 - time0); }
+
 static int32_t divmodi64(int64_t a, int32_t b, int32_t* rem) {
     int32_t q;
     int32_t r;
