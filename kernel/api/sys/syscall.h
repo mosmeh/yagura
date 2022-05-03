@@ -10,6 +10,7 @@
     F(bind)                                                                    \
     F(chdir)                                                                   \
     F(clock_gettime)                                                           \
+    F(clock_nanosleep)                                                         \
     F(close)                                                                   \
     F(connect)                                                                 \
     F(dbgputs)                                                                 \

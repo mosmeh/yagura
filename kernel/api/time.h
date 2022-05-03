@@ -2,6 +2,8 @@
 
 #include "sys/types.h"
 
+#define TIMER_ABSTIME 1
+
 enum { CLOCK_REALTIME, CLOCK_MONOTONIC };
 
 typedef int clockid_t;

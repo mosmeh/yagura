@@ -40,6 +40,7 @@ OBJS := \
 	ring_buf.o \
 	scheduler.o \
 	serial.o \
+	syscall/clock.o \
 	syscall/exec.o \
 	syscall/file.o \
 	syscall/mmap.o \

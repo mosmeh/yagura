@@ -50,6 +50,17 @@ int clock_gettime(clockid_t clk_id, struct timespec* tp) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int clock_nanosleep(clockid_t clockid, int flags,
+                    const struct timespec* request, struct timespec* remain) {
+    int rc = syscall(SYS_clock_nanosleep, clockid, flags, (uintptr_t)request,
+                     (uintptr_t)remain);
+    // unlike other syscall wrappers, clock_nanosleep returns the error value
+    // instead of returning -1 and setting errno
+    if (IS_ERR(rc))
+        return -rc;
+    return 0;
+}
+
 int close(int fd) {
     int rc = syscall(SYS_close, fd, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
