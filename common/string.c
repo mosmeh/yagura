@@ -48,7 +48,7 @@ void* memcpy(void* dest_ptr, const void* src_ptr, size_t n) {
     return dest_ptr;
 }
 
-void* memmove(void* dest_ptr, void const* src_ptr, size_t n) {
+void* memmove(void* dest_ptr, const void* src_ptr, size_t n) {
     if (((uintptr_t)dest_ptr - (uintptr_t)src_ptr) >= n)
         return memcpy(dest_ptr, src_ptr, n);
 
@@ -57,6 +57,16 @@ void* memmove(void* dest_ptr, void const* src_ptr, size_t n) {
     for (; n--;)
         *--dest = *--src;
     return dest_ptr;
+}
+
+int memcmp(const void* s1, const void* s2, size_t n) {
+    const unsigned char* c1 = (const unsigned char*)s1;
+    const unsigned char* c2 = (const unsigned char*)s2;
+    while (n--) {
+        if (*c1++ != *c2++)
+            return c1[-1] < c2[-1] ? -1 : 1;
+    }
+    return 0;
 }
 
 int strcmp(const char* s1, const char* s2) {
