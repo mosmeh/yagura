@@ -130,6 +130,24 @@ size_t strlcpy(char* dst, const char* src, size_t size) {
     return len;
 }
 
+char* strcat(char* dest, const char* src) {
+    size_t dest_len = strlen(dest);
+    size_t i = 0;
+    for (; src[i]; ++i)
+        dest[dest_len + i] = src[i];
+    dest[dest_len + i] = 0;
+    return dest;
+}
+
+char* strncat(char* dest, const char* src, size_t n) {
+    size_t dest_len = strlen(dest);
+    size_t i = 0;
+    for (; i < n && src[i]; ++i)
+        dest[dest_len + i] = src[i];
+    dest[dest_len + i] = 0;
+    return dest;
+}
+
 void str_replace_char(char* str, char from, char to) {
     while (*str) {
         if (*str == from) {
