@@ -288,7 +288,7 @@ static void handle_csi_ed() {
         break;
     case 1:
         if (cursor_y > 0) {
-            for (size_t y = 0; y < cursor_y - 1; ++y)
+            for (size_t y = 0; y < cursor_y; ++y)
                 clear_line_at(0, y, console_width);
         }
         clear_line_at(0, cursor_y, cursor_x + 1);
