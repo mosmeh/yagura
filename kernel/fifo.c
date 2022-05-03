@@ -1,7 +1,9 @@
 #include "api/fcntl.h"
+#include "api/signum.h"
 #include "fs/fs.h"
 #include "memory/memory.h"
 #include "panic.h"
+#include "process.h"
 #include "ring_buf.h"
 #include "scheduler.h"
 #include "system.h"
@@ -95,8 +97,14 @@ static ssize_t fifo_write(file_description* desc, const void* buffer,
         return rc;
 
     mutex_lock(&buf->lock);
-    if (atomic_load_explicit(&fifo->num_readers, memory_order_acquire) == 0)
-        UNIMPLEMENTED(); // TODO: SIGPIPE
+    if (atomic_load_explicit(&fifo->num_readers, memory_order_acquire) == 0) {
+        mutex_unlock(&buf->lock);
+        int rc = process_send_signal_to_one(current->pid, SIGPIPE);
+        if (IS_ERR(rc))
+            return rc;
+        return -EPIPE;
+    }
+
     if (ring_buf_is_full(buf)) {
         mutex_unlock(&buf->lock);
         return 0;
