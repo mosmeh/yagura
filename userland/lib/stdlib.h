@@ -7,6 +7,8 @@
 #define EXIT_SUCCESS 0
 #define EXIT_FAILURE 1
 
+#define RAND_MAX 2147483647
+
 noreturn void exit(int status);
 noreturn void abort(void);
 
@@ -17,3 +19,6 @@ void* realloc(void* ptr, size_t new_size);
 void free(void* ptr);
 
 char* getenv(const char* name);
+
+int rand(void);
+void srand(unsigned seed);

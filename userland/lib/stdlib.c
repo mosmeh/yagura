@@ -114,3 +114,12 @@ char* getenv(const char* name) {
     }
     return NULL;
 }
+
+static int rand_state = 1;
+
+int rand(void) {
+    rand_state = ((rand_state * 1103515245U) + 12345U) & 0x7fffffff;
+    return rand_state;
+}
+
+void srand(unsigned seed) { rand_state = seed == 0 ? 1 : seed; }
