@@ -180,11 +180,6 @@ int munmap(void* addr, size_t length) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
-int nanosleep(const struct timespec* req, struct timespec* rem) {
-    int rc = syscall(SYS_nanosleep, (uintptr_t)req, (uintptr_t)rem, 0, 0);
-    RETURN_WITH_ERRNO(rc, int)
-}
-
 int open(const char* pathname, int flags, ...) {
     unsigned mode = 0;
     if (flags & O_CREAT) {

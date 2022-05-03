@@ -1,12 +1,9 @@
 #include <common/string.h>
-#include <kernel/api/err.h>
 #include <kernel/api/sys/times.h>
-#include <kernel/api/time.h>
 #include <kernel/boot_defs.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/scheduler.h>
-#include <string.h>
 
 noreturn uintptr_t sys_exit(int status) { process_exit(status); }
 
@@ -175,21 +172,6 @@ uintptr_t sys_times(struct tms* buf) {
     buf->tms_utime = current->user_ticks;
     buf->tms_stime = current->kernel_ticks;
     return uptime;
-}
-
-static bool sleep_should_unblock(const uint32_t* deadline) {
-    return uptime >= *deadline;
-}
-
-uintptr_t sys_nanosleep(const struct timespec* req, struct timespec* rem) {
-    uint32_t deadline =
-        uptime + req->tv_sec * CLK_TCK + req->tv_nsec * CLK_TCK / 1000000000;
-    int rc = scheduler_block(sleep_should_unblock, &deadline);
-    if (IS_ERR(rc))
-        return rc;
-    if (rem)
-        rem->tv_sec = rem->tv_nsec = 0;
-    return 0;
 }
 
 uintptr_t sys_getcwd(char* buf, size_t size) {

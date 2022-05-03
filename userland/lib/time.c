@@ -1,4 +1,5 @@
 #include "time.h"
+#include "errno.h"
 #include "stdio.h"
 #include "sys/times.h"
 #include <calendar.h>
@@ -81,4 +82,13 @@ char* asctime_r(const struct tm* time_ptr, char* buf) {
         month_names[time_ptr->tm_mon], time_ptr->tm_mday, time_ptr->tm_hour,
         time_ptr->tm_min, time_ptr->tm_sec, time_ptr->tm_year + 1900);
     return len > 0 ? buf : NULL;
+}
+
+int nanosleep(const struct timespec* req, struct timespec* rem) {
+    int rc = clock_nanosleep(CLOCK_REALTIME, 0, req, rem);
+    if (rc > 0) {
+        errno = -rc;
+        return -1;
+    }
+    return 0;
 }
