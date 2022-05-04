@@ -61,23 +61,9 @@ static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
         mutex_unlock(&buf->lock);
         return 0;
     }
-
-    size_t nread = 0;
-    unsigned char* dest = buffer;
-    const unsigned char* src = buf->inner_buf;
-    size_t read_idx =
-        atomic_load_explicit(&buf->read_idx, memory_order_acquire);
-    size_t write_idx =
-        atomic_load_explicit(&buf->write_idx, memory_order_acquire);
-    while (nread < count) {
-        dest[nread++] = src[read_idx];
-        read_idx = (read_idx + 1) % BUF_CAPACITY;
-        if (read_idx == write_idx)
-            break;
-    }
-    atomic_store_explicit(&buf->read_idx, read_idx, memory_order_release);
-
+    ssize_t nread = ring_buf_read(buf, buffer, count);
     mutex_unlock(&buf->lock);
+
     return nread;
 }
 
@@ -110,22 +96,9 @@ static ssize_t fifo_write(file_description* desc, const void* buffer,
         return 0;
     }
 
-    size_t nwritten = 0;
-    unsigned char* dest = buf->inner_buf;
-    const unsigned char* src = buffer;
-    size_t write_idx =
-        atomic_load_explicit(&buf->write_idx, memory_order_acquire);
-    size_t read_idx =
-        atomic_load_explicit(&buf->read_idx, memory_order_acquire);
-    while (nwritten < count) {
-        dest[write_idx] = src[nwritten++];
-        write_idx = (write_idx + 1) % BUF_CAPACITY;
-        if ((write_idx + 1) % BUF_CAPACITY == read_idx)
-            break;
-    }
-    atomic_store_explicit(&buf->write_idx, write_idx, memory_order_release);
-
+    ssize_t nwritten = ring_buf_write(buf, buffer, count);
     mutex_unlock(&buf->lock);
+
     return nwritten;
 }
 
