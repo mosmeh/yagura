@@ -9,10 +9,9 @@
 #include <unistd.h>
 
 #define MAX_ITER 100
-#define X_START -3.0
-#define X_END 1.5
-#define Y_START -1.75
-#define Y_END 1.75
+#define VIEW_WIDTH 4.5
+#define CENTER_X (-0.75)
+#define CENTER_Y 0.0
 
 #define LN2 0.693147180559945309417
 
@@ -116,13 +115,18 @@ int main(void) {
     }
     close(fd);
 
+    double width = VIEW_WIDTH;
+    double height = width * fb_info.height / fb_info.width;
+    double left = (CENTER_X - width) / 2;
+    double top = (CENTER_Y - height) / 2;
+
     uintptr_t row_addr = (uintptr_t)fb;
     for (size_t y = 0; y < fb_info.height; ++y) {
-        double y0 = (Y_END - Y_START) * y / fb_info.height + Y_START;
+        double y0 = y * height / fb_info.height + top;
 
         uint32_t* pixel = (uint32_t*)row_addr;
         for (size_t x = 0; x < fb_info.width; ++x) {
-            double x0 = (X_END - X_START) * x / fb_info.width + X_START;
+            double x0 = x * width / fb_info.width + left;
             *pixel++ = calc_pixel_value(x0, y0);
         }
 
