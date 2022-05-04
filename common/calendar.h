@@ -10,9 +10,11 @@ static inline unsigned days_in_year(unsigned year) {
     return is_leap_year(year) ? 366 : 365;
 }
 
+// `month`: January is 1
+
 static inline unsigned days_in_month(unsigned year, unsigned month) {
     static const unsigned table[] = {31, 28, 31, 30, 31, 30,
-                                     31, 31, 30, 31, 30};
+                                     31, 31, 30, 31, 30, 31};
     if (month == 2 && is_leap_year(year))
         return 29;
     return table[month - 1];
