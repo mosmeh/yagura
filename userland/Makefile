@@ -6,6 +6,7 @@ CFLAGS += \
 LDFLAGS := -L.
 
 BIN_TARGET_NAMES := \
+	cal \
 	cat \
 	clear \
 	cp \
