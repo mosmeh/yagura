@@ -26,4 +26,5 @@ char* strchr(const char* str, int ch);
 char* strrchr(char const* str, int ch);
 char* strstr(const char* str, const char* substr);
 
+char* strtok(char* str, char const* sep);
 char* strtok_r(char* str, const char* sep, char** last);

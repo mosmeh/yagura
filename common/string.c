@@ -177,6 +177,11 @@ char* strrchr(char const* str, int ch) {
     return last;
 }
 
+char* strtok(char* str, char const* sep) {
+    static char* saved_ptr;
+    return strtok_r(str, sep, &saved_ptr);
+}
+
 char* strtok_r(char* str, const char* sep, char** last) {
     if (!str) {
         if (!*last)
