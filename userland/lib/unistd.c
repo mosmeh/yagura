@@ -1,5 +1,6 @@
 #include "unistd.h"
 #include "errno.h"
+#include "fcntl.h"
 #include "panic.h"
 #include "stdio.h"
 #include "stdlib.h"
@@ -38,6 +39,8 @@ int execvpe(const char* file, char* const argv[], char* const envp[]) {
     errno = ENOENT;
     return -1;
 }
+
+int dup(int oldfd) { return fcntl(oldfd, F_DUPFD); }
 
 unsigned int sleep(unsigned int seconds) {
     struct timespec req = {.tv_sec = seconds, .tv_nsec = 0};

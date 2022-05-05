@@ -76,11 +76,6 @@ int dbgputs(const char* str) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
-int dup(int oldfd) {
-    int rc = syscall(SYS_dup, oldfd, 0, 0, 0);
-    RETURN_WITH_ERRNO(rc, int)
-}
-
 int dup2(int oldfd, int newfd) {
     int rc = syscall(SYS_dup2, oldfd, newfd, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
