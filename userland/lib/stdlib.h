@@ -22,3 +22,6 @@ char* getenv(const char* name);
 
 int rand(void);
 void srand(unsigned seed);
+
+void qsort(void* base, size_t nmemb, size_t size,
+           int (*compar)(const void*, const void*));
