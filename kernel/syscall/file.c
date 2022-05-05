@@ -95,6 +95,28 @@ uintptr_t sys_getdents(int fd, void* dirp, size_t count) {
     return fs_readdir(desc, dirp, count);
 }
 
+uintptr_t sys_fcntl(int fd, int cmd, uintptr_t arg) {
+    file_description* desc = process_get_file_description(fd);
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
+    switch (cmd) {
+    case F_DUPFD: {
+        int ret = process_alloc_file_descriptor(-1, desc);
+        if (IS_ERR(ret))
+            return ret;
+        ++desc->ref_count;
+        return ret;
+    }
+    case F_GETFL:
+        return desc->flags;
+    case F_SETFL:
+        desc->flags = arg;
+        return 0;
+    default:
+        return -EINVAL;
+    }
+}
+
 uintptr_t sys_dup(int oldfd) {
     file_description* desc = process_get_file_description(oldfd);
     if (IS_ERR(desc))

@@ -18,6 +18,7 @@
     F(dup2)                                                                    \
     F(execve)                                                                  \
     F(exit)                                                                    \
+    F(fcntl)                                                                   \
     F(fork)                                                                    \
     F(ftruncate)                                                               \
     F(getcwd)                                                                  \

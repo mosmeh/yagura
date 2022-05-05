@@ -97,6 +97,15 @@ noreturn void exit(int status) {
     __builtin_unreachable();
 }
 
+int fcntl(int fd, int cmd, ...) {
+    va_list args;
+    va_start(args, cmd);
+    int arg = va_arg(args, int);
+    va_end(args);
+    int rc = syscall(SYS_fcntl, fd, cmd, arg, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 pid_t fork(void) {
     int rc = syscall(SYS_fork, 0, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, pid_t)
