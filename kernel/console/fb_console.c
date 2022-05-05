@@ -596,10 +596,12 @@ struct file* fb_console_device_create(void) {
     file->name = kstrdup("fb_console_device");
     if (!file->name)
         return ERR_PTR(-ENOMEM);
+
+    static file_ops fops = {.read = fb_console_device_read,
+                            .write = fb_console_device_write,
+                            .ioctl = fb_console_device_ioctl};
+    file->fops = &fops;
     file->mode = S_IFCHR;
-    file->read = fb_console_device_read;
-    file->write = fb_console_device_write;
-    file->ioctl = fb_console_device_ioctl;
     file->device_id = makedev(5, 0);
     return file;
 }

@@ -107,11 +107,11 @@ struct file* serial_console_device_create(uint16_t port) {
     if (!file->name)
         return ERR_PTR(-ENOMEM);
 
+    static file_ops fops = {.read = serial_console_device_read,
+                            .write = serial_console_device_write,
+                            .ioctl = serial_console_device_ioctl};
+    file->fops = &fops;
     file->mode = S_IFCHR;
-    file->read = serial_console_device_read;
-    file->write = serial_console_device_write;
-    file->ioctl = serial_console_device_ioctl;
-
     file->device_id = makedev(4, 63 + (dev_t)serial_port_to_com_number(port));
 
     return file;

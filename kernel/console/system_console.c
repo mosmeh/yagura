@@ -42,13 +42,18 @@ struct file* system_console_device_create(void) {
     if (!file)
         return ERR_PTR(-ENOMEM);
     *file = (struct file){0};
+
     file->name = kstrdup("system_console_device");
     if (!file->name)
         return ERR_PTR(-ENOMEM);
+
+    static file_ops fops = {
+        .read = system_console_device_read,
+        .write = system_console_device_write,
+        .ioctl = system_console_device_ioctl,
+    };
+    file->fops = &fops;
     file->mode = S_IFCHR;
-    file->read = system_console_device_read;
-    file->write = system_console_device_write;
-    file->ioctl = system_console_device_ioctl;
     file->device_id = makedev(5, 1);
     return file;
 }

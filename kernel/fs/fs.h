@@ -45,8 +45,7 @@ typedef int (*truncate_fn)(file_description*, off_t length);
 typedef int (*ioctl_fn)(file_description*, int request, void* argp);
 typedef long (*readdir_fn)(file_description*, void* dirp, unsigned int count);
 
-struct file {
-    char* name;
+typedef struct file_ops {
     lookup_fn lookup;
     create_child_fn create_child;
     open_fn open;
@@ -58,6 +57,11 @@ struct file {
     truncate_fn truncate;
     ioctl_fn ioctl;
     readdir_fn readdir;
+} file_ops;
+
+struct file {
+    char* name;
+    file_ops* fops;
     mode_t mode;
     dev_t device_id;
     unix_socket* bound_socket;

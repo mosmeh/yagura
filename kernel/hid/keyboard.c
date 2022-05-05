@@ -361,8 +361,9 @@ struct file* ps2_keyboard_device_create(void) {
     if (!file->name)
         return ERR_PTR(-ENOMEM);
 
+    static file_ops fops = {.read = ps2_keyboard_device_read};
+    file->fops = &fops;
     file->mode = S_IFCHR;
-    file->read = ps2_keyboard_device_read;
     file->device_id = makedev(85, 0);
     return file;
 }

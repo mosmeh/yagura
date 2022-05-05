@@ -33,23 +33,23 @@ int file_descriptor_table_clone_from(file_descriptor_table* to,
 }
 
 struct file* fs_lookup(struct file* file, const char* name) {
-    if (!file->lookup || !S_ISDIR(file->mode))
+    if (!file->fops->lookup || !S_ISDIR(file->mode))
         return ERR_PTR(-ENOTDIR);
-    return file->lookup(file, name);
+    return file->fops->lookup(file, name);
 }
 
 struct file* fs_create_child(struct file* file, const char* name, mode_t mode) {
-    if (!file->create_child || !S_ISDIR(file->mode))
+    if (!file->fops->create_child || !S_ISDIR(file->mode))
         return ERR_PTR(-ENOTDIR);
     ASSERT(mode & S_IFMT);
-    return file->create_child(file, name, mode);
+    return file->fops->create_child(file, name, mode);
 }
 
 file_description* fs_open(struct file* file, int flags, mode_t mode) {
     if (S_ISDIR(file->mode) && (flags & O_WRONLY))
         return ERR_PTR(-EISDIR);
-    if (file->open) {
-        int rc = file->open(file, flags, mode);
+    if (file->fops->open) {
+        int rc = file->fops->open(file, flags, mode);
         if (IS_ERR(rc))
             return ERR_PTR(rc);
     }
@@ -64,8 +64,8 @@ file_description* fs_open(struct file* file, int flags, mode_t mode) {
 }
 
 int fs_stat(struct file* file, struct stat* buf) {
-    if (file->stat)
-        return file->stat(file, buf);
+    if (file->fops->stat)
+        return file->fops->stat(file, buf);
     buf->st_rdev = file->device_id;
     buf->st_mode = file->mode;
     buf->st_size = 0;
@@ -77,8 +77,8 @@ int fs_close(file_description* desc) {
     if (--desc->ref_count > 0)
         return 0;
     struct file* file = desc->file;
-    if (file->close)
-        return file->close(desc);
+    if (file->fops->close)
+        return file->fops->close(desc);
     return 0;
 }
 
@@ -86,46 +86,46 @@ ssize_t fs_read(file_description* desc, void* buffer, size_t count) {
     struct file* file = desc->file;
     if (S_ISDIR(file->mode))
         return -EISDIR;
-    if (!file->read)
+    if (!file->fops->read)
         return -EINVAL;
     if (!(desc->flags & O_RDONLY))
         return -EBADF;
-    return file->read(desc, buffer, count);
+    return file->fops->read(desc, buffer, count);
 }
 
 ssize_t fs_write(file_description* desc, const void* buffer, size_t count) {
     struct file* file = desc->file;
     if (S_ISDIR(file->mode))
         return -EISDIR;
-    if (!file->write)
+    if (!file->fops->write)
         return -EINVAL;
     if (!(desc->flags & O_WRONLY))
         return -EBADF;
-    return file->write(desc, buffer, count);
+    return file->fops->write(desc, buffer, count);
 }
 
 uintptr_t fs_mmap(file_description* desc, uintptr_t addr, size_t length,
                   off_t offset, uint16_t page_flags) {
     struct file* file = desc->file;
-    if (!file->mmap)
+    if (!file->fops->mmap)
         return -ENODEV;
     if (!(desc->flags & O_RDONLY))
         return -EACCES;
     if ((page_flags & PAGE_SHARED) && (page_flags & PAGE_WRITE) &&
         ((desc->flags & O_RDWR) != O_RDWR))
         return -EACCES;
-    return file->mmap(desc, addr, length, offset, page_flags);
+    return file->fops->mmap(desc, addr, length, offset, page_flags);
 }
 
 int fs_truncate(file_description* desc, off_t length) {
     struct file* file = desc->file;
     if (S_ISDIR(file->mode))
         return -EISDIR;
-    if (!file->truncate)
+    if (!file->fops->truncate)
         return -EROFS;
     if (!(desc->flags & O_WRONLY))
         return -EBADF;
-    return file->truncate(desc, length);
+    return file->fops->truncate(desc, length);
 }
 
 off_t fs_lseek(file_description* desc, off_t offset, int whence) {
@@ -156,16 +156,16 @@ off_t fs_lseek(file_description* desc, off_t offset, int whence) {
 
 int fs_ioctl(file_description* desc, int request, void* argp) {
     struct file* file = desc->file;
-    if (!file->ioctl)
+    if (!file->fops->ioctl)
         return -ENOTTY;
-    return file->ioctl(desc, request, argp);
+    return file->fops->ioctl(desc, request, argp);
 }
 
 long fs_readdir(file_description* desc, void* dirp, unsigned int count) {
     struct file* file = desc->file;
-    if (!file->readdir || !S_ISDIR(file->mode))
+    if (!file->fops->readdir || !S_ISDIR(file->mode))
         return -ENOTDIR;
-    return file->readdir(desc, dirp, count);
+    return file->fops->readdir(desc, dirp, count);
 }
 
 int fs_block(file_description* desc,

@@ -45,9 +45,9 @@ struct file* null_device_create(void) {
     if (!file->name)
         return ERR_PTR(-ENOMEM);
 
+    static file_ops fops = {.read = read_nothing, .write = write_to_bit_bucket};
+    file->fops = &fops;
     file->mode = S_IFCHR;
-    file->read = read_nothing;
-    file->write = write_to_bit_bucket;
     file->device_id = makedev(1, 3);
     return file;
 }
@@ -62,9 +62,9 @@ struct file* zero_device_create(void) {
     if (!file->name)
         return ERR_PTR(-ENOMEM);
 
+    static file_ops fops = {.read = read_zeros, .write = write_to_bit_bucket};
+    file->fops = &fops;
     file->mode = S_IFCHR;
-    file->read = read_zeros;
-    file->write = write_to_bit_bucket;
     file->device_id = makedev(1, 5);
     return file;
 }
@@ -79,9 +79,9 @@ struct file* full_device_create(void) {
     if (!file->name)
         return ERR_PTR(-ENOMEM);
 
+    static file_ops fops = {.read = read_zeros, .write = write_to_full_disk};
+    file->fops = &fops;
     file->mode = S_IFCHR;
-    file->read = read_zeros;
-    file->write = write_to_full_disk;
     file->device_id = makedev(1, 7);
     return file;
 }

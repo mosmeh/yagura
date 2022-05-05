@@ -122,9 +122,10 @@ struct file* bochs_fb_device_create(void) {
     if (!file->name)
         return ERR_PTR(-ENOMEM);
 
+    static file_ops fops = {.mmap = bochs_fb_device_mmap,
+                            .ioctl = bochs_fb_device_ioctl};
+    file->fops = &fops;
     file->mode = S_IFBLK;
-    file->mmap = bochs_fb_device_mmap;
-    file->ioctl = bochs_fb_device_ioctl;
     file->device_id = makedev(29, 0);
     return file;
 }

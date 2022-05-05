@@ -119,11 +119,13 @@ struct fifo* fifo_create(void) {
     file->name = kstrdup("fifo");
     if (!file->name)
         return ERR_PTR(-ENOMEM);
+
+    static file_ops fops = {.open = fifo_open,
+                            .close = fifo_close,
+                            .read = fifo_read,
+                            .write = fifo_write};
+    file->fops = &fops;
     file->mode = S_IFIFO;
-    file->open = fifo_open;
-    file->close = fifo_close;
-    file->read = fifo_read;
-    file->write = fifo_write;
 
     return fifo;
 }

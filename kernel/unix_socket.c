@@ -70,9 +70,10 @@ unix_socket* unix_socket_create(void) {
     *socket = (unix_socket){0};
 
     struct file* file = &socket->base_file;
+    static file_ops fops = {.read = unix_socket_read,
+                            .write = unix_socket_write};
+    file->fops = &fops;
     file->mode = S_IFSOCK;
-    file->read = unix_socket_read;
-    file->write = unix_socket_write;
 
     atomic_init(&socket->num_pending, 0);
     mutex_init(&socket->pending_queue_lock);

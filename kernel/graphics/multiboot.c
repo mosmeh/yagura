@@ -63,9 +63,10 @@ struct file* multiboot_fb_device_create(void) {
     if (!file->name)
         return ERR_PTR(-ENOMEM);
 
+    static file_ops fops = {.mmap = multiboot_fb_device_mmap,
+                            .ioctl = multiboot_fb_device_ioctl};
+    file->fops = &fops;
     file->mode = S_IFBLK;
-    file->mmap = multiboot_fb_device_mmap;
-    file->ioctl = multiboot_fb_device_ioctl;
     file->device_id = makedev(29, 0);
     return file;
 }

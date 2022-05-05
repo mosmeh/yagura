@@ -144,6 +144,19 @@ static int tmpfs_truncate(file_description* desc, off_t length) {
 }
 
 static struct file* tmpfs_create_child(struct file* file, const char* name,
+                                       mode_t mode);
+
+static file_ops dir_fops = {.stat = tmpfs_stat,
+                            .lookup = tree_node_lookup,
+                            .create_child = tmpfs_create_child,
+                            .readdir = tree_node_readdir};
+static file_ops non_dir_fops = {.stat = tmpfs_stat,
+                                .read = tmpfs_read,
+                                .write = tmpfs_write,
+                                .mmap = tmpfs_mmap,
+                                .truncate = tmpfs_truncate};
+
+static struct file* tmpfs_create_child(struct file* file, const char* name,
                                        mode_t mode) {
     tmpfs_node* node = (tmpfs_node*)file;
     tmpfs_node* child = kmalloc(sizeof(tmpfs_node));
@@ -157,18 +170,8 @@ static struct file* tmpfs_create_child(struct file* file, const char* name,
     child_file->name = kstrdup(name);
     if (!child_file->name)
         return ERR_PTR(-ENOMEM);
+    child_file->fops = S_ISDIR(mode) ? &dir_fops : &non_dir_fops;
     child_file->mode = mode;
-    child_file->stat = tmpfs_stat;
-    if (S_ISDIR(mode)) {
-        child_file->lookup = tree_node_lookup;
-        child_file->create_child = tmpfs_create_child;
-        child_file->readdir = tree_node_readdir;
-    } else {
-        child_file->read = tmpfs_read;
-        child_file->write = tmpfs_write;
-        child_file->mmap = tmpfs_mmap;
-        child_file->truncate = tmpfs_truncate;
-    }
 
     mutex_lock(&node->lock);
     tree_node_append_child((tree_node*)node, (tree_node*)child);
@@ -188,11 +191,8 @@ struct file* tmpfs_create_root(void) {
     file->name = kstrdup("tmpfs");
     if (!file->name)
         return ERR_PTR(-ENOMEM);
+    file->fops = &dir_fops;
     file->mode = S_IFDIR;
-    file->stat = tmpfs_stat;
-    file->lookup = tree_node_lookup;
-    file->create_child = tmpfs_create_child;
-    file->readdir = tree_node_readdir;
 
     return file;
 }
