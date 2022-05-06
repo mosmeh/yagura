@@ -24,6 +24,7 @@ QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
 	-initrd "${INITRD}" \
 	-d guest_errors \
 	-no-reboot \
+	-display sdl,gl=off,show-cursor=off \
 	-chardev stdio,mux=on,id=char0 \
 	-serial chardev:char0 \
 	-mon char0,mode=readline -s \
