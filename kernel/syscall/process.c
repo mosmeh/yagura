@@ -1,6 +1,7 @@
 #include <common/string.h>
 #include <kernel/api/sys/times.h>
 #include <kernel/boot_defs.h>
+#include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/scheduler.h>
@@ -109,6 +110,7 @@ struct waitpid_blocker {
 static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
     extern struct process* all_processes;
 
+    bool int_flag = push_cli();
     struct process* prev = NULL;
     struct process* it = all_processes;
 
@@ -132,8 +134,10 @@ static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
         prev = it;
         it = it->next_in_all_processes;
     }
-    if (!it)
+    if (!it) {
+        pop_cli(int_flag);
         return false;
+    }
 
     if (prev)
         prev->next_in_all_processes = it->next_in_all_processes;
@@ -141,6 +145,7 @@ static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
         all_processes = it->next_in_all_processes;
     blocker->process = it;
 
+    pop_cli(int_flag);
     return true;
 }
 
