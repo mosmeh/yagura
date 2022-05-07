@@ -42,20 +42,45 @@ void* kmalloc(size_t size) {
     return kaligned_alloc(alignof(max_align_t), size);
 }
 
-void kfree(void* ptr) {
-    if (!ptr)
-        return;
+static struct header* header_from_ptr(void* ptr) {
     uintptr_t addr = round_down((uintptr_t)ptr, PAGE_SIZE);
     if ((uintptr_t)ptr - addr < sizeof(struct header))
         addr -= PAGE_SIZE;
 
     struct header* header = (struct header*)addr;
     ASSERT(header->magic == MAGIC);
+    return header;
+}
 
+void* krealloc(void* ptr, size_t new_size) {
+    if (!ptr)
+        return kmalloc(new_size);
+    if (new_size == 0) {
+        kfree(ptr);
+        return NULL;
+    }
+
+    struct header* old_header = header_from_ptr(ptr);
+
+    void* new_ptr = kmalloc(new_size);
+    if (!new_ptr)
+        return NULL;
+    struct header* new_header = header_from_ptr(new_ptr);
+
+    memcpy(new_header, old_header, old_header->size);
+    kfree(ptr);
+
+    return new_ptr;
+}
+
+void kfree(void* ptr) {
+    if (!ptr)
+        return;
+    struct header* header = header_from_ptr(ptr);
     size_t size = header->size;
-    paging_unmap(addr, size);
-
-    ASSERT_OK(range_allocator_free(&kernel_vaddr_allocator, addr, size));
+    paging_unmap((uintptr_t)header, size);
+    ASSERT_OK(
+        range_allocator_free(&kernel_vaddr_allocator, (uintptr_t)header, size));
 }
 
 char* kstrdup(const char* src) {

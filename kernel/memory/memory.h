@@ -58,6 +58,7 @@ void paging_unmap(uintptr_t virtual_addr, uintptr_t size);
 
 void* kmalloc(size_t size);
 void* kaligned_alloc(size_t alignment, size_t size);
+void* krealloc(void* ptr, size_t new_size);
 void kfree(void* ptr);
 
 char* kstrdup(const char*);
