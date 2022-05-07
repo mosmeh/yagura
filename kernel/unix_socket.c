@@ -25,18 +25,21 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
                                 size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
     ring_buf* buf = get_buf_to_read(socket, desc);
-    int rc = fs_block(desc, read_should_unblock);
-    if (IS_ERR(rc))
-        return rc;
 
-    mutex_lock(&buf->lock);
-    if (ring_buf_is_empty(buf)) {
+    for (;;) {
+        int rc = fs_block(desc, read_should_unblock);
+        if (IS_ERR(rc))
+            return rc;
+
+        mutex_lock(&buf->lock);
+        if (ring_buf_is_empty(buf)) {
+            mutex_unlock(&buf->lock);
+            continue;
+        }
+        ssize_t nread = ring_buf_read(buf, buffer, count);
         mutex_unlock(&buf->lock);
-        return 0;
+        return nread;
     }
-    ssize_t nread = ring_buf_read(buf, buffer, count);
-    mutex_unlock(&buf->lock);
-    return nread;
 }
 
 static bool write_should_unblock(file_description* desc) {
@@ -49,18 +52,21 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
                                  size_t count) {
     unix_socket* socket = (unix_socket*)desc->file;
     ring_buf* buf = get_buf_to_write(socket, desc);
-    int rc = fs_block(desc, write_should_unblock);
-    if (IS_ERR(rc))
-        return rc;
 
-    mutex_lock(&buf->lock);
-    if (ring_buf_is_full(buf)) {
+    for (;;) {
+        int rc = fs_block(desc, write_should_unblock);
+        if (IS_ERR(rc))
+            return rc;
+
+        mutex_lock(&buf->lock);
+        if (ring_buf_is_full(buf)) {
+            mutex_unlock(&buf->lock);
+            continue;
+        }
+        ssize_t nwritten = ring_buf_write(buf, buffer, count);
         mutex_unlock(&buf->lock);
-        return 0;
+        return nwritten;
     }
-    ssize_t nwritten = ring_buf_write(buf, buffer, count);
-    mutex_unlock(&buf->lock);
-    return nwritten;
 }
 
 unix_socket* unix_socket_create(void) {

@@ -537,15 +537,22 @@ static bool read_should_unblock(file_description* desc) {
 static ssize_t fb_console_device_read(file_description* desc, void* buffer,
                                       size_t count) {
     (void)desc;
-    int rc = fs_block(desc, read_should_unblock);
-    if (IS_ERR(rc))
-        return rc;
 
-    bool int_flag = push_cli();
-    ssize_t nread = ring_buf_read(&input_buf, buffer, count);
-    pop_cli(int_flag);
+    for (;;) {
+        int rc = fs_block(desc, read_should_unblock);
+        if (IS_ERR(rc))
+            return rc;
 
-    return nread;
+        bool int_flag = push_cli();
+        if (ring_buf_is_empty(&input_buf)) {
+            pop_cli(int_flag);
+            continue;
+        }
+
+        ssize_t nread = ring_buf_read(&input_buf, buffer, count);
+        pop_cli(int_flag);
+        return nread;
+    }
 }
 
 static ssize_t fb_console_device_write(file_description* desc,

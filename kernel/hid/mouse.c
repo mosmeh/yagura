@@ -74,26 +74,31 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
                                      size_t count) {
     (void)desc;
 
-    size_t nread = 0;
-    mouse_event* out = (mouse_event*)buffer;
-    int rc = fs_block(desc, read_should_unblock);
-    if (IS_ERR(rc))
-        return rc;
+    for (;;) {
+        int rc = fs_block(desc, read_should_unblock);
+        if (IS_ERR(rc))
+            return rc;
 
-    bool int_flag = push_cli();
+        bool int_flag = push_cli();
+        if (queue_read_idx == queue_write_idx) {
+            pop_cli(int_flag);
+            continue;
+        }
 
-    while (count > 0) {
-        if (queue_read_idx == queue_write_idx || count < sizeof(mouse_event))
-            break;
-        *out++ = queue[queue_read_idx];
-        nread += sizeof(mouse_event);
-        count -= sizeof(mouse_event);
-        queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
+        size_t nread = 0;
+        mouse_event* out = (mouse_event*)buffer;
+        while (count > 0) {
+            if (queue_read_idx == queue_write_idx ||
+                count < sizeof(mouse_event))
+                break;
+            *out++ = queue[queue_read_idx];
+            nread += sizeof(mouse_event);
+            count -= sizeof(mouse_event);
+            queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
+        }
+        pop_cli(int_flag);
+        return nread;
     }
-
-    pop_cli(int_flag);
-
-    return nread;
 }
 
 struct file* ps2_mouse_device_create(void) {

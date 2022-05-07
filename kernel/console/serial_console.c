@@ -54,15 +54,21 @@ static ssize_t serial_console_device_read(file_description* desc, void* buffer,
                                           size_t count) {
     serial_console_device* dev = (serial_console_device*)desc->file;
     ring_buf* buf = get_input_buf_for_port(dev->port);
-    int rc = fs_block(desc, read_should_unblock);
-    if (IS_ERR(rc))
-        return rc;
 
-    bool int_flag = push_cli();
-    ssize_t nread = ring_buf_read(buf, buffer, count);
-    pop_cli(int_flag);
+    for (;;) {
+        int rc = fs_block(desc, read_should_unblock);
+        if (IS_ERR(rc))
+            return rc;
 
-    return nread;
+        bool int_flag = push_cli();
+        if (ring_buf_is_empty(buf)) {
+            pop_cli(int_flag);
+            continue;
+        }
+        ssize_t nread = ring_buf_read(buf, buffer, count);
+        pop_cli(int_flag);
+        return nread;
+    }
 }
 
 static ssize_t serial_console_device_write(file_description* desc,
