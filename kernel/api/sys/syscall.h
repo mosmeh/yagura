@@ -38,6 +38,7 @@
     F(read)                                                                    \
     F(reboot)                                                                  \
     F(rename)                                                                  \
+    F(rmdir)                                                                   \
     F(sched_yield)                                                             \
     F(setpgid)                                                                 \
     F(socket)                                                                  \

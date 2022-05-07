@@ -193,6 +193,23 @@ uintptr_t sys_rename(const char* oldpath, const char* newpath) {
     return fs_unlink_child(old_parent, old_basename);
 }
 
+uintptr_t sys_rmdir(const char* pathname) {
+    struct inode* parent = NULL;
+    const char* basename = NULL;
+    struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
+    if (IS_ERR(inode))
+        return PTR_ERR(inode);
+    if (!parent)
+        return -EPERM;
+    ASSERT(basename);
+    if (!S_ISDIR(inode->mode))
+        return -ENOTDIR;
+    int rc = make_sure_directory_is_empty(inode);
+    if (IS_ERR(rc))
+        return rc;
+    return fs_unlink_child(parent, basename);
+}
+
 uintptr_t sys_getdents(int fd, void* dirp, size_t count) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))

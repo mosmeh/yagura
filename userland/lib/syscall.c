@@ -221,6 +221,11 @@ int rename(const char* oldpath, const char* newpath) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int rmdir(const char* pathname) {
+    int rc = syscall(SYS_rmdir, (uintptr_t)pathname, 0, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 int sched_yield(void) {
     int rc = syscall(SYS_sched_yield, 0, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
