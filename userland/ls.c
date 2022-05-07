@@ -1,4 +1,5 @@
 #include <dirent.h>
+#include <errno.h>
 #include <extra.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,9 +69,13 @@ int main(int argc, char* argv[]) {
 
     size_t width = 0;
     for (;;) {
+        errno = 0;
         struct dirent* dent = readdir(dirp);
-        if (!dent)
+        if (!dent) {
+            if (errno != 0)
+                perror("readdir");
             break;
+        }
 
         const char* format;
         size_t len;
