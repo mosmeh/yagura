@@ -443,7 +443,7 @@ void fb_console_init(void) {
     file_description* desc = vfs_open("/dev/fb0", O_RDWR, 0);
     ASSERT_OK(desc);
 
-    ASSERT_OK(fs_ioctl(desc, FBIOGET_INFO, &fb_info));
+    ASSERT_OK(file_description_ioctl(desc, FBIOGET_INFO, &fb_info));
     ASSERT(fb_info.bpp == 32);
 
     console_width = fb_info.width / font->glyph_width;
@@ -457,11 +457,11 @@ void fb_console_init(void) {
     size_t fb_size = fb_info.pitch * fb_info.height;
     uintptr_t vaddr = range_allocator_alloc(&kernel_vaddr_allocator, fb_size);
     ASSERT_OK(vaddr);
-    fb_addr = fs_mmap(desc, vaddr, fb_size, 0,
-                      PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL);
+    fb_addr = file_description_mmap(desc, vaddr, fb_size, 0,
+                                    PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL);
     ASSERT_OK(fb_addr);
 
-    ASSERT_OK(fs_close(desc));
+    ASSERT_OK(file_description_close(desc));
 
     clear_screen();
     flush();
@@ -539,7 +539,7 @@ static ssize_t fb_console_device_read(file_description* desc, void* buffer,
     (void)desc;
 
     for (;;) {
-        int rc = fs_block(desc, read_should_unblock);
+        int rc = file_description_block(desc, read_should_unblock);
         if (IS_ERR(rc))
             return rc;
 

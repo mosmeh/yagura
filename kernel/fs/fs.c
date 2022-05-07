@@ -32,14 +32,14 @@ int file_descriptor_table_clone_from(file_descriptor_table* to,
     return 0;
 }
 
-struct inode* fs_lookup_child(struct inode* inode, const char* name) {
+struct inode* inode_lookup_child(struct inode* inode, const char* name) {
     if (!inode->fops->lookup_child || !S_ISDIR(inode->mode))
         return ERR_PTR(-ENOTDIR);
     return inode->fops->lookup_child(inode, name);
 }
 
-struct inode* fs_create_child(struct inode* inode, const char* name,
-                              mode_t mode) {
+struct inode* inode_create_child(struct inode* inode, const char* name,
+                                 mode_t mode) {
     if (!inode->fops->create_child || !S_ISDIR(inode->mode))
         return ERR_PTR(-ENOTDIR);
     ASSERT(mode & S_IFMT);
@@ -50,7 +50,8 @@ struct inode* fs_create_child(struct inode* inode, const char* name,
     return child;
 }
 
-int fs_link_child(struct inode* inode, const char* name, struct inode* child) {
+int inode_link_child(struct inode* inode, const char* name,
+                     struct inode* child) {
     if (!inode->fops->link_child || !S_ISDIR(inode->mode))
         return -ENOTDIR;
     int rc = inode->fops->link_child(inode, name, child);
@@ -60,7 +61,7 @@ int fs_link_child(struct inode* inode, const char* name, struct inode* child) {
     return 0;
 }
 
-int fs_unlink_child(struct inode* inode, const char* name) {
+int inode_unlink_child(struct inode* inode, const char* name) {
     if (!inode->fops->unlink_child || !S_ISDIR(inode->mode))
         return -ENOTDIR;
     struct inode* child = inode->fops->unlink_child(inode, name);
@@ -71,7 +72,7 @@ int fs_unlink_child(struct inode* inode, const char* name) {
     return 0;
 }
 
-file_description* fs_open(struct inode* inode, int flags, mode_t mode) {
+file_description* inode_open(struct inode* inode, int flags, mode_t mode) {
     if (S_ISDIR(inode->mode) && (flags & O_WRONLY))
         return ERR_PTR(-EISDIR);
     if (inode->fops->open) {
@@ -89,7 +90,7 @@ file_description* fs_open(struct inode* inode, int flags, mode_t mode) {
     return desc;
 }
 
-int fs_stat(struct inode* inode, struct stat* buf) {
+int inode_stat(struct inode* inode, struct stat* buf) {
     if (inode->fops->stat)
         return inode->fops->stat(inode, buf);
     buf->st_rdev = inode->device_id;
@@ -99,7 +100,7 @@ int fs_stat(struct inode* inode, struct stat* buf) {
     return 0;
 }
 
-int fs_close(file_description* desc) {
+int file_description_close(file_description* desc) {
     ASSERT(desc->ref_count > 0);
     if (--desc->ref_count > 0)
         return 0;
@@ -109,7 +110,8 @@ int fs_close(file_description* desc) {
     return 0;
 }
 
-ssize_t fs_read(file_description* desc, void* buffer, size_t count) {
+ssize_t file_description_read(file_description* desc, void* buffer,
+                              size_t count) {
     struct inode* inode = desc->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
@@ -120,7 +122,8 @@ ssize_t fs_read(file_description* desc, void* buffer, size_t count) {
     return inode->fops->read(desc, buffer, count);
 }
 
-ssize_t fs_write(file_description* desc, const void* buffer, size_t count) {
+ssize_t file_description_write(file_description* desc, const void* buffer,
+                               size_t count) {
     struct inode* inode = desc->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
@@ -131,8 +134,9 @@ ssize_t fs_write(file_description* desc, const void* buffer, size_t count) {
     return inode->fops->write(desc, buffer, count);
 }
 
-uintptr_t fs_mmap(file_description* desc, uintptr_t addr, size_t length,
-                  off_t offset, uint16_t page_flags) {
+uintptr_t file_description_mmap(file_description* desc, uintptr_t addr,
+                                size_t length, off_t offset,
+                                uint16_t page_flags) {
     struct inode* inode = desc->inode;
     if (!inode->fops->mmap)
         return -ENODEV;
@@ -144,7 +148,7 @@ uintptr_t fs_mmap(file_description* desc, uintptr_t addr, size_t length,
     return inode->fops->mmap(desc, addr, length, offset, page_flags);
 }
 
-int fs_truncate(file_description* desc, off_t length) {
+int file_description_truncate(file_description* desc, off_t length) {
     struct inode* inode = desc->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
@@ -155,7 +159,7 @@ int fs_truncate(file_description* desc, off_t length) {
     return inode->fops->truncate(desc, length);
 }
 
-off_t fs_lseek(file_description* desc, off_t offset, int whence) {
+off_t file_description_lseek(file_description* desc, off_t offset, int whence) {
     off_t new_offset;
     switch (whence) {
     case SEEK_SET:
@@ -166,7 +170,7 @@ off_t fs_lseek(file_description* desc, off_t offset, int whence) {
         break;
     case SEEK_END: {
         struct stat stat;
-        int rc = fs_stat(desc->inode, &stat);
+        int rc = inode_stat(desc->inode, &stat);
         if (IS_ERR(rc))
             return rc;
         new_offset = stat.st_size + offset;
@@ -181,22 +185,23 @@ off_t fs_lseek(file_description* desc, off_t offset, int whence) {
     return new_offset;
 }
 
-int fs_ioctl(file_description* desc, int request, void* argp) {
+int file_description_ioctl(file_description* desc, int request, void* argp) {
     struct inode* inode = desc->inode;
     if (!inode->fops->ioctl)
         return -ENOTTY;
     return inode->fops->ioctl(desc, request, argp);
 }
 
-long fs_readdir(file_description* desc, void* dirp, unsigned int count) {
+long file_description_readdir(file_description* desc, void* dirp,
+                              unsigned int count) {
     struct inode* inode = desc->inode;
     if (!inode->fops->readdir || !S_ISDIR(inode->mode))
         return -ENOTDIR;
     return inode->fops->readdir(desc, dirp, count);
 }
 
-int fs_block(file_description* desc,
-             bool (*should_unblock)(file_description*)) {
+int file_description_block(file_description* desc,
+                           bool (*should_unblock)(file_description*)) {
     if ((desc->flags & O_NONBLOCK) && !should_unblock(desc))
         return -EAGAIN;
     return scheduler_block(should_unblock, desc);

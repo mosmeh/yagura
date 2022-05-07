@@ -56,7 +56,7 @@ static ssize_t serial_console_device_read(file_description* desc, void* buffer,
     ring_buf* buf = get_input_buf_for_port(dev->port);
 
     for (;;) {
-        int rc = fs_block(desc, read_should_unblock);
+        int rc = file_description_block(desc, read_should_unblock);
         if (IS_ERR(rc))
             return rc;
 

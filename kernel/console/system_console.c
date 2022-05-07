@@ -22,19 +22,19 @@ void system_console_init(void) {
 static ssize_t system_console_device_read(file_description* desc, void* buffer,
                                           size_t count) {
     (void)desc;
-    return fs_read(active_console, buffer, count);
+    return file_description_read(active_console, buffer, count);
 }
 
 static ssize_t system_console_device_write(file_description* desc,
                                            const void* buffer, size_t count) {
     (void)desc;
-    return fs_write(active_console, buffer, count);
+    return file_description_write(active_console, buffer, count);
 }
 
 static int system_console_device_ioctl(file_description* desc, int request,
                                        void* argp) {
     (void)desc;
-    return fs_ioctl(active_console, request, argp);
+    return file_description_ioctl(active_console, request, argp);
 }
 
 struct inode* system_console_device_create(void) {

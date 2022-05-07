@@ -115,7 +115,7 @@ static noreturn void die(void) {
         file_description** it = current->fd_table.entries;
         for (int i = 0; i < OPEN_MAX; ++i, ++it) {
             if (*it)
-                fs_close(*it);
+                file_description_close(*it);
         }
     }
 

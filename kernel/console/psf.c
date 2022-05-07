@@ -12,7 +12,7 @@ static struct font* load_psf1(const char* filename) {
         return ERR_CAST(desc);
 
     struct psf1_header header;
-    if (fs_read(desc, &header, sizeof(struct psf1_header)) !=
+    if (file_description_read(desc, &header, sizeof(struct psf1_header)) !=
         sizeof(struct psf1_header))
         return ERR_PTR(-EINVAL);
     if (header.magic[0] != PSF1_MAGIC0 || header.magic[1] != PSF1_MAGIC1)
@@ -30,7 +30,7 @@ static struct font* load_psf1(const char* filename) {
     font->glyphs = kmalloc(buf_size);
     if (!font->glyphs)
         return ERR_PTR(-ENOMEM);
-    if ((size_t)fs_read(desc, font->glyphs, buf_size) != buf_size)
+    if ((size_t)file_description_read(desc, font->glyphs, buf_size) != buf_size)
         return ERR_PTR(-EINVAL);
 
     if (header.mode & PSF1_MODEHASTAB) {
@@ -38,7 +38,8 @@ static struct font* load_psf1(const char* filename) {
         for (size_t i = 0; i < num_glyphs; ++i) {
             for (;;) {
                 uint16_t uc;
-                if (fs_read(desc, &uc, sizeof(uint16_t)) != sizeof(uint16_t))
+                if (file_description_read(desc, &uc, sizeof(uint16_t)) !=
+                    sizeof(uint16_t))
                     return ERR_PTR(-EINVAL);
                 if (uc == PSF1_SEPARATOR)
                     break;
@@ -51,7 +52,7 @@ static struct font* load_psf1(const char* filename) {
             font->ascii_to_glyph[i] = i;
     }
 
-    fs_close(desc);
+    file_description_close(desc);
     return font;
 }
 
@@ -61,7 +62,7 @@ static struct font* load_psf2(const char* filename) {
         return ERR_CAST(desc);
 
     struct psf2_header header;
-    if (fs_read(desc, &header, sizeof(struct psf2_header)) !=
+    if (file_description_read(desc, &header, sizeof(struct psf2_header)) !=
         sizeof(struct psf2_header))
         return ERR_PTR(-EINVAL);
     if (header.magic != PSF2_MAGIC || header.version != 0 ||
@@ -83,7 +84,7 @@ static struct font* load_psf2(const char* filename) {
     font->glyphs = kmalloc(buf_size);
     if (!font->glyphs)
         return ERR_PTR(-ENOMEM);
-    if ((size_t)fs_read(desc, font->glyphs, buf_size) != buf_size)
+    if ((size_t)file_description_read(desc, font->glyphs, buf_size) != buf_size)
         return ERR_PTR(-EINVAL);
 
     if (header.flags & PSF2_HAS_UNICODE_TABLE) {
@@ -91,7 +92,8 @@ static struct font* load_psf2(const char* filename) {
         for (size_t i = 0; i < header.numglyph; ++i) {
             for (;;) {
                 uint8_t uc;
-                if (fs_read(desc, &uc, sizeof(uint8_t)) != sizeof(uint8_t))
+                if (file_description_read(desc, &uc, sizeof(uint8_t)) !=
+                    sizeof(uint8_t))
                     return ERR_PTR(-EINVAL);
                 if (uc == PSF2_SEPARATOR)
                     break;
@@ -104,7 +106,7 @@ static struct font* load_psf2(const char* filename) {
             font->ascii_to_glyph[i] = i;
     }
 
-    fs_close(desc);
+    file_description_close(desc);
     return font;
 }
 

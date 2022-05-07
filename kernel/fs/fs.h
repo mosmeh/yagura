@@ -73,27 +73,33 @@ struct inode {
     mode_t mode;
 };
 
-NODISCARD struct inode* fs_lookup_child(struct inode*, const char* name);
-NODISCARD struct inode* fs_create_child(struct inode*, const char* name,
-                                        mode_t mode);
-NODISCARD int fs_link_child(struct inode*, const char* name,
-                            struct inode* child);
-NODISCARD int fs_unlink_child(struct inode*, const char* name);
-NODISCARD file_description* fs_open(struct inode*, int flags, mode_t mode);
-NODISCARD int fs_stat(struct inode*, struct stat* buf);
+NODISCARD struct inode* inode_lookup_child(struct inode*, const char* name);
+NODISCARD struct inode* inode_create_child(struct inode*, const char* name,
+                                           mode_t mode);
+NODISCARD int inode_link_child(struct inode*, const char* name,
+                               struct inode* child);
+NODISCARD int inode_unlink_child(struct inode*, const char* name);
+NODISCARD file_description* inode_open(struct inode*, int flags, mode_t mode);
+NODISCARD int inode_stat(struct inode*, struct stat* buf);
 
-int fs_close(file_description*);
-NODISCARD ssize_t fs_read(file_description*, void* buffer, size_t count);
-NODISCARD ssize_t fs_write(file_description*, const void* buffer, size_t count);
-NODISCARD uintptr_t fs_mmap(file_description*, uintptr_t addr, size_t length,
-                            off_t offset, uint16_t page_flags);
-NODISCARD int fs_truncate(file_description*, off_t length);
-NODISCARD off_t fs_lseek(file_description*, off_t offset, int whence);
-NODISCARD int fs_ioctl(file_description*, int request, void* argp);
-NODISCARD long fs_readdir(file_description*, void* dirp, unsigned int count);
+int file_description_close(file_description*);
+NODISCARD ssize_t file_description_read(file_description*, void* buffer,
+                                        size_t count);
+NODISCARD ssize_t file_description_write(file_description*, const void* buffer,
+                                         size_t count);
+NODISCARD uintptr_t file_description_mmap(file_description*, uintptr_t addr,
+                                          size_t length, off_t offset,
+                                          uint16_t page_flags);
+NODISCARD int file_description_truncate(file_description*, off_t length);
+NODISCARD off_t file_description_lseek(file_description*, off_t offset,
+                                       int whence);
+NODISCARD int file_description_ioctl(file_description*, int request,
+                                     void* argp);
+NODISCARD long file_description_readdir(file_description*, void* dirp,
+                                        unsigned int count);
 
-NODISCARD int fs_block(file_description*,
-                       bool (*should_unblock)(file_description*));
+NODISCARD int file_description_block(file_description*,
+                                     bool (*should_unblock)(file_description*));
 
 NODISCARD int vfs_mount(const char* path, struct inode* fs_root);
 NODISCARD int vfs_register_device(struct inode* device);

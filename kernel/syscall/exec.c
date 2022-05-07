@@ -124,7 +124,7 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     void* buf = kmalloc(stat.st_size);
     if (!buf)
         return -ENOMEM;
-    ssize_t nread = fs_read(desc, buf, stat.st_size);
+    ssize_t nread = file_description_read(desc, buf, stat.st_size);
     if (IS_ERR(nread))
         return nread;
 

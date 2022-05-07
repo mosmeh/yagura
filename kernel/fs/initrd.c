@@ -71,13 +71,13 @@ void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
                 (const unsigned char*)(cursor + sizeof(struct cpio_odc_header) +
                                        name_size);
             for (size_t count = 0; count < file_size;) {
-                ssize_t nwritten =
-                    fs_write(desc, file_content + count, file_size - count);
+                ssize_t nwritten = file_description_write(
+                    desc, file_content + count, file_size - count);
                 ASSERT_OK(nwritten);
                 count += nwritten;
             }
 
-            ASSERT_OK(fs_close(desc));
+            ASSERT_OK(file_description_close(desc));
         }
 
         cursor += sizeof(struct cpio_odc_header) + name_size + file_size;

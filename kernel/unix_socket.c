@@ -27,7 +27,7 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
     ring_buf* buf = get_buf_to_read(socket, desc);
 
     for (;;) {
-        int rc = fs_block(desc, read_should_unblock);
+        int rc = file_description_block(desc, read_should_unblock);
         if (IS_ERR(rc))
             return rc;
 
@@ -54,7 +54,7 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
     ring_buf* buf = get_buf_to_write(socket, desc);
 
     for (;;) {
-        int rc = fs_block(desc, write_should_unblock);
+        int rc = file_description_block(desc, write_should_unblock);
         if (IS_ERR(rc))
             return rc;
 

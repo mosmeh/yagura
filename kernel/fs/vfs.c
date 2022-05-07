@@ -73,7 +73,7 @@ int vfs_mount(const char* path, struct inode* fs_root) {
              strtok_r(dup_path, PATH_SEPARATOR_STR, &saved_ptr);
          component;
          component = strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr)) {
-        struct inode* child = fs_lookup_child(parent, component);
+        struct inode* child = inode_lookup_child(parent, component);
         if (IS_ERR(child))
             return PTR_ERR(child);
         parent = child;
@@ -242,7 +242,7 @@ struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
                 *out_basename = component;
         }
 
-        struct inode* child = fs_lookup_child(parent, component);
+        struct inode* child = inode_lookup_child(parent, component);
         if (IS_ERR(child))
             return child;
 
@@ -298,7 +298,7 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
         return ERR_PTR(-EEXIST);
     if (IS_ERR(inode)) {
         if ((flags & O_CREAT) && PTR_ERR(inode) == -ENOENT && parent)
-            inode = fs_create_child(parent, basename, mode);
+            inode = inode_create_child(parent, basename, mode);
         else
             return ERR_CAST(inode);
     }
@@ -310,7 +310,7 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
         inode = device;
     }
 
-    return fs_open(inode, flags, mode);
+    return inode_open(inode, flags, mode);
 }
 
 int vfs_stat(const char* pathname, struct stat* buf) {
@@ -325,7 +325,7 @@ int vfs_stat(const char* pathname, struct stat* buf) {
         inode = device;
     }
 
-    return fs_stat(inode, buf);
+    return inode_stat(inode, buf);
 }
 
 struct inode* vfs_create(const char* pathname, mode_t mode) {
@@ -336,5 +336,5 @@ struct inode* vfs_create(const char* pathname, mode_t mode) {
         return ERR_PTR(-EEXIST);
     if (PTR_ERR(inode) != -ENOENT || !parent)
         return inode;
-    return fs_create_child(parent, basename, mode);
+    return inode_create_child(parent, basename, mode);
 }

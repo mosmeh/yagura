@@ -75,7 +75,7 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
     (void)desc;
 
     for (;;) {
-        int rc = fs_block(desc, read_should_unblock);
+        int rc = file_description_block(desc, read_should_unblock);
         if (IS_ERR(rc))
             return rc;
 

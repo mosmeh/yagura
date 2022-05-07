@@ -46,7 +46,8 @@ uintptr_t sys_mmap(const mmap_params* params) {
     if (S_ISDIR(desc->inode->mode))
         return -ENODEV;
 
-    return fs_mmap(desc, addr, params->length, params->offset, page_flags);
+    return file_description_mmap(desc, addr, params->length, params->offset,
+                                 page_flags);
 }
 
 uintptr_t sys_munmap(void* addr, size_t length) {

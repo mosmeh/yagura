@@ -12,7 +12,7 @@ uintptr_t sys_socket(int domain, int type, int protocol) {
     unix_socket* socket = unix_socket_create();
     if (IS_ERR(socket))
         return PTR_ERR(socket);
-    file_description* desc = fs_open((struct inode*)socket, O_RDWR, 0);
+    file_description* desc = inode_open((struct inode*)socket, O_RDWR, 0);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     return process_alloc_file_descriptor(-1, desc);
@@ -71,7 +71,7 @@ uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     if (IS_ERR(connector))
         return PTR_ERR(connector);
     file_description* connector_desc =
-        fs_open((struct inode*)connector, O_RDWR, 0);
+        inode_open((struct inode*)connector, O_RDWR, 0);
     if (IS_ERR(connector_desc))
         return PTR_ERR(connector_desc);
 
