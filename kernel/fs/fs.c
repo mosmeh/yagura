@@ -43,7 +43,32 @@ struct inode* fs_create_child(struct inode* inode, const char* name,
     if (!inode->fops->create_child || !S_ISDIR(inode->mode))
         return ERR_PTR(-ENOTDIR);
     ASSERT(mode & S_IFMT);
-    return inode->fops->create_child(inode, name, mode);
+    struct inode* child = inode->fops->create_child(inode, name, mode);
+    if (IS_ERR(child))
+        return child;
+    child->num_links = 1;
+    return child;
+}
+
+int fs_link_child(struct inode* inode, const char* name, struct inode* child) {
+    if (!inode->fops->link_child || !S_ISDIR(inode->mode))
+        return -ENOTDIR;
+    int rc = inode->fops->link_child(inode, name, child);
+    if (IS_ERR(rc))
+        return rc;
+    ++child->num_links;
+    return 0;
+}
+
+int fs_unlink_child(struct inode* inode, const char* name) {
+    if (!inode->fops->unlink_child || !S_ISDIR(inode->mode))
+        return -ENOTDIR;
+    struct inode* child = inode->fops->unlink_child(inode, name);
+    if (IS_ERR(child))
+        return PTR_ERR(child);
+    ASSERT(child->num_links > 0);
+    --child->num_links;
+    return 0;
 }
 
 file_description* fs_open(struct inode* inode, int flags, mode_t mode) {

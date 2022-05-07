@@ -21,6 +21,9 @@ ssize_t write(int fd, const void* buf, size_t count);
 int ftruncate(int fd, off_t length);
 off_t lseek(int fd, off_t offset, int whence);
 int mknod(const char* pathname, mode_t mode, dev_t dev);
+int link(const char* oldpath, const char* newpath);
+int unlink(const char* pathname);
+int rename(const char* oldpath, const char* newpath);
 
 int dup(int oldfd);
 int dup2(int oldfd, int newfd);

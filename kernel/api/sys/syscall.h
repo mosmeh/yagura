@@ -26,6 +26,7 @@
     F(getpid)                                                                  \
     F(ioctl)                                                                   \
     F(kill)                                                                    \
+    F(link)                                                                    \
     F(listen)                                                                  \
     F(lseek)                                                                   \
     F(mkdir)                                                                   \
@@ -36,12 +37,14 @@
     F(pipe)                                                                    \
     F(read)                                                                    \
     F(reboot)                                                                  \
+    F(rename)                                                                  \
     F(sched_yield)                                                             \
     F(setpgid)                                                                 \
     F(socket)                                                                  \
     F(stat)                                                                    \
     F(sysconf)                                                                 \
     F(times)                                                                   \
+    F(unlink)                                                                  \
     F(waitpid)                                                                 \
     F(write)
 

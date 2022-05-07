@@ -145,6 +145,11 @@ int kill(pid_t pid, int sig) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int link(const char* oldpath, const char* newpath) {
+    int rc = syscall(SYS_link, (uintptr_t)oldpath, (uintptr_t)newpath, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 int listen(int sockfd, int backlog) {
     int rc = syscall(SYS_listen, sockfd, backlog, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
@@ -211,6 +216,11 @@ int reboot(int howto) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int rename(const char* oldpath, const char* newpath) {
+    int rc = syscall(SYS_rename, (uintptr_t)oldpath, (uintptr_t)newpath, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 int sched_yield(void) {
     int rc = syscall(SYS_sched_yield, 0, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
@@ -239,6 +249,11 @@ long sysconf(int name) {
 clock_t times(struct tms* buf) {
     int rc = syscall(SYS_times, (uintptr_t)buf, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, clock_t)
+}
+
+int unlink(const char* pathname) {
+    int rc = syscall(SYS_unlink, (uintptr_t)pathname, 0, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 pid_t waitpid(pid_t pid, int* wstatus, int options) {

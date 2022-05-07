@@ -32,6 +32,9 @@ file_descriptor_table_clone_from(file_descriptor_table* to,
 typedef struct inode* (*lookup_child_fn)(struct inode*, const char* name);
 typedef struct inode* (*create_child_fn)(struct inode*, const char* name,
                                          mode_t mode);
+typedef int (*link_child_fn)(struct inode*, const char* name,
+                             struct inode* child);
+typedef struct inode* (*unlink_child_fn)(struct inode*, const char* name);
 typedef int (*open_fn)(struct inode*, int flags, mode_t mode);
 typedef int (*stat_fn)(struct inode*, struct stat* buf);
 
@@ -48,6 +51,8 @@ typedef long (*readdir_fn)(file_description*, void* dirp, unsigned int count);
 typedef struct file_ops {
     lookup_child_fn lookup_child;
     create_child_fn create_child;
+    link_child_fn link_child;
+    unlink_child_fn unlink_child;
     open_fn open;
     stat_fn stat;
 
@@ -62,6 +67,7 @@ typedef struct file_ops {
 
 struct inode {
     file_ops* fops;
+    nlink_t num_links;
     dev_t device_id;
     unix_socket* bound_socket;
     mode_t mode;
@@ -70,6 +76,9 @@ struct inode {
 NODISCARD struct inode* fs_lookup_child(struct inode*, const char* name);
 NODISCARD struct inode* fs_create_child(struct inode*, const char* name,
                                         mode_t mode);
+NODISCARD int fs_link_child(struct inode*, const char* name,
+                            struct inode* child);
+NODISCARD int fs_unlink_child(struct inode*, const char* name);
 NODISCARD file_description* fs_open(struct inode*, int flags, mode_t mode);
 NODISCARD int fs_stat(struct inode*, struct stat* buf);
 
