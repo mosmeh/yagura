@@ -32,6 +32,11 @@ static noreturn void shm_reader(void) {
 static void test_fs(void) {
     puts("File system");
 
+    unlink("/tmp/test-fs/bar");
+    unlink("/tmp/test-fs/baz");
+    unlink("/tmp/test-fs/qux");
+    rmdir("/tmp/test-fs");
+
     ASSERT_OK(mkdir("/tmp/test-fs", 0));
 
     ASSERT_ERR(open("/tmp/test-fs/bar", 0));
@@ -104,6 +109,7 @@ static void test_fs(void) {
         ASSERT(read(fd, buf, 50000 * sizeof(int)) == 0);
         ASSERT_OK(close(fd));
     }
+    unlink("/dev/shm/test-fs");
     {
         int fd = open("/dev/shm/test-fs", O_RDWR | O_CREAT | O_EXCL);
         ASSERT_OK(fd);
@@ -193,6 +199,7 @@ static void test_socket(void) {
 
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     ASSERT_OK(sockfd);
+    unlink("/tmp/test-socket");
     sockaddr_un addr = {AF_UNIX, "/tmp/test-socket"};
     ASSERT_OK(bind(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un)));
     ASSERT_OK(listen(sockfd, 5));
