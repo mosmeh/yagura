@@ -30,9 +30,9 @@ static noreturn void init(void) {
 extern unsigned char kernel_end[];
 extern unsigned char stack_top[];
 
-static void create_char_device(const char* pathname, struct file* device_file) {
-    ASSERT_OK(vfs_register_device(device_file));
-    ASSERT_OK(sys_mknod(pathname, S_IFCHR, device_file->device_id));
+static void create_char_device(const char* pathname, struct inode* device) {
+    ASSERT_OK(vfs_register_device(device));
+    ASSERT_OK(sys_mknod(pathname, S_IFCHR, device->device_id));
 }
 
 void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {

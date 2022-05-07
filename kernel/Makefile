@@ -11,10 +11,10 @@ OBJS := \
 	console/system_console.o \
 	console/tty.o \
 	fs/fifo.o \
+	fs/dentry.o \
 	fs/fs.o \
 	fs/initrd.o \
 	fs/tmpfs.o \
-	fs/tree.o \
 	fs/vfs.o \
 	gdt.o \
 	graphics/bochs.o \

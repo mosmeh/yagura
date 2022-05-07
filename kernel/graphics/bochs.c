@@ -112,20 +112,14 @@ static int bochs_fb_device_ioctl(file_description* desc, int request,
     return -EINVAL;
 }
 
-struct file* bochs_fb_device_create(void) {
-    struct file* file = kmalloc(sizeof(struct file));
-    if (!file)
-        return ERR_PTR(-ENOMEM);
-    *file = (struct file){0};
-
-    file->name = kstrdup("bochs_fb_device");
-    if (!file->name)
+struct inode* bochs_fb_device_create(void) {
+    struct inode* inode = kmalloc(sizeof(struct inode));
+    if (!inode)
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.mmap = bochs_fb_device_mmap,
                             .ioctl = bochs_fb_device_ioctl};
-    file->fops = &fops;
-    file->mode = S_IFBLK;
-    file->device_id = makedev(29, 0);
-    return file;
+    *inode = (struct inode){
+        .fops = &fops, .mode = S_IFBLK, .device_id = makedev(29, 0)};
+    return inode;
 }

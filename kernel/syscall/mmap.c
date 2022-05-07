@@ -43,7 +43,7 @@ uintptr_t sys_mmap(const mmap_params* params) {
     file_description* desc = process_get_file_description(params->fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    if (S_ISDIR(desc->file->mode))
+    if (S_ISDIR(desc->inode->mode))
         return -ENODEV;
 
     return fs_mmap(desc, addr, params->length, params->offset, page_flags);

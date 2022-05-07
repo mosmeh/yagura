@@ -37,14 +37,9 @@ static int system_console_device_ioctl(file_description* desc, int request,
     return fs_ioctl(active_console, request, argp);
 }
 
-struct file* system_console_device_create(void) {
-    struct file* file = kmalloc(sizeof(struct file));
-    if (!file)
-        return ERR_PTR(-ENOMEM);
-    *file = (struct file){0};
-
-    file->name = kstrdup("system_console_device");
-    if (!file->name)
+struct inode* system_console_device_create(void) {
+    struct inode* inode = kmalloc(sizeof(struct inode));
+    if (!inode)
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {
@@ -52,8 +47,7 @@ struct file* system_console_device_create(void) {
         .write = system_console_device_write,
         .ioctl = system_console_device_ioctl,
     };
-    file->fops = &fops;
-    file->mode = S_IFCHR;
-    file->device_id = makedev(5, 1);
-    return file;
+    *inode = (struct inode){
+        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(5, 1)};
+    return inode;
 }

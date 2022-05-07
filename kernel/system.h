@@ -41,6 +41,6 @@ noreturn void reboot(void);
 noreturn void halt(void);
 noreturn void poweroff(void);
 
-struct file* null_device_create(void);
-struct file* zero_device_create(void);
-struct file* full_device_create(void);
+struct inode* null_device_create(void);
+struct inode* zero_device_create(void);
+struct inode* full_device_create(void);

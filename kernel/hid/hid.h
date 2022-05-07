@@ -34,5 +34,5 @@ static inline void ps2_write(uint8_t port, uint8_t data) {
 }
 
 void ps2_init(void);
-struct file* ps2_keyboard_device_create(void);
-struct file* ps2_mouse_device_create(void);
+struct inode* ps2_keyboard_device_create(void);
+struct inode* ps2_mouse_device_create(void);

@@ -101,19 +101,13 @@ static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
     }
 }
 
-struct file* ps2_mouse_device_create(void) {
-    struct file* file = kmalloc(sizeof(struct file));
-    if (!file)
-        return ERR_PTR(-ENOMEM);
-    *file = (struct file){0};
-
-    file->name = kstrdup("ps2_mouse_device");
-    if (!file->name)
+struct inode* ps2_mouse_device_create(void) {
+    struct inode* inode = kmalloc(sizeof(struct inode));
+    if (!inode)
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.read = ps2_mouse_device_read};
-    file->fops = &fops;
-    file->mode = S_IFCHR;
-    file->device_id = makedev(10, 0);
-    return file;
+    *inode = (struct inode){
+        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(10, 0)};
+    return inode;
 }

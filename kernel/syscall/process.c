@@ -197,10 +197,10 @@ uintptr_t sys_getcwd(char* buf, size_t size) {
 }
 
 uintptr_t sys_chdir(const char* path) {
-    struct file* file = vfs_resolve_path(path, current->cwd, NULL, NULL);
-    if (IS_ERR(file))
-        return PTR_ERR(file);
-    if (!S_ISDIR(file->mode))
+    struct inode* inode = vfs_resolve_path(path, current->cwd, NULL, NULL);
+    if (IS_ERR(inode))
+        return PTR_ERR(inode);
+    if (!S_ISDIR(inode->mode))
         return -ENOTDIR;
     current->cwd = vfs_canonicalize_path(path, current->cwd);
     return 0;

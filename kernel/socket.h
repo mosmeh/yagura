@@ -4,7 +4,7 @@
 #include "ring_buf.h"
 
 typedef struct unix_socket {
-    struct file base_file;
+    struct inode inode;
     int backlog;
 
     mutex pending_queue_lock;

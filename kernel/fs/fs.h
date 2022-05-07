@@ -14,7 +14,7 @@
 #define OPEN_MAX 1024
 
 typedef struct file_description {
-    struct file* file;
+    struct inode* inode;
     off_t offset;
     int flags;
     size_t ref_count;
@@ -29,11 +29,11 @@ NODISCARD int
 file_descriptor_table_clone_from(file_descriptor_table* to,
                                  const file_descriptor_table* from);
 
-typedef struct file* (*lookup_fn)(struct file*, const char* name);
-typedef struct file* (*create_child_fn)(struct file*, const char* name,
-                                        mode_t mode);
-typedef int (*open_fn)(struct file*, int flags, mode_t mode);
-typedef int (*stat_fn)(struct file*, struct stat* buf);
+typedef struct inode* (*lookup_child_fn)(struct inode*, const char* name);
+typedef struct inode* (*create_child_fn)(struct inode*, const char* name,
+                                         mode_t mode);
+typedef int (*open_fn)(struct inode*, int flags, mode_t mode);
+typedef int (*stat_fn)(struct inode*, struct stat* buf);
 
 typedef int (*close_fn)(file_description*);
 typedef ssize_t (*read_fn)(file_description*, void* buffer, size_t count);
@@ -46,10 +46,11 @@ typedef int (*ioctl_fn)(file_description*, int request, void* argp);
 typedef long (*readdir_fn)(file_description*, void* dirp, unsigned int count);
 
 typedef struct file_ops {
-    lookup_fn lookup;
+    lookup_child_fn lookup_child;
     create_child_fn create_child;
     open_fn open;
     stat_fn stat;
+
     close_fn close;
     read_fn read;
     write_fn write;
@@ -59,18 +60,18 @@ typedef struct file_ops {
     readdir_fn readdir;
 } file_ops;
 
-struct file {
-    char* name;
+struct inode {
     file_ops* fops;
-    mode_t mode;
     dev_t device_id;
     unix_socket* bound_socket;
+    mode_t mode;
 };
 
-struct file* fs_lookup(struct file*, const char* name);
-struct file* fs_create_child(struct file*, const char* name, mode_t mode);
-file_description* fs_open(struct file*, int flags, mode_t mode);
-NODISCARD int fs_stat(struct file*, struct stat* buf);
+NODISCARD struct inode* fs_lookup_child(struct inode*, const char* name);
+NODISCARD struct inode* fs_create_child(struct inode*, const char* name,
+                                        mode_t mode);
+NODISCARD file_description* fs_open(struct inode*, int flags, mode_t mode);
+NODISCARD int fs_stat(struct inode*, struct stat* buf);
 
 int fs_close(file_description*);
 NODISCARD ssize_t fs_read(file_description*, void* buffer, size_t count);
@@ -85,22 +86,21 @@ NODISCARD long fs_readdir(file_description*, void* dirp, unsigned int count);
 NODISCARD int fs_block(file_description*,
                        bool (*should_unblock)(file_description*));
 
-NODISCARD int vfs_mount(const char* path, struct file* root_file);
-NODISCARD int vfs_register_device(struct file* device_file);
+NODISCARD int vfs_mount(const char* path, struct inode* fs_root);
+NODISCARD int vfs_register_device(struct inode* device);
 NODISCARD file_description* vfs_open(const char* pathname, int flags,
                                      mode_t mode);
 NODISCARD int vfs_stat(const char* pathname, struct stat* buf);
-NODISCARD struct file* vfs_create(const char* pathname, mode_t mode);
+NODISCARD struct inode* vfs_create(const char* pathname, mode_t mode);
 char* vfs_canonicalize_path(const char* pathname, const char* parent_path);
-struct file* vfs_resolve_path(const char* pathname, const char* parent_path,
-                              struct file** out_parent,
-                              const char** out_basename);
+struct inode* vfs_resolve_path(const char* pathname, const char* parent_path,
+                               struct inode** out_parent,
+                               const char** out_basename);
 
 uint8_t mode_to_dirent_type(mode_t);
 
-struct fifo* fifo_create(void);
+struct inode* fifo_create(void);
 
 void initrd_populate_root_fs(uintptr_t physical_addr, size_t size);
 
-struct file* tmpfs_create_root(void);
-struct file* procfs_create_root(void);
+struct inode* tmpfs_create_root(void);

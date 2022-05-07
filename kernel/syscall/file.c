@@ -64,9 +64,9 @@ uintptr_t sys_ioctl(int fd, int request, void* argp) {
 }
 
 uintptr_t sys_mkdir(const char* pathname, mode_t mode) {
-    struct file* file = vfs_create(pathname, (mode & 0777) | S_IFDIR);
-    if (IS_ERR(file))
-        return PTR_ERR(file);
+    struct inode* inode = vfs_create(pathname, (mode & 0777) | S_IFDIR);
+    if (IS_ERR(inode))
+        return PTR_ERR(inode);
     return 0;
 }
 
@@ -81,10 +81,10 @@ uintptr_t sys_mknod(const char* pathname, mode_t mode, dev_t dev) {
     default:
         return -EINVAL;
     }
-    struct file* file = vfs_create(pathname, mode);
-    if (IS_ERR(file))
-        return PTR_ERR(file);
-    file->device_id = dev;
+    struct inode* inode = vfs_create(pathname, mode);
+    if (IS_ERR(inode))
+        return PTR_ERR(inode);
+    inode->device_id = dev;
     return 0;
 }
 
@@ -149,13 +149,13 @@ uintptr_t sys_dup2(int oldfd, int newfd) {
 }
 
 uintptr_t sys_pipe(int fifofd[2]) {
-    struct fifo* fifo = fifo_create();
+    struct inode* fifo = fifo_create();
 
-    file_description* reader_desc = fs_open((struct file*)fifo, O_RDONLY, 0);
+    file_description* reader_desc = fs_open(fifo, O_RDONLY, 0);
     if (IS_ERR(reader_desc))
         return PTR_ERR(reader_desc);
 
-    file_description* writer_desc = fs_open((struct file*)fifo, O_WRONLY, 0);
+    file_description* writer_desc = fs_open(fifo, O_WRONLY, 0);
     if (IS_ERR(writer_desc))
         return PTR_ERR(writer_desc);
 

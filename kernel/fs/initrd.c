@@ -65,7 +65,7 @@ void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
                 vfs_open(filename, O_CREAT | O_EXCL | O_WRONLY, mode);
             ASSERT_OK(desc);
 
-            desc->file->device_id = PARSE(header->c_rdev);
+            desc->inode->device_id = PARSE(header->c_rdev);
 
             const unsigned char* file_content =
                 (const unsigned char*)(cursor + sizeof(struct cpio_odc_header) +

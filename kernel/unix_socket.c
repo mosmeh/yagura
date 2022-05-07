@@ -16,14 +16,14 @@ static ring_buf* get_buf_to_write(unix_socket* socket, file_description* desc) {
 }
 
 static bool read_should_unblock(file_description* desc) {
-    unix_socket* socket = (unix_socket*)desc->file;
+    unix_socket* socket = (unix_socket*)desc->inode;
     ring_buf* buf = get_buf_to_read(socket, desc);
     return !ring_buf_is_empty(buf);
 }
 
 static ssize_t unix_socket_read(file_description* desc, void* buffer,
                                 size_t count) {
-    unix_socket* socket = (unix_socket*)desc->file;
+    unix_socket* socket = (unix_socket*)desc->inode;
     ring_buf* buf = get_buf_to_read(socket, desc);
 
     for (;;) {
@@ -43,14 +43,14 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
 }
 
 static bool write_should_unblock(file_description* desc) {
-    unix_socket* socket = (unix_socket*)desc->file;
+    unix_socket* socket = (unix_socket*)desc->inode;
     ring_buf* buf = get_buf_to_write(socket, desc);
     return !ring_buf_is_full(buf);
 }
 
 static ssize_t unix_socket_write(file_description* desc, const void* buffer,
                                  size_t count) {
-    unix_socket* socket = (unix_socket*)desc->file;
+    unix_socket* socket = (unix_socket*)desc->inode;
     ring_buf* buf = get_buf_to_write(socket, desc);
 
     for (;;) {
@@ -75,11 +75,11 @@ unix_socket* unix_socket_create(void) {
         return ERR_PTR(-ENOMEM);
     *socket = (unix_socket){0};
 
-    struct file* file = &socket->base_file;
+    struct inode* inode = &socket->inode;
     static file_ops fops = {.read = unix_socket_read,
                             .write = unix_socket_write};
-    file->fops = &fops;
-    file->mode = S_IFSOCK;
+    inode->fops = &fops;
+    inode->mode = S_IFSOCK;
 
     atomic_init(&socket->num_pending, 0);
     mutex_init(&socket->pending_queue_lock);
@@ -149,7 +149,7 @@ static bool connect_should_unblock(atomic_bool* connected) {
 }
 
 int unix_socket_connect(file_description* connector_fd, unix_socket* listener) {
-    unix_socket* connector = (unix_socket*)connector_fd->file;
+    unix_socket* connector = (unix_socket*)connector_fd->inode;
     connector->connector_fd = connector_fd;
 
     if (atomic_load_explicit(&listener->num_pending, memory_order_acquire) >=

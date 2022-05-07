@@ -35,53 +35,35 @@ static ssize_t write_to_full_disk(file_description* desc, const void* buffer,
     return 0;
 }
 
-struct file* null_device_create(void) {
-    struct file* file = kmalloc(sizeof(struct file));
-    if (!file)
-        return ERR_PTR(-ENOMEM);
-    *file = (struct file){0};
-
-    file->name = kstrdup("null_device");
-    if (!file->name)
+struct inode* null_device_create(void) {
+    struct inode* inode = kmalloc(sizeof(struct inode));
+    if (!inode)
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.read = read_nothing, .write = write_to_bit_bucket};
-    file->fops = &fops;
-    file->mode = S_IFCHR;
-    file->device_id = makedev(1, 3);
-    return file;
+    *inode = (struct inode){
+        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(1, 3)};
+    return inode;
 }
 
-struct file* zero_device_create(void) {
-    struct file* file = kmalloc(sizeof(struct file));
-    if (!file)
-        return ERR_PTR(-ENOMEM);
-    *file = (struct file){0};
-
-    file->name = kstrdup("zero_device");
-    if (!file->name)
+struct inode* zero_device_create(void) {
+    struct inode* inode = kmalloc(sizeof(struct inode));
+    if (!inode)
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.read = read_zeros, .write = write_to_bit_bucket};
-    file->fops = &fops;
-    file->mode = S_IFCHR;
-    file->device_id = makedev(1, 5);
-    return file;
+    *inode = (struct inode){
+        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(1, 5)};
+    return inode;
 }
 
-struct file* full_device_create(void) {
-    struct file* file = kmalloc(sizeof(struct file));
-    if (!file)
-        return ERR_PTR(-ENOMEM);
-    *file = (struct file){0};
-
-    file->name = kstrdup("full_device");
-    if (!file->name)
+struct inode* full_device_create(void) {
+    struct inode* inode = kmalloc(sizeof(struct inode));
+    if (!inode)
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.read = read_zeros, .write = write_to_full_disk};
-    file->fops = &fops;
-    file->mode = S_IFCHR;
-    file->device_id = makedev(1, 7);
-    return file;
+    *inode = (struct inode){
+        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(1, 7)};
+    return inode;
 }

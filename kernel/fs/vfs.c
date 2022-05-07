@@ -9,21 +9,21 @@
 #include <string.h>
 
 typedef struct mount_point {
-    struct file* host;
-    struct file* guest;
+    struct inode* host;
+    struct inode* guest;
     struct mount_point* next;
 } mount_point;
 
 typedef struct device {
-    struct file* file;
+    struct inode* inode;
     struct device* next;
 } device;
 
-static struct file* root;
+static struct inode* root;
 static mount_point* mount_points;
 static device* devices;
 
-static int mount_at(struct file* host, struct file* guest) {
+static int mount_at(struct inode* host, struct inode* guest) {
     mount_point* mp = kmalloc(sizeof(mount_point));
     if (!mp)
         return -ENOMEM;
@@ -41,7 +41,7 @@ static int mount_at(struct file* host, struct file* guest) {
     return 0;
 }
 
-static struct file* get_mounted_guest(const struct file* host) {
+static struct inode* find_mounted_guest(const struct inode* host) {
     mount_point* it = mount_points;
     while (it) {
         if (it->host == host)
@@ -55,12 +55,11 @@ static bool is_absolute_path(const char* path) {
     return path[0] == PATH_SEPARATOR;
 }
 
-int vfs_mount(const char* path, struct file* root_file) {
+int vfs_mount(const char* path, struct inode* fs_root) {
     ASSERT(is_absolute_path(path));
 
     if (path[0] == PATH_SEPARATOR && path[1] == '\0') {
-        root = root_file;
-        kprintf("Mounted \"%s\" at /\n", root_file->name);
+        root = fs_root;
         return 0;
     }
     ASSERT(root);
@@ -68,35 +67,34 @@ int vfs_mount(const char* path, struct file* root_file) {
     char* dup_path = kstrdup(path);
     ASSERT(dup_path);
 
-    struct file* parent = root;
+    struct inode* parent = root;
     char* saved_ptr;
     for (const char* component =
              strtok_r(dup_path, PATH_SEPARATOR_STR, &saved_ptr);
          component;
          component = strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr)) {
-        struct file* child = fs_lookup(parent, component);
+        struct inode* child = fs_lookup_child(parent, component);
         if (IS_ERR(child))
             return PTR_ERR(child);
         parent = child;
     }
-    int rc = mount_at(parent, root_file);
+    int rc = mount_at(parent, fs_root);
     if (IS_ERR(rc))
         return rc;
 
-    kprintf("Mounted \"%s\" at %s\n", root_file->name, path);
     return 0;
 }
 
-int vfs_register_device(struct file* device_file) {
+int vfs_register_device(struct inode* inode) {
     device* dev = kmalloc(sizeof(device));
     if (!dev)
         return -ENOMEM;
-    dev->file = device_file;
+    dev->inode = inode;
     dev->next = NULL;
     if (devices) {
         device* it = devices;
         for (;;) {
-            if (it->file->device_id == device_file->device_id)
+            if (it->inode->device_id == inode->device_id)
                 return -EEXIST;
             if (!it->next)
                 break;
@@ -106,16 +104,14 @@ int vfs_register_device(struct file* device_file) {
     } else {
         devices = dev;
     }
-    kprintf("Registered device \"%s\" (%d:%d)\n", device_file->name,
-            major(device_file->device_id), minor(device_file->device_id));
     return 0;
 }
 
-static struct file* get_device(dev_t id) {
+static struct inode* find_device(dev_t id) {
     device* it = devices;
     while (it) {
-        if (it->file->device_id == id)
-            return it->file;
+        if (it->inode->device_id == id)
+            return it->inode;
         it = it->next;
     }
     return NULL;
@@ -222,9 +218,9 @@ static int create_path_component_list(const char* pathname,
     return 0;
 }
 
-struct file* vfs_resolve_path(const char* pathname, const char* parent_path,
-                              struct file** out_parent,
-                              const char** out_basename) {
+struct inode* vfs_resolve_path(const char* pathname, const char* parent_path,
+                               struct inode** out_parent,
+                               const char** out_basename) {
     ASSERT(root);
 
     list_node* component_list = NULL;
@@ -237,7 +233,7 @@ struct file* vfs_resolve_path(const char* pathname, const char* parent_path,
     if (num_components == 0)
         return root;
 
-    struct file* parent = root;
+    struct inode* parent = root;
     size_t i = 0;
     for (list_node* node = component_list; node; node = node->next) {
         const char* component = node->value;
@@ -248,11 +244,11 @@ struct file* vfs_resolve_path(const char* pathname, const char* parent_path,
                 *out_basename = component;
         }
 
-        struct file* child = fs_lookup(parent, component);
+        struct inode* child = fs_lookup_child(parent, component);
         if (IS_ERR(child))
             return child;
 
-        struct file* guest = get_mounted_guest(child);
+        struct inode* guest = find_mounted_guest(child);
         if (guest)
             child = guest;
 
@@ -297,52 +293,52 @@ char* vfs_canonicalize_path(const char* pathname, const char* parent_path) {
 }
 
 file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
-    struct file* parent = NULL;
+    struct inode* parent = NULL;
     const char* basename = NULL;
-    struct file* file =
+    struct inode* inode =
         vfs_resolve_path(pathname, current->cwd, &parent, &basename);
-    if (IS_OK(file) && (flags & O_EXCL))
+    if (IS_OK(inode) && (flags & O_EXCL))
         return ERR_PTR(-EEXIST);
-    if (IS_ERR(file)) {
-        if ((flags & O_CREAT) && PTR_ERR(file) == -ENOENT && parent)
-            file = fs_create_child(parent, basename, mode);
+    if (IS_ERR(inode)) {
+        if ((flags & O_CREAT) && PTR_ERR(inode) == -ENOENT && parent)
+            inode = fs_create_child(parent, basename, mode);
         else
-            return ERR_CAST(file);
+            return ERR_CAST(inode);
     }
 
-    if (S_ISBLK(file->mode) || S_ISCHR(file->mode)) {
-        struct file* device_file = get_device(file->device_id);
-        if (!device_file)
+    if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
+        struct inode* device = find_device(inode->device_id);
+        if (!device)
             return ERR_PTR(-ENODEV);
-        file = device_file;
+        inode = device;
     }
 
-    return fs_open(file, flags, mode);
+    return fs_open(inode, flags, mode);
 }
 
 int vfs_stat(const char* pathname, struct stat* buf) {
-    struct file* file = vfs_resolve_path(pathname, current->cwd, NULL, NULL);
-    if (IS_ERR(file))
-        return PTR_ERR(file);
+    struct inode* inode = vfs_resolve_path(pathname, current->cwd, NULL, NULL);
+    if (IS_ERR(inode))
+        return PTR_ERR(inode);
 
-    if (S_ISBLK(file->mode) || S_ISCHR(file->mode)) {
-        struct file* device_file = get_device(file->device_id);
-        if (!device_file)
+    if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
+        struct inode* device = find_device(inode->device_id);
+        if (!device)
             return -ENODEV;
-        file = device_file;
+        inode = device;
     }
 
-    return fs_stat(file, buf);
+    return fs_stat(inode, buf);
 }
 
-struct file* vfs_create(const char* pathname, mode_t mode) {
-    struct file* parent = NULL;
+struct inode* vfs_create(const char* pathname, mode_t mode) {
+    struct inode* parent = NULL;
     const char* basename = NULL;
-    struct file* file =
+    struct inode* inode =
         vfs_resolve_path(pathname, current->cwd, &parent, &basename);
-    if (IS_OK(file))
+    if (IS_OK(inode))
         return ERR_PTR(-EEXIST);
-    if (PTR_ERR(file) != -ENOENT || !parent)
-        return file;
+    if (PTR_ERR(inode) != -ENOENT || !parent)
+        return inode;
     return fs_create_child(parent, basename, mode);
 }

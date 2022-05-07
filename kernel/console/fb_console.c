@@ -594,21 +594,15 @@ static int fb_console_device_ioctl(file_description* desc, int request,
     return -EINVAL;
 }
 
-struct file* fb_console_device_create(void) {
-    struct file* file = kmalloc(sizeof(struct file));
-    if (!file)
-        return ERR_PTR(-ENOMEM);
-    *file = (struct file){0};
-
-    file->name = kstrdup("fb_console_device");
-    if (!file->name)
+struct inode* fb_console_device_create(void) {
+    struct inode* inode = kmalloc(sizeof(struct inode));
+    if (!inode)
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.read = fb_console_device_read,
                             .write = fb_console_device_write,
                             .ioctl = fb_console_device_ioctl};
-    file->fops = &fops;
-    file->mode = S_IFCHR;
-    file->device_id = makedev(5, 0);
-    return file;
+    *inode = (struct inode){
+        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(5, 0)};
+    return inode;
 }

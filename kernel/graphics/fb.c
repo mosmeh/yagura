@@ -2,10 +2,10 @@
 #include <stddef.h>
 
 bool bochs_fb_init(void);
-struct file* bochs_fb_device_create(void);
+struct inode* bochs_fb_device_create(void);
 
 bool multiboot_fb_init(const multiboot_info_t* mb_info);
-struct file* multiboot_fb_device_create(void);
+struct inode* multiboot_fb_device_create(void);
 
 static bool bochs_is_available = false;
 static bool multiboot_is_available = false;
@@ -22,7 +22,7 @@ bool fb_init(const multiboot_info_t* mb_info) {
     return false;
 }
 
-struct file* fb_device_create(void) {
+struct inode* fb_device_create(void) {
     if (bochs_is_available)
         return bochs_fb_device_create();
     if (multiboot_is_available)

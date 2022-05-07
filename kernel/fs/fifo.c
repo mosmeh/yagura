@@ -8,18 +8,18 @@
 #define BUF_CAPACITY 1024
 
 struct fifo {
-    struct file base_file;
+    struct inode inode;
     ring_buf buf;
     atomic_size_t num_readers;
     atomic_size_t num_writers;
 };
 
-static int fifo_open(struct file* file, int flags, mode_t mode) {
+static int fifo_open(struct inode* inode, int flags, mode_t mode) {
     (void)flags;
     (void)mode;
     if ((flags & O_RDONLY) && (flags & O_WRONLY))
         return -EINVAL;
-    struct fifo* fifo = (struct fifo*)file;
+    struct fifo* fifo = (struct fifo*)inode;
     if (flags & O_RDONLY)
         atomic_fetch_add_explicit(&fifo->num_readers, 1, memory_order_acq_rel);
     if (flags & O_WRONLY)
@@ -29,7 +29,7 @@ static int fifo_open(struct file* file, int flags, mode_t mode) {
 
 static int fifo_close(file_description* desc) {
     ASSERT(!((desc->flags & O_RDONLY) && (desc->flags & O_WRONLY)));
-    struct fifo* fifo = (struct fifo*)desc->file;
+    struct fifo* fifo = (struct fifo*)desc->inode;
     if (desc->flags & O_RDONLY)
         atomic_fetch_sub_explicit(&fifo->num_readers, 1, memory_order_acq_rel);
     if (desc->flags & O_WRONLY)
@@ -38,14 +38,14 @@ static int fifo_close(file_description* desc) {
 }
 
 static bool read_should_unblock(file_description* desc) {
-    const struct fifo* fifo = (const struct fifo*)desc->file;
+    const struct fifo* fifo = (const struct fifo*)desc->inode;
     bool no_writer =
         atomic_load_explicit(&fifo->num_writers, memory_order_acquire) == 0;
     return no_writer || !ring_buf_is_empty(&fifo->buf);
 }
 
 static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
-    struct fifo* fifo = (struct fifo*)desc->file;
+    struct fifo* fifo = (struct fifo*)desc->inode;
     ring_buf* buf = &fifo->buf;
 
     for (;;) {
@@ -69,7 +69,7 @@ static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
 }
 
 static bool write_should_unblock(struct file_description* desc) {
-    struct fifo* fifo = (struct fifo*)desc->file;
+    struct fifo* fifo = (struct fifo*)desc->inode;
     bool no_reader =
         atomic_load_explicit(&fifo->num_readers, memory_order_acquire) == 0;
     return no_reader || !ring_buf_is_full(&fifo->buf);
@@ -77,7 +77,7 @@ static bool write_should_unblock(struct file_description* desc) {
 
 static ssize_t fifo_write(file_description* desc, const void* buffer,
                           size_t count) {
-    struct fifo* fifo = (struct fifo*)desc->file;
+    struct fifo* fifo = (struct fifo*)desc->inode;
     ring_buf* buf = &fifo->buf;
 
     for (;;) {
@@ -107,7 +107,7 @@ static ssize_t fifo_write(file_description* desc, const void* buffer,
     }
 }
 
-struct fifo* fifo_create(void) {
+struct inode* fifo_create(void) {
     struct fifo* fifo = kmalloc(sizeof(struct fifo));
     if (!fifo)
         return ERR_PTR(-ENOMEM);
@@ -120,17 +120,13 @@ struct fifo* fifo_create(void) {
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
-    struct file* file = &fifo->base_file;
-    file->name = kstrdup("fifo");
-    if (!file->name)
-        return ERR_PTR(-ENOMEM);
-
+    struct inode* inode = &fifo->inode;
     static file_ops fops = {.open = fifo_open,
                             .close = fifo_close,
                             .read = fifo_read,
                             .write = fifo_write};
-    file->fops = &fops;
-    file->mode = S_IFIFO;
+    inode->fops = &fops;
+    inode->mode = S_IFIFO;
 
-    return fifo;
+    return (struct inode*)fifo;
 }

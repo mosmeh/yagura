@@ -1,27 +1,35 @@
-#include "tree.h"
-#include <common/extra.h>
+#include "dentry.h"
 #include <kernel/boot_defs.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <string.h>
 
-typedef struct tmpfs_node {
-    struct tree_node base_tree;
+typedef struct tmpfs_inode {
+    struct inode inode;
     uintptr_t buf_addr;
     size_t capacity, size;
     mutex lock;
-} tmpfs_node;
+    struct dentry* children;
+} tmpfs_inode;
 
-static int tmpfs_stat(struct file* file, struct stat* buf) {
-    tmpfs_node* node = (tmpfs_node*)file;
-    buf->st_mode = file->mode;
+static struct inode* tmpfs_lookup_child(struct inode* inode, const char* name) {
+    tmpfs_inode* node = (tmpfs_inode*)inode;
+    mutex_lock(&node->lock);
+    struct inode* child = dentry_find(node->children, name);
+    mutex_unlock(&node->lock);
+    return child;
+}
+
+static int tmpfs_stat(struct inode* inode, struct stat* buf) {
+    tmpfs_inode* node = (tmpfs_inode*)inode;
+    buf->st_mode = inode->mode;
     buf->st_rdev = 0;
     buf->st_size = node->size;
     return 0;
 }
 
 static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t count) {
-    tmpfs_node* node = (tmpfs_node*)desc->file;
+    tmpfs_inode* node = (tmpfs_inode*)desc->inode;
     mutex_lock(&node->lock);
 
     if ((size_t)desc->offset >= node->size) {
@@ -38,7 +46,7 @@ static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t count) {
     return count;
 }
 
-static int grow_buf(tmpfs_node* node, size_t requested_size) {
+static int grow_buf(tmpfs_inode* node, size_t requested_size) {
     size_t new_capacity =
         round_up(MAX(node->capacity * 2, requested_size), PAGE_SIZE);
 
@@ -75,7 +83,7 @@ static int grow_buf(tmpfs_node* node, size_t requested_size) {
 
 static ssize_t tmpfs_write(file_description* desc, const void* buffer,
                            size_t count) {
-    tmpfs_node* node = (tmpfs_node*)desc->file;
+    tmpfs_inode* node = (tmpfs_inode*)desc->inode;
     mutex_lock(&node->lock);
 
     if (desc->offset + count >= node->capacity) {
@@ -100,7 +108,7 @@ static uintptr_t tmpfs_mmap(file_description* desc, uintptr_t addr,
     if (offset != 0 || !(page_flags & PAGE_SHARED))
         return -ENOTSUP;
 
-    tmpfs_node* node = (tmpfs_node*)desc->file;
+    tmpfs_inode* node = (tmpfs_inode*)desc->inode;
     mutex_lock(&node->lock);
 
     if (length > node->size) {
@@ -119,7 +127,7 @@ static uintptr_t tmpfs_mmap(file_description* desc, uintptr_t addr,
 }
 
 static int tmpfs_truncate(file_description* desc, off_t length) {
-    tmpfs_node* node = (tmpfs_node*)desc->file;
+    tmpfs_inode* node = (tmpfs_inode*)desc->inode;
     size_t slength = (size_t)length;
 
     mutex_lock(&node->lock);
@@ -143,56 +151,62 @@ static int tmpfs_truncate(file_description* desc, off_t length) {
     return 0;
 }
 
-static struct file* tmpfs_create_child(struct file* file, const char* name,
-                                       mode_t mode);
+static long tmpfs_readdir(file_description* desc, void* dirp,
+                          unsigned int count) {
+    tmpfs_inode* node = (tmpfs_inode*)desc->inode;
+    mutex_lock(&node->lock);
+    long rc = dentry_readdir(node->children, dirp, count, &desc->offset);
+    mutex_unlock(&node->lock);
+    return rc;
+}
 
-static file_ops dir_fops = {.stat = tmpfs_stat,
-                            .lookup = tree_node_lookup,
+static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
+                                        mode_t mode);
+
+static file_ops dir_fops = {.lookup_child = tmpfs_lookup_child,
                             .create_child = tmpfs_create_child,
-                            .readdir = tree_node_readdir};
+                            .stat = tmpfs_stat,
+                            .readdir = tmpfs_readdir};
 static file_ops non_dir_fops = {.stat = tmpfs_stat,
                                 .read = tmpfs_read,
                                 .write = tmpfs_write,
                                 .mmap = tmpfs_mmap,
                                 .truncate = tmpfs_truncate};
 
-static struct file* tmpfs_create_child(struct file* file, const char* name,
-                                       mode_t mode) {
-    tmpfs_node* node = (tmpfs_node*)file;
-    tmpfs_node* child = kmalloc(sizeof(tmpfs_node));
+static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
+                                        mode_t mode) {
+    tmpfs_inode* child = kmalloc(sizeof(tmpfs_inode));
     if (!child)
         return ERR_PTR(-ENOMEM);
-    *child = (tmpfs_node){0};
+    *child = (tmpfs_inode){0};
 
     mutex_init(&child->lock);
 
-    struct file* child_file = (struct file*)child;
-    child_file->name = kstrdup(name);
-    if (!child_file->name)
-        return ERR_PTR(-ENOMEM);
-    child_file->fops = S_ISDIR(mode) ? &dir_fops : &non_dir_fops;
-    child_file->mode = mode;
+    struct inode* child_inode = &child->inode;
+    child_inode->fops = S_ISDIR(mode) ? &dir_fops : &non_dir_fops;
+    child_inode->mode = mode;
 
+    tmpfs_inode* node = (tmpfs_inode*)inode;
     mutex_lock(&node->lock);
-    tree_node_append_child((tree_node*)node, (tree_node*)child);
+    int rc = dentry_append(&node->children, name, child_inode);
     mutex_unlock(&node->lock);
-    return child_file;
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
+
+    return child_inode;
 }
 
-struct file* tmpfs_create_root(void) {
-    tmpfs_node* root = kmalloc(sizeof(tmpfs_node));
+struct inode* tmpfs_create_root(void) {
+    tmpfs_inode* root = kmalloc(sizeof(tmpfs_inode));
     if (!root)
         return ERR_PTR(-ENOMEM);
-    *root = (tmpfs_node){0};
+    *root = (tmpfs_inode){0};
 
     mutex_init(&root->lock);
 
-    struct file* file = (struct file*)root;
-    file->name = kstrdup("tmpfs");
-    if (!file->name)
-        return ERR_PTR(-ENOMEM);
-    file->fops = &dir_fops;
-    file->mode = S_IFDIR;
+    struct inode* inode = &root->inode;
+    inode->fops = &dir_fops;
+    inode->mode = S_IFDIR;
 
-    return file;
+    return inode;
 }

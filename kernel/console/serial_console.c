@@ -37,12 +37,12 @@ void serial_console_on_char(uint16_t port, char ch) {
 }
 
 typedef struct serial_console_device {
-    struct file base_file;
+    struct inode inode;
     uint16_t port;
 } serial_console_device;
 
 static bool read_should_unblock(file_description* desc) {
-    serial_console_device* dev = (serial_console_device*)desc->file;
+    serial_console_device* dev = (serial_console_device*)desc->inode;
     ring_buf* buf = get_input_buf_for_port(dev->port);
     bool int_flag = push_cli();
     bool should_unblock = !ring_buf_is_empty(buf);
@@ -52,7 +52,7 @@ static bool read_should_unblock(file_description* desc) {
 
 static ssize_t serial_console_device_read(file_description* desc, void* buffer,
                                           size_t count) {
-    serial_console_device* dev = (serial_console_device*)desc->file;
+    serial_console_device* dev = (serial_console_device*)desc->inode;
     ring_buf* buf = get_input_buf_for_port(dev->port);
 
     for (;;) {
@@ -73,7 +73,7 @@ static ssize_t serial_console_device_read(file_description* desc, void* buffer,
 
 static ssize_t serial_console_device_write(file_description* desc,
                                            const void* buffer, size_t count) {
-    serial_console_device* dev = (serial_console_device*)desc->file;
+    serial_console_device* dev = (serial_console_device*)desc->inode;
     return serial_write(dev->port, (const char*)buffer, count);
 }
 
@@ -97,7 +97,7 @@ static int serial_console_device_ioctl(file_description* desc, int request,
     return -EINVAL;
 }
 
-struct file* serial_console_device_create(uint16_t port) {
+struct inode* serial_console_device_create(uint16_t port) {
     if (!serial_is_valid_port(port))
         return NULL;
 
@@ -108,17 +108,13 @@ struct file* serial_console_device_create(uint16_t port) {
 
     dev->port = port;
 
-    struct file* file = (struct file*)dev;
-    file->name = kstrdup("serial_console_device");
-    if (!file->name)
-        return ERR_PTR(-ENOMEM);
-
+    struct inode* inode = (struct inode*)dev;
     static file_ops fops = {.read = serial_console_device_read,
                             .write = serial_console_device_write,
                             .ioctl = serial_console_device_ioctl};
-    file->fops = &fops;
-    file->mode = S_IFCHR;
-    file->device_id = makedev(4, 63 + (dev_t)serial_port_to_com_number(port));
+    inode->fops = &fops;
+    inode->mode = S_IFCHR;
+    inode->device_id = makedev(4, 63 + (dev_t)serial_port_to_com_number(port));
 
-    return file;
+    return inode;
 }
