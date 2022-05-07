@@ -25,8 +25,11 @@ static device* devices;
 
 static int mount_at(struct inode* host, struct inode* guest) {
     mount_point* mp = kmalloc(sizeof(mount_point));
-    if (!mp)
+    if (!mp) {
+        inode_unref(host);
+        inode_unref(guest);
         return -ENOMEM;
+    }
     mp->host = host;
     mp->guest = guest;
     mp->next = NULL;
@@ -41,13 +44,17 @@ static int mount_at(struct inode* host, struct inode* guest) {
     return 0;
 }
 
-static struct inode* find_mounted_guest(const struct inode* host) {
+static struct inode* find_mounted_guest(struct inode* host) {
     mount_point* it = mount_points;
     while (it) {
-        if (it->host == host)
+        if (it->host == host) {
+            inode_unref(host);
+            inode_ref(it->guest);
             return it->guest;
+        }
         it = it->next;
     }
+    inode_unref(host);
     return NULL;
 }
 
@@ -62,12 +69,11 @@ int vfs_mount(const char* path, struct inode* fs_root) {
         root = fs_root;
         return 0;
     }
-    ASSERT(root);
 
     char* dup_path = kstrdup(path);
     ASSERT(dup_path);
 
-    struct inode* parent = root;
+    struct inode* parent = vfs_get_root();
     char* saved_ptr;
     for (const char* component =
              strtok_r(dup_path, PATH_SEPARATOR_STR, &saved_ptr);
@@ -85,33 +91,43 @@ int vfs_mount(const char* path, struct inode* fs_root) {
     return 0;
 }
 
+struct inode* vfs_get_root(void) {
+    ASSERT(root);
+    inode_ref(root);
+    return root;
+}
+
 int vfs_register_device(struct inode* inode) {
+    device** dest = &devices;
+    if (devices) {
+        device* it = devices;
+        for (;;) {
+            if (it->inode->device_id == inode->device_id) {
+                inode_unref(inode);
+                return -EEXIST;
+            }
+            if (!it->next)
+                break;
+            it = it->next;
+        }
+        dest = &it->next;
+    }
     device* dev = kmalloc(sizeof(device));
     if (!dev)
         return -ENOMEM;
     dev->inode = inode;
     dev->next = NULL;
-    if (devices) {
-        device* it = devices;
-        for (;;) {
-            if (it->inode->device_id == inode->device_id)
-                return -EEXIST;
-            if (!it->next)
-                break;
-            it = it->next;
-        }
-        it->next = dev;
-    } else {
-        devices = dev;
-    }
+    *dest = dev;
     return 0;
 }
 
 static struct inode* find_device(dev_t id) {
     device* it = devices;
     while (it) {
-        if (it->inode->device_id == id)
+        if (it->inode->device_id == id) {
+            inode_ref(it->inode);
             return it->inode;
+        }
         it = it->next;
     }
     return NULL;
@@ -169,7 +185,7 @@ static int create_path_component_list(const char* pathname,
     size_t num_components = 0;
 
     if (!is_absolute_path(pathname)) {
-        char* dup_cwd = kstrdup(current->cwd);
+        char* dup_cwd = kstrdup(current->cwd_path);
         if (!dup_cwd)
             return -ENOMEM;
 
@@ -219,8 +235,6 @@ static int create_path_component_list(const char* pathname,
 
 struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
                                const char** out_basename) {
-    ASSERT(root);
-
     list_node* component_list = NULL;
     size_t num_components = 0;
     int rc =
@@ -229,15 +243,17 @@ struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
         return ERR_PTR(rc);
 
     if (num_components == 0)
-        return root;
+        return vfs_get_root();
 
-    struct inode* parent = root;
+    struct inode* parent = vfs_get_root();
     size_t i = 0;
     for (list_node* node = component_list; node; node = node->next) {
         const char* component = node->value;
         if (i == num_components - 1) { // last component
-            if (out_parent)
+            if (out_parent) {
+                inode_ref(parent);
                 *out_parent = parent;
+            }
             if (out_basename)
                 *out_basename = component;
         }
@@ -246,9 +262,12 @@ struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
         if (IS_ERR(child))
             return child;
 
+        inode_ref(child);
         struct inode* guest = find_mounted_guest(child);
-        if (guest)
+        if (guest) {
+            inode_unref(child);
             child = guest;
+        }
 
         parent = child;
         ++i;
@@ -294,11 +313,16 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
     struct inode* parent = NULL;
     const char* basename = NULL;
     struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
-    if (IS_OK(inode) && (flags & O_EXCL))
+    if (IS_OK(inode) && (flags & O_EXCL)) {
+        inode_unref(parent);
+        inode_unref(inode);
         return ERR_PTR(-EEXIST);
+    }
     if (IS_ERR(inode)) {
-        if (!(flags & O_CREAT) || PTR_ERR(inode) != -ENOENT || !parent)
+        if (!(flags & O_CREAT) || PTR_ERR(inode) != -ENOENT || !parent) {
+            inode_unref(parent);
             return ERR_CAST(inode);
+        }
         inode = inode_create_child(parent, basename, mode);
         if (IS_ERR(inode))
             return ERR_CAST(inode);
@@ -306,6 +330,7 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
 
     if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
         struct inode* device = find_device(inode->device_id);
+        inode_unref(inode);
         if (!device)
             return ERR_PTR(-ENODEV);
         inode = device;
@@ -321,6 +346,7 @@ int vfs_stat(const char* pathname, struct stat* buf) {
 
     if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
         struct inode* device = find_device(inode->device_id);
+        inode_unref(inode);
         if (!device)
             return -ENODEV;
         inode = device;

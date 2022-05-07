@@ -47,7 +47,9 @@ struct inode* system_console_device_create(void) {
         .write = system_console_device_write,
         .ioctl = system_console_device_ioctl,
     };
-    *inode = (struct inode){
-        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(5, 1)};
+    *inode = (struct inode){.fops = &fops,
+                            .mode = S_IFCHR,
+                            .device_id = makedev(5, 1),
+                            .ref_count = 1};
     return inode;
 }

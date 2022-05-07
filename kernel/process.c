@@ -33,8 +33,11 @@ void process_init(void) {
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
-    current->cwd = kstrdup(ROOT_DIR);
-    ASSERT(current->cwd);
+
+    current->cwd_path = kstrdup(ROOT_DIR);
+    ASSERT(current->cwd_path);
+    current->cwd_inode = vfs_get_root();
+
     ASSERT_OK(file_descriptor_table_init(&current->fd_table));
 
     gdt_set_kernel_stack(current->stack_top);
@@ -55,9 +58,10 @@ struct process* process_create_kernel_process(void (*entry_point)(void)) {
     if (IS_ERR(process->pd))
         return ERR_CAST(process->pd);
 
-    process->cwd = kstrdup(ROOT_DIR);
-    if (!process->cwd)
+    process->cwd_path = kstrdup(ROOT_DIR);
+    if (!process->cwd_path)
         return ERR_PTR(-ENOMEM);
+    process->cwd_inode = vfs_get_root();
 
     int rc = file_descriptor_table_init(&process->fd_table);
     if (IS_ERR(rc))
@@ -120,7 +124,8 @@ static noreturn void die(void) {
     }
 
     paging_destroy_current_page_directory();
-    kfree(current->cwd);
+    kfree(current->cwd_path);
+    inode_unref(current->cwd_inode);
 
     cli();
     {

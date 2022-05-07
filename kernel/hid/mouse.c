@@ -107,7 +107,9 @@ struct inode* ps2_mouse_device_create(void) {
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.read = ps2_mouse_device_read};
-    *inode = (struct inode){
-        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(10, 0)};
+    *inode = (struct inode){.fops = &fops,
+                            .mode = S_IFCHR,
+                            .device_id = makedev(10, 0),
+                            .ref_count = 1};
     return inode;
 }

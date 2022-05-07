@@ -60,7 +60,9 @@ struct inode* multiboot_fb_device_create(void) {
 
     static file_ops fops = {.mmap = multiboot_fb_device_mmap,
                             .ioctl = multiboot_fb_device_ioctl};
-    *inode = (struct inode){
-        .fops = &fops, .mode = S_IFBLK, .device_id = makedev(29, 0)};
+    *inode = (struct inode){.fops = &fops,
+                            .mode = S_IFBLK,
+                            .device_id = makedev(29, 0),
+                            .ref_count = 1};
     return inode;
 }

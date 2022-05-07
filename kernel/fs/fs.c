@@ -32,16 +32,39 @@ int file_descriptor_table_clone_from(file_descriptor_table* to,
     return 0;
 }
 
+void inode_ref(struct inode* inode) {
+    ASSERT(inode);
+    ++inode->ref_count;
+}
+
+void inode_unref(struct inode* inode) {
+    if (!inode)
+        return;
+    ASSERT(inode->ref_count > 0);
+    if (--inode->ref_count == 0 && inode->num_links == 0)
+        inode_destroy(inode);
+}
+
+void inode_destroy(struct inode* inode) {
+    ASSERT(inode->ref_count == 0 && inode->num_links == 0);
+    ASSERT(inode->fops->destroy_inode);
+    inode->fops->destroy_inode(inode);
+}
+
 struct inode* inode_lookup_child(struct inode* inode, const char* name) {
-    if (!inode->fops->lookup_child || !S_ISDIR(inode->mode))
+    if (!inode->fops->lookup_child || !S_ISDIR(inode->mode)) {
+        inode_unref(inode);
         return ERR_PTR(-ENOTDIR);
+    }
     return inode->fops->lookup_child(inode, name);
 }
 
 struct inode* inode_create_child(struct inode* inode, const char* name,
                                  mode_t mode) {
-    if (!inode->fops->create_child || !S_ISDIR(inode->mode))
+    if (!inode->fops->create_child || !S_ISDIR(inode->mode)) {
+        inode_unref(inode);
         return ERR_PTR(-ENOTDIR);
+    }
     ASSERT(mode & S_IFMT);
     struct inode* child = inode->fops->create_child(inode, name, mode);
     if (IS_ERR(child))
@@ -52,37 +75,55 @@ struct inode* inode_create_child(struct inode* inode, const char* name,
 
 int inode_link_child(struct inode* inode, const char* name,
                      struct inode* child) {
-    if (!inode->fops->link_child || !S_ISDIR(inode->mode))
+    if (!inode->fops->link_child || !S_ISDIR(inode->mode)) {
+        inode_unref(inode);
+        inode_unref(child);
         return -ENOTDIR;
-    int rc = inode->fops->link_child(inode, name, child);
-    if (IS_ERR(rc))
-        return rc;
+    }
     ++child->num_links;
+    inode_ref(child);
+    int rc = inode->fops->link_child(inode, name, child);
+    if (IS_ERR(rc)) {
+        --child->num_links;
+        inode_unref(child);
+        return rc;
+    }
+    inode_unref(child);
     return 0;
 }
 
 int inode_unlink_child(struct inode* inode, const char* name) {
-    if (!inode->fops->unlink_child || !S_ISDIR(inode->mode))
+    if (!inode->fops->unlink_child || !S_ISDIR(inode->mode)) {
+        inode_unref(inode);
         return -ENOTDIR;
+    }
     struct inode* child = inode->fops->unlink_child(inode, name);
     if (IS_ERR(child))
         return PTR_ERR(child);
     ASSERT(child->num_links > 0);
     --child->num_links;
+    inode_unref(child);
     return 0;
 }
 
 file_description* inode_open(struct inode* inode, int flags, mode_t mode) {
-    if (S_ISDIR(inode->mode) && (flags & O_WRONLY))
+    if (S_ISDIR(inode->mode) && (flags & O_WRONLY)) {
+        inode_unref(inode);
         return ERR_PTR(-EISDIR);
+    }
     if (inode->fops->open) {
+        inode_ref(inode);
         int rc = inode->fops->open(inode, flags, mode);
-        if (IS_ERR(rc))
+        if (IS_ERR(rc)) {
+            inode_unref(inode);
             return ERR_PTR(rc);
+        }
     }
     file_description* desc = kmalloc(sizeof(file_description));
-    if (!desc)
+    if (!desc) {
+        inode_unref(inode);
         return ERR_PTR(-ENOMEM);
+    }
     desc->inode = inode;
     desc->offset = 0;
     desc->flags = flags;
@@ -97,6 +138,7 @@ int inode_stat(struct inode* inode, struct stat* buf) {
     buf->st_mode = inode->mode;
     buf->st_nlink = inode->num_links;
     buf->st_size = 0;
+    inode_unref(inode);
     return 0;
 }
 
@@ -105,8 +147,13 @@ int file_description_close(file_description* desc) {
     if (--desc->ref_count > 0)
         return 0;
     struct inode* inode = desc->inode;
-    if (inode->fops->close)
-        return inode->fops->close(desc);
+    if (inode->fops->close) {
+        int rc = inode->fops->close(desc);
+        if (IS_ERR(rc))
+            return rc;
+    }
+    kfree(desc);
+    inode_unref(inode);
     return 0;
 }
 
@@ -170,6 +217,7 @@ off_t file_description_lseek(file_description* desc, off_t offset, int whence) {
         break;
     case SEEK_END: {
         struct stat stat;
+        inode_ref(desc->inode);
         int rc = inode_stat(desc->inode, &stat);
         if (IS_ERR(rc))
             return rc;

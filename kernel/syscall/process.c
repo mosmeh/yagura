@@ -65,9 +65,11 @@ uintptr_t sys_fork(registers* regs) {
     process->user_ticks = current->user_ticks;
     process->kernel_ticks = current->kernel_ticks;
 
-    process->cwd = kstrdup(current->cwd);
-    if (!process->cwd)
+    process->cwd_path = kstrdup(current->cwd_path);
+    if (!process->cwd_path)
         return -ENOMEM;
+    process->cwd_inode = current->cwd_inode;
+    inode_ref(process->cwd_inode);
 
     int rc = file_descriptor_table_clone_from(&process->fd_table,
                                               &current->fd_table);
@@ -190,18 +192,28 @@ uintptr_t sys_times(struct tms* buf) {
 uintptr_t sys_getcwd(char* buf, size_t size) {
     if (!buf || size == 0)
         return -EINVAL;
-    if (size < strlen(current->cwd) + 1)
+    if (size < strlen(current->cwd_path) + 1)
         return -ERANGE;
-    strlcpy(buf, current->cwd, size);
+    strlcpy(buf, current->cwd_path, size);
     return (uintptr_t)buf;
 }
 
 uintptr_t sys_chdir(const char* path) {
+    char* new_cwd_path = vfs_canonicalize_path(path);
+    if (IS_ERR(new_cwd_path))
+        return PTR_ERR(new_cwd_path);
+
     struct inode* inode = vfs_resolve_path(path, NULL, NULL);
     if (IS_ERR(inode))
         return PTR_ERR(inode);
-    if (!S_ISDIR(inode->mode))
+    if (!S_ISDIR(inode->mode)) {
+        inode_unref(inode);
         return -ENOTDIR;
-    current->cwd = vfs_canonicalize_path(path);
+    }
+
+    inode_unref(current->cwd_inode);
+    current->cwd_path = new_cwd_path;
+    current->cwd_inode = inode;
+
     return 0;
 }

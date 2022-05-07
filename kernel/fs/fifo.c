@@ -14,6 +14,12 @@ struct fifo {
     atomic_size_t num_writers;
 };
 
+static void fifo_destroy_inode(struct inode* inode) {
+    struct fifo* fifo = (struct fifo*)inode;
+    ring_buf_destroy(&fifo->buf);
+    kfree(fifo);
+}
+
 static int fifo_open(struct inode* inode, int flags, mode_t mode) {
     (void)flags;
     (void)mode;
@@ -23,7 +29,8 @@ static int fifo_open(struct inode* inode, int flags, mode_t mode) {
     if (flags & O_RDONLY)
         atomic_fetch_add_explicit(&fifo->num_readers, 1, memory_order_acq_rel);
     if (flags & O_WRONLY)
-        atomic_fetch_add_explicit(&fifo->num_writers, 1, memory_order_acq_rel);
+        ++fifo->num_writers;
+    inode_unref(inode);
     return 0;
 }
 
@@ -121,12 +128,14 @@ struct inode* fifo_create(void) {
         return ERR_PTR(rc);
 
     struct inode* inode = &fifo->inode;
-    static file_ops fops = {.open = fifo_open,
+    static file_ops fops = {.destroy_inode = fifo_destroy_inode,
+                            .open = fifo_open,
                             .close = fifo_close,
                             .read = fifo_read,
                             .write = fifo_write};
     inode->fops = &fops;
     inode->mode = S_IFIFO;
+    inode->ref_count = 1;
 
     return (struct inode*)fifo;
 }

@@ -602,7 +602,9 @@ struct inode* fb_console_device_create(void) {
     static file_ops fops = {.read = fb_console_device_read,
                             .write = fb_console_device_write,
                             .ioctl = fb_console_device_ioctl};
-    *inode = (struct inode){
-        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(5, 0)};
+    *inode = (struct inode){.fops = &fops,
+                            .mode = S_IFCHR,
+                            .device_id = makedev(5, 0),
+                            .ref_count = 1};
     return inode;
 }

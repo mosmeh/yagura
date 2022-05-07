@@ -31,8 +31,8 @@ extern unsigned char kernel_end[];
 extern unsigned char stack_top[];
 
 static void create_char_device(const char* pathname, struct inode* device) {
-    ASSERT_OK(vfs_register_device(device));
     ASSERT_OK(sys_mknod(pathname, S_IFCHR, device->device_id));
+    ASSERT_OK(vfs_register_device(device));
 }
 
 void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
@@ -58,9 +58,10 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     uintptr_t initrd_size = initrd_mod->mod_end - initrd_mod->mod_start;
 
     paging_init(mb_info);
-    process_init();
 
     ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));
+
+    process_init();
 
     initrd_populate_root_fs(initrd_paddr, initrd_size);
 

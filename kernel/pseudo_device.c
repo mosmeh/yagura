@@ -41,8 +41,10 @@ struct inode* null_device_create(void) {
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.read = read_nothing, .write = write_to_bit_bucket};
-    *inode = (struct inode){
-        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(1, 3)};
+    *inode = (struct inode){.fops = &fops,
+                            .mode = S_IFCHR,
+                            .device_id = makedev(1, 3),
+                            .ref_count = 1};
     return inode;
 }
 
@@ -52,8 +54,10 @@ struct inode* zero_device_create(void) {
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.read = read_zeros, .write = write_to_bit_bucket};
-    *inode = (struct inode){
-        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(1, 5)};
+    *inode = (struct inode){.fops = &fops,
+                            .mode = S_IFCHR,
+                            .device_id = makedev(1, 5),
+                            .ref_count = 1};
     return inode;
 }
 
@@ -63,7 +67,9 @@ struct inode* full_device_create(void) {
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.read = read_zeros, .write = write_to_full_disk};
-    *inode = (struct inode){
-        .fops = &fops, .mode = S_IFCHR, .device_id = makedev(1, 7)};
+    *inode = (struct inode){.fops = &fops,
+                            .mode = S_IFCHR,
+                            .device_id = makedev(1, 7),
+                            .ref_count = 1};
     return inode;
 }

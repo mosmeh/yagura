@@ -7,8 +7,10 @@
 struct inode* dentry_find(const struct dentry* head, const char* name) {
     const struct dentry* dentry = head;
     while (dentry) {
-        if (!strcmp(dentry->name, name))
+        if (!strcmp(dentry->name, name)) {
+            inode_ref(dentry->inode);
             return dentry->inode;
+        }
         dentry = dentry->next;
     }
     return ERR_PTR(-ENOENT);

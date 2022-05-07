@@ -3,6 +3,13 @@
 #include "scheduler.h"
 #include "socket.h"
 
+static void unix_socket_destroy_inode(struct inode* inode) {
+    unix_socket* socket = (unix_socket*)inode;
+    ring_buf_destroy(&socket->server_to_client_buf);
+    ring_buf_destroy(&socket->client_to_server_buf);
+    kfree(socket);
+}
+
 static ring_buf* get_buf_to_read(unix_socket* socket, file_description* desc) {
     bool is_client = socket->connector_fd == desc;
     return is_client ? &socket->server_to_client_buf
@@ -76,10 +83,12 @@ unix_socket* unix_socket_create(void) {
     *socket = (unix_socket){0};
 
     struct inode* inode = &socket->inode;
-    static file_ops fops = {.read = unix_socket_read,
+    static file_ops fops = {.destroy_inode = unix_socket_destroy_inode,
+                            .read = unix_socket_read,
                             .write = unix_socket_write};
     inode->fops = &fops;
     inode->mode = S_IFSOCK;
+    inode->ref_count = 1;
 
     atomic_init(&socket->num_pending, 0);
     mutex_init(&socket->pending_queue_lock);

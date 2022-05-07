@@ -29,6 +29,8 @@ NODISCARD int
 file_descriptor_table_clone_from(file_descriptor_table* to,
                                  const file_descriptor_table* from);
 
+typedef void (*destroy_inode_fn)(struct inode*);
+
 typedef struct inode* (*lookup_child_fn)(struct inode*, const char* name);
 typedef struct inode* (*create_child_fn)(struct inode*, const char* name,
                                          mode_t mode);
@@ -49,6 +51,8 @@ typedef int (*ioctl_fn)(file_description*, int request, void* argp);
 typedef long (*readdir_fn)(file_description*, void* dirp, unsigned int count);
 
 typedef struct file_ops {
+    destroy_inode_fn destroy_inode;
+
     lookup_child_fn lookup_child;
     create_child_fn create_child;
     link_child_fn link_child;
@@ -67,12 +71,17 @@ typedef struct file_ops {
 
 struct inode {
     file_ops* fops;
-    nlink_t num_links;
     dev_t device_id;
     unix_socket* bound_socket;
+    nlink_t num_links;
+    size_t ref_count;
     mode_t mode;
 };
 
+void inode_ref(struct inode*);
+void inode_unref(struct inode*);
+
+void inode_destroy(struct inode*);
 NODISCARD struct inode* inode_lookup_child(struct inode*, const char* name);
 NODISCARD struct inode* inode_create_child(struct inode*, const char* name,
                                            mode_t mode);
@@ -102,6 +111,7 @@ NODISCARD int file_description_block(file_description*,
                                      bool (*should_unblock)(file_description*));
 
 NODISCARD int vfs_mount(const char* path, struct inode* fs_root);
+struct inode* vfs_get_root(void);
 NODISCARD int vfs_register_device(struct inode* device);
 NODISCARD file_description* vfs_open(const char* pathname, int flags,
                                      mode_t mode);

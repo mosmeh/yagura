@@ -68,6 +68,7 @@ uintptr_t sys_mkdir(const char* pathname, mode_t mode) {
     struct inode* inode = vfs_create(pathname, (mode & 0777) | S_IFDIR);
     if (IS_ERR(inode))
         return PTR_ERR(inode);
+    inode_unref(inode);
     return 0;
 }
 
@@ -86,6 +87,7 @@ uintptr_t sys_mknod(const char* pathname, mode_t mode, dev_t dev) {
     if (IS_ERR(inode))
         return PTR_ERR(inode);
     inode->device_id = dev;
+    inode_unref(inode);
     return 0;
 }
 
@@ -93,19 +95,30 @@ uintptr_t sys_link(const char* oldpath, const char* newpath) {
     struct inode* old_inode = vfs_resolve_path(oldpath, NULL, NULL);
     if (IS_ERR(old_inode))
         return PTR_ERR(old_inode);
-    if (S_ISDIR(old_inode->mode))
+    if (S_ISDIR(old_inode->mode)) {
+        inode_unref(old_inode);
         return -EPERM;
+    }
 
     struct inode* new_parent = NULL;
     const char* new_basename = NULL;
     struct inode* new_inode =
         vfs_resolve_path(newpath, &new_parent, &new_basename);
-    if (IS_OK(new_inode))
+    if (IS_OK(new_inode)) {
+        inode_unref(old_inode);
+        inode_unref(new_parent);
+        inode_unref(new_inode);
         return -EEXIST;
-    if (IS_ERR(new_inode) && PTR_ERR(new_inode) != -ENOENT)
+    }
+    if (IS_ERR(new_inode) && PTR_ERR(new_inode) != -ENOENT) {
+        inode_unref(old_inode);
+        inode_unref(new_parent);
         return PTR_ERR(new_inode);
-    if (!new_parent)
+    }
+    if (!new_parent) {
+        inode_unref(old_inode);
         return -EPERM;
+    }
     ASSERT(new_basename);
 
     return inode_link_child(new_parent, new_basename, old_inode);
@@ -117,10 +130,14 @@ uintptr_t sys_unlink(const char* pathname) {
     struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
     if (IS_ERR(inode))
         return PTR_ERR(inode);
-    if (!parent || S_ISDIR(inode->mode))
+    if (!parent || S_ISDIR(inode->mode)) {
+        inode_unref(parent);
+        inode_unref(inode);
         return -EPERM;
+    }
     ASSERT(basename);
 
+    inode_unref(inode);
     return inode_unlink_child(parent, basename);
 }
 
@@ -152,61 +169,101 @@ static int make_sure_directory_is_empty(struct inode* inode) {
 }
 
 uintptr_t sys_rename(const char* oldpath, const char* newpath) {
+    int rc = 0;
     struct inode* old_parent = NULL;
     const char* old_basename = NULL;
-    struct inode* old_inode =
-        vfs_resolve_path(oldpath, &old_parent, &old_basename);
-    if (IS_ERR(old_inode))
-        return PTR_ERR(old_inode);
-    if (!old_parent)
-        return -EPERM;
-    ASSERT(old_basename);
-
+    struct inode* old_inode = NULL;
     struct inode* new_parent = NULL;
     const char* new_basename = NULL;
-    struct inode* new_inode =
-        vfs_resolve_path(newpath, &new_parent, &new_basename);
+    struct inode* new_inode = NULL;
+
+    old_inode = vfs_resolve_path(oldpath, &old_parent, &old_basename);
+    if (IS_ERR(old_inode)) {
+        rc = PTR_ERR(old_inode);
+        old_inode = NULL;
+        goto fail;
+    }
+    if (!old_parent) {
+        rc = -EPERM;
+        goto fail;
+    }
+    ASSERT(old_basename);
+
+    new_inode = vfs_resolve_path(newpath, &new_parent, &new_basename);
     if (IS_OK(new_inode)) {
-        if (new_inode == old_inode)
-            return 0;
-        if (S_ISDIR(new_inode->mode)) {
-            if (!S_ISDIR(old_inode->mode))
-                return -EISDIR;
-            int rc = make_sure_directory_is_empty(new_inode);
-            if (IS_ERR(rc))
-                return rc;
+        if (new_inode == old_inode) {
+            rc = 0;
+            goto fail;
         }
-        int rc = inode_unlink_child(new_parent, new_basename);
+        if (S_ISDIR(new_inode->mode)) {
+            if (!S_ISDIR(old_inode->mode)) {
+                rc = -EISDIR;
+                goto fail;
+            }
+            rc = make_sure_directory_is_empty(new_inode);
+            if (IS_ERR(rc)) {
+                new_inode = NULL;
+                goto fail;
+            }
+        }
+        inode_ref(new_parent);
+        rc = inode_unlink_child(new_parent, new_basename);
         if (IS_ERR(rc))
-            return rc;
+            goto fail;
     } else {
-        if (PTR_ERR(new_inode) != -ENOENT)
-            return PTR_ERR(new_inode);
-        if (!new_parent)
-            return -EPERM;
+        if (PTR_ERR(new_inode) != -ENOENT) {
+            rc = PTR_ERR(new_inode);
+            new_inode = NULL;
+            goto fail;
+        }
+        new_inode = NULL;
+        if (!new_parent) {
+            rc = -EPERM;
+            goto fail;
+        }
     }
     ASSERT(new_basename);
 
-    int rc = inode_link_child(new_parent, new_basename, old_inode);
-    if (IS_ERR(rc))
-        return rc;
+    rc = inode_link_child(new_parent, new_basename, old_inode);
+    if (IS_ERR(rc)) {
+        old_inode = NULL;
+        new_parent = NULL;
+        goto fail;
+    }
     return inode_unlink_child(old_parent, old_basename);
+
+fail:
+    ASSERT(rc < 0);
+    inode_unref(old_parent);
+    inode_unref(old_inode);
+    inode_unref(new_parent);
+    inode_unref(new_inode);
+    return rc;
 }
 
 uintptr_t sys_rmdir(const char* pathname) {
     struct inode* parent = NULL;
     const char* basename = NULL;
     struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
-    if (IS_ERR(inode))
+    if (IS_ERR(inode)) {
+        inode_unref(parent);
         return PTR_ERR(inode);
-    if (!parent)
+    }
+    if (!parent) {
+        inode_unref(inode);
         return -EPERM;
+    }
     ASSERT(basename);
-    if (!S_ISDIR(inode->mode))
+    if (!S_ISDIR(inode->mode)) {
+        inode_unref(parent);
+        inode_unref(inode);
         return -ENOTDIR;
+    }
     int rc = make_sure_directory_is_empty(inode);
-    if (IS_ERR(rc))
+    if (IS_ERR(rc)) {
+        inode_unref(parent);
         return rc;
+    }
     return inode_unlink_child(parent, basename);
 }
 
@@ -272,14 +329,21 @@ uintptr_t sys_dup2(int oldfd, int newfd) {
 
 uintptr_t sys_pipe(int fifofd[2]) {
     struct inode* fifo = fifo_create();
+    if (IS_ERR(fifo))
+        return PTR_ERR(fifo);
 
+    inode_ref(fifo);
     file_description* reader_desc = inode_open(fifo, O_RDONLY, 0);
-    if (IS_ERR(reader_desc))
+    if (IS_ERR(reader_desc)) {
+        inode_unref(fifo);
         return PTR_ERR(reader_desc);
+    }
 
     file_description* writer_desc = inode_open(fifo, O_WRONLY, 0);
-    if (IS_ERR(writer_desc))
+    if (IS_ERR(writer_desc)) {
+        file_description_close(reader_desc);
         return PTR_ERR(writer_desc);
+    }
 
     int reader_fd = process_alloc_file_descriptor(-1, reader_desc);
     if (IS_ERR(reader_fd)) {

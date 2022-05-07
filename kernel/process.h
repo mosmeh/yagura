@@ -23,7 +23,8 @@ struct process {
     uintptr_t stack_top;
     range_allocator vaddr_allocator;
 
-    char* cwd;
+    char* cwd_path;
+    struct inode* cwd_inode;
     file_descriptor_table fd_table;
 
     bool (*should_unblock)(void*);

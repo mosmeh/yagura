@@ -12,11 +12,18 @@ typedef struct tmpfs_inode {
     struct dentry* children;
 } tmpfs_inode;
 
+static void tmpfs_destroy_inode(struct inode* inode) {
+    tmpfs_inode* node = (tmpfs_inode*)inode;
+    paging_unmap(node->buf_addr, node->capacity);
+    kfree(node);
+}
+
 static struct inode* tmpfs_lookup_child(struct inode* inode, const char* name) {
     tmpfs_inode* node = (tmpfs_inode*)inode;
     mutex_lock(&node->lock);
     struct inode* child = dentry_find(node->children, name);
     mutex_unlock(&node->lock);
+    inode_unref(inode);
     return child;
 }
 
@@ -26,6 +33,7 @@ static int tmpfs_stat(struct inode* inode, struct stat* buf) {
     buf->st_nlink = inode->num_links;
     buf->st_rdev = 0;
     buf->st_size = node->size;
+    inode_unref(inode);
     return 0;
 }
 
@@ -167,24 +175,31 @@ static int tmpfs_link_child(struct inode* inode, const char* name,
     mutex_lock(&node->lock);
     int rc = dentry_append(&node->children, name, child);
     mutex_unlock(&node->lock);
+    inode_unref(inode);
     return rc;
 }
 
 static struct inode* tmpfs_unlink_child(struct inode* inode, const char* name) {
     tmpfs_inode* node = (tmpfs_inode*)inode;
-    return dentry_remove(&node->children, name);
+    mutex_lock(&node->lock);
+    struct inode* child = dentry_remove(&node->children, name);
+    mutex_unlock(&node->lock);
+    inode_unref(inode);
+    return child;
 }
 
 static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
                                         mode_t mode);
 
-static file_ops dir_fops = {.lookup_child = tmpfs_lookup_child,
+static file_ops dir_fops = {.destroy_inode = tmpfs_destroy_inode,
+                            .lookup_child = tmpfs_lookup_child,
                             .create_child = tmpfs_create_child,
                             .link_child = tmpfs_link_child,
                             .unlink_child = tmpfs_unlink_child,
                             .stat = tmpfs_stat,
                             .readdir = tmpfs_readdir};
-static file_ops non_dir_fops = {.stat = tmpfs_stat,
+static file_ops non_dir_fops = {.destroy_inode = tmpfs_destroy_inode,
+                                .stat = tmpfs_stat,
                                 .read = tmpfs_read,
                                 .write = tmpfs_write,
                                 .mmap = tmpfs_mmap,
@@ -202,7 +217,9 @@ static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
     struct inode* child_inode = &child->inode;
     child_inode->fops = S_ISDIR(mode) ? &dir_fops : &non_dir_fops;
     child_inode->mode = mode;
+    child_inode->ref_count = 1;
 
+    inode_ref(child_inode);
     int rc = tmpfs_link_child(inode, name, child_inode);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
@@ -221,6 +238,7 @@ struct inode* tmpfs_create_root(void) {
     struct inode* inode = &root->inode;
     inode->fops = &dir_fops;
     inode->mode = S_IFDIR;
+    inode->ref_count = 1;
 
     return inode;
 }
