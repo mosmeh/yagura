@@ -7,6 +7,13 @@ void ps2_init(void) {
     ps2_write(PS2_COMMAND, PS2_DISABLE_PORT1);
     ps2_write(PS2_COMMAND, PS2_DISABLE_PORT2);
 
+    // drain the buffer
+    for (int timeout = 0; timeout < 1024; ++timeout) {
+        if (!(in8(PS2_STATUS) & 1))
+            break;
+        in8(PS2_DATA);
+    }
+
     ps2_write(PS2_COMMAND, PS2_READ_CONFIG);
     uint8_t config = ps2_read(PS2_DATA);
     config |= PS2_INTERRUPT_PORT1 | PS2_INTERRUPT_PORT2;
