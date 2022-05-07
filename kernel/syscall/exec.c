@@ -70,13 +70,17 @@ static void ptr_list_destroy(ptr_list* ptrs) {
     }
 }
 
-static void push_value(uintptr_t* sp, uintptr_t value) {
+NODISCARD static int push_value(uintptr_t* sp, uintptr_t stack_base,
+                                uintptr_t value) {
+    if (*sp - sizeof(uintptr_t) < stack_base)
+        return -E2BIG;
     *sp -= sizeof(uintptr_t);
     *(uintptr_t*)*sp = value;
+    return 0;
 }
 
-static int push_strings(uintptr_t* sp, ptr_list* ptrs,
-                        const string_list* strings) {
+NODISCARD static int push_strings(uintptr_t* sp, uintptr_t stack_base,
+                                  ptr_list* ptrs, const string_list* strings) {
     ptrs->count = strings->count;
 
     if (strings->count == 0) {
@@ -90,6 +94,8 @@ static int push_strings(uintptr_t* sp, ptr_list* ptrs,
 
     for (size_t i = 0; i < strings->count; ++i) {
         size_t size = strlen(strings->elements[i]) + 1;
+        if (*sp - size < stack_base)
+            return -E2BIG;
         *sp -= next_power_of_two(size);
         strlcpy((char*)*sp, strings->elements[i], size);
         ptrs->elements[ptrs->count - i - 1] = *sp;
@@ -98,9 +104,14 @@ static int push_strings(uintptr_t* sp, ptr_list* ptrs,
     return 0;
 }
 
-static void push_ptrs(uintptr_t* sp, const ptr_list* ptrs) {
-    for (size_t i = 0; i < ptrs->count; ++i)
-        push_value(sp, ptrs->elements[i]);
+NODISCARD static int push_ptrs(uintptr_t* sp, uintptr_t stack_base,
+                               const ptr_list* ptrs) {
+    for (size_t i = 0; i < ptrs->count; ++i) {
+        int rc = push_value(sp, stack_base, ptrs->elements[i]);
+        if (IS_ERR(rc))
+            return rc;
+    }
+    return 0;
 }
 
 uintptr_t sys_execve(const char* pathname, char* const argv[],
@@ -216,33 +227,49 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     int argc = copied_argv.count;
 
     ptr_list envp_ptrs;
-    ret = push_strings(&sp, &envp_ptrs, &copied_envp);
+    ret = push_strings(&sp, stack_base, &envp_ptrs, &copied_envp);
     string_list_destroy(&copied_envp);
     if (IS_ERR(ret))
         goto fail;
 
     ptr_list argv_ptrs;
-    ret = push_strings(&sp, &argv_ptrs, &copied_argv);
+    ret = push_strings(&sp, stack_base, &argv_ptrs, &copied_argv);
     string_list_destroy(&copied_argv);
     if (IS_ERR(ret))
         goto fail;
 
-    push_value(&sp, 0);
-    push_ptrs(&sp, &envp_ptrs);
+    ret = push_value(&sp, stack_base, 0);
+    if (IS_ERR(ret))
+        goto fail;
+    ret = push_ptrs(&sp, stack_base, &envp_ptrs);
+    if (IS_ERR(ret))
+        goto fail;
     uintptr_t user_envp = sp;
     ptr_list_destroy(&envp_ptrs);
 
-    push_value(&sp, 0);
-    push_ptrs(&sp, &argv_ptrs);
+    ret = push_value(&sp, stack_base, 0);
+    if (IS_ERR(ret))
+        goto fail;
+    ret = push_ptrs(&sp, stack_base, &argv_ptrs);
+    if (IS_ERR(ret))
+        goto fail;
     uintptr_t user_argv = sp;
     ptr_list_destroy(&argv_ptrs);
 
     sp = round_down(sp, 16);
 
-    push_value(&sp, user_envp);
-    push_value(&sp, user_argv);
-    push_value(&sp, argc);
-    push_value(&sp, 0); // fake return address
+    ret = push_value(&sp, stack_base, user_envp);
+    if (IS_ERR(ret))
+        goto fail;
+    ret = push_value(&sp, stack_base, user_argv);
+    if (IS_ERR(ret))
+        goto fail;
+    ret = push_value(&sp, stack_base, argc);
+    if (IS_ERR(ret))
+        goto fail;
+    ret = push_value(&sp, stack_base, 0); // fake return address
+    if (IS_ERR(ret))
+        goto fail;
 
     cli();
 
