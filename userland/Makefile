@@ -18,13 +18,17 @@ BIN_TARGET_NAMES := \
 	imgview \
 	init \
 	init-test \
+	ln \
 	ls \
 	mandelbrot \
 	mkdir \
 	mouse-cursor \
+	mv \
 	poweroff \
 	pwd \
 	reboot \
+	rm \
+	rmdir \
 	run-tests \
 	sh \
 	sleep \
