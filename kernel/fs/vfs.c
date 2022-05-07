@@ -297,9 +297,10 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
     if (IS_OK(inode) && (flags & O_EXCL))
         return ERR_PTR(-EEXIST);
     if (IS_ERR(inode)) {
-        if ((flags & O_CREAT) && PTR_ERR(inode) == -ENOENT && parent)
-            inode = inode_create_child(parent, basename, mode);
-        else
+        if (!(flags & O_CREAT) || PTR_ERR(inode) != -ENOENT || !parent)
+            return ERR_CAST(inode);
+        inode = inode_create_child(parent, basename, mode);
+        if (IS_ERR(inode))
             return ERR_CAST(inode);
     }
 
