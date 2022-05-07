@@ -98,6 +98,8 @@ struct file* vfs_resolve_path(const char* pathname, const char* parent_path,
 
 uint8_t mode_to_dirent_type(mode_t);
 
+struct fifo* fifo_create(void);
+
 void initrd_populate_root_fs(uintptr_t physical_addr, size_t size);
 
 struct file* tmpfs_create_root(void);

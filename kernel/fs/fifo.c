@@ -1,12 +1,9 @@
-#include "api/fcntl.h"
-#include "api/signum.h"
-#include "fs/fs.h"
-#include "memory/memory.h"
-#include "panic.h"
-#include "process.h"
-#include "ring_buf.h"
-#include "scheduler.h"
-#include "system.h"
+#include "fs.h"
+#include <kernel/api/fcntl.h>
+#include <kernel/api/signum.h>
+#include <kernel/panic.h>
+#include <kernel/process.h>
+#include <kernel/ring_buf.h>
 
 #define BUF_CAPACITY 1024
 

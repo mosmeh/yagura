@@ -44,5 +44,3 @@ noreturn void poweroff(void);
 struct file* null_device_create(void);
 struct file* zero_device_create(void);
 struct file* full_device_create(void);
-
-struct fifo* fifo_create(void);
