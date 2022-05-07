@@ -111,31 +111,39 @@ static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
     extern struct process* all_processes;
 
     bool int_flag = push_cli();
+
     struct process* prev = NULL;
     struct process* it = all_processes;
+    bool any_target_exists = false;
 
     while (it) {
-        if (it->state == PROCESS_STATE_DEAD) {
-            if (blocker->param_pid < -1) {
-                if (it->pgid == -blocker->param_pid)
-                    break;
-            } else if (blocker->param_pid == -1) {
-                if (it->ppid == blocker->current_pid)
-                    break;
-            } else if (blocker->param_pid == 0) {
-                if (it->pgid == blocker->current_pgid)
-                    break;
-            } else {
-                if (it->pid == blocker->param_pid)
-                    break;
-            }
+        bool is_target = false;
+        if (blocker->param_pid < -1) {
+            if (it->pgid == -blocker->param_pid)
+                is_target = true;
+        } else if (blocker->param_pid == -1) {
+            if (it->ppid == blocker->current_pid)
+                is_target = true;
+        } else if (blocker->param_pid == 0) {
+            if (it->pgid == blocker->current_pgid)
+                is_target = true;
+        } else {
+            if (it->pid == blocker->param_pid)
+                is_target = true;
         }
+        any_target_exists |= is_target;
+        if (is_target && it->state == PROCESS_STATE_DEAD)
+            break;
 
         prev = it;
         it = it->next_in_all_processes;
     }
     if (!it) {
         pop_cli(int_flag);
+        if (!any_target_exists) {
+            blocker->process = NULL;
+            return true;
+        }
         return false;
     }
 
@@ -162,12 +170,12 @@ pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
         return rc;
 
     struct process* process = blocker.process;
-    ASSERT(process);
-    scheduler_unregister(process);
+    if (!process)
+        return -ECHILD;
 
+    scheduler_unregister(process);
     if (wstatus)
         *wstatus = process->exit_status;
-
     pid_t result = process->pid;
     kfree(process);
     return result;
