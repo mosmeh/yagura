@@ -37,6 +37,7 @@
 
 struct stat {
     mode_t st_mode;
+    nlink_t st_nlink;
     dev_t st_rdev;
     off_t st_size;
 };

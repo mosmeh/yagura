@@ -94,6 +94,7 @@ int fs_stat(struct inode* inode, struct stat* buf) {
         return inode->fops->stat(inode, buf);
     buf->st_rdev = inode->device_id;
     buf->st_mode = inode->mode;
+    buf->st_nlink = inode->num_links;
     buf->st_size = 0;
     return 0;
 }
