@@ -81,3 +81,22 @@ int dentry_append(struct dentry** head, const char* name, struct inode* child) {
 
     return 0;
 }
+
+struct inode* dentry_remove(struct dentry** head, const char* name) {
+    struct dentry* prev = NULL;
+    struct dentry* it = *head;
+    while (it) {
+        if (!strcmp(it->name, name)) {
+            if (prev)
+                prev->next = it->next;
+            else
+                *head = it->next;
+            struct inode* inode = it->inode;
+            kfree(it);
+            return inode;
+        }
+        prev = it;
+        it = it->next;
+    }
+    return ERR_PTR(-ENOENT);
+}

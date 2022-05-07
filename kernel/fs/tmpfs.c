@@ -160,11 +160,27 @@ static long tmpfs_readdir(file_description* desc, void* dirp,
     return rc;
 }
 
+static int tmpfs_link_child(struct inode* inode, const char* name,
+                            struct inode* child) {
+    tmpfs_inode* node = (tmpfs_inode*)inode;
+    mutex_lock(&node->lock);
+    int rc = dentry_append(&node->children, name, child);
+    mutex_unlock(&node->lock);
+    return rc;
+}
+
+static struct inode* tmpfs_unlink_child(struct inode* inode, const char* name) {
+    tmpfs_inode* node = (tmpfs_inode*)inode;
+    return dentry_remove(&node->children, name);
+}
+
 static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
                                         mode_t mode);
 
 static file_ops dir_fops = {.lookup_child = tmpfs_lookup_child,
                             .create_child = tmpfs_create_child,
+                            .link_child = tmpfs_link_child,
+                            .unlink_child = tmpfs_unlink_child,
                             .stat = tmpfs_stat,
                             .readdir = tmpfs_readdir};
 static file_ops non_dir_fops = {.stat = tmpfs_stat,
@@ -186,10 +202,7 @@ static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
     child_inode->fops = S_ISDIR(mode) ? &dir_fops : &non_dir_fops;
     child_inode->mode = mode;
 
-    tmpfs_inode* node = (tmpfs_inode*)inode;
-    mutex_lock(&node->lock);
-    int rc = dentry_append(&node->children, name, child_inode);
-    mutex_unlock(&node->lock);
+    int rc = tmpfs_link_child(inode, name, child_inode);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
