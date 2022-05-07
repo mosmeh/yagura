@@ -71,7 +71,6 @@ bool bochs_fb_init(void) {
 
     kprintf("Found framebuffer at P0x%x\n", fb_paddr);
     configure(640, 480, 32);
-    mutex_init(&lock);
     return true;
 }
 

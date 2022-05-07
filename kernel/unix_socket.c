@@ -90,10 +90,6 @@ unix_socket* unix_socket_create(void) {
     inode->mode = S_IFSOCK;
     inode->ref_count = 1;
 
-    atomic_init(&socket->num_pending, 0);
-    mutex_init(&socket->pending_queue_lock);
-    atomic_init(&socket->connected, false);
-
     int rc = ring_buf_init(&socket->client_to_server_buf);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
@@ -122,7 +118,7 @@ static void enqueue_pending(unix_socket* listener, unix_socket* connector) {
     }
 
     mutex_unlock(&listener->pending_queue_lock);
-    atomic_fetch_add_explicit(&listener->num_pending, 1, memory_order_acq_rel);
+    ++listener->num_pending;
 }
 
 static unix_socket* deque_pending(unix_socket* listener) {
@@ -132,14 +128,14 @@ static unix_socket* deque_pending(unix_socket* listener) {
     listener->next = connector->next;
 
     mutex_unlock(&listener->pending_queue_lock);
-    atomic_fetch_sub_explicit(&listener->num_pending, 1, memory_order_acq_rel);
+    --listener->num_pending;
 
     ASSERT(connector);
     return connector;
 }
 
 static bool accept_should_unblock(atomic_size_t* num_pending) {
-    return atomic_load_explicit(num_pending, memory_order_acquire) > 0;
+    return *num_pending > 0;
 }
 
 unix_socket* unix_socket_accept(unix_socket* listener) {
@@ -148,21 +144,20 @@ unix_socket* unix_socket_accept(unix_socket* listener) {
         return ERR_PTR(rc);
 
     unix_socket* connector = deque_pending(listener);
-    ASSERT(!atomic_exchange_explicit(&connector->connected, true,
-                                     memory_order_acq_rel));
+    ASSERT(!connector->connected);
+    connector->connected = true;
     return connector;
 }
 
 static bool connect_should_unblock(atomic_bool* connected) {
-    return atomic_load_explicit(connected, memory_order_acquire);
+    return *connected;
 }
 
 int unix_socket_connect(file_description* connector_fd, unix_socket* listener) {
     unix_socket* connector = (unix_socket*)connector_fd->inode;
     connector->connector_fd = connector_fd;
 
-    if (atomic_load_explicit(&listener->num_pending, memory_order_acquire) >=
-        (size_t)listener->backlog)
+    if (listener->num_pending >= (size_t)listener->backlog)
         return -ECONNREFUSED;
     enqueue_pending(listener, connector);
 

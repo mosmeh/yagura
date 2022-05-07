@@ -212,8 +212,6 @@ static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
         return ERR_PTR(-ENOMEM);
     *child = (tmpfs_inode){0};
 
-    mutex_init(&child->lock);
-
     struct inode* child_inode = &child->inode;
     child_inode->fops = S_ISDIR(mode) ? &dir_fops : &non_dir_fops;
     child_inode->mode = mode;
@@ -232,8 +230,6 @@ struct inode* tmpfs_create_root(void) {
     if (!root)
         return ERR_PTR(-ENOMEM);
     *root = (tmpfs_inode){0};
-
-    mutex_init(&root->lock);
 
     struct inode* inode = &root->inode;
     inode->fops = &dir_fops;

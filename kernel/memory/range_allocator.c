@@ -14,9 +14,9 @@ int range_allocator_init(range_allocator* allocator, uintptr_t start,
     ASSERT(start % PAGE_SIZE == 0);
     ASSERT(end % PAGE_SIZE == 0);
 
+    *allocator = (range_allocator){0};
     allocator->start = start;
     allocator->end = end;
-    mutex_init(&allocator->lock);
 
     int rc = paging_map_to_free_pages(start, sizeof(struct range), PAGE_WRITE);
     if (IS_ERR(rc))

@@ -10,7 +10,7 @@
 
 struct process* current;
 const struct fpu_state initial_fpu_state;
-static atomic_int next_pid;
+static atomic_int next_pid = 1;
 
 extern struct process* all_processes;
 
@@ -21,8 +21,6 @@ void process_init(void) {
     __asm__ volatile("fninit");
     __asm__ volatile("fxsave %0"
                      : "=m"(*(struct fpu_state*)&initial_fpu_state));
-
-    atomic_init(&next_pid, 1);
 
     current = kaligned_alloc(alignof(struct process), sizeof(struct process));
     ASSERT(current);
@@ -84,9 +82,7 @@ pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
     return process->pid;
 }
 
-pid_t process_generate_next_pid(void) {
-    return atomic_fetch_add_explicit(&next_pid, 1, memory_order_acq_rel);
-}
+pid_t process_generate_next_pid(void) { return atomic_fetch_add(&next_pid, 1); }
 
 struct process* process_find_process_by_pid(pid_t pid) {
     bool int_flag = push_cli();

@@ -9,6 +9,5 @@ typedef struct mutex {
     volatile atomic_bool lock;
 } mutex;
 
-void mutex_init(mutex*);
 void mutex_lock(mutex*);
 void mutex_unlock(mutex*);

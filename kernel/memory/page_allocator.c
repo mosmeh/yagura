@@ -139,8 +139,6 @@ void page_allocator_init(const multiboot_info_t* mb_info) {
     // single page table (< 4MiB), and last page is reserved for quickmap
     ASSERT((uintptr_t)kernel_end <= KERNEL_VADDR + 1023 * PAGE_SIZE);
 
-    mutex_init(&lock);
-
     uintptr_t lower_bound;
     uintptr_t upper_bound;
     get_available_physical_addr_bounds(mb_info, &lower_bound, &upper_bound);

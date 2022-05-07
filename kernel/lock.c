@@ -4,12 +4,6 @@
 #include "process.h"
 #include "scheduler.h"
 
-void mutex_init(mutex* m) {
-    m->holder = NULL;
-    m->level = 0;
-    atomic_init(&m->lock, false);
-}
-
 void mutex_lock(mutex* m) {
     ASSERT(interrupts_enabled());
 

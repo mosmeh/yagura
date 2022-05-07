@@ -467,7 +467,6 @@ void fb_console_init(void) {
     flush();
 
     ASSERT_OK(ring_buf_init(&input_buf));
-    mutex_init(&lock);
 
     initialized = true;
 }
