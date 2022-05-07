@@ -12,6 +12,7 @@ typedef struct ring_buf {
 } ring_buf;
 
 NODISCARD int ring_buf_init(ring_buf*);
+void ring_buf_destroy(ring_buf*);
 bool ring_buf_is_empty(const ring_buf*);
 bool ring_buf_is_full(const ring_buf*);
 NODISCARD ssize_t ring_buf_write(ring_buf*, const void* buffer, size_t count);

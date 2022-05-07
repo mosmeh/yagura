@@ -14,6 +14,8 @@ int ring_buf_init(ring_buf* buf) {
     return 0;
 }
 
+void ring_buf_destroy(ring_buf* buf) { kfree(buf->inner_buf); }
+
 bool ring_buf_is_empty(const ring_buf* buf) {
     return atomic_load_explicit(&buf->write_idx, memory_order_acquire) ==
            atomic_load_explicit(&buf->read_idx, memory_order_acquire);
