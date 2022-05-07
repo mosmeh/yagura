@@ -5,15 +5,17 @@
 
 int main(int argc, char* const argv[]) {
     if (argc < 2) {
-        dprintf(STDERR_FILENO, "Usage: touch FILE\n");
+        dprintf(STDERR_FILENO, "Usage: touch FILE...\n");
         return EXIT_FAILURE;
     }
 
-    const char* filename = argv[1];
-    int fd = open(filename, O_CREAT, 0);
-    if (fd < 0) {
-        perror("open");
-        return EXIT_FAILURE;
+    for (int i = 1; i < argc; ++i) {
+        int fd = open(argv[i], O_CREAT, 0);
+        if (fd < 0) {
+            perror("open");
+            return EXIT_FAILURE;
+        }
+        close(fd);
     }
 
     return EXIT_SUCCESS;
