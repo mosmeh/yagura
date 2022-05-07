@@ -92,9 +92,8 @@ NODISCARD file_description* vfs_open(const char* pathname, int flags,
                                      mode_t mode);
 NODISCARD int vfs_stat(const char* pathname, struct stat* buf);
 NODISCARD struct inode* vfs_create(const char* pathname, mode_t mode);
-char* vfs_canonicalize_path(const char* pathname, const char* parent_path);
-struct inode* vfs_resolve_path(const char* pathname, const char* parent_path,
-                               struct inode** out_parent,
+char* vfs_canonicalize_path(const char* pathname);
+struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
                                const char** out_basename);
 
 uint8_t mode_to_dirent_type(mode_t);

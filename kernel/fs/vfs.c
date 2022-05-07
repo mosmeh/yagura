@@ -155,7 +155,6 @@ static void list_pop(list_node** list) {
 }
 
 static int create_path_component_list(const char* pathname,
-                                      const char* parent_path,
                                       list_node** out_list,
                                       size_t* out_num_components) {
     if (pathname[0] == PATH_SEPARATOR && pathname[1] == '\0') {
@@ -169,14 +168,14 @@ static int create_path_component_list(const char* pathname,
     list_node* list = NULL;
     size_t num_components = 0;
 
-    if (!is_absolute_path(pathname) && parent_path) {
-        char* dup_parent_path = kstrdup(parent_path);
-        if (!dup_parent_path)
+    if (!is_absolute_path(pathname)) {
+        char* dup_cwd = kstrdup(current->cwd);
+        if (!dup_cwd)
             return -ENOMEM;
 
         char* saved_ptr;
         for (const char* component =
-                 strtok_r(dup_parent_path, PATH_SEPARATOR_STR, &saved_ptr);
+                 strtok_r(dup_cwd, PATH_SEPARATOR_STR, &saved_ptr);
              component;
              component = strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr)) {
             int rc = list_push(&list, component);
@@ -218,15 +217,14 @@ static int create_path_component_list(const char* pathname,
     return 0;
 }
 
-struct inode* vfs_resolve_path(const char* pathname, const char* parent_path,
-                               struct inode** out_parent,
+struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
                                const char** out_basename) {
     ASSERT(root);
 
     list_node* component_list = NULL;
     size_t num_components = 0;
-    int rc = create_path_component_list(pathname, parent_path, &component_list,
-                                        &num_components);
+    int rc =
+        create_path_component_list(pathname, &component_list, &num_components);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
@@ -259,11 +257,11 @@ struct inode* vfs_resolve_path(const char* pathname, const char* parent_path,
     return parent;
 }
 
-char* vfs_canonicalize_path(const char* pathname, const char* parent_path) {
+char* vfs_canonicalize_path(const char* pathname) {
     list_node* component_list = NULL;
     size_t num_components = 0;
-    int rc = create_path_component_list(pathname, parent_path, &component_list,
-                                        &num_components);
+    int rc =
+        create_path_component_list(pathname, &component_list, &num_components);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
@@ -295,8 +293,7 @@ char* vfs_canonicalize_path(const char* pathname, const char* parent_path) {
 file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
     struct inode* parent = NULL;
     const char* basename = NULL;
-    struct inode* inode =
-        vfs_resolve_path(pathname, current->cwd, &parent, &basename);
+    struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
     if (IS_OK(inode) && (flags & O_EXCL))
         return ERR_PTR(-EEXIST);
     if (IS_ERR(inode)) {
@@ -317,7 +314,7 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
 }
 
 int vfs_stat(const char* pathname, struct stat* buf) {
-    struct inode* inode = vfs_resolve_path(pathname, current->cwd, NULL, NULL);
+    struct inode* inode = vfs_resolve_path(pathname, NULL, NULL);
     if (IS_ERR(inode))
         return PTR_ERR(inode);
 
@@ -334,8 +331,7 @@ int vfs_stat(const char* pathname, struct stat* buf) {
 struct inode* vfs_create(const char* pathname, mode_t mode) {
     struct inode* parent = NULL;
     const char* basename = NULL;
-    struct inode* inode =
-        vfs_resolve_path(pathname, current->cwd, &parent, &basename);
+    struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
     if (IS_OK(inode))
         return ERR_PTR(-EEXIST);
     if (PTR_ERR(inode) != -ENOENT || !parent)
