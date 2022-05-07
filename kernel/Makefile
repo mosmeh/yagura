@@ -42,7 +42,7 @@ OBJS := \
 	serial.o \
 	syscall/clock.o \
 	syscall/exec.o \
-	syscall/file.o \
+	syscall/fs.o \
 	syscall/mmap.o \
 	syscall/process.o \
 	syscall/socket.o \
