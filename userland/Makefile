@@ -14,6 +14,7 @@ BIN_TARGET_NAMES := \
 	echo \
 	env \
 	fib \
+	halt \
 	imgview \
 	init \
 	init-test \
@@ -21,6 +22,7 @@ BIN_TARGET_NAMES := \
 	mandelbrot \
 	mkdir \
 	mouse-cursor \
+	poweroff \
 	pwd \
 	reboot \
 	run-tests \

@@ -18,8 +18,6 @@ initrd: base
 	find $< -mindepth 1 ! -name '.gitkeep' -printf "%P\n" | cpio -oc -D $< -F $@
 
 base: $@/* userland
-	cp $@/bin/reboot $@/bin/halt
-	cp $@/bin/reboot $@/bin/poweroff
 	$(RM) -r $@/root/src
 	-git clone . $@/root/src
 	$(RM) -r $@/root/src/.git
@@ -33,7 +31,6 @@ disk_image: kernel initrd
 
 clean:
 	for dir in $(SUBDIRS); do $(MAKE) -C $$dir $@; done
-	$(RM) base/bin/halt base/bin/poweroff
 	$(RM) -r base/root/src
 	$(RM) initrd disk_image disk/boot/kernel disk/boot/initrd
 
