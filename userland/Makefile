@@ -33,7 +33,8 @@ BIN_TARGET_NAMES := \
 	sh \
 	sleep \
 	touch \
-	wc
+	wc \
+	xv6-usertests
 OUTDIR := ../base/bin
 
 BIN_TARGETS := $(BIN_TARGET_NAMES:%=$(OUTDIR)/%)

@@ -6,29 +6,31 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-int main(void) {
-    ASSERT(getpid() == 1);
-    ASSERT(open("/dev/console", O_RDONLY) == STDIN_FILENO);
-    ASSERT(open("/dev/console", O_WRONLY) == STDOUT_FILENO);
-    ASSERT(open("/dev/console", O_WRONLY) == STDERR_FILENO);
-
+static int spawn(char* filename) {
     pid_t pid = fork();
     if (pid < 0) {
         perror("fork");
         abort();
     }
     if (pid == 0) {
-        static char* argv[] = {"/bin/run-tests", NULL};
+        char* argv[] = {filename, NULL};
         static char* envp[] = {NULL};
         if (execve(argv[0], argv, envp) < 0) {
             perror("execve");
             abort();
         }
     }
-    if (waitpid(pid, NULL, 0) < 0) {
-        perror("waitpid");
-        abort();
-    }
+    return waitpid(pid, NULL, 0);
+}
+
+int main(void) {
+    ASSERT(getpid() == 1);
+    ASSERT(open("/dev/console", O_RDONLY) == STDIN_FILENO);
+    ASSERT(open("/dev/console", O_WRONLY) == STDOUT_FILENO);
+    ASSERT(open("/dev/console", O_WRONLY) == STDERR_FILENO);
+
+    ASSERT_OK(spawn("/bin/run-tests"));
+    ASSERT_OK(spawn("/bin/xv6-usertests"));
 
     reboot(RB_POWEROFF);
     UNREACHABLE();

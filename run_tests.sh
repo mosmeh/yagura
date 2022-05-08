@@ -10,4 +10,5 @@ set -e
     -no-reboot \
     -serial stdio \
     -vga none -display none \
+    -m 512M \
     2>&1 | tee >(cat 1>&2) | grep -q PANIC
