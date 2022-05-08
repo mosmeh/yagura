@@ -309,24 +309,60 @@ char* vfs_canonicalize_path(const char* pathname) {
     return canonicalized;
 }
 
-file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
+static struct inode* create_inode(const char* pathname, mode_t mode,
+                                  bool exclusive) {
     struct inode* parent = NULL;
     const char* basename = NULL;
     struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
-    if (IS_OK(inode) && (flags & O_EXCL)) {
+    if (IS_OK(inode)) {
         inode_unref(parent);
-        inode_unref(inode);
-        return ERR_PTR(-EEXIST);
-    }
-    if (IS_ERR(inode)) {
-        if (!(flags & O_CREAT) || PTR_ERR(inode) != -ENOENT || !parent) {
-            inode_unref(parent);
-            return ERR_CAST(inode);
+        if (exclusive) {
+            inode_unref(inode);
+            return ERR_PTR(-EEXIST);
         }
-        inode = inode_create_child(parent, basename, mode);
-        if (IS_ERR(inode))
-            return ERR_CAST(inode);
+        return inode;
     }
+    if (PTR_ERR(inode) != -ENOENT || !parent) {
+        inode_unref(parent);
+        return inode;
+    }
+
+    // retry if another process is modifying the inode at the same time
+    for (;;) {
+        inode_ref(parent);
+        inode = inode_create_child(parent, basename, mode);
+        if (IS_OK(inode)) {
+            inode_unref(parent);
+            return inode;
+        }
+        if (PTR_ERR(inode) != -EEXIST) {
+            inode_unref(parent);
+            return inode;
+        }
+        if (exclusive) {
+            inode_unref(parent);
+            return ERR_PTR(-EEXIST);
+        }
+
+        inode_ref(parent);
+        inode = inode_lookup_child(parent, basename);
+        if (IS_OK(inode)) {
+            inode_unref(parent);
+            return inode;
+        }
+        if (PTR_ERR(inode) != -ENOENT) {
+            inode_unref(parent);
+            return inode;
+        }
+    }
+}
+
+file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
+    struct inode* inode = (flags & O_CREAT)
+                              ? create_inode(pathname, mode, flags & O_EXCL)
+                              : vfs_resolve_path(pathname, NULL, NULL);
+    if (IS_ERR(inode))
+        return ERR_CAST(inode);
 
     if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
         struct inode* device = find_device(inode->device_id);
@@ -356,12 +392,5 @@ int vfs_stat(const char* pathname, struct stat* buf) {
 }
 
 struct inode* vfs_create(const char* pathname, mode_t mode) {
-    struct inode* parent = NULL;
-    const char* basename = NULL;
-    struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
-    if (IS_OK(inode))
-        return ERR_PTR(-EEXIST);
-    if (PTR_ERR(inode) != -ENOENT || !parent)
-        return inode;
-    return inode_create_child(parent, basename, mode);
+    return create_inode(pathname, mode, true);
 }
