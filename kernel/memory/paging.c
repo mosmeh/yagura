@@ -72,7 +72,7 @@ static volatile page_table* get_or_create_page_table(uintptr_t vaddr) {
         created = true;
     }
 
-    volatile page_table* pt = get_page_table_from_idx(vaddr >> 22);
+    volatile page_table* pt = get_page_table_from_idx(pd_idx);
     if (created)
         memset((void*)pt, 0, sizeof(page_table));
 
@@ -171,7 +171,7 @@ page_directory* paging_create_page_directory(void) {
     // kernel
     memcpy(dst->entries + KERNEL_PDE_IDX,
            (void*)(current_pd->entries + KERNEL_PDE_IDX),
-           (1023 - KERNEL_PDE_IDX - 1) * sizeof(page_directory_entry));
+           (1023 - KERNEL_PDE_IDX) * sizeof(page_directory_entry));
 
     // recursive
     page_directory_entry* last_entry = dst->entries + 1023;
