@@ -2,6 +2,7 @@
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/stdio.h>
+#include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/scheduler.h>
@@ -124,8 +125,8 @@ file_description* inode_open(struct inode* inode, int flags, mode_t mode) {
         inode_unref(inode);
         return ERR_PTR(-ENOMEM);
     }
+    *desc = (file_description){0};
     desc->inode = inode;
-    desc->offset = 0;
     desc->flags = flags;
     desc->ref_count = 1;
     return desc;
@@ -213,6 +214,7 @@ off_t file_description_lseek(file_description* desc, off_t offset, int whence) {
         new_offset = offset;
         break;
     case SEEK_CUR:
+        mutex_lock(&desc->offset_lock);
         new_offset = desc->offset + offset;
         break;
     case SEEK_END: {
@@ -227,9 +229,12 @@ off_t file_description_lseek(file_description* desc, off_t offset, int whence) {
     default:
         return -EINVAL;
     }
-    if (new_offset < 0)
+    if (new_offset < 0) {
+        mutex_unlock_if_locked(&desc->offset_lock);
         return -EINVAL;
+    }
     desc->offset = new_offset;
+    mutex_unlock_if_locked(&desc->offset_lock);
     return new_offset;
 }
 

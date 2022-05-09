@@ -4,6 +4,8 @@
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/forward.h>
+#include <kernel/lock.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -14,10 +16,11 @@
 #define OPEN_MAX 1024
 
 typedef struct file_description {
+    mutex offset_lock;
     struct inode* inode;
+    atomic_size_t ref_count;
+    atomic_int flags;
     off_t offset;
-    int flags;
-    size_t ref_count;
 } file_description;
 
 typedef struct file_descriptor_table {
@@ -72,9 +75,9 @@ typedef struct file_ops {
 struct inode {
     file_ops* fops;
     dev_t device_id;
-    unix_socket* bound_socket;
-    nlink_t num_links;
-    size_t ref_count;
+    _Atomic(unix_socket*) bound_socket;
+    _Atomic(nlink_t) num_links;
+    atomic_size_t ref_count;
     mode_t mode;
 };
 

@@ -40,8 +40,10 @@ static int tmpfs_stat(struct inode* inode, struct stat* buf) {
 static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t count) {
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
     mutex_lock(&node->lock);
+    mutex_lock(&desc->offset_lock);
 
     if ((size_t)desc->offset >= node->size) {
+        mutex_unlock(&desc->offset_lock);
         mutex_unlock(&node->lock);
         return 0;
     }
@@ -51,6 +53,7 @@ static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t count) {
     memcpy(buffer, (void*)(node->buf_addr + desc->offset), count);
     desc->offset += count;
 
+    mutex_unlock(&desc->offset_lock);
     mutex_unlock(&node->lock);
     return count;
 }
@@ -94,10 +97,12 @@ static ssize_t tmpfs_write(file_description* desc, const void* buffer,
                            size_t count) {
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
     mutex_lock(&node->lock);
+    mutex_lock(&desc->offset_lock);
 
     if (desc->offset + count >= node->capacity) {
         int rc = grow_buf(node, desc->offset + count);
         if (IS_ERR(rc)) {
+            mutex_unlock(&desc->offset_lock);
             mutex_unlock(&node->lock);
             return rc;
         }
@@ -108,6 +113,7 @@ static ssize_t tmpfs_write(file_description* desc, const void* buffer,
     if (node->size < (size_t)desc->offset)
         node->size = desc->offset;
 
+    mutex_unlock(&desc->offset_lock);
     mutex_unlock(&node->lock);
     return count;
 }
@@ -164,7 +170,9 @@ static long tmpfs_readdir(file_description* desc, void* dirp,
                           unsigned int count) {
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
     mutex_lock(&node->lock);
+    mutex_lock(&desc->offset_lock);
     long rc = dentry_readdir(node->children, dirp, count, &desc->offset);
+    mutex_unlock(&desc->offset_lock);
     mutex_unlock(&node->lock);
     return rc;
 }
