@@ -197,7 +197,7 @@ int process_alloc_file_descriptor(int fd, file_description* desc) {
 }
 
 int process_free_file_descriptor(int fd) {
-    if (fd >= OPEN_MAX)
+    if (fd < 0 || OPEN_MAX <= fd)
         return -EBADF;
 
     file_description** desc = current->fd_table.entries + fd;
@@ -208,14 +208,14 @@ int process_free_file_descriptor(int fd) {
 }
 
 file_description* process_get_file_description(int fd) {
-    if (fd >= OPEN_MAX)
+    if (fd < 0 || OPEN_MAX <= fd)
         return ERR_PTR(-EBADF);
 
-    file_description** desc = current->fd_table.entries + fd;
-    if (!*desc)
+    file_description* desc = current->fd_table.entries[fd];
+    if (!desc)
         return ERR_PTR(-EBADF);
 
-    return *desc;
+    return desc;
 }
 
 enum {
