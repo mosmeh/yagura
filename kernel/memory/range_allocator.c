@@ -25,6 +25,7 @@ int range_allocator_init(range_allocator* allocator, uintptr_t start,
     struct range* range = (struct range*)start;
     allocator->ranges = range;
     range->size = end - start;
+    range->next = NULL;
     return 0;
 }
 
