@@ -288,10 +288,9 @@ void paging_destroy_current_page_directory(void) {
 }
 
 void paging_switch_page_directory(page_directory* pd) {
-    uintptr_t paddr = paging_virtual_to_physical_addr((uintptr_t)pd);
-
     bool int_flag = push_cli();
 
+    uintptr_t paddr = paging_virtual_to_physical_addr((uintptr_t)pd);
     write_cr3(paddr);
     current_pd = pd;
     ASSERT(paddr == paging_virtual_to_physical_addr(0xfffff000));
