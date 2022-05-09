@@ -30,8 +30,7 @@ static inline bool interrupts_enabled(void) { return read_eflags() & 0x200; }
 
 static inline bool push_cli(void) {
     bool enabled = interrupts_enabled();
-    if (enabled)
-        cli();
+    cli();
     return enabled;
 }
 
