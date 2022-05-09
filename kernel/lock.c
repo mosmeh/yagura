@@ -40,3 +40,29 @@ void mutex_unlock(mutex* m) {
         scheduler_yield(true);
     }
 }
+
+bool mutex_unlock_if_locked(mutex* m) {
+    for (;;) {
+        bool expected = false;
+        if (atomic_compare_exchange_strong_explicit(&m->lock, &expected, true,
+                                                    memory_order_acq_rel,
+                                                    memory_order_acquire)) {
+            if (m->level == 0) {
+                atomic_store_explicit(&m->lock, false, memory_order_release);
+                return false;
+            }
+            if (m->holder != current) {
+                atomic_store_explicit(&m->lock, false, memory_order_release);
+                return false;
+            }
+            ASSERT(m->level > 0);
+            if (--m->level == 0) {
+                atomic_store_explicit(&m->lock, false, memory_order_release);
+                return false;
+            }
+            m->holder = NULL;
+            atomic_store_explicit(&m->lock, false, memory_order_release);
+            return true;
+        }
+    }
+}
