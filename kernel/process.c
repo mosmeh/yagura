@@ -50,7 +50,7 @@ struct process* process_create_kernel_process(void (*entry_point)(void)) {
 
     process->eip = (uintptr_t)entry_point;
     process->fpu_state = initial_fpu_state;
-    current->state = PROCESS_STATE_RUNNING;
+    process->state = PROCESS_STATE_RUNNABLE;
 
     process->pd = paging_create_page_directory();
     if (IS_ERR(process->pd))

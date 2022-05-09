@@ -12,6 +12,7 @@ struct process {
     struct fpu_state fpu_state;
 
     enum {
+        PROCESS_STATE_RUNNABLE,
         PROCESS_STATE_RUNNING,
         PROCESS_STATE_BLOCKED,
         PROCESS_STATE_DYING,

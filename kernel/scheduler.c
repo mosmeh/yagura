@@ -12,7 +12,7 @@ static struct process* ready_queue;
 static struct process* idle;
 
 void scheduler_register(struct process* process) {
-    ASSERT(process->state == PROCESS_STATE_RUNNING);
+    ASSERT(process->state == PROCESS_STATE_RUNNABLE);
 
     bool int_flag = push_cli();
     process->next_in_all_processes = all_processes;
@@ -106,6 +106,7 @@ void scheduler_init(void) {
 }
 
 static noreturn void switch_to_next_process(void) {
+    ASSERT(!interrupts_enabled());
     unblock_processes();
 
     current = scheduler_deque();
@@ -119,27 +120,56 @@ static noreturn void switch_to_next_process(void) {
 
     __asm__ volatile("fxrstor %0" ::"m"(current->fpu_state));
 
-    __asm__ volatile("mov %%eax, %%ebp\n"
-                     "mov %%ecx, %%esp\n"
-                     "mov $1, %%eax;\n"
-                     "sti\n"
-                     "jmp *%%edx"
-                     :
-                     : "d"(current->eip), "a"(current->ebp), "c"(current->esp),
-                       "b"(current->ebx), "S"(current->esi), "D"(current->edi));
+    if (current->state == PROCESS_STATE_RUNNABLE) {
+        current->state = PROCESS_STATE_RUNNING;
+
+        // current->eip points to an entry point, so we have to enable
+        // interrupts here
+        __asm__ volatile("mov %%eax, %%ebp\n"
+                         "mov %%ecx, %%esp\n"
+                         "mov $0, %%eax;\n"
+                         "sti\n"
+                         "jmp *%%edx"
+                         :
+                         : "d"(current->eip), "a"(current->ebp),
+                           "c"(current->esp), "b"(current->ebx),
+                           "S"(current->esi), "D"(current->edi));
+    } else {
+        // current->eip points to the read_eip() line in scheduler_yield(),
+        // and pop_cli handles enabling interrupts, so we don't enable
+        // interrupts here
+        __asm__ volatile("mov %%eax, %%ebp\n"
+                         "mov %%ecx, %%esp\n"
+                         "mov $1, %%eax;\n" // read_eip() returns 1
+                         "jmp *%%edx"
+                         :
+                         : "d"(current->eip), "a"(current->ebp),
+                           "c"(current->esp), "b"(current->ebx),
+                           "S"(current->esi), "D"(current->edi));
+    }
     UNREACHABLE();
 }
 
 void scheduler_yield(bool requeue_current) {
-    cli();
+    bool int_flag = push_cli();
     ASSERT(current);
 
-    if (current == idle)
+    if (current == idle) {
+        // because we don't save the context for the idle task, it has to be
+        // launched as a brand new task every time.
+        idle->state = PROCESS_STATE_RUNNABLE;
+
+        // skip saving the context
         switch_to_next_process();
+        UNREACHABLE();
+    }
 
     uint32_t eip = read_eip();
-    if (eip == 1)
+    if (eip == 1) {
+        // we came back from switch_to_next_process()
+        pop_cli(int_flag);
         return;
+    }
 
     uint32_t esp;
     __asm__ volatile("mov %%esp, %0" : "=m"(esp));
@@ -165,6 +195,7 @@ void scheduler_yield(bool requeue_current) {
         scheduler_enqueue(current);
 
     switch_to_next_process();
+    UNREACHABLE();
 }
 
 void scheduler_tick(bool in_kernel) {

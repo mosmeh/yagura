@@ -60,7 +60,7 @@ uintptr_t sys_fork(registers* regs) {
     process->esi = current->esi;
     process->edi = current->edi;
     process->fpu_state = current->fpu_state;
-    process->state = PROCESS_STATE_RUNNING;
+    process->state = PROCESS_STATE_RUNNABLE;
 
     process->user_ticks = current->user_ticks;
     process->kernel_ticks = current->kernel_ticks;
