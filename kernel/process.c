@@ -111,15 +111,8 @@ static noreturn void die(void) {
         PANIC("init process exited");
 
     sti();
-    {
-        file_description** it = current->fd_table.entries;
-        for (int i = 0; i < OPEN_MAX; ++i, ++it) {
-            if (*it)
-                file_description_close(*it);
-        }
-    }
-
     paging_destroy_current_page_directory();
+    file_descriptor_table_destroy(&current->fd_table);
     kfree(current->cwd_path);
     inode_unref(current->cwd_inode);
 

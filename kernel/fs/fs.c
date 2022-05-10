@@ -18,6 +18,15 @@ int file_descriptor_table_init(file_descriptor_table* table) {
     return 0;
 }
 
+void file_descriptor_table_destroy(file_descriptor_table* table) {
+    file_description** it = table->entries;
+    for (int i = 0; i < OPEN_MAX; ++i, ++it) {
+        if (*it)
+            file_description_close(*it);
+    }
+    kfree(table->entries);
+}
+
 int file_descriptor_table_clone_from(file_descriptor_table* to,
                                      const file_descriptor_table* from) {
     to->entries = kmalloc(OPEN_MAX * sizeof(file_description*));

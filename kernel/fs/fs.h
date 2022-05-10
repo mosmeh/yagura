@@ -28,6 +28,7 @@ typedef struct file_descriptor_table {
 } file_descriptor_table;
 
 NODISCARD int file_descriptor_table_init(file_descriptor_table*);
+void file_descriptor_table_destroy(file_descriptor_table*);
 NODISCARD int
 file_descriptor_table_clone_from(file_descriptor_table* to,
                                  const file_descriptor_table* from);
