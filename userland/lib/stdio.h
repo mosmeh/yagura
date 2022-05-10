@@ -14,4 +14,6 @@ void perror(const char*);
 
 int getchar(void);
 
+int remove(const char* pathname);
+
 int dbgputs(const char* str);
