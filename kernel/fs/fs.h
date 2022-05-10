@@ -73,6 +73,7 @@ typedef struct file_ops {
 } file_ops;
 
 struct inode {
+    struct inode* fs_root_inode;
     file_ops* fops;
     dev_t device_id;
     _Atomic(unix_socket*) bound_socket;

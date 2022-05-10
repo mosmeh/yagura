@@ -81,6 +81,11 @@ int inode_link_child(struct inode* inode, const char* name,
         inode_unref(child);
         return -ENOTDIR;
     }
+    if (inode->fs_root_inode != child->fs_root_inode) {
+        inode_unref(inode);
+        inode_unref(child);
+        return -EXDEV;
+    }
     ++child->num_links;
     inode_ref(child);
     int rc = inode->fops->link_child(inode, name, child);

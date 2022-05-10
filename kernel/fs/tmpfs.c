@@ -221,6 +221,7 @@ static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
     *child = (tmpfs_inode){0};
 
     struct inode* child_inode = &child->inode;
+    child_inode->fs_root_inode = inode->fs_root_inode;
     child_inode->fops = S_ISDIR(mode) ? &dir_fops : &non_dir_fops;
     child_inode->mode = mode;
     child_inode->ref_count = 1;
@@ -240,6 +241,7 @@ struct inode* tmpfs_create_root(void) {
     *root = (tmpfs_inode){0};
 
     struct inode* inode = &root->inode;
+    inode->fs_root_inode = inode;
     inode->fops = &dir_fops;
     inode->mode = S_IFDIR;
     inode->ref_count = 1;
