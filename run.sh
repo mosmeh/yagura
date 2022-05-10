@@ -5,6 +5,11 @@ set -e
 KERNEL='kernel/kernel'
 INITRD='initrd'
 
+QEMU_DISPLAY_ARGS=(-display "sdl,gl=off,show-cursor=off")
+if [ "$1" = "shell" ]; then
+	QEMU_DISPLAY_ARGS=(-display none -vga none)
+fi
+
 unset QEMU_BINARY_PREFIX
 unset QEMU_BINARY_SUFFIX
 unset QEMU_VIRT_TECH_ARGS
@@ -23,7 +28,7 @@ QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
 "${QEMU_BIN}" -kernel "${KERNEL}" \
 	-initrd "${INITRD}" \
 	-d guest_errors \
-	-display sdl,gl=off,show-cursor=off \
+	"${QEMU_DISPLAY_ARGS[@]}" \
 	-chardev stdio,mux=on,id=char0 \
 	-serial chardev:char0 \
 	-mon char0,mode=readline -s \

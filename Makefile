@@ -37,5 +37,8 @@ clean:
 run: kernel initrd
 	./run.sh
 
+shell: kernel initrd
+	./run.sh shell
+
 test: kernel initrd
 	./run_tests.sh
