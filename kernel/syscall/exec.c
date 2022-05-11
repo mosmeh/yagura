@@ -150,12 +150,12 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 
     // after switching page directory we will no longer be able to access
     // argv and envp, so we copy them here.
-    struct string_list copied_argv;
+    string_list copied_argv = (string_list){0};
     rc = string_list_create(&copied_argv, argv);
     if (IS_ERR(rc))
         return rc;
 
-    struct string_list copied_envp;
+    string_list copied_envp = (string_list){0};
     rc = string_list_create(&copied_envp, envp);
     if (IS_ERR(rc))
         return rc;
@@ -172,6 +172,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     // after this point, we have to revert to prev_pd if we want to abort.
 
     int ret = 0;
+    ptr_list envp_ptrs = (ptr_list){0};
+    ptr_list argv_ptrs = (ptr_list){0};
 
     Elf32_Phdr* phdr = (Elf32_Phdr*)((uintptr_t)buf + ehdr->e_phoff);
     uintptr_t max_segment_addr = 0;
@@ -226,13 +228,11 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
 
     int argc = copied_argv.count;
 
-    ptr_list envp_ptrs;
     ret = push_strings(&sp, stack_base, &envp_ptrs, &copied_envp);
     string_list_destroy(&copied_envp);
     if (IS_ERR(ret))
         goto fail;
 
-    ptr_list argv_ptrs;
     ret = push_strings(&sp, stack_base, &argv_ptrs, &copied_argv);
     string_list_destroy(&copied_argv);
     if (IS_ERR(ret))
