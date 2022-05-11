@@ -308,6 +308,7 @@ fail:
     ptr_list_destroy(&argv_ptrs);
 
     current->pd = prev_pd;
+    paging_destroy_current_page_directory();
     paging_switch_page_directory(prev_pd);
 
     return ret;
