@@ -18,9 +18,9 @@
 typedef struct file_description {
     mutex offset_lock;
     struct inode* inode;
-    atomic_size_t ref_count;
     atomic_int flags;
     off_t offset;
+    atomic_size_t ref_count;
 } file_description;
 
 typedef struct file_descriptor_table {
@@ -41,9 +41,9 @@ typedef struct inode* (*create_child_fn)(struct inode*, const char* name,
 typedef int (*link_child_fn)(struct inode*, const char* name,
                              struct inode* child);
 typedef struct inode* (*unlink_child_fn)(struct inode*, const char* name);
-typedef int (*open_fn)(struct inode*, int flags, mode_t mode);
 typedef int (*stat_fn)(struct inode*, struct stat* buf);
 
+typedef int (*open_fn)(file_description*, int flags, mode_t mode);
 typedef int (*close_fn)(file_description*);
 typedef ssize_t (*read_fn)(file_description*, void* buffer, size_t count);
 typedef ssize_t (*write_fn)(file_description*, const void* buffer,

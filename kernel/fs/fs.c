@@ -126,14 +126,7 @@ file_description* inode_open(struct inode* inode, int flags, mode_t mode) {
         inode_unref(inode);
         return ERR_PTR(-EISDIR);
     }
-    if (inode->fops->open) {
-        inode_ref(inode);
-        int rc = inode->fops->open(inode, flags, mode);
-        if (IS_ERR(rc)) {
-            inode_unref(inode);
-            return ERR_PTR(rc);
-        }
-    }
+
     file_description* desc = kmalloc(sizeof(file_description));
     if (!desc) {
         inode_unref(inode);
@@ -143,6 +136,15 @@ file_description* inode_open(struct inode* inode, int flags, mode_t mode) {
     desc->inode = inode;
     desc->flags = flags;
     desc->ref_count = 1;
+
+    if (inode->fops->open) {
+        int rc = inode->fops->open(desc, flags, mode);
+        if (IS_ERR(rc)) {
+            inode_unref(inode);
+            kfree(desc);
+            return ERR_PTR(rc);
+        }
+    }
     return desc;
 }
 

@@ -20,17 +20,16 @@ static void fifo_destroy_inode(struct inode* inode) {
     kfree(fifo);
 }
 
-static int fifo_open(struct inode* inode, int flags, mode_t mode) {
+static int fifo_open(file_description* desc, int flags, mode_t mode) {
     (void)flags;
     (void)mode;
     if ((flags & O_RDONLY) && (flags & O_WRONLY))
         return -EINVAL;
-    struct fifo* fifo = (struct fifo*)inode;
+    struct fifo* fifo = (struct fifo*)desc->inode;
     if (flags & O_RDONLY)
         ++fifo->num_readers;
     if (flags & O_WRONLY)
         ++fifo->num_writers;
-    inode_unref(inode);
     return 0;
 }
 
