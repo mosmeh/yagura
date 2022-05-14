@@ -42,6 +42,7 @@ struct process {
 };
 
 extern struct process* current;
+extern struct process* all_processes;
 extern const struct fpu_state initial_fpu_state;
 
 void process_init(void);

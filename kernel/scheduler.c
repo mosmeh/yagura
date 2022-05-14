@@ -10,8 +10,6 @@
 static struct process* ready_queue;
 static struct process* idle;
 
-extern struct process* all_processes;
-
 void scheduler_register(struct process* process) {
     ASSERT(process->state == PROCESS_STATE_RUNNABLE);
 

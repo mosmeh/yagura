@@ -110,8 +110,6 @@ struct waitpid_blocker {
 };
 
 static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
-    extern struct process* all_processes;
-
     bool int_flag = push_cli();
 
     struct process* prev = NULL;
