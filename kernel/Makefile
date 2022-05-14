@@ -20,6 +20,7 @@ OBJS := \
 	graphics/bochs.o \
 	graphics/fb.o \
 	graphics/multiboot.o \
+	growable_buf.o \
 	hid/keyboard.o \
 	hid/mouse.o \
 	hid/ps2.o \
