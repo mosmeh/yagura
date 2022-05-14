@@ -12,7 +12,7 @@ struct process* current;
 const struct fpu_state initial_fpu_state;
 static atomic_int next_pid = 1;
 
-extern struct process* all_processes;
+struct process* all_processes;
 
 extern unsigned char kernel_page_directory[];
 extern unsigned char stack_top[];
