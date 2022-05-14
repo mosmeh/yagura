@@ -14,8 +14,19 @@ void scheduler_register(struct process* process) {
     ASSERT(process->state == PROCESS_STATE_RUNNABLE);
 
     bool int_flag = push_cli();
-    process->next_in_all_processes = all_processes;
-    all_processes = process;
+    struct process* prev = NULL;
+    struct process* it = all_processes;
+    while (it && it->pid < process->pid) {
+        prev = it;
+        it = it->next_in_all_processes;
+    }
+    if (prev) {
+        process->next_in_all_processes = it;
+        prev->next_in_all_processes = process;
+    } else {
+        process->next_in_all_processes = all_processes;
+        all_processes = process;
+    }
     pop_cli(int_flag);
 
     scheduler_enqueue(process);
