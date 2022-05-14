@@ -55,6 +55,9 @@ static void itoa(int value, char* str, int radix) {
 
 // NOLINTNEXTLINE(readability-non-const-parameter)
 int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
+    if (size == 0)
+        return 0;
+
     size_t idx = 0;
     char ch;
     while ((ch = *format++) != 0) {
