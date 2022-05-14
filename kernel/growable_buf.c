@@ -4,6 +4,7 @@
 #include "memory/memory.h"
 #include "panic.h"
 #include <common/string.h>
+#include <stdio.h>
 
 void growable_buf_destroy(growable_buf* buf) {
     if (buf->addr)
@@ -108,4 +109,28 @@ uintptr_t growable_buf_mmap(growable_buf* buf, uintptr_t addr, size_t length,
         return rc;
 
     return addr;
+}
+
+int growable_buf_printf(growable_buf* buf, const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    int ret = growable_buf_vsprintf(buf, format, args);
+    va_end(args);
+    return ret;
+}
+
+int growable_buf_vsprintf(growable_buf* buf, const char* format, va_list args) {
+    for (;;) {
+        char* dest = (char*)(buf->addr + buf->size);
+        if (buf->capacity > 0) {
+            int len = vsnprintf(dest, buf->capacity - buf->size, format, args);
+            if ((size_t)len <= buf->capacity) {
+                buf->size += len;
+                return len;
+            }
+        }
+        int rc = grow_buf(buf, 0);
+        if (IS_ERR(rc))
+            return rc;
+    }
 }
