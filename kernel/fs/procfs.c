@@ -72,14 +72,36 @@ static ssize_t procfs_item_read(file_description* desc, void* buffer,
     return nread;
 }
 
-static int add_item(procfs_root_inode* root, const char* name,
-                    populate_buf_fn populate_buf) {
+static int populate_cmdline(growable_buf* buf) {
+    return growable_buf_printf(buf, "%s\n", cmdline_get_raw());
+}
+
+static int populate_meminfo(growable_buf* buf) {
+    struct physical_memory_info memory_info;
+    page_allocator_get_info(&memory_info);
+
+    return growable_buf_printf(buf,
+                               "MemTotal: %8u kB\n"
+                               "MemFree:  %8u kB\n",
+                               memory_info.total, memory_info.free);
+}
+
+static int populate_uptime(growable_buf* buf) {
+    return growable_buf_printf(buf, "%u\n", uptime / CLK_TCK);
+}
+
+struct procfs_item {
+    const char* name;
+    populate_buf_fn populate_buf;
+};
+
+static int add_item(procfs_root_inode* root, const struct procfs_item* item) {
     procfs_item_inode* node = kmalloc(sizeof(procfs_item_inode));
     if (!node)
         return -ENOMEM;
     *node = (procfs_item_inode){0};
 
-    node->populate_buf = populate_buf;
+    node->populate_buf = item->populate_buf;
 
     static file_ops fops = {.open = procfs_item_open,
                             .close = procfs_item_close,
@@ -90,12 +112,13 @@ static int add_item(procfs_root_inode* root, const char* name,
     inode->mode = S_IFREG;
     inode->ref_count = 1;
 
-    return dentry_append(&root->children, name, inode);
+    return dentry_append(&root->children, item->name, inode);
 }
 
-static int populate_cmdline(growable_buf* buf) {
-    return growable_buf_printf(buf, "%s\n", cmdline_get_raw());
-}
+static struct procfs_item root_items[] = {{"cmdline", populate_cmdline},
+                                          {"meminfo", populate_meminfo},
+                                          {"uptime", populate_uptime}};
+#define NUM_ROOT_ITEMS (sizeof(root_items) / sizeof(struct procfs_item))
 
 struct inode* procfs_create_root(void) {
     procfs_root_inode* root = kmalloc(sizeof(procfs_root_inode));
@@ -103,9 +126,11 @@ struct inode* procfs_create_root(void) {
         return ERR_PTR(-ENOMEM);
     *root = (procfs_root_inode){0};
 
-    int rc = add_item(root, "cmdline", populate_cmdline);
-    if (IS_ERR(rc))
-        return ERR_PTR(rc);
+    for (size_t i = 0; i < NUM_ROOT_ITEMS; ++i) {
+        int rc = add_item(root, root_items + i);
+        if (IS_ERR(rc))
+            return ERR_PTR(rc);
+    }
 
     static file_ops fops = {
         .lookup_child = procfs_root_lookup_child,
