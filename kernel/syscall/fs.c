@@ -157,7 +157,7 @@ static int make_sure_directory_is_empty(struct inode* inode) {
             nread = -ENOMEM;
             break;
         }
-        nread = file_description_readdir(desc, buf, capacity);
+        nread = file_description_getdents(desc, buf, capacity);
         if (nread != -EINVAL)
             break;
         capacity *= 2;
@@ -271,7 +271,7 @@ uintptr_t sys_getdents(int fd, void* dirp, size_t count) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    return file_description_readdir(desc, dirp, count);
+    return file_description_getdents(desc, dirp, count);
 }
 
 uintptr_t sys_fcntl(int fd, int cmd, uintptr_t arg) {

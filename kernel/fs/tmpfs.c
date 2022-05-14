@@ -80,12 +80,12 @@ static int tmpfs_truncate(file_description* desc, off_t length) {
     return rc;
 }
 
-static long tmpfs_readdir(file_description* desc, void* dirp,
-                          unsigned int count) {
+static int tmpfs_getdents(struct getdents_ctx* ctx, file_description* desc,
+                          getdents_callback_fn callback) {
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
     mutex_lock(&node->children_lock);
     mutex_lock(&desc->offset_lock);
-    long rc = dentry_readdir(node->children, dirp, count, &desc->offset);
+    int rc = dentry_getdents(ctx, desc, node->children, callback);
     mutex_unlock(&desc->offset_lock);
     mutex_unlock(&node->children_lock);
     return rc;
@@ -119,7 +119,7 @@ static file_ops dir_fops = {.destroy_inode = tmpfs_destroy_inode,
                             .link_child = tmpfs_link_child,
                             .unlink_child = tmpfs_unlink_child,
                             .stat = tmpfs_stat,
-                            .readdir = tmpfs_readdir};
+                            .getdents = tmpfs_getdents};
 static file_ops non_dir_fops = {.destroy_inode = tmpfs_destroy_inode,
                                 .stat = tmpfs_stat,
                                 .read = tmpfs_read,

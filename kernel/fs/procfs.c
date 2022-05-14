@@ -19,11 +19,12 @@ static struct inode* procfs_root_lookup_child(struct inode* inode,
     return child;
 }
 
-static long procfs_root_readdir(file_description* desc, void* dirp,
-                                unsigned int count) {
+static int procfs_root_getdents(struct getdents_ctx* ctx,
+                                file_description* desc,
+                                getdents_callback_fn callback) {
     procfs_root_inode* node = (procfs_root_inode*)desc->inode;
     mutex_lock(&desc->offset_lock);
-    long rc = dentry_readdir(node->children, dirp, count, &desc->offset);
+    int rc = dentry_getdents(ctx, desc, node->children, callback);
     mutex_unlock(&desc->offset_lock);
     return rc;
 }
@@ -134,7 +135,7 @@ struct inode* procfs_create_root(void) {
 
     static file_ops fops = {
         .lookup_child = procfs_root_lookup_child,
-        .readdir = procfs_root_readdir,
+        .getdents = procfs_root_getdents,
     };
 
     struct inode* inode = &root->inode;
