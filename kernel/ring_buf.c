@@ -23,9 +23,9 @@ bool ring_buf_is_full(const ring_buf* buf) {
     return (buf->write_idx + 1) % BUF_CAPACITY == buf->read_idx;
 }
 
-ssize_t ring_buf_read(ring_buf* buf, void* buffer, size_t count) {
+ssize_t ring_buf_read(ring_buf* buf, void* bytes, size_t count) {
     size_t nread = 0;
-    unsigned char* dest = buffer;
+    unsigned char* dest = bytes;
     const unsigned char* src = buf->inner_buf;
     while (nread < count) {
         dest[nread++] = src[buf->read_idx];
@@ -36,10 +36,10 @@ ssize_t ring_buf_read(ring_buf* buf, void* buffer, size_t count) {
     return nread;
 }
 
-ssize_t ring_buf_write(ring_buf* buf, const void* buffer, size_t count) {
+ssize_t ring_buf_write(ring_buf* buf, const void* bytes, size_t count) {
     size_t nwritten = 0;
     unsigned char* dest = buf->inner_buf;
-    const unsigned char* src = buffer;
+    const unsigned char* src = bytes;
     while (nwritten < count) {
         dest[buf->write_idx] = src[nwritten++];
         buf->write_idx = (buf->write_idx + 1) % BUF_CAPACITY;
@@ -49,11 +49,11 @@ ssize_t ring_buf_write(ring_buf* buf, const void* buffer, size_t count) {
     return nwritten;
 }
 
-ssize_t ring_buf_write_evicting_oldest(ring_buf* buf, const void* buffer,
+ssize_t ring_buf_write_evicting_oldest(ring_buf* buf, const void* bytes,
                                        size_t count) {
     size_t nwritten = 0;
     unsigned char* dest = buf->inner_buf;
-    const unsigned char* src = buffer;
+    const unsigned char* src = bytes;
     while (nwritten < count) {
         dest[buf->write_idx] = src[nwritten++];
         buf->write_idx = (buf->write_idx + 1) % BUF_CAPACITY;
