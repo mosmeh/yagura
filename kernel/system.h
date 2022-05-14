@@ -30,7 +30,7 @@ extern uint32_t uptime;
 void pit_init(void);
 
 void cmdline_init(const multiboot_info_t*);
-const char* cmdline_get(const char* key);
+const char* cmdline_lookup(const char* key);
 bool cmdline_contains(const char* key);
 
 void time_init(void);

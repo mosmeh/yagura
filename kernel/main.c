@@ -18,7 +18,7 @@
 static noreturn void init(void) {
     current->pid = current->pgid = process_generate_next_pid();
 
-    const char* init_path = cmdline_get("init");
+    const char* init_path = cmdline_lookup("init");
     if (!init_path)
         init_path = "/bin/init";
     const char* argv[] = {init_path, NULL};

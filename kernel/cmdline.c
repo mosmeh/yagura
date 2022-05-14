@@ -50,7 +50,7 @@ void cmdline_init(const multiboot_info_t* mb_info) {
     }
 }
 
-const char* cmdline_get(const char* key) {
+const char* cmdline_lookup(const char* key) {
     if (num_keys == 0)
         return NULL;
     for (size_t i = 0; i < num_keys; ++i) {
