@@ -64,7 +64,13 @@ void kfree(void* ptr);
 char* kstrdup(const char*);
 char* kstrndup(const char*, size_t n);
 
+struct physical_memory_info {
+    size_t total;
+    size_t free;
+};
+
 void page_allocator_init(const multiboot_info_t* mb_info);
 uintptr_t page_allocator_alloc(void);
 void page_allocator_ref_page(uintptr_t physical_addr);
 void page_allocator_unref_page(uintptr_t physical_addr);
+void page_allocator_get_info(struct physical_memory_info* out_memory_info);

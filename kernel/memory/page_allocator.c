@@ -68,6 +68,8 @@ static void get_available_physical_addr_bounds(const multiboot_info_t* mb_info,
     }
 }
 
+static struct physical_memory_info memory_info;
+
 static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
                         uintptr_t upper_bound) {
     bitmap_len = div_ceil(upper_bound, PAGE_SIZE * 32);
@@ -130,8 +132,8 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
             ref_counts[i] = UINT8_MAX;
         }
     }
-    kprintf("#Physical pages: %u (%u MiB)\n", num_pages,
-            num_pages * PAGE_SIZE / 0x100000);
+    memory_info.total = memory_info.free = num_pages * PAGE_SIZE / 1024;
+    kprintf("#Physical pages: %u (%u KiB)\n", num_pages, memory_info.total);
 }
 
 void page_allocator_init(const multiboot_info_t* mb_info) {
@@ -161,6 +163,7 @@ uintptr_t page_allocator_alloc(void) {
     bitmap_clear(first_set);
     ASSERT(ref_counts[first_set] == 0);
     ref_counts[first_set] = 1;
+    memory_info.free -= PAGE_SIZE / 1024;
 
     mutex_unlock(&lock);
     return first_set * PAGE_SIZE;
@@ -191,9 +194,17 @@ void page_allocator_unref_page(uintptr_t physical_addr) {
     // To be safe, we never decrement the reference count if count == UINT8_MAX
     // assuming the count was saturated.
     if (ref_counts[idx] < UINT8_MAX) {
-        if (--ref_counts[idx] == 0)
+        if (--ref_counts[idx] == 0) {
             bitmap_set(idx);
+            memory_info.free += PAGE_SIZE / 1024;
+        }
     }
 
+    mutex_unlock(&lock);
+}
+
+void page_allocator_get_info(struct physical_memory_info* out_memory_info) {
+    mutex_lock(&lock);
+    *out_memory_info = memory_info;
     mutex_unlock(&lock);
 }
