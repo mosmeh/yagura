@@ -3,6 +3,7 @@
 #include <kernel/api/dirent.h>
 #include <kernel/api/err.h>
 #include <kernel/memory/memory.h>
+#include <kernel/panic.h>
 
 struct inode* dentry_find(const struct dentry* head, const char* name) {
     const struct dentry* dentry = head;
@@ -18,6 +19,8 @@ struct inode* dentry_find(const struct dentry* head, const char* name) {
 
 long dentry_readdir(const struct dentry* head, void* dirp, unsigned int count,
                     off_t* out_offset) {
+    ASSERT(out_offset);
+
     const struct dentry* dentry = head;
     if (!dentry)
         return 0;
