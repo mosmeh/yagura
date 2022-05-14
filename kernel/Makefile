@@ -10,10 +10,11 @@ OBJS := \
 	console/serial_console.o \
 	console/system_console.o \
 	console/tty.o \
-	fs/fifo.o \
 	fs/dentry.o \
+	fs/fifo.o \
 	fs/fs.o \
 	fs/initrd.o \
+	fs/procfs.o \
 	fs/tmpfs.o \
 	fs/vfs.o \
 	gdt.o \

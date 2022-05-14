@@ -20,6 +20,7 @@ typedef struct file_description {
     struct inode* inode;
     atomic_int flags;
     off_t offset;
+    void* private_data;
     atomic_size_t ref_count;
 } file_description;
 
@@ -133,3 +134,4 @@ struct inode* fifo_create(void);
 void initrd_populate_root_fs(uintptr_t physical_addr, size_t size);
 
 struct inode* tmpfs_create_root(void);
+struct inode* procfs_create_root(void);
