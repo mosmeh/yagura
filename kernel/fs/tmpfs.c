@@ -1,28 +1,26 @@
 #include "dentry.h"
-#include <kernel/boot_defs.h>
+#include <kernel/growable_buf.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <string.h>
 
 typedef struct tmpfs_inode {
     struct inode inode;
-    uintptr_t buf_addr;
-    size_t capacity, size;
-    mutex lock;
+    growable_buf buf;
+    mutex children_lock;
     struct dentry* children;
 } tmpfs_inode;
 
 static void tmpfs_destroy_inode(struct inode* inode) {
     tmpfs_inode* node = (tmpfs_inode*)inode;
-    paging_unmap(node->buf_addr, node->capacity);
+    growable_buf_destroy(&node->buf);
     kfree(node);
 }
 
 static struct inode* tmpfs_lookup_child(struct inode* inode, const char* name) {
     tmpfs_inode* node = (tmpfs_inode*)inode;
-    mutex_lock(&node->lock);
+    mutex_lock(&node->children_lock);
     struct inode* child = dentry_find(node->children, name);
-    mutex_unlock(&node->lock);
+    mutex_unlock(&node->children_lock);
     inode_unref(inode);
     return child;
 }
@@ -32,166 +30,81 @@ static int tmpfs_stat(struct inode* inode, struct stat* buf) {
     buf->st_mode = inode->mode;
     buf->st_nlink = inode->num_links;
     buf->st_rdev = 0;
-    buf->st_size = node->size;
+    buf->st_size = node->buf.size;
     inode_unref(inode);
     return 0;
 }
 
 static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t count) {
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
-    mutex_lock(&node->lock);
     mutex_lock(&desc->offset_lock);
-
-    if ((size_t)desc->offset >= node->size) {
-        mutex_unlock(&desc->offset_lock);
-        mutex_unlock(&node->lock);
-        return 0;
-    }
-    if (desc->offset + count >= node->size)
-        count = node->size - desc->offset;
-
-    memcpy(buffer, (void*)(node->buf_addr + desc->offset), count);
-    desc->offset += count;
-
+    mutex_lock(&node->buf.lock);
+    ssize_t nread = growable_buf_pread(&node->buf, buffer, count, desc->offset);
+    mutex_unlock(&node->buf.lock);
+    if (IS_OK(nread))
+        desc->offset += nread;
     mutex_unlock(&desc->offset_lock);
-    mutex_unlock(&node->lock);
-    return count;
-}
-
-static int grow_buf(tmpfs_inode* node, size_t requested_size) {
-    size_t new_capacity =
-        round_up(MAX(node->capacity * 2, requested_size), PAGE_SIZE);
-
-    uintptr_t new_addr =
-        range_allocator_alloc(&kernel_vaddr_allocator, new_capacity);
-    if (IS_ERR(new_addr))
-        return new_addr;
-
-    if (node->buf_addr) {
-        int rc = paging_copy_mapping(new_addr, node->buf_addr, node->capacity,
-                                     PAGE_WRITE | PAGE_GLOBAL);
-        if (IS_ERR(rc))
-            return rc;
-    } else {
-        ASSERT(node->capacity == 0);
-    }
-
-    int rc = paging_map_to_free_pages(new_addr + node->capacity,
-                                      new_capacity - node->capacity,
-                                      PAGE_WRITE | PAGE_GLOBAL);
-    if (IS_ERR(rc))
-        return rc;
-
-    if (node->buf_addr)
-        memcpy((void*)new_addr, (void*)node->buf_addr, node->size);
-    memset((void*)(new_addr + node->size), 0, new_capacity - node->size);
-
-    paging_unmap(node->buf_addr, node->capacity);
-
-    node->buf_addr = new_addr;
-    node->capacity = new_capacity;
-    return 0;
+    return nread;
 }
 
 static ssize_t tmpfs_write(file_description* desc, const void* buffer,
                            size_t count) {
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
-    mutex_lock(&node->lock);
     mutex_lock(&desc->offset_lock);
-
-    if (desc->offset + count >= node->capacity) {
-        int rc = grow_buf(node, desc->offset + count);
-        if (IS_ERR(rc)) {
-            mutex_unlock(&desc->offset_lock);
-            mutex_unlock(&node->lock);
-            return rc;
-        }
-    }
-
-    memcpy((void*)(node->buf_addr + desc->offset), buffer, count);
-    desc->offset += count;
-    if (node->size < (size_t)desc->offset)
-        node->size = desc->offset;
-
+    mutex_lock(&node->buf.lock);
+    ssize_t nwritten =
+        growable_buf_pwrite(&node->buf, buffer, count, desc->offset);
+    mutex_unlock(&node->buf.lock);
+    if (IS_OK(nwritten))
+        desc->offset += nwritten;
     mutex_unlock(&desc->offset_lock);
-    mutex_unlock(&node->lock);
-    return count;
+    return nwritten;
 }
 
 static uintptr_t tmpfs_mmap(file_description* desc, uintptr_t addr,
                             size_t length, off_t offset, uint16_t page_flags) {
-    if (offset != 0 || !(page_flags & PAGE_SHARED))
-        return -ENOTSUP;
-
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
-    mutex_lock(&node->lock);
-
-    if (length > node->size) {
-        mutex_unlock(&node->lock);
-        return -EINVAL;
-    }
-
-    int rc = paging_copy_mapping(addr, node->buf_addr, length, page_flags);
-    if (IS_ERR(rc)) {
-        mutex_unlock(&node->lock);
-        return rc;
-    }
-
-    mutex_unlock(&node->lock);
-    return addr;
+    mutex_lock(&node->buf.lock);
+    uintptr_t rc =
+        growable_buf_mmap(&node->buf, addr, length, offset, page_flags);
+    mutex_unlock(&node->buf.lock);
+    return rc;
 }
 
 static int tmpfs_truncate(file_description* desc, off_t length) {
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
-    size_t slength = (size_t)length;
-
-    mutex_lock(&node->lock);
-
-    if (slength <= node->size) {
-        memset((void*)(node->buf_addr + slength), 0, node->size - slength);
-    } else if (slength < node->capacity) {
-        memset((void*)(node->buf_addr + node->size), 0, slength - node->size);
-    } else {
-        // slength >= capacity
-        int rc = grow_buf(node, slength);
-        if (IS_ERR(rc)) {
-            mutex_unlock(&node->lock);
-            return rc;
-        }
-    }
-
-    node->size = slength;
-
-    mutex_unlock(&node->lock);
-    return 0;
+    mutex_lock(&node->buf.lock);
+    int rc = growable_buf_truncate(&node->buf, length);
+    mutex_unlock(&node->buf.lock);
+    return rc;
 }
 
 static long tmpfs_readdir(file_description* desc, void* dirp,
                           unsigned int count) {
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
-    mutex_lock(&node->lock);
+    mutex_lock(&node->children_lock);
     mutex_lock(&desc->offset_lock);
     long rc = dentry_readdir(node->children, dirp, count, &desc->offset);
     mutex_unlock(&desc->offset_lock);
-    mutex_unlock(&node->lock);
+    mutex_unlock(&node->children_lock);
     return rc;
 }
 
 static int tmpfs_link_child(struct inode* inode, const char* name,
                             struct inode* child) {
     tmpfs_inode* node = (tmpfs_inode*)inode;
-    mutex_lock(&node->lock);
+    mutex_lock(&node->children_lock);
     int rc = dentry_append(&node->children, name, child);
-    mutex_unlock(&node->lock);
+    mutex_unlock(&node->children_lock);
     inode_unref(inode);
     return rc;
 }
 
 static struct inode* tmpfs_unlink_child(struct inode* inode, const char* name) {
     tmpfs_inode* node = (tmpfs_inode*)inode;
-    mutex_lock(&node->lock);
+    mutex_lock(&node->children_lock);
     struct inode* child = dentry_remove(&node->children, name);
-    mutex_unlock(&node->lock);
+    mutex_unlock(&node->children_lock);
     inode_unref(inode);
     return child;
 }
