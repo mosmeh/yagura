@@ -8,7 +8,8 @@
 #define MAX_CMDLINE_LEN 1024
 #define MAX_NUM_KEYS 1024
 
-static char cmdline_str[MAX_CMDLINE_LEN];
+static char raw[MAX_CMDLINE_LEN];
+static char buf[MAX_CMDLINE_LEN];
 static size_t num_keys = 0;
 static char* keys[MAX_NUM_KEYS];
 static char* values[MAX_NUM_KEYS];
@@ -19,11 +20,12 @@ void cmdline_init(const multiboot_info_t* mb_info) {
 
     const char* str = (const char*)(mb_info->cmdline + KERNEL_VADDR);
     kprintf("Kernel cmdline: \"%s\"\n", str);
-    strlcpy(cmdline_str, str, MAX_CMDLINE_LEN);
+    strlcpy(raw, str, MAX_CMDLINE_LEN);
+    strlcpy(buf, str, MAX_CMDLINE_LEN);
 
     char* saved_ptr;
     static const char* sep = " ";
-    for (char* token = strtok_r(cmdline_str, sep, &saved_ptr); token;
+    for (char* token = strtok_r(buf, sep, &saved_ptr); token;
          token = strtok_r(NULL, sep, &saved_ptr)) {
         keys[num_keys] = token;
 
@@ -49,6 +51,8 @@ void cmdline_init(const multiboot_info_t* mb_info) {
         }
     }
 }
+
+const char* cmdline_get_raw(void) { return raw; }
 
 const char* cmdline_lookup(const char* key) {
     if (num_keys == 0)
