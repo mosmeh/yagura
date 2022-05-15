@@ -18,6 +18,7 @@ BIN_TARGET_NAMES := \
 	imgview \
 	init \
 	init-test \
+	kill \
 	ln \
 	ls \
 	mandelbrot \
