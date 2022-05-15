@@ -148,16 +148,6 @@ char* strncat(char* dest, const char* src, size_t n) {
     return dest;
 }
 
-void str_replace_char(char* str, char from, char to) {
-    while (*str) {
-        if (*str == from) {
-            *str++ = to;
-        } else {
-            ++str;
-        }
-    }
-}
-
 char* strchr(const char* str, int ch) {
     while (*str) {
         if (*str == ch)

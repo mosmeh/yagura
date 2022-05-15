@@ -20,8 +20,6 @@ size_t strlcpy(char* dst, const char* src, size_t size);
 char* strcat(char* dest, const char* src);
 char* strncat(char* dest, const char* src, size_t n);
 
-void str_replace_char(char* str, char from, char to);
-
 char* strchr(const char* str, int ch);
 char* strrchr(char const* str, int ch);
 char* strstr(const char* str, const char* substr);
