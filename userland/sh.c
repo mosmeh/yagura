@@ -700,6 +700,10 @@ int main(int argc, char* const argv[], char* const envp[]) {
             UNREACHABLE();
         }
 
+        // reap previous background processes
+        while (waitpid(-1, NULL, WNOHANG) >= 0)
+            ;
+
         struct run_context ctx = {.envp = envp, .pgid = 0, .foreground = true};
         if (run_command(node, ctx) == RUN_ERROR) {
             perror("run_command");
