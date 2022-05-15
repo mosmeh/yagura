@@ -1,4 +1,6 @@
-CFLAGS += -isystem..
+CFLAGS += \
+	-fno-omit-frame-pointer \
+	-isystem..
 
 TARGET := kernel
 
@@ -52,6 +54,7 @@ OBJS := \
 	system.o \
 	time.o \
 	unix_socket.o \
+	../common/libgen.o \
 	../common/math.o \
 	../common/string.o \
 	../common/strings.o \
