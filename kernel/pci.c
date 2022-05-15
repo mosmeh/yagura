@@ -13,60 +13,57 @@
 #define PCI_VALUE_PORT 0xcfc
 #define PCI_NONE 0xffff
 
-static uint32_t io_address_for_field(uint8_t bus, uint8_t slot,
-                                     uint8_t function, uint8_t field) {
-    return 0x80000000 | ((uint32_t)bus << 16) | ((uint32_t)slot << 11) |
-           ((uint32_t)function << 8) | (field & 0xfc);
+static uint32_t io_address_for_field(const struct pci_addr* addr,
+                                     uint8_t field) {
+    return 0x80000000 | ((uint32_t)addr->bus << 16) |
+           ((uint32_t)addr->slot << 11) | ((uint32_t)addr->function << 8) |
+           (field & 0xfc);
 }
 
-static uint16_t read_field8(uint8_t bus, uint8_t slot, uint8_t function,
-                            uint8_t field) {
-    out32(PCI_ADDRESS_PORT, io_address_for_field(bus, slot, function, field));
+static uint16_t read_field8(const struct pci_addr* addr, uint8_t field) {
+    out32(PCI_ADDRESS_PORT, io_address_for_field(addr, field));
     return in8(PCI_VALUE_PORT + (field & 3));
 }
 
-static uint16_t read_field16(uint8_t bus, uint8_t slot, uint8_t function,
-                             uint8_t field) {
-    out32(PCI_ADDRESS_PORT, io_address_for_field(bus, slot, function, field));
+static uint16_t read_field16(const struct pci_addr* addr, uint8_t field) {
+    out32(PCI_ADDRESS_PORT, io_address_for_field(addr, field));
     return in16(PCI_VALUE_PORT + (field & 2));
 }
 
-static uint32_t read_field32(uint8_t bus, uint8_t slot, uint8_t function,
-                             uint8_t field) {
-    out32(PCI_ADDRESS_PORT, io_address_for_field(bus, slot, function, field));
+static uint32_t read_field32(const struct pci_addr* addr, uint8_t field) {
+    out32(PCI_ADDRESS_PORT, io_address_for_field(addr, field));
     return in32(PCI_VALUE_PORT);
 }
 
-static uint16_t read_type(uint8_t bus, uint8_t slot, uint8_t function) {
-    return ((uint16_t)read_field8(bus, slot, function, PCI_CLASS) << 8) |
-           read_field8(bus, slot, function, PCI_SUBCLASS);
+static uint16_t read_type(const struct pci_addr* addr) {
+    return ((uint16_t)read_field8(addr, PCI_CLASS) << 8) |
+           read_field8(addr, PCI_SUBCLASS);
 }
 
 static void enumerate_bus(uint8_t bus, pci_enumeration_callback_fn callback);
 
-static void enumerate_functions(uint8_t bus, uint8_t slot, uint8_t function,
+static void enumerate_functions(const struct pci_addr* addr,
                                 pci_enumeration_callback_fn callback) {
-    callback(bus, slot, function,
-             read_field16(bus, slot, function, PCI_VENDOR_ID),
-             read_field16(bus, slot, function, PCI_DEVICE_ID));
-    if (read_type(bus, slot, function) == PCI_TYPE_BRIDGE)
-        enumerate_bus(read_field8(bus, slot, function, PCI_SECONDARY_BUS),
-                      callback);
+    callback(addr, read_field16(addr, PCI_VENDOR_ID),
+             read_field16(addr, PCI_DEVICE_ID));
+    if (read_type(addr) == PCI_TYPE_BRIDGE)
+        enumerate_bus(read_field8(addr, PCI_SECONDARY_BUS), callback);
 }
 
 static void enumerate_slot(uint8_t bus, uint8_t slot,
                            pci_enumeration_callback_fn callback) {
-    if (read_field16(bus, slot, 0, PCI_VENDOR_ID) == PCI_NONE)
+    struct pci_addr addr = {bus, slot, 0};
+    if (read_field16(&addr, PCI_VENDOR_ID) == PCI_NONE)
         return;
 
-    enumerate_functions(bus, slot, 0, callback);
+    enumerate_functions(&addr, callback);
 
-    if (!(read_field8(bus, slot, 0, PCI_HEADER_TYPE) & 0x80))
+    if (!(read_field8(&addr, PCI_HEADER_TYPE) & 0x80))
         return;
 
-    for (uint8_t function = 1; function < 8; ++function) {
-        if (read_field16(bus, slot, function, PCI_VENDOR_ID) != PCI_NONE)
-            enumerate_functions(bus, slot, function, callback);
+    for (addr.function = 1; addr.function < 8; ++addr.function) {
+        if (read_field16(&addr, PCI_VENDOR_ID) != PCI_NONE)
+            enumerate_functions(&addr, callback);
     }
 }
 
@@ -76,17 +73,18 @@ static void enumerate_bus(uint8_t bus, pci_enumeration_callback_fn callback) {
 }
 
 void pci_enumerate(pci_enumeration_callback_fn callback) {
-    if ((read_field8(0, 0, 0, PCI_HEADER_TYPE) & 0x80) == 0) {
+    struct pci_addr addr = {0};
+    if ((read_field8(&addr, PCI_HEADER_TYPE) & 0x80) == 0) {
         enumerate_bus(0, callback);
         return;
     }
 
-    for (uint8_t function = 0; function < 8; ++function) {
-        if (read_field16(0, 0, function, PCI_VENDOR_ID) != PCI_NONE)
-            enumerate_bus(function, callback);
+    for (addr.function = 0; addr.function < 8; ++addr.function) {
+        if (read_field16(&addr, PCI_VENDOR_ID) != PCI_NONE)
+            enumerate_bus(addr.function, callback);
     }
 }
 
-uint32_t pci_get_bar0(uint8_t bus, uint8_t slot, uint8_t function) {
-    return read_field32(bus, slot, function, PCI_BAR0);
+uint32_t pci_get_bar0(const struct pci_addr* addr) {
+    return read_field32(addr, PCI_BAR0);
 }

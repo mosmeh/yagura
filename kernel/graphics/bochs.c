@@ -30,12 +30,11 @@ static uintptr_t fb_paddr;
 static struct fb_info fb_info;
 static mutex lock;
 
-static void pci_enumeration_callback(uint8_t bus, uint8_t slot,
-                                     uint8_t function, uint16_t vendor_id,
-                                     uint16_t device_id) {
+static void pci_enumeration_callback(const struct pci_addr* addr,
+                                     uint16_t vendor_id, uint16_t device_id) {
     if ((vendor_id == 0x1234 && device_id == 0x1111) |
         (vendor_id == 0x80ee && device_id == 0xbeef))
-        fb_paddr = pci_get_bar0(bus, slot, function) & 0xfffffff0;
+        fb_paddr = pci_get_bar0(addr) & 0xfffffff0;
 }
 
 static uint16_t read_reg(uint16_t index) {
