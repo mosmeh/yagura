@@ -25,6 +25,7 @@ BIN_TARGET_NAMES := \
 	mouse-cursor \
 	mv \
 	poweroff \
+	ps \
 	pwd \
 	reboot \
 	rm \
