@@ -75,9 +75,10 @@ int main(int argc, char* argv[]) {
         errno = 0;
         struct dirent* dent = readdir(dirp);
         if (!dent) {
-            if (errno != 0)
-                perror("readdir");
-            break;
+            if (errno == 0)
+                break;
+            perror("readdir");
+            return EXIT_FAILURE;
         }
 
         const char* format;
