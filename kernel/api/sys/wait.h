@@ -5,3 +5,5 @@
 #define WIFEXITED(status) (WTERMSIG(status) == 0)
 #define WIFSIGNALED(status)                                                    \
     ((0 < WTERMSIG(status)) && (WTERMSIG(status) < 0x7f))
+
+#define WNOHANG 0x1

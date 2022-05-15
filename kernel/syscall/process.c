@@ -1,5 +1,6 @@
 #include <common/string.h>
 #include <kernel/api/sys/times.h>
+#include <kernel/api/sys/wait.h>
 #include <kernel/boot_defs.h>
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
@@ -61,6 +62,7 @@ uintptr_t sys_fork(registers* regs) {
     process->edi = current->edi;
     process->fpu_state = current->fpu_state;
     process->state = PROCESS_STATE_RUNNABLE;
+    strlcpy(process->comm, current->comm, sizeof(process->comm));
 
     process->user_ticks = current->user_ticks;
     process->kernel_ticks = current->kernel_ticks;
@@ -106,10 +108,10 @@ uintptr_t sys_kill(pid_t pid, int sig) {
 struct waitpid_blocker {
     pid_t param_pid;
     pid_t current_pid, current_pgid;
-    struct process* process;
+    struct process* waited_process;
 };
 
-static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
+static bool waitpid_should_unblock(struct waitpid_blocker* blocker) {
     bool int_flag = push_cli();
 
     struct process* prev = NULL;
@@ -141,7 +143,7 @@ static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
     if (!it) {
         pop_cli(int_flag);
         if (!any_target_exists) {
-            blocker->process = NULL;
+            blocker->waited_process = NULL;
             return true;
         }
         return false;
@@ -151,33 +153,38 @@ static bool waitpid_shoud_unblock(struct waitpid_blocker* blocker) {
         prev->next_in_all_processes = it->next_in_all_processes;
     else
         all_processes = it->next_in_all_processes;
-    blocker->process = it;
+    blocker->waited_process = it;
 
     pop_cli(int_flag);
     return true;
 }
 
 pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
-    if (options != 0)
+    if (options & ~WNOHANG)
         return -ENOTSUP;
 
     struct waitpid_blocker blocker = {.param_pid = pid,
                                       .current_pid = current->pid,
                                       .current_pgid = current->pgid,
-                                      .process = NULL};
-    int rc = scheduler_block(waitpid_shoud_unblock, &blocker);
-    if (IS_ERR(rc))
-        return rc;
+                                      .waited_process = NULL};
+    if (options & WNOHANG) {
+        if (!waitpid_should_unblock(&blocker))
+            return blocker.waited_process ? 0 : -ECHILD;
+    } else {
+        int rc = scheduler_block(waitpid_should_unblock, &blocker);
+        if (IS_ERR(rc))
+            return rc;
+    }
 
-    struct process* process = blocker.process;
-    if (!process)
+    struct process* waited_process = blocker.waited_process;
+    if (!waited_process)
         return -ECHILD;
 
-    scheduler_unregister(process);
+    scheduler_unregister(waited_process);
     if (wstatus)
-        *wstatus = process->exit_status;
-    pid_t result = process->pid;
-    kfree(process);
+        *wstatus = waited_process->exit_status;
+    pid_t result = waited_process->pid;
+    kfree(waited_process);
     return result;
 }
 
