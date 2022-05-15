@@ -3,7 +3,7 @@
 #include <unistd.h>
 
 int main(int argc, char* argv[]) {
-    if (argc < 3) {
+    if (argc != 3) {
         dprintf(STDERR_FILENO, "Usage: ln TARGET LINK_NAME\n");
         return EXIT_FAILURE;
     }

@@ -56,8 +56,11 @@ int main(int argc, char* argv[]) {
         static char path_buf[1024];
         getcwd(path_buf, 1024);
         path = path_buf;
-    } else {
+    } else if (argc == 2) {
         path = argv[1];
+    } else {
+        dprintf(STDERR_FILENO, "Usage: ls [DIRECTORY]\n");
+        return EXIT_FAILURE;
     }
 
     DIR* dirp = opendir(path);

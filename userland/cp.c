@@ -6,7 +6,7 @@
 #define BUF_SIZE 1024
 
 int main(int argc, char* argv[]) {
-    if (argc < 3) {
+    if (argc != 3) {
         dprintf(STDERR_FILENO, "Usage: cp SOURCE DEST\n");
         return EXIT_FAILURE;
     }
