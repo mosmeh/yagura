@@ -106,7 +106,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     pit_init();
     kprintf("\x1b[32mInitialization done\x1b[m\n");
 
-    ASSERT_OK(process_spawn_kernel_process(init));
+    ASSERT_OK(process_spawn_kernel_process("userland_init", init));
 
     process_exit(0);
 }

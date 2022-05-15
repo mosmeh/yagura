@@ -111,7 +111,7 @@ static noreturn void do_idle(void) {
 }
 
 void scheduler_init(void) {
-    idle = process_create_kernel_process(do_idle);
+    idle = process_create_kernel_process("idle", do_idle);
     ASSERT_OK(idle);
 }
 

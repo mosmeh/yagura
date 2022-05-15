@@ -20,6 +20,8 @@ struct process {
     } state;
     int exit_status;
 
+    char comm[16];
+
     page_directory* pd;
     uintptr_t stack_top;
     range_allocator vaddr_allocator;
@@ -47,8 +49,9 @@ extern const struct fpu_state initial_fpu_state;
 
 void process_init(void);
 
-struct process* process_create_kernel_process(void (*entry_point)(void));
-pid_t process_spawn_kernel_process(void (*entry_point)(void));
+struct process* process_create_kernel_process(const char* comm,
+                                              void (*entry_point)(void));
+pid_t process_spawn_kernel_process(const char* comm, void (*entry_point)(void));
 
 pid_t process_generate_next_pid(void);
 struct process* process_find_process_by_pid(pid_t);

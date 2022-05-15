@@ -6,6 +6,7 @@
 #include "memory/memory.h"
 #include "panic.h"
 #include "scheduler.h"
+#include <common/string.h>
 #include <stdatomic.h>
 
 struct process* current;
@@ -28,6 +29,7 @@ void process_init(void) {
 
     current->fpu_state = initial_fpu_state;
     current->state = PROCESS_STATE_RUNNING;
+    strlcpy(current->comm, "kernel_init", sizeof(current->comm));
     current->pd =
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
@@ -41,7 +43,8 @@ void process_init(void) {
     gdt_set_kernel_stack(current->stack_top);
 }
 
-struct process* process_create_kernel_process(void (*entry_point)(void)) {
+struct process* process_create_kernel_process(const char* comm,
+                                              void (*entry_point)(void)) {
     struct process* process =
         kaligned_alloc(alignof(struct process), sizeof(struct process));
     if (!process)
@@ -51,6 +54,7 @@ struct process* process_create_kernel_process(void (*entry_point)(void)) {
     process->eip = (uintptr_t)entry_point;
     process->fpu_state = initial_fpu_state;
     process->state = PROCESS_STATE_RUNNABLE;
+    strlcpy(process->comm, comm, sizeof(process->comm));
 
     process->pd = paging_create_page_directory();
     if (IS_ERR(process->pd))
@@ -74,8 +78,9 @@ struct process* process_create_kernel_process(void (*entry_point)(void)) {
     return process;
 }
 
-pid_t process_spawn_kernel_process(void (*entry_point)(void)) {
-    struct process* process = process_create_kernel_process(entry_point);
+pid_t process_spawn_kernel_process(const char* comm,
+                                   void (*entry_point)(void)) {
+    struct process* process = process_create_kernel_process(comm, entry_point);
     if (IS_ERR(process))
         return PTR_ERR(process);
     scheduler_register(process);

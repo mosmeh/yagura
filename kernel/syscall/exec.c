@@ -1,4 +1,5 @@
 #include <common/extra.h>
+#include <common/libgen.h>
 #include <common/string.h>
 #include <kernel/api/elf.h>
 #include <kernel/api/fcntl.h>
@@ -127,6 +128,14 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
         return -EACCES;
     if ((size_t)stat.st_size < sizeof(Elf32_Ehdr))
         return -ENOEXEC;
+
+    char* dup_pathname = kstrdup(pathname);
+    if (!dup_pathname)
+        return -ENOMEM;
+    const char* exe_basename = basename(dup_pathname);
+    char comm[sizeof(current->comm)];
+    strlcpy(comm, exe_basename, sizeof(current->comm));
+    kfree(dup_pathname);
 
     file_description* desc = vfs_open(pathname, O_RDONLY, 0);
     if (IS_ERR(desc))
@@ -278,6 +287,8 @@ uintptr_t sys_execve(const char* pathname, char* const argv[],
     current->esp = current->ebp = current->stack_top;
     current->ebx = current->esi = current->edi = 0;
     current->fpu_state = initial_fpu_state;
+
+    strlcpy(current->comm, comm, sizeof(current->comm));
 
     // enter userland
     __asm__ volatile("movw $0x23, %%ax\n"
