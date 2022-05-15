@@ -12,7 +12,7 @@ static int dump_file(const char* filename) {
         return -1;
     for (;;) {
         static char buf[BUF_SIZE];
-        ssize_t nread = read(fd, buf, BUF_SIZE - 1);
+        ssize_t nread = read(fd, buf, BUF_SIZE);
         if (nread < 0) {
             if (fd > 0)
                 close(fd);
@@ -20,8 +20,8 @@ static int dump_file(const char* filename) {
         }
         if (nread == 0)
             break;
-        buf[nread] = '\0';
-        printf("%s", buf);
+        if (write(STDOUT_FILENO, buf, nread) < 0)
+            return -1;
     }
     if (fd > 0)
         close(fd);
