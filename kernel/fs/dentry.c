@@ -84,6 +84,8 @@ int dentry_append(struct dentry** head, const char* name, struct inode* child) {
     else
         *head = new_dentry;
 
+    ++child->num_links;
+
     return 0;
 }
 
@@ -98,6 +100,8 @@ struct inode* dentry_remove(struct dentry** head, const char* name) {
                 *head = it->next;
             struct inode* inode = it->inode;
             kfree(it);
+            ASSERT(inode->num_links > 0);
+            --inode->num_links;
             return inode;
         }
         prev = it;

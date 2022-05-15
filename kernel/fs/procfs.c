@@ -88,7 +88,7 @@ static int add_item(procfs_root_inode* root, const char* name,
     inode->fs_root_inode = &root->inode;
     inode->fops = &fops;
     inode->mode = S_IFREG;
-    inode->num_links = inode->ref_count = 1;
+    inode->ref_count = 1;
 
     return dentry_append(&root->children, name, inode);
 }

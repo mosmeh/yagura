@@ -79,7 +79,6 @@ struct inode* inode_create_child(struct inode* inode, const char* name,
     struct inode* child = inode->fops->create_child(inode, name, mode);
     if (IS_ERR(child))
         return child;
-    child->num_links = 1;
     return child;
 }
 
@@ -95,11 +94,9 @@ int inode_link_child(struct inode* inode, const char* name,
         inode_unref(child);
         return -EXDEV;
     }
-    ++child->num_links;
     inode_ref(child);
     int rc = inode->fops->link_child(inode, name, child);
     if (IS_ERR(rc)) {
-        --child->num_links;
         inode_unref(child);
         return rc;
     }
@@ -115,8 +112,6 @@ int inode_unlink_child(struct inode* inode, const char* name) {
     struct inode* child = inode->fops->unlink_child(inode, name);
     if (IS_ERR(child))
         return PTR_ERR(child);
-    ASSERT(child->num_links > 0);
-    --child->num_links;
     inode_unref(child);
     return 0;
 }
