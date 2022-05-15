@@ -20,5 +20,8 @@ typedef struct file_description file_description;
 // socket.h
 typedef struct unix_socket unix_socket;
 
+// growable_buf.h
+typedef struct growable_buf growable_buf;
+
 // api/time.h
 struct timespec;

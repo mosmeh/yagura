@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ctype.h"
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -40,4 +42,13 @@ static inline void memset32(uint32_t* dest, uint32_t c, size_t n) {
 // NOLINTNEXTLINE(readability-non-const-parameter)
 static inline void memcpy32(uint32_t* dest, const uint32_t* src, size_t n) {
     __asm__ volatile("rep movsl" : "+S"(src), "+D"(dest), "+c"(n)::"memory");
+}
+
+static inline bool str_is_uint(const char* s) {
+    while (*s) {
+        if (!isdigit(*s))
+            return false;
+        ++s;
+    }
+    return true;
 }

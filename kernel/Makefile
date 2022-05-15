@@ -16,7 +16,9 @@ OBJS := \
 	fs/fifo.o \
 	fs/fs.o \
 	fs/initrd.o \
-	fs/procfs.o \
+	fs/procfs/pid.o \
+	fs/procfs/procfs.o \
+	fs/procfs/root.o \
 	fs/tmpfs.o \
 	fs/vfs.o \
 	gdt.o \
