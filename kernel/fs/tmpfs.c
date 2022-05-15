@@ -13,6 +13,7 @@ typedef struct tmpfs_inode {
 static void tmpfs_destroy_inode(struct inode* inode) {
     tmpfs_inode* node = (tmpfs_inode*)inode;
     growable_buf_destroy(&node->buf);
+    dentry_clear(node->children);
     kfree(node);
 }
 

@@ -109,3 +109,15 @@ struct inode* dentry_remove(struct dentry** head, const char* name) {
     }
     return ERR_PTR(-ENOENT);
 }
+
+void dentry_clear(struct dentry* head) {
+    for (struct dentry* dentry = head; dentry;) {
+        struct dentry* next = dentry->next;
+        ASSERT(dentry->inode->num_links > 0);
+        --dentry->inode->num_links;
+        inode_unref(dentry->inode);
+        kfree(dentry->name);
+        kfree(dentry);
+        dentry = next;
+    }
+}
