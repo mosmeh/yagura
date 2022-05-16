@@ -15,7 +15,7 @@ export CFLAGS := \
 all: kernel initrd
 
 initrd: base
-	find $< -mindepth 1 ! -name '.gitkeep' -printf "%P\n" | cpio -oc -D $< -F $@
+	find $< -mindepth 1 ! -name '.gitkeep' -printf "%P\n" | sort | cpio -oc -D $< -F $@
 
 base: $@/* userland
 	$(RM) -r $@/root/src
