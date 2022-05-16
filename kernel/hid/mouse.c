@@ -109,7 +109,7 @@ struct inode* ps2_mouse_device_create(void) {
     static file_ops fops = {.read = ps2_mouse_device_read};
     *inode = (struct inode){.fops = &fops,
                             .mode = S_IFCHR,
-                            .device_id = makedev(10, 0),
+                            .device_id = makedev(10, 1),
                             .ref_count = 1};
     return inode;
 }

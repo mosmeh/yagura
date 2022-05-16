@@ -363,7 +363,7 @@ struct inode* ps2_keyboard_device_create(void) {
     static file_ops fops = {.read = ps2_keyboard_device_read};
     *inode = (struct inode){.fops = &fops,
                             .mode = S_IFCHR,
-                            .device_id = makedev(85, 0),
+                            .device_id = makedev(11, 0),
                             .ref_count = 1};
     return inode;
 }
