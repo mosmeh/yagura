@@ -45,3 +45,6 @@ noreturn void poweroff(void);
 struct inode* null_device_create(void);
 struct inode* zero_device_create(void);
 struct inode* full_device_create(void);
+
+bool ac97_init(void);
+struct inode* ac97_device_create(void);

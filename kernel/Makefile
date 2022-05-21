@@ -5,6 +5,7 @@ CFLAGS += \
 TARGET := kernel
 
 OBJS := \
+	ac97.o \
 	boot.o \
 	cmdline.o \
 	console/fb_console.o \

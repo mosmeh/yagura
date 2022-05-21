@@ -83,6 +83,9 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
         create_char_device("/dev/tty", fb_console_device_create());
     }
 
+    if (ac97_init())
+        create_char_device("/dev/dsp", ac97_device_create());
+
     if (com1_is_available)
         create_char_device("/dev/ttyS0",
                            serial_console_device_create(SERIAL_COM1));
