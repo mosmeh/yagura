@@ -34,7 +34,7 @@ static void bitmap_clear(size_t i) {
 static ssize_t bitmap_find_first_set(void) {
     for (size_t i = 0; i < bitmap_len; ++i) {
         int b = __builtin_ffs(bitmap[i]);
-        if (b > 0) // b == 0 if physical_page_bitmap[i] == 0
+        if (b > 0) // b == 0 if bitmap[i] == 0
             return (i << 5) | (b - 1);
     }
     return -ENOMEM;
