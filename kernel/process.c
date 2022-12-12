@@ -10,7 +10,7 @@
 #include <stdatomic.h>
 
 struct process* current;
-const struct fpu_state initial_fpu_state;
+struct fpu_state initial_fpu_state;
 static atomic_int next_pid = 1;
 
 struct process* all_processes;
@@ -20,8 +20,7 @@ extern unsigned char stack_top[];
 
 void process_init(void) {
     __asm__ volatile("fninit");
-    __asm__ volatile("fxsave %0"
-                     : "=m"(*(struct fpu_state*)&initial_fpu_state));
+    __asm__ volatile("fxsave %0" : "=m"(initial_fpu_state));
 
     current = kaligned_alloc(alignof(struct process), sizeof(struct process));
     ASSERT(current);
