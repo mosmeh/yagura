@@ -3,6 +3,18 @@
 #include "interrupts.h"
 #include "panic.h"
 
+static void init_port(uint16_t port) {
+    out8(port + 1, 0x00);
+    out8(port + 3, 0x80);
+    out8(port + 0, 0x03);
+    out8(port + 1, 0x00);
+    out8(port + 3, 0x03);
+    out8(port + 2, 0xc7);
+    out8(port + 4, 0x0b);
+}
+
+void serial_init(void) { init_port(SERIAL_COM1); }
+
 #define DATA_READY 0x1
 #define TRANSMITTER_HOLDING_REGISTER_EMPTY 0x20
 
@@ -31,13 +43,8 @@ bool serial_enable_port(uint16_t port) {
     if (!serial_is_valid_port(port))
         return false;
 
-    out8(port + 1, 0x00);
-    out8(port + 3, 0x80);
-    out8(port + 0, 0x03);
-    out8(port + 1, 0x00);
-    out8(port + 3, 0x03);
-    out8(port + 2, 0xc7);
-    out8(port + 4, 0x0b);
+    init_port(port);
+
     out8(port + 4, 0x1e);
     out8(port + 0, 0xae);
 

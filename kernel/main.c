@@ -39,7 +39,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     gdt_init();
     idt_init();
     irq_init();
-    bool com1_is_available = serial_enable_port(SERIAL_COM1);
+    serial_init();
     kprintf("\x1b[32mBooted\x1b[m\n");
     sti();
 
@@ -73,20 +73,21 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     create_char_device("/dev/zero", zero_device_create());
     create_char_device("/dev/full", full_device_create());
 
-    ps2_init();
-    create_char_device("/dev/kbd", ps2_keyboard_device_create());
-    create_char_device("/dev/psaux", ps2_mouse_device_create());
-
     if (fb_init(mb_info)) {
         create_char_device("/dev/fb0", fb_device_create());
         fb_console_init();
         create_char_device("/dev/tty", fb_console_device_create());
     }
 
+    ps2_init();
+    create_char_device("/dev/kbd", ps2_keyboard_device_create());
+    create_char_device("/dev/psaux", ps2_mouse_device_create());
+
     if (ac97_init())
         create_char_device("/dev/dsp", ac97_device_create());
 
-    if (com1_is_available)
+    serial_console_init();
+    if (serial_enable_port(SERIAL_COM1))
         create_char_device("/dev/ttyS0",
                            serial_console_device_create(SERIAL_COM1));
     if (serial_enable_port(SERIAL_COM2))
@@ -98,7 +99,6 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     if (serial_enable_port(SERIAL_COM3))
         create_char_device("/dev/ttyS3",
                            serial_console_device_create(SERIAL_COM4));
-    serial_console_init();
 
     system_console_init();
     create_char_device("/dev/console", system_console_device_create());

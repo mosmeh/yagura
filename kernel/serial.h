@@ -10,6 +10,7 @@
 #define SERIAL_COM3 0x3e8
 #define SERIAL_COM4 0x2e8
 
+void serial_init(void);
 bool serial_enable_port(uint16_t port);
 size_t serial_write(uint16_t port, const char* s, size_t count);
 
