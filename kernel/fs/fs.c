@@ -309,7 +309,7 @@ int file_description_block(file_description* desc,
                            bool (*should_unblock)(file_description*)) {
     if ((desc->flags & O_NONBLOCK) && !should_unblock(desc))
         return -EAGAIN;
-    return scheduler_block(should_unblock, desc);
+    return scheduler_block((should_unblock_fn)should_unblock, desc);
 }
 
 uint8_t mode_to_dirent_type(mode_t mode) {

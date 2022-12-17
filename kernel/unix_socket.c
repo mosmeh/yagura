@@ -139,7 +139,8 @@ static bool accept_should_unblock(atomic_size_t* num_pending) {
 }
 
 unix_socket* unix_socket_accept(unix_socket* listener) {
-    int rc = scheduler_block(accept_should_unblock, &listener->num_pending);
+    int rc = scheduler_block((should_unblock_fn)accept_should_unblock,
+                             &listener->num_pending);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
@@ -161,5 +162,6 @@ int unix_socket_connect(file_description* connector_fd, unix_socket* listener) {
         return -ECONNREFUSED;
     enqueue_pending(listener, connector);
 
-    return scheduler_block(connect_should_unblock, &connector->connected);
+    return scheduler_block((should_unblock_fn)connect_should_unblock,
+                           &connector->connected);
 }

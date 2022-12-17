@@ -70,7 +70,8 @@ uintptr_t sys_clock_nanosleep(clockid_t clockid, int flags,
         return -EINVAL;
     }
 
-    int rc = scheduler_block(sleep_should_unblock, &deadline);
+    int rc =
+        scheduler_block((should_unblock_fn)sleep_should_unblock, &deadline);
     if (IS_ERR(rc))
         return rc;
     if (remain) {

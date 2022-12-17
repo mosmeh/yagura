@@ -171,7 +171,8 @@ pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
         if (!waitpid_should_unblock(&blocker))
             return blocker.waited_process ? 0 : -ECHILD;
     } else {
-        int rc = scheduler_block(waitpid_should_unblock, &blocker);
+        int rc = scheduler_block((should_unblock_fn)waitpid_should_unblock,
+                                 &blocker);
         if (IS_ERR(rc))
             return rc;
     }
