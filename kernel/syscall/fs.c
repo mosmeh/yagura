@@ -296,17 +296,6 @@ int sys_fcntl(int fd, int cmd, uintptr_t arg) {
     }
 }
 
-int sys_dup(int oldfd) {
-    file_description* desc = process_get_file_description(oldfd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    int ret = process_alloc_file_descriptor(-1, desc);
-    if (IS_ERR(ret))
-        return ret;
-    ++desc->ref_count;
-    return ret;
-}
-
 int sys_dup2(int oldfd, int newfd) {
     file_description* oldfd_desc = process_get_file_description(oldfd);
     if (IS_ERR(oldfd_desc))
