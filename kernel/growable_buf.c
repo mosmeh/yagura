@@ -52,8 +52,13 @@ NODISCARD static int grow_buf(growable_buf* buf, size_t requested_size) {
         memcpy((void*)new_addr, (void*)buf->addr, buf->size);
     memset((void*)(new_addr + buf->size), 0, new_capacity - buf->size);
 
-    if (buf->addr)
+    if (buf->addr) {
         paging_unmap(buf->addr, buf->capacity);
+        int rc = range_allocator_free(&kernel_vaddr_allocator, buf->addr,
+                                      buf->capacity);
+        if (IS_ERR(rc))
+            return rc;
+    }
 
     buf->addr = new_addr;
     buf->capacity = new_capacity;
