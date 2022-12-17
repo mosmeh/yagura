@@ -115,8 +115,7 @@ NODISCARD static int push_ptrs(uintptr_t* sp, uintptr_t stack_base,
     return 0;
 }
 
-uintptr_t sys_execve(const char* pathname, char* const argv[],
-                     char* const envp[]) {
+int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     if (!pathname || !argv || !envp)
         return -EFAULT;
 

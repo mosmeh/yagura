@@ -23,7 +23,7 @@ static noreturn void init(void) {
         init_path = "/bin/init";
     const char* argv[] = {init_path, NULL};
     static const char* envp[] = {NULL};
-    ASSERT_OK(sys_execve(init_path, argv, envp));
+    ASSERT_OK(sys_execve(init_path, (char* const*)argv, (char* const*)envp));
     UNREACHABLE();
 }
 

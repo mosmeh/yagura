@@ -8,19 +8,19 @@
 #include <kernel/process.h>
 #include <string.h>
 
-uintptr_t sys_mmap(const mmap_params* params) {
+void* sys_mmap(const mmap_params* params) {
     if (params->length == 0 || params->offset < 0 ||
         (params->offset % PAGE_SIZE) ||
         !((params->flags & MAP_PRIVATE) ^ (params->flags & MAP_SHARED)))
-        return -EINVAL;
+        return ERR_PTR(-EINVAL);
 
     if ((params->flags & MAP_FIXED) || !(params->prot & PROT_READ))
-        return -ENOTSUP;
+        return ERR_PTR(-ENOTSUP);
 
     uintptr_t addr =
         range_allocator_alloc(&current->vaddr_allocator, params->length);
     if (IS_ERR(addr))
-        return addr;
+        return ERR_PTR(addr);
 
     uint16_t page_flags = PAGE_USER;
     if (params->prot & PROT_WRITE)
@@ -30,27 +30,27 @@ uintptr_t sys_mmap(const mmap_params* params) {
 
     if (params->flags & MAP_ANONYMOUS) {
         if (params->offset != 0)
-            return -ENOTSUP;
+            return ERR_PTR(-ENOTSUP);
 
         int rc = paging_map_to_free_pages(addr, params->length, page_flags);
         if (IS_ERR(rc))
-            return rc;
+            return ERR_PTR(rc);
 
         memset((void*)addr, 0, params->length);
-        return addr;
+        return (void*)addr;
     }
 
     file_description* desc = process_get_file_description(params->fd);
     if (IS_ERR(desc))
-        return PTR_ERR(desc);
+        return desc;
     if (S_ISDIR(desc->inode->mode))
-        return -ENODEV;
+        return ERR_PTR(-ENODEV);
 
-    return file_description_mmap(desc, addr, params->length, params->offset,
-                                 page_flags);
+    return (void*)file_description_mmap(desc, addr, params->length,
+                                        params->offset, page_flags);
 }
 
-uintptr_t sys_munmap(void* addr, size_t length) {
+int sys_munmap(void* addr, size_t length) {
     if ((uintptr_t)addr % PAGE_SIZE)
         return -EINVAL;
     paging_unmap((uintptr_t)addr, length);

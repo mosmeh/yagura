@@ -9,9 +9,9 @@
 
 noreturn uintptr_t sys_exit(int status) { process_exit(status); }
 
-uintptr_t sys_getpid(void) { return current->pid; }
+pid_t sys_getpid(void) { return current->pid; }
 
-uintptr_t sys_setpgid(pid_t pid, pid_t pgid) {
+int sys_setpgid(pid_t pid, pid_t pgid) {
     if (pgid < 0)
         return -EINVAL;
 
@@ -24,7 +24,7 @@ uintptr_t sys_setpgid(pid_t pid, pid_t pgid) {
     return 0;
 }
 
-uintptr_t sys_getpgid(pid_t pid) {
+pid_t sys_getpgid(pid_t pid) {
     if (pid == 0)
         return current->pgid;
     struct process* process = process_find_process_by_pid(pid);
@@ -33,14 +33,14 @@ uintptr_t sys_getpgid(pid_t pid) {
     return process->pgid;
 }
 
-uintptr_t sys_sched_yield(void) {
+int sys_sched_yield(void) {
     scheduler_yield(true);
     return 0;
 }
 
 void return_to_userland(registers);
 
-uintptr_t sys_fork(registers* regs) {
+pid_t sys_fork(registers* regs) {
     struct process* process =
         kaligned_alloc(alignof(struct process), sizeof(struct process));
     if (!process)
@@ -95,7 +95,7 @@ uintptr_t sys_fork(registers* regs) {
     return process->pid;
 }
 
-uintptr_t sys_kill(pid_t pid, int sig) {
+int sys_kill(pid_t pid, int sig) {
     if (pid > 0)
         return process_send_signal_to_one(pid, sig);
     if (pid == 0)
@@ -189,22 +189,22 @@ pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
     return result;
 }
 
-uintptr_t sys_times(struct tms* buf) {
+clock_t sys_times(struct tms* buf) {
     buf->tms_utime = current->user_ticks;
     buf->tms_stime = current->kernel_ticks;
     return uptime;
 }
 
-uintptr_t sys_getcwd(char* buf, size_t size) {
+char* sys_getcwd(char* buf, size_t size) {
     if (!buf || size == 0)
-        return -EINVAL;
+        return ERR_PTR(-EINVAL);
     if (size < strlen(current->cwd_path) + 1)
-        return -ERANGE;
+        return ERR_PTR(-ERANGE);
     strlcpy(buf, current->cwd_path, size);
-    return (uintptr_t)buf;
+    return buf;
 }
 
-uintptr_t sys_chdir(const char* path) {
+int sys_chdir(const char* path) {
     char* new_cwd_path = vfs_canonicalize_path(path);
     if (IS_ERR(new_cwd_path))
         return PTR_ERR(new_cwd_path);

@@ -4,7 +4,7 @@
 #include <kernel/process.h>
 #include <kernel/socket.h>
 
-uintptr_t sys_socket(int domain, int type, int protocol) {
+int sys_socket(int domain, int type, int protocol) {
     (void)protocol;
     if (domain != AF_UNIX || type != SOCK_STREAM)
         return -EAFNOSUPPORT;
@@ -19,7 +19,7 @@ uintptr_t sys_socket(int domain, int type, int protocol) {
     return process_alloc_file_descriptor(-1, desc);
 }
 
-uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
+int sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
@@ -48,7 +48,7 @@ uintptr_t sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
     return 0;
 }
 
-uintptr_t sys_listen(int sockfd, int backlog) {
+int sys_listen(int sockfd, int backlog) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
@@ -60,7 +60,7 @@ uintptr_t sys_listen(int sockfd, int backlog) {
     return 0;
 }
 
-uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
+int sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
@@ -92,8 +92,7 @@ uintptr_t sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     return fd;
 }
 
-uintptr_t sys_connect(int sockfd, const struct sockaddr* addr,
-                      socklen_t addrlen) {
+int sys_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);

@@ -4,7 +4,7 @@
 #include <kernel/scheduler.h>
 #include <kernel/system.h>
 
-uintptr_t sys_clock_gettime(clockid_t clk_id, struct timespec* tp) {
+int sys_clock_gettime(clockid_t clk_id, struct timespec* tp) {
     switch (clk_id) {
     case CLOCK_REALTIME:
     case CLOCK_MONOTONIC:
@@ -43,9 +43,9 @@ static bool sleep_should_unblock(const struct timespec* deadline) {
            (now.tv_sec == deadline->tv_sec && now.tv_nsec >= deadline->tv_nsec);
 }
 
-uintptr_t sys_clock_nanosleep(clockid_t clockid, int flags,
-                              const struct timespec* request,
-                              struct timespec* remain) {
+int sys_clock_nanosleep(clockid_t clockid, int flags,
+                        const struct timespec* request,
+                        struct timespec* remain) {
     switch (clockid) {
     case CLOCK_REALTIME:
     case CLOCK_MONOTONIC:

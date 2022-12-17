@@ -1,5 +1,6 @@
 #include "syscall.h"
 #include <kernel/api/sys/reboot.h>
+#include <kernel/api/sys/syscall.h>
 #include <kernel/api/unistd.h>
 #include <kernel/boot_defs.h>
 #include <kernel/interrupts.h>
@@ -7,7 +8,7 @@
 #include <kernel/panic.h>
 #include <kernel/process.h>
 
-uintptr_t sys_reboot(int howto) {
+int sys_reboot(int howto) {
     switch (howto) {
     case RB_AUTOBOOT:
         kputs("Restarting system.\n");
@@ -23,7 +24,7 @@ uintptr_t sys_reboot(int howto) {
     }
 }
 
-uintptr_t sys_sysconf(int name) {
+long sys_sysconf(int name) {
     switch (name) {
     case _SC_MONOTONIC_CLOCK:
         return 1;
@@ -38,12 +39,13 @@ uintptr_t sys_sysconf(int name) {
     }
 }
 
-uintptr_t sys_dbgputs(const char* str) { return kputs(str); }
+int sys_dbgputs(const char* str) { return kputs(str); }
 
-typedef uintptr_t (*syscall_handler_fn)();
+typedef uintptr_t (*syscall_handler_fn)(uintptr_t arg1, uintptr_t arg2,
+                                        uintptr_t arg3, uintptr_t arg4);
 
 static syscall_handler_fn syscall_handlers[NUM_SYSCALLS + 1] = {
-#define ENUM_ITEM(name) sys_##name,
+#define ENUM_ITEM(name) (syscall_handler_fn)(uintptr_t) sys_##name,
     ENUMERATE_SYSCALLS(ENUM_ITEM)
 #undef ENUM_ITEM
         NULL};
@@ -68,7 +70,7 @@ static void syscall_handler(registers* regs) {
     ASSERT(handler);
 
     if (regs->eax == SYS_fork)
-        regs->eax = handler(regs);
+        regs->eax = handler((uintptr_t)regs, 0, 0, 0);
     else
         regs->eax = handler(regs->edx, regs->ecx, regs->ebx, regs->esi);
 

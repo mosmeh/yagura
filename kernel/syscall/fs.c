@@ -6,14 +6,14 @@
 #include <kernel/process.h>
 #include <kernel/system.h>
 
-uintptr_t sys_open(const char* pathname, int flags, unsigned mode) {
+int sys_open(const char* pathname, int flags, unsigned mode) {
     file_description* desc = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     return process_alloc_file_descriptor(-1, desc);
 }
 
-uintptr_t sys_close(int fd) {
+int sys_close(int fd) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
@@ -25,46 +25,46 @@ uintptr_t sys_close(int fd) {
     return process_free_file_descriptor(fd);
 }
 
-uintptr_t sys_read(int fd, void* buf, size_t count) {
+ssize_t sys_read(int fd, void* buf, size_t count) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     return file_description_read(desc, buf, count);
 }
 
-uintptr_t sys_write(int fd, const void* buf, size_t count) {
+ssize_t sys_write(int fd, const void* buf, size_t count) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     return file_description_write(desc, buf, count);
 }
 
-uintptr_t sys_ftruncate(int fd, off_t length) {
+int sys_ftruncate(int fd, off_t length) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     return file_description_truncate(desc, length);
 }
 
-uintptr_t sys_lseek(int fd, off_t offset, int whence) {
+off_t sys_lseek(int fd, off_t offset, int whence) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     return file_description_lseek(desc, offset, whence);
 }
 
-uintptr_t sys_stat(const char* pathname, struct stat* buf) {
+int sys_stat(const char* pathname, struct stat* buf) {
     return vfs_stat(pathname, buf);
 }
 
-uintptr_t sys_ioctl(int fd, int request, void* argp) {
+int sys_ioctl(int fd, int request, void* argp) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     return file_description_ioctl(desc, request, argp);
 }
 
-uintptr_t sys_mkdir(const char* pathname, mode_t mode) {
+int sys_mkdir(const char* pathname, mode_t mode) {
     struct inode* inode = vfs_create(pathname, (mode & 0777) | S_IFDIR);
     if (IS_ERR(inode))
         return PTR_ERR(inode);
@@ -72,7 +72,7 @@ uintptr_t sys_mkdir(const char* pathname, mode_t mode) {
     return 0;
 }
 
-uintptr_t sys_mknod(const char* pathname, mode_t mode, dev_t dev) {
+int sys_mknod(const char* pathname, mode_t mode, dev_t dev) {
     switch (mode & S_IFMT) {
     case S_IFREG:
     case S_IFCHR:
@@ -91,7 +91,7 @@ uintptr_t sys_mknod(const char* pathname, mode_t mode, dev_t dev) {
     return 0;
 }
 
-uintptr_t sys_link(const char* oldpath, const char* newpath) {
+int sys_link(const char* oldpath, const char* newpath) {
     struct inode* old_inode = vfs_resolve_path(oldpath, NULL, NULL);
     if (IS_ERR(old_inode))
         return PTR_ERR(old_inode);
@@ -124,7 +124,7 @@ uintptr_t sys_link(const char* oldpath, const char* newpath) {
     return inode_link_child(new_parent, new_basename, old_inode);
 }
 
-uintptr_t sys_unlink(const char* pathname) {
+int sys_unlink(const char* pathname) {
     struct inode* parent = NULL;
     const char* basename = NULL;
     struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
@@ -168,7 +168,7 @@ static int make_sure_directory_is_empty(struct inode* inode) {
     return nread > 0 ? -ENOTEMPTY : nread;
 }
 
-uintptr_t sys_rename(const char* oldpath, const char* newpath) {
+int sys_rename(const char* oldpath, const char* newpath) {
     int rc = 0;
     struct inode* old_parent = NULL;
     const char* old_basename = NULL;
@@ -241,7 +241,7 @@ fail:
     return rc;
 }
 
-uintptr_t sys_rmdir(const char* pathname) {
+int sys_rmdir(const char* pathname) {
     struct inode* parent = NULL;
     const char* basename = NULL;
     struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
@@ -267,14 +267,14 @@ uintptr_t sys_rmdir(const char* pathname) {
     return inode_unlink_child(parent, basename);
 }
 
-uintptr_t sys_getdents(int fd, void* dirp, size_t count) {
+long sys_getdents(int fd, void* dirp, size_t count) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     return file_description_getdents(desc, dirp, count);
 }
 
-uintptr_t sys_fcntl(int fd, int cmd, uintptr_t arg) {
+int sys_fcntl(int fd, int cmd, uintptr_t arg) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
@@ -296,7 +296,7 @@ uintptr_t sys_fcntl(int fd, int cmd, uintptr_t arg) {
     }
 }
 
-uintptr_t sys_dup(int oldfd) {
+int sys_dup(int oldfd) {
     file_description* desc = process_get_file_description(oldfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
@@ -307,7 +307,7 @@ uintptr_t sys_dup(int oldfd) {
     return ret;
 }
 
-uintptr_t sys_dup2(int oldfd, int newfd) {
+int sys_dup2(int oldfd, int newfd) {
     file_description* oldfd_desc = process_get_file_description(oldfd);
     if (IS_ERR(oldfd_desc))
         return PTR_ERR(oldfd_desc);
@@ -327,7 +327,7 @@ uintptr_t sys_dup2(int oldfd, int newfd) {
     return ret;
 }
 
-uintptr_t sys_pipe(int fifofd[2]) {
+int sys_pipe(int fifofd[2]) {
     struct inode* fifo = fifo_create();
     if (IS_ERR(fifo))
         return PTR_ERR(fifo);
