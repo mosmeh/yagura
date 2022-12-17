@@ -127,15 +127,16 @@ int growable_buf_printf(growable_buf* buf, const char* format, ...) {
 
 int growable_buf_vsprintf(growable_buf* buf, const char* format, va_list args) {
     for (;;) {
-        char* dest = (char*)(buf->addr + buf->size);
-        if (buf->capacity > 0) {
-            int len = vsnprintf(dest, buf->capacity - buf->size, format, args);
-            if ((size_t)len <= buf->capacity) {
+        size_t max_len = buf->capacity - buf->size;
+        if (max_len > 0) {
+            char* dest = (char*)(buf->addr + buf->size);
+            int len = vsnprintf(dest, max_len, format, args);
+            if ((size_t)len < max_len) {
                 buf->size += len;
                 return len;
             }
         }
-        int rc = grow_buf(buf, 0);
+        int rc = grow_buf(buf, 0); // specify 0 to let grow_buf decide size
         if (IS_ERR(rc))
             return rc;
     }
