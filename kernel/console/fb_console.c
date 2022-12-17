@@ -279,7 +279,7 @@ static void handle_csi_cup(void) {
 }
 
 // Erase in Display
-static void handle_csi_ed() {
+static void handle_csi_ed(void) {
     switch (atoi(param_buf)) {
     case 0:
         clear_line_at(cursor_x, cursor_y, console_width - cursor_x);
@@ -300,7 +300,7 @@ static void handle_csi_ed() {
 }
 
 // Erase in Line
-static void handle_csi_el() {
+static void handle_csi_el(void) {
     switch (atoi(param_buf)) {
     case 0:
         clear_line_at(cursor_x, cursor_y, console_width - cursor_x);

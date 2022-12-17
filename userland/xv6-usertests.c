@@ -340,7 +340,8 @@ void mem(void) {
 
     printf("mem test\n");
     ppid = getpid();
-    if ((pid = fork()) == 0) {
+    pid = fork();
+    if (pid == 0) {
         m1 = 0;
         while ((m2 = malloc(10001)) != 0) {
             *(char**)m2 = m1;
@@ -655,7 +656,7 @@ void concreate(void) {
 
 // another concurrent link/unlink/create test,
 // to look for deadlocks.
-void linkunlink() {
+void linkunlink(void) {
     int pid;
     int i;
 
@@ -1006,9 +1007,8 @@ void bigargtest(void) {
 
 // what happens when the file system runs out of blocks?
 // answer: balloc panics, so this test is not useful.
-void fsfull() {
+void fsfull(void) {
     int nfiles;
-    int fsblocks = 0;
 
     printf("fsfull test\n");
 
@@ -1029,7 +1029,6 @@ void fsfull() {
             if (cc < 512)
                 break;
             total += cc;
-            fsblocks++;
         }
         printf("wrote %d bytes\n", total);
         close(fd);
