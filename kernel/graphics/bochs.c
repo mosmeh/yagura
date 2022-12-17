@@ -32,7 +32,7 @@ static mutex lock;
 
 static void pci_enumeration_callback(const struct pci_addr* addr,
                                      uint16_t vendor_id, uint16_t device_id) {
-    if ((vendor_id == 0x1234 && device_id == 0x1111) |
+    if ((vendor_id == 0x1234 && device_id == 0x1111) ||
         (vendor_id == 0x80ee && device_id == 0xbeef))
         fb_paddr = pci_get_bar0(addr) & 0xfffffff0;
 }
