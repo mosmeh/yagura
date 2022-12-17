@@ -62,15 +62,16 @@ NODISCARD static int grow_buf(growable_buf* buf, size_t requested_size) {
 
 ssize_t growable_buf_pwrite(growable_buf* buf, const void* bytes, size_t count,
                             off_t offset) {
-    if (offset + count >= buf->capacity) {
-        int rc = grow_buf(buf, offset + count);
+    size_t end = offset + count;
+    if (end > buf->capacity) {
+        int rc = grow_buf(buf, end);
         if (IS_ERR(rc))
             return rc;
     }
 
     memcpy((void*)(buf->addr + offset), bytes, count);
-    if (buf->size < offset + count)
-        buf->size = offset + count;
+    if (buf->size < end)
+        buf->size = end;
 
     return count;
 }
@@ -83,10 +84,10 @@ ssize_t growable_buf_append(growable_buf* buf, const void* bytes,
 int growable_buf_truncate(growable_buf* buf, off_t length) {
     if ((size_t)length <= buf->size) {
         memset((void*)(buf->addr + length), 0, buf->size - length);
-    } else if ((size_t)length < buf->capacity) {
+    } else if ((size_t)length <= buf->capacity) {
         memset((void*)(buf->addr + buf->size), 0, length - buf->size);
     } else {
-        // length >= capacity
+        // length > capacity
         int rc = grow_buf(buf, length);
         if (IS_ERR(rc))
             return rc;
