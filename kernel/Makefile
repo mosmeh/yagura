@@ -72,7 +72,7 @@ all: $(TARGET)
 
 $(TARGET): $(OBJS) linker.ld
 	@echo "[LD] $@"
-	@$(CC) $(CFLAGS) -Wl,-Tlinker.ld -Wl,--build-id=none -o $@ $(OBJS)
+	@$(CC) $(CFLAGS) -Wl,-Tlinker.ld -Wl,--build-id=none -Wl,-z,noexecstack -o $@ $(OBJS)
 
 .c.o:
 	@echo "[CC] $<"
