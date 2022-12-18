@@ -210,13 +210,17 @@ int sys_chdir(const char* path) {
         return PTR_ERR(new_cwd_path);
 
     struct inode* inode = vfs_resolve_path(path, NULL, NULL);
-    if (IS_ERR(inode))
+    if (IS_ERR(inode)) {
+        kfree(new_cwd_path);
         return PTR_ERR(inode);
+    }
     if (!S_ISDIR(inode->mode)) {
+        kfree(new_cwd_path);
         inode_unref(inode);
         return -ENOTDIR;
     }
 
+    kfree(current->cwd_path);
     inode_unref(current->cwd_inode);
     current->cwd_path = new_cwd_path;
     current->cwd_inode = inode;

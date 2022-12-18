@@ -130,7 +130,7 @@ NODISCARD int vfs_stat(const char* pathname, struct stat* buf);
 NODISCARD struct inode* vfs_create(const char* pathname, mode_t mode);
 char* vfs_canonicalize_path(const char* pathname);
 struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
-                               const char** out_basename);
+                               char** out_basename);
 
 uint8_t mode_to_dirent_type(mode_t);
 

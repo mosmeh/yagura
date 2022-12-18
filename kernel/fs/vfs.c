@@ -80,10 +80,15 @@ int vfs_mount(const char* path, struct inode* fs_root) {
          component;
          component = strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr)) {
         struct inode* child = inode_lookup_child(parent, component);
-        if (IS_ERR(child))
+        if (IS_ERR(child)) {
+            kfree(dup_path);
             return PTR_ERR(child);
+        }
         parent = child;
     }
+
+    kfree(dup_path);
+
     int rc = mount_at(parent, fs_root);
     if (IS_ERR(rc))
         return rc;
@@ -134,15 +139,31 @@ static struct inode* find_device(dev_t id) {
 }
 
 typedef struct list_node {
-    const char* value;
+    char* value;
     struct list_node* next;
 } list_node;
+
+static void list_destroy(list_node** list) {
+    list_node* it = *list;
+    while (it) {
+        list_node* next = it->next;
+        kfree(it->value);
+        kfree(it);
+        it = next;
+    }
+    *list = NULL;
+}
 
 static int list_push(list_node** list, const char* value) {
     list_node* node = kmalloc(sizeof(list_node));
     if (!node)
         return -ENOMEM;
-    node->value = value;
+    node->value = kstrdup(value);
+    if (!node->value) {
+        kfree(node);
+        return -ENOMEM;
+    }
+
     node->next = NULL;
     if (*list) {
         list_node* it = *list;
@@ -168,6 +189,10 @@ static void list_pop(list_node** list) {
         prev->next = NULL;
     else
         *list = NULL;
+    if (it) {
+        kfree(it->value);
+        kfree(it);
+    }
 }
 
 static int create_path_component_list(const char* pathname,
@@ -195,10 +220,15 @@ static int create_path_component_list(const char* pathname,
              component;
              component = strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr)) {
             int rc = list_push(&list, component);
-            if (IS_ERR(rc))
+            if (IS_ERR(rc)) {
+                list_destroy(&list);
+                kfree(dup_cwd);
                 return rc;
+            }
             ++num_components;
         }
+
+        kfree(dup_cwd);
     }
 
     char* dup_path = kstrdup(pathname);
@@ -220,13 +250,20 @@ static int create_path_component_list(const char* pathname,
             continue;
         }
         int rc = list_push(&list, component);
-        if (IS_ERR(rc))
+        if (IS_ERR(rc)) {
+            list_destroy(&list);
+            kfree(dup_path);
             return rc;
+        }
         ++num_components;
     }
 
+    kfree(dup_path);
+
     if (out_list)
         *out_list = list;
+    else
+        list_destroy(&list);
     if (out_num_components)
         *out_num_components = num_components;
 
@@ -234,7 +271,7 @@ static int create_path_component_list(const char* pathname,
 }
 
 struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
-                               const char** out_basename) {
+                               char** out_basename) {
     list_node* component_list = NULL;
     size_t num_components = 0;
     int rc =
@@ -250,17 +287,26 @@ struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
     for (list_node* node = component_list; node; node = node->next) {
         const char* component = node->value;
         if (i == num_components - 1) { // last component
+            if (out_basename) {
+                char* dup_basename = kstrdup(component);
+                if (!dup_basename) {
+                    inode_unref(parent);
+                    list_destroy(&component_list);
+                    return ERR_PTR(-ENOMEM);
+                }
+                *out_basename = dup_basename;
+            }
             if (out_parent) {
                 inode_ref(parent);
                 *out_parent = parent;
             }
-            if (out_basename)
-                *out_basename = component;
         }
 
         struct inode* child = inode_lookup_child(parent, component);
-        if (IS_ERR(child))
+        if (IS_ERR(child)) {
+            list_destroy(&component_list);
             return child;
+        }
 
         inode_ref(child);
         struct inode* guest = find_mounted_guest(child);
@@ -273,6 +319,7 @@ struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
         ++i;
     }
 
+    list_destroy(&component_list);
     return parent;
 }
 
@@ -296,8 +343,10 @@ char* vfs_canonicalize_path(const char* pathname) {
         len += strlen(node->value) + 1;
 
     char* canonicalized = kmalloc(len + 1);
-    if (!canonicalized)
+    if (!canonicalized) {
+        list_destroy(&component_list);
         return ERR_PTR(-ENOMEM);
+    }
     size_t idx = 0;
     for (list_node* node = component_list; node; node = node->next) {
         canonicalized[idx++] = PATH_SEPARATOR;
@@ -306,16 +355,18 @@ char* vfs_canonicalize_path(const char* pathname) {
     }
     canonicalized[idx] = '\0';
 
+    list_destroy(&component_list);
     return canonicalized;
 }
 
 static struct inode* create_inode(const char* pathname, mode_t mode,
                                   bool exclusive) {
     struct inode* parent = NULL;
-    const char* basename = NULL;
+    char* basename = NULL;
     struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
     if (IS_OK(inode)) {
         inode_unref(parent);
+        kfree(basename);
         if (exclusive) {
             inode_unref(inode);
             return ERR_PTR(-EEXIST);
@@ -324,6 +375,7 @@ static struct inode* create_inode(const char* pathname, mode_t mode,
     }
     if (PTR_ERR(inode) != -ENOENT || !parent) {
         inode_unref(parent);
+        kfree(basename);
         return inode;
     }
 
@@ -331,30 +383,18 @@ static struct inode* create_inode(const char* pathname, mode_t mode,
     for (;;) {
         inode_ref(parent);
         inode = inode_create_child(parent, basename, mode);
-        if (IS_OK(inode)) {
-            inode_unref(parent);
-            return inode;
-        }
-        if (PTR_ERR(inode) != -EEXIST) {
-            inode_unref(parent);
-            return inode;
-        }
-        if (exclusive) {
-            inode_unref(parent);
-            return ERR_PTR(-EEXIST);
-        }
+        if (IS_OK(inode) || PTR_ERR(inode) != -EEXIST || exclusive)
+            break;
 
         inode_ref(parent);
         inode = inode_lookup_child(parent, basename);
-        if (IS_OK(inode)) {
-            inode_unref(parent);
-            return inode;
-        }
-        if (PTR_ERR(inode) != -ENOENT) {
-            inode_unref(parent);
-            return inode;
-        }
+        if (IS_OK(inode) || PTR_ERR(inode) != -ENOENT)
+            break;
     }
+
+    inode_unref(parent);
+    kfree(basename);
+    return inode;
 }
 
 file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
