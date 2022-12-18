@@ -185,6 +185,7 @@ pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
     if (wstatus)
         *wstatus = waited_process->exit_status;
     pid_t result = waited_process->pid;
+    kfree((void*)(waited_process->stack_top - STACK_SIZE));
     kfree(waited_process);
     return result;
 }
