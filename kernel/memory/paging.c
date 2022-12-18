@@ -305,8 +305,6 @@ void paging_destroy_current_page_directory(void) {
     }
 
     page_directory* pd = current_pd;
-
-    current->pd = kernel_pd;
     paging_switch_page_directory(kernel_pd);
 
     for (size_t i = 0; i < KERNEL_PDE_IDX; ++i) {
@@ -323,6 +321,8 @@ void paging_switch_page_directory(page_directory* pd) {
     uintptr_t paddr = paging_virtual_to_physical_addr((uintptr_t)pd);
     write_cr3(paddr);
     current_pd = pd;
+    if (current)
+        current->pd = pd;
     ASSERT(paddr == paging_virtual_to_physical_addr(0xfffff000));
 
     pop_cli(int_flag);

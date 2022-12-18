@@ -196,7 +196,6 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
         return PTR_ERR(new_pd);
     }
 
-    current->pd = new_pd;
     paging_switch_page_directory(new_pd);
 
     // after this point, we have to revert to prev_pd if we want to abort.
@@ -306,10 +305,8 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     if (IS_ERR(ret))
         goto fail;
 
-    current->pd = prev_pd;
     paging_switch_page_directory(prev_pd);
     paging_destroy_current_page_directory();
-    current->pd = new_pd;
     paging_switch_page_directory(new_pd);
 
     cli();
@@ -352,7 +349,6 @@ fail:
     ptr_list_destroy(&argv_ptrs);
 
     paging_destroy_current_page_directory();
-    current->pd = prev_pd;
     paging_switch_page_directory(prev_pd);
 
     return ret;
