@@ -306,6 +306,12 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     if (IS_ERR(ret))
         goto fail;
 
+    current->pd = prev_pd;
+    paging_switch_page_directory(prev_pd);
+    paging_destroy_current_page_directory();
+    current->pd = new_pd;
+    paging_switch_page_directory(new_pd);
+
     cli();
 
     current->vaddr_allocator = vaddr_allocator;
@@ -345,8 +351,8 @@ fail:
     ptr_list_destroy(&envp_ptrs);
     ptr_list_destroy(&argv_ptrs);
 
-    current->pd = prev_pd;
     paging_destroy_current_page_directory();
+    current->pd = prev_pd;
     paging_switch_page_directory(prev_pd);
 
     return ret;

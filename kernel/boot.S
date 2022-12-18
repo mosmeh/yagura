@@ -32,7 +32,7 @@ _start:
   # fill page table
   movl $0x103, %esi # P | RW | G
   movl $kernel_page_table, %edi
-  movl $1023, %ecx # last page is for quickmap
+  movl $1022, %ecx # last two pages are for quickmap
 1:
   movl %esi, (%edi)
   addl $PAGE_SIZE, %esi

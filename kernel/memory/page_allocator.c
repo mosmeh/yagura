@@ -138,8 +138,8 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
 
 void page_allocator_init(const multiboot_info_t* mb_info) {
     // In the current setup, kernel image (including 1MiB offset) has to fit in
-    // single page table (< 4MiB), and last page is reserved for quickmap
-    ASSERT((uintptr_t)kernel_end <= KERNEL_VADDR + 1023 * PAGE_SIZE);
+    // single page table (< 4MiB), and last two pages are reserved for quickmap
+    ASSERT((uintptr_t)kernel_end <= KERNEL_VADDR + 1022 * PAGE_SIZE);
 
     uintptr_t lower_bound;
     uintptr_t upper_bound;
