@@ -34,8 +34,11 @@ static int string_list_create(string_list* strings, char* const src[]) {
         return -ENOMEM;
 
     strings->elements = kmalloc(strings->count * sizeof(char*));
-    if (!strings->elements)
+    if (!strings->elements) {
+        kfree(strings->buf);
+        strings->buf = NULL;
         return -ENOMEM;
+    }
 
     char* cursor = strings->buf;
     for (size_t i = 0; i < strings->count; ++i) {
@@ -95,8 +98,11 @@ NODISCARD static int push_strings(uintptr_t* sp, uintptr_t stack_base,
 
     for (size_t i = 0; i < strings->count; ++i) {
         size_t size = strlen(strings->elements[i]) + 1;
-        if (*sp - size < stack_base)
+        if (*sp - size < stack_base) {
+            kfree(ptrs->elements);
+            ptrs->elements = NULL;
             return -E2BIG;
+        }
         *sp -= next_power_of_two(size);
         strlcpy((char*)*sp, strings->elements[i], size);
         ptrs->elements[ptrs->count - i - 1] = *sp;
@@ -140,39 +146,55 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     if (IS_ERR(desc))
         return PTR_ERR(desc);
 
-    void* buf = kmalloc(stat.st_size);
-    if (!buf)
+    void* executable_buf = kmalloc(stat.st_size);
+    if (!executable_buf) {
+        file_description_close(desc);
         return -ENOMEM;
-    ssize_t nread = file_description_read(desc, buf, stat.st_size);
-    if (IS_ERR(nread))
+    }
+    ssize_t nread = file_description_read(desc, executable_buf, stat.st_size);
+    file_description_close(desc);
+    if (IS_ERR(nread)) {
+        kfree(executable_buf);
         return nread;
+    }
 
-    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)buf;
+    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)executable_buf;
     if (!IS_ELF(*ehdr) || ehdr->e_ident[EI_CLASS] != ELFCLASS32 ||
         ehdr->e_ident[EI_DATA] != ELFDATA2LSB ||
         ehdr->e_ident[EI_VERSION] != EV_CURRENT ||
         ehdr->e_ident[EI_OSABI] != ELFOSABI_SYSV ||
         ehdr->e_ident[EI_ABIVERSION] != 0 || ehdr->e_machine != EM_386 ||
-        ehdr->e_type != ET_EXEC || ehdr->e_version != EV_CURRENT)
+        ehdr->e_type != ET_EXEC || ehdr->e_version != EV_CURRENT) {
+        kfree(executable_buf);
         return -ENOEXEC;
+    }
 
     // after switching page directory we will no longer be able to access
     // argv and envp, so we copy them here.
     string_list copied_argv = (string_list){0};
     rc = string_list_create(&copied_argv, argv);
-    if (IS_ERR(rc))
+    if (IS_ERR(rc)) {
+        kfree(executable_buf);
         return rc;
+    }
 
     string_list copied_envp = (string_list){0};
     rc = string_list_create(&copied_envp, envp);
-    if (IS_ERR(rc))
+    if (IS_ERR(rc)) {
+        kfree(executable_buf);
+        string_list_destroy(&copied_argv);
         return rc;
+    }
 
     page_directory* prev_pd = paging_current_page_directory();
 
     page_directory* new_pd = paging_create_page_directory();
-    if (IS_ERR(new_pd))
+    if (IS_ERR(new_pd)) {
+        kfree(executable_buf);
+        string_list_destroy(&copied_argv);
+        string_list_destroy(&copied_envp);
         return PTR_ERR(new_pd);
+    }
 
     current->pd = new_pd;
     paging_switch_page_directory(new_pd);
@@ -183,7 +205,7 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     ptr_list envp_ptrs = (ptr_list){0};
     ptr_list argv_ptrs = (ptr_list){0};
 
-    Elf32_Phdr* phdr = (Elf32_Phdr*)((uintptr_t)buf + ehdr->e_phoff);
+    Elf32_Phdr* phdr = (Elf32_Phdr*)((uintptr_t)executable_buf + ehdr->e_phoff);
     uintptr_t max_segment_addr = 0;
     for (size_t i = 0; i < ehdr->e_phnum; ++i, ++phdr) {
         if (phdr->p_type != PT_LOAD)
@@ -202,7 +224,8 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
             goto fail;
 
         memset((void*)region_start, 0, phdr->p_vaddr - region_start);
-        memcpy((void*)phdr->p_vaddr, (void*)((uintptr_t)buf + phdr->p_offset),
+        memcpy((void*)phdr->p_vaddr,
+               (void*)((uintptr_t)executable_buf + phdr->p_offset),
                phdr->p_filesz);
         memset((void*)(phdr->p_vaddr + phdr->p_filesz), 0,
                region_end - phdr->p_vaddr - phdr->p_filesz);
@@ -210,6 +233,10 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
         if (max_segment_addr < region_end)
             max_segment_addr = region_end;
     }
+
+    uint32_t entry_point = ehdr->e_entry;
+    kfree(executable_buf);
+    executable_buf = NULL;
 
     range_allocator vaddr_allocator;
     ret =
@@ -282,7 +309,7 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     cli();
 
     current->vaddr_allocator = vaddr_allocator;
-    current->eip = ehdr->e_entry;
+    current->eip = entry_point;
     current->esp = current->ebp = current->stack_top;
     current->ebx = current->esi = current->edi = 0;
     current->fpu_state = initial_fpu_state;
@@ -305,13 +332,14 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
                      "pushl $0x1b\n"
                      "push %1\n"
                      "iret" ::"r"(sp),
-                     "r"(ehdr->e_entry)
+                     "r"(entry_point)
                      : "eax");
     UNREACHABLE();
 
 fail:
     ASSERT(IS_ERR(ret));
 
+    kfree(executable_buf);
     string_list_destroy(&copied_envp);
     string_list_destroy(&copied_argv);
     ptr_list_destroy(&envp_ptrs);
