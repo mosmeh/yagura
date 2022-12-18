@@ -54,8 +54,10 @@ int dentry_append(struct dentry** head, const char* name, struct inode* child) {
     *new_dentry = (struct dentry){0};
 
     new_dentry->name = kstrdup(name);
-    if (!new_dentry->name)
+    if (!new_dentry->name) {
+        kfree(new_dentry);
         return -ENOMEM;
+    }
     new_dentry->inode = child;
 
     if (prev)
@@ -78,6 +80,7 @@ struct inode* dentry_remove(struct dentry** head, const char* name) {
             else
                 *head = it->next;
             struct inode* inode = it->inode;
+            kfree(it->name);
             kfree(it);
             ASSERT(inode->num_links > 0);
             --inode->num_links;
