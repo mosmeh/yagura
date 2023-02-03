@@ -25,6 +25,7 @@ BIN_TARGET_NAMES := \
 	mkdir \
 	mouse-cursor \
 	mv \
+	play \
 	poweroff \
 	ps \
 	pwd \
