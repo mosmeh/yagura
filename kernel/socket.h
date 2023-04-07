@@ -7,8 +7,8 @@ typedef struct unix_socket {
     struct inode inode;
     int backlog;
 
-    mutex pending_queue_lock;
     atomic_size_t num_pending;
+    mutex pending_queue_lock;
     struct unix_socket* next; // pending queue
 
     atomic_bool connected;

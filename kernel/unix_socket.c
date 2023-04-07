@@ -105,7 +105,9 @@ void unix_socket_set_backlog(unix_socket* socket, int backlog) {
 }
 
 static void enqueue_pending(unix_socket* listener, unix_socket* connector) {
+    ++listener->num_pending;
     connector->next = NULL;
+
     mutex_lock(&listener->pending_queue_lock);
 
     if (listener->next) {
@@ -118,19 +120,19 @@ static void enqueue_pending(unix_socket* listener, unix_socket* connector) {
     }
 
     mutex_unlock(&listener->pending_queue_lock);
-    ++listener->num_pending;
 }
 
 static unix_socket* deque_pending(unix_socket* listener) {
     mutex_lock(&listener->pending_queue_lock);
 
     unix_socket* connector = listener->next;
-    listener->next = connector->next;
+    if (connector)
+        listener->next = connector->next;
 
     mutex_unlock(&listener->pending_queue_lock);
-    --listener->num_pending;
 
-    ASSERT(connector);
+    if (connector)
+        --listener->num_pending;
     return connector;
 }
 
@@ -139,15 +141,20 @@ static bool accept_should_unblock(atomic_size_t* num_pending) {
 }
 
 unix_socket* unix_socket_accept(unix_socket* listener) {
-    int rc = scheduler_block((should_unblock_fn)accept_should_unblock,
-                             &listener->num_pending);
-    if (IS_ERR(rc))
-        return ERR_PTR(rc);
+    for (;;) {
+        int rc = scheduler_block((should_unblock_fn)accept_should_unblock,
+                                 &listener->num_pending);
+        if (IS_ERR(rc))
+            return ERR_PTR(rc);
 
-    unix_socket* connector = deque_pending(listener);
-    ASSERT(!connector->connected);
-    connector->connected = true;
-    return connector;
+        unix_socket* connector = deque_pending(listener);
+        if (!connector)
+            continue;
+
+        ASSERT(!connector->connected);
+        connector->connected = true;
+        return connector;
+    }
 }
 
 static bool connect_should_unblock(atomic_bool* connected) {
