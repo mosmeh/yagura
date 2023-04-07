@@ -21,7 +21,7 @@ typedef struct {
     int weights[QOA_LMS_LEN];
 } qoa_lms_t;
 
-static int qoa_dequant_tab[16][8] = {
+static const int qoa_dequant_tab[16][8] = {
     {1, -1, 3, -3, 5, -5, 7, -7},
     {5, -5, 18, -18, 32, -32, 49, -49},
     {16, -16, 53, -53, 95, -95, 147, -147},
@@ -60,12 +60,12 @@ static void qoa_lms_update(qoa_lms_t* lms, int sample, int residual) {
 }
 
 static uint64_t read_u64(const unsigned char* bytes, size_t* p) {
-    uint64_t v = (uint64_t)bytes[*p + 0] << 56 | (uint64_t)bytes[*p + 1] << 48 |
-                 (uint64_t)bytes[*p + 2] << 40 | (uint64_t)bytes[*p + 3] << 32 |
-                 (uint64_t)bytes[*p + 4] << 24 | (uint64_t)bytes[*p + 5] << 16 |
-                 (uint64_t)bytes[*p + 6] << 8 | (uint64_t)bytes[*p + 7];
+    bytes += *p;
     *p += 8;
-    return v;
+    return ((uint64_t)bytes[0] << 56) | ((uint64_t)bytes[1] << 48) |
+           ((uint64_t)bytes[2] << 40) | ((uint64_t)bytes[3] << 32) |
+           ((uint64_t)bytes[4] << 24) | ((uint64_t)bytes[5] << 16) |
+           ((uint64_t)bytes[6] << 8) | ((uint64_t)bytes[7] << 0);
 }
 
 static int clamp(int v, int min, int max) {
