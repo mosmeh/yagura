@@ -152,7 +152,7 @@ int sys_unlink(const char* pathname) {
     return rc;
 }
 
-static int make_sure_directory_is_empty(struct inode* inode) {
+static int ensure_empty_directory(struct inode* inode) {
     ASSERT(S_ISDIR(inode->mode));
 
     file_description* desc = inode_open(inode, O_RDONLY, 0);
@@ -211,7 +211,7 @@ int sys_rename(const char* oldpath, const char* newpath) {
                 rc = -EISDIR;
                 goto fail;
             }
-            rc = make_sure_directory_is_empty(new_inode);
+            rc = ensure_empty_directory(new_inode);
             if (IS_ERR(rc)) {
                 new_inode = NULL;
                 goto fail;
@@ -279,7 +279,7 @@ int sys_rmdir(const char* pathname) {
         kfree(basename);
         return -ENOTDIR;
     }
-    int rc = make_sure_directory_is_empty(inode);
+    int rc = ensure_empty_directory(inode);
     if (IS_ERR(rc)) {
         inode_unref(parent);
         kfree(basename);
