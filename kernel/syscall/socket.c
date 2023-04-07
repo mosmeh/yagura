@@ -33,12 +33,13 @@ int sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
     if (addr->sa_family != AF_UNIX)
         return -EINVAL;
 
-    const char* path =
+    char* path =
         kstrndup(addr_un->sun_path, addrlen - offsetof(sockaddr_un, sun_path));
     if (!path)
         return -ENOMEM;
 
     file_description* bound_desc = vfs_open(path, O_CREAT | O_EXCL, S_IFSOCK);
+    kfree(path);
     if (IS_ERR(bound_desc)) {
         if (PTR_ERR(bound_desc) == -EEXIST)
             return -EADDRINUSE;
@@ -104,16 +105,20 @@ int sys_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
 
     if (addrlen <= sizeof(sa_family_t) || sizeof(sockaddr_un) < addrlen)
         return -EINVAL;
-    const sockaddr_un* addr_un = (const sockaddr_un*)addr;
     if (addr->sa_family != AF_UNIX)
         return -EINVAL;
-    const char* path =
+
+    const sockaddr_un* addr_un = (const sockaddr_un*)addr;
+
+    char* path =
         kstrndup(addr_un->sun_path, addrlen - offsetof(sockaddr_un, sun_path));
     if (!path)
         return -ENOMEM;
     file_description* listener_desc = vfs_open(path, 0, 0);
+    kfree(path);
     if (IS_ERR(listener_desc))
         return PTR_ERR(listener_desc);
+
     unix_socket* listener = listener_desc->inode->bound_socket;
     if (!listener)
         return -ECONNREFUSED;

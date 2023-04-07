@@ -47,12 +47,6 @@ pid_t sys_fork(registers* regs) {
         return -ENOMEM;
     *process = (struct process){0};
 
-    process->pd = paging_clone_current_page_directory();
-    if (IS_ERR(process->pd))
-        return PTR_ERR(process->pd);
-
-    process->vaddr_allocator = current->vaddr_allocator;
-
     process->pid = process_generate_next_pid();
     process->ppid = current->pid;
     process->pgid = current->pgid;
@@ -67,20 +61,11 @@ pid_t sys_fork(registers* regs) {
     process->user_ticks = current->user_ticks;
     process->kernel_ticks = current->kernel_ticks;
 
-    process->cwd_path = kstrdup(current->cwd_path);
-    if (!process->cwd_path)
-        return -ENOMEM;
-    process->cwd_inode = current->cwd_inode;
-    inode_ref(process->cwd_inode);
-
-    int rc = file_descriptor_table_clone_from(&process->fd_table,
-                                              &current->fd_table);
-    if (IS_ERR(rc))
-        return rc;
-
     void* stack = kmalloc(STACK_SIZE);
-    if (!stack)
+    if (!stack) {
+        kfree(process);
         return -ENOMEM;
+    }
     process->stack_top = (uintptr_t)stack + STACK_SIZE;
     process->esp = process->ebp = process->stack_top;
 
@@ -90,8 +75,36 @@ pid_t sys_fork(registers* regs) {
     *child_regs = *regs;
     child_regs->eax = 0; // fork() returns 0 in the child
 
-    scheduler_register(process);
+    process->cwd_path = kstrdup(current->cwd_path);
+    if (!process->cwd_path) {
+        kfree(stack);
+        kfree(process);
+        return -ENOMEM;
+    }
 
+    int rc = file_descriptor_table_clone_from(&process->fd_table,
+                                              &current->fd_table);
+    if (IS_ERR(rc)) {
+        kfree(process->cwd_path);
+        kfree(stack);
+        kfree(process);
+        return rc;
+    }
+
+    process->vaddr_allocator = current->vaddr_allocator;
+    process->pd = paging_clone_current_page_directory();
+    if (IS_ERR(process->pd)) {
+        file_descriptor_table_destroy(&process->fd_table);
+        kfree(process->cwd_path);
+        kfree(stack);
+        kfree(process);
+        return PTR_ERR(process->pd);
+    }
+
+    process->cwd_inode = current->cwd_inode;
+    inode_ref(process->cwd_inode);
+
+    scheduler_register(process);
     return process->pid;
 }
 
