@@ -17,8 +17,10 @@ DIR* opendir(const char* name) {
         return NULL;
     *dirp = (DIR){0};
     dirp->fd = open(name, O_RDONLY);
-    if (dirp->fd < 0)
+    if (dirp->fd < 0) {
+        free(dirp);
         return NULL;
+    }
     dirp->buf_capacity = 1024;
     return dirp;
 }
