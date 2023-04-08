@@ -220,34 +220,41 @@ int file_description_truncate(file_description* desc, off_t length) {
 }
 
 off_t file_description_lseek(file_description* desc, off_t offset, int whence) {
-    off_t new_offset;
     switch (whence) {
     case SEEK_SET:
-        new_offset = offset;
-        break;
+        if (offset < 0)
+            return -EINVAL;
+        mutex_lock(&desc->offset_lock);
+        desc->offset = offset;
+        mutex_unlock(&desc->offset_lock);
+        return offset;
     case SEEK_CUR:
         mutex_lock(&desc->offset_lock);
-        new_offset = desc->offset + offset;
-        break;
+        off_t new_offset = desc->offset + offset;
+        if (new_offset < 0) {
+            mutex_unlock(&desc->offset_lock);
+            return -EINVAL;
+        }
+        desc->offset = new_offset;
+        mutex_unlock(&desc->offset_lock);
+        return new_offset;
     case SEEK_END: {
         struct stat stat;
         inode_ref(desc->inode);
         int rc = inode_stat(desc->inode, &stat);
         if (IS_ERR(rc))
             return rc;
-        new_offset = stat.st_size + offset;
-        break;
+        off_t new_offset = stat.st_size + offset;
+        if (new_offset < 0)
+            return -EINVAL;
+        mutex_lock(&desc->offset_lock);
+        desc->offset = new_offset;
+        mutex_unlock(&desc->offset_lock);
+        return new_offset;
     }
     default:
         return -EINVAL;
     }
-    if (new_offset < 0) {
-        mutex_unlock_if_locked(&desc->offset_lock);
-        return -EINVAL;
-    }
-    desc->offset = new_offset;
-    mutex_unlock_if_locked(&desc->offset_lock);
-    return new_offset;
 }
 
 int file_description_ioctl(file_description* desc, int request, void* argp) {
