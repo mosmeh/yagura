@@ -17,8 +17,16 @@ sudo apt install gcc-multilib cpio qemu-system-x86
 
 Then run the following command to build and run:
 
-```
+```sh
 make run
+```
+
+The following commands start the system with different options:
+
+```sh
+make shell # run in text mode
+
+make test # run self-test
 ```
 
 ## Installation on bare-metal
