@@ -1,5 +1,6 @@
 #include "api/time.h"
 #include "asm_wrapper.h"
+#include "interrupts.h"
 #include "panic.h"
 #include "system.h"
 #include <common/calendar.h>
@@ -80,14 +81,21 @@ void time_init(void) {
 
 void time_tick(void) {
     static const long nanos = 1000000000;
+
+    bool int_flag = push_cli();
+
     now.tv_nsec += nanos / CLK_TCK;
     if (now.tv_nsec >= nanos) {
         ++now.tv_sec;
         now.tv_nsec -= nanos;
     }
+
+    pop_cli(int_flag);
 }
 
 int time_now(struct timespec* tp) {
+    bool int_flag = push_cli();
     *tp = now;
+    pop_cli(int_flag);
     return 0;
 }
