@@ -28,8 +28,10 @@ static int populate_comm(file_description* desc, growable_buf* buf) {
 static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
                     pid_t pid) {
     procfs_pid_item_inode* node = kmalloc(sizeof(procfs_pid_item_inode));
-    if (!node)
+    if (!node) {
+        inode_unref((struct inode*)parent);
         return -ENOMEM;
+    }
     *node = (procfs_pid_item_inode){0};
 
     node->pid = pid;
@@ -41,7 +43,9 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
     inode->mode = S_IFREG;
     inode->ref_count = 1;
 
-    return dentry_append(&parent->children, item_def->name, inode);
+    int rc = dentry_append(&parent->children, item_def->name, inode);
+    inode_unref((struct inode*)parent);
+    return rc;
 }
 
 static procfs_item_def pid_items[] = {{"comm", populate_comm}};
@@ -67,6 +71,7 @@ struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid) {
     inode->ref_count = 1;
 
     for (size_t i = 0; i < NUM_ITEMS; ++i) {
+        inode_ref(inode);
         int rc = add_item(node, pid_items + i, pid);
         if (IS_ERR(rc))
             return ERR_PTR(rc);

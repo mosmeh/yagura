@@ -142,7 +142,7 @@ static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
     inode_ref(child_inode);
     int rc = tmpfs_link_child(inode, name, child_inode);
     if (IS_ERR(rc)) {
-        kfree(child);
+        inode_unref(child_inode);
         return ERR_PTR(rc);
     }
 

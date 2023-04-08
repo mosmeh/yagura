@@ -42,19 +42,24 @@ int dentry_append(struct dentry** head, const char* name, struct inode* child) {
     struct dentry* prev = NULL;
     struct dentry* it = *head;
     while (it) {
-        if (!strcmp(it->name, name))
+        if (!strcmp(it->name, name)) {
+            inode_unref(child);
             return -EEXIST;
+        }
         prev = it;
         it = it->next;
     }
 
     struct dentry* new_dentry = kmalloc(sizeof(struct dentry));
-    if (!new_dentry)
+    if (!new_dentry) {
+        inode_unref(child);
         return -ENOMEM;
+    }
     *new_dentry = (struct dentry){0};
 
     new_dentry->name = kstrdup(name);
     if (!new_dentry->name) {
+        inode_unref(child);
         kfree(new_dentry);
         return -ENOMEM;
     }

@@ -86,8 +86,10 @@ static int procfs_root_getdents(struct getdents_ctx* ctx,
 
 static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def) {
     procfs_item_inode* node = kmalloc(sizeof(procfs_item_inode));
-    if (!node)
+    if (!node) {
+        inode_unref((struct inode*)parent);
         return -ENOMEM;
+    }
     *node = (procfs_item_inode){0};
 
     node->populate = item_def->populate;
@@ -98,7 +100,9 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def) {
     inode->mode = S_IFREG;
     inode->ref_count = 1;
 
-    return dentry_append(&parent->children, item_def->name, inode);
+    int rc = dentry_append(&parent->children, item_def->name, inode);
+    inode_unref((struct inode*)parent);
+    return rc;
 }
 
 struct inode* procfs_create_root(void) {
@@ -120,6 +124,7 @@ struct inode* procfs_create_root(void) {
     inode->ref_count = 1;
 
     for (size_t i = 0; i < NUM_ITEMS; ++i) {
+        inode_ref(inode);
         int rc = add_item(root, root_items + i);
         if (IS_ERR(rc))
             return ERR_PTR(rc);
