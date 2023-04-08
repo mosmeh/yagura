@@ -91,11 +91,16 @@ unix_socket* unix_socket_create(void) {
     inode->ref_count = 1;
 
     int rc = ring_buf_init(&socket->client_to_server_buf);
-    if (IS_ERR(rc))
+    if (IS_ERR(rc)) {
+        kfree(socket);
         return ERR_PTR(rc);
+    }
     rc = ring_buf_init(&socket->server_to_client_buf);
-    if (IS_ERR(rc))
+    if (IS_ERR(rc)) {
+        ring_buf_destroy(&socket->client_to_server_buf);
+        kfree(socket);
         return ERR_PTR(rc);
+    }
 
     return socket;
 }

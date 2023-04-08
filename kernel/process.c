@@ -55,24 +55,38 @@ struct process* process_create_kernel_process(const char* comm,
     process->state = PROCESS_STATE_RUNNABLE;
     strlcpy(process->comm, comm, sizeof(process->comm));
 
-    process->pd = paging_create_page_directory();
-    if (IS_ERR(process->pd))
-        return ERR_CAST(process->pd);
-
     process->cwd_path = kstrdup(ROOT_DIR);
-    if (!process->cwd_path)
+    if (!process->cwd_path) {
+        kfree(process);
         return ERR_PTR(-ENOMEM);
+    }
     process->cwd_inode = vfs_get_root();
 
     int rc = file_descriptor_table_init(&process->fd_table);
-    if (IS_ERR(rc))
+    if (IS_ERR(rc)) {
+        kfree(process->cwd_path);
+        kfree(process);
         return ERR_PTR(rc);
+    }
 
     void* stack = kmalloc(STACK_SIZE);
-    if (!stack)
+    if (!stack) {
+        file_descriptor_table_destroy(&process->fd_table);
+        kfree(process->cwd_path);
+        kfree(process);
         return ERR_PTR(-ENOMEM);
+    }
     process->stack_top = (uintptr_t)stack + STACK_SIZE;
     process->esp = process->ebp = process->stack_top;
+
+    process->pd = paging_create_page_directory();
+    if (IS_ERR(process->pd)) {
+        kfree(stack);
+        file_descriptor_table_destroy(&process->fd_table);
+        kfree(process->cwd_path);
+        kfree(process);
+        return ERR_CAST(process->pd);
+    }
 
     return process;
 }
