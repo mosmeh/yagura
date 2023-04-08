@@ -262,6 +262,30 @@ struct node {
     };
 };
 
+static void destroy_node(struct node* node) {
+    switch (node->type) {
+    case CMD_EXECUTE:
+        break;
+    case CMD_JUXTAPOSITION:
+        destroy_node(node->juxtaposition.left);
+        destroy_node(node->juxtaposition.right);
+        break;
+    case CMD_PIPE:
+        destroy_node(node->pipe.left);
+        destroy_node(node->pipe.right);
+        break;
+    case CMD_REDIRECT:
+        destroy_node(node->redirect.from);
+        break;
+    case CMD_BACKGROUND:
+        destroy_node(node->background.inner);
+        break;
+    default:
+        UNREACHABLE();
+    }
+    free(node);
+}
+
 struct parser {
     char* cursor;
     enum {
@@ -330,6 +354,7 @@ static struct node* parse_execute(struct parser* parser) {
     for (;; ++i) {
         if (i >= MAX_ARGC) {
             parser->result = RESULT_TOO_MANY_ARGS_ERROR;
+            free(node);
             return NULL;
         }
         char* arg = parse_filename(parser);
@@ -342,6 +367,7 @@ static struct node* parse_execute(struct parser* parser) {
     }
     if (i == 0) {
         parser->result = RESULT_EMPTY;
+        free(node);
         return NULL;
     }
 
@@ -360,12 +386,14 @@ static struct node* parse_redirect(struct parser* parser) {
     char* to = parse_filename(parser);
     if (!to) {
         parser->result = RESULT_SYNTAX_ERROR;
+        destroy_node(from);
         return NULL;
     }
 
     struct node* node = malloc(sizeof(struct node));
     if (!node) {
         parser->result = RESULT_NOMEM_ERROR;
+        destroy_node(from);
         return NULL;
     }
     node->type = CMD_REDIRECT;
@@ -390,12 +418,15 @@ static struct node* parse_pipe(struct parser* parser) {
     if (!right) {
         if (parser->result == RESULT_EMPTY)
             parser->result = RESULT_SYNTAX_ERROR;
+        destroy_node(left);
         return NULL;
     }
 
     struct node* node = malloc(sizeof(struct node));
     if (!node) {
         parser->result = RESULT_NOMEM_ERROR;
+        destroy_node(right);
+        destroy_node(left);
         return NULL;
     }
     node->type = CMD_PIPE;
@@ -416,6 +447,7 @@ static struct node* parse_juxtaposition(struct parser* parser) {
         struct node* bg = malloc(sizeof(struct node));
         if (!bg) {
             parser->result = RESULT_NOMEM_ERROR;
+            destroy_node(left);
             return NULL;
         }
         bg->type = CMD_BACKGROUND;
@@ -436,6 +468,8 @@ static struct node* parse_juxtaposition(struct parser* parser) {
     struct node* node = malloc(sizeof(struct node));
     if (!node) {
         parser->result = RESULT_NOMEM_ERROR;
+        destroy_node(right);
+        destroy_node(left);
         return NULL;
     }
     node->type = CMD_JUXTAPOSITION;
@@ -483,13 +517,13 @@ static struct node* parse(struct parser* parser, char* line) {
     skip_whitespaces(parser);
     if (peek(parser) != 0) {
         parser->result = RESULT_SYNTAX_ERROR;
+        destroy_node(node);
         return NULL;
     }
     if (!node)
         return NULL;
+    null_terminate(node);
 
-    if (node)
-        null_terminate(node);
     return node;
 }
 
@@ -655,6 +689,9 @@ static int run_command(const struct node* node, struct run_context ctx) {
     UNREACHABLE();
 }
 
+static struct line_editor editor;
+static struct parser parser;
+
 int main(int argc, char* const argv[], char* const envp[]) {
     (void)argc;
     (void)argv;
@@ -671,7 +708,6 @@ int main(int argc, char* const argv[], char* const envp[]) {
     }
 
     for (;;) {
-        static struct line_editor editor;
         char* input = read_input(&editor, winsize.ws_col);
         if (!input) {
             perror("read_input");
@@ -679,7 +715,6 @@ int main(int argc, char* const argv[], char* const envp[]) {
         }
         dprintf(STDERR_FILENO, "\n");
 
-        static struct parser parser;
         struct node* node = parse(&parser, input);
         switch (parser.result) {
         case RESULT_SUCCESS:
@@ -705,7 +740,9 @@ int main(int argc, char* const argv[], char* const envp[]) {
             ;
 
         struct run_context ctx = {.envp = envp, .pgid = 0, .foreground = true};
-        if (run_command(node, ctx) == RUN_ERROR) {
+        int run_result = run_command(node, ctx);
+        destroy_node(node);
+        if (run_result == RUN_ERROR) {
             perror("run_command");
             return EXIT_FAILURE;
         }
