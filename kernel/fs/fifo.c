@@ -113,8 +113,10 @@ struct inode* fifo_create(void) {
     *fifo = (struct fifo){0};
 
     int rc = ring_buf_init(&fifo->buf);
-    if (IS_ERR(rc))
+    if (IS_ERR(rc)) {
+        kfree(fifo);
         return ERR_PTR(rc);
+    }
 
     struct inode* inode = &fifo->inode;
     static file_ops fops = {.destroy_inode = fifo_destroy_inode,
