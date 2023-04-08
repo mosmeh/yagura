@@ -102,19 +102,15 @@ int growable_buf_truncate(growable_buf* buf, off_t length) {
     return 0;
 }
 
-uintptr_t growable_buf_mmap(growable_buf* buf, uintptr_t addr, size_t length,
-                            off_t offset, uint16_t page_flags) {
+int growable_buf_mmap(growable_buf* buf, uintptr_t addr, size_t length,
+                      off_t offset, uint16_t page_flags) {
     if (offset != 0 || !(page_flags & PAGE_SHARED))
         return -ENOTSUP;
 
     if (length > buf->size)
         return -EINVAL;
 
-    int rc = paging_copy_mapping(addr, buf->addr, length, page_flags);
-    if (IS_ERR(rc))
-        return rc;
-
-    return addr;
+    return paging_copy_mapping(addr, buf->addr, length, page_flags);
 }
 
 int growable_buf_printf(growable_buf* buf, const char* format, ...) {

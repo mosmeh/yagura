@@ -73,19 +73,16 @@ bool bochs_fb_init(void) {
     return true;
 }
 
-static uintptr_t bochs_fb_device_mmap(file_description* desc, uintptr_t addr,
-                                      size_t length, off_t offset,
-                                      uint16_t page_flags) {
+static int bochs_fb_device_mmap(file_description* desc, uintptr_t addr,
+                                size_t length, off_t offset,
+                                uint16_t page_flags) {
     (void)desc;
     if (offset != 0)
         return -ENXIO;
     if (!(page_flags & PAGE_SHARED))
         return -ENODEV;
 
-    int rc = paging_map_to_physical_range(addr, fb_paddr, length, page_flags);
-    if (IS_ERR(rc))
-        return rc;
-    return addr;
+    return paging_map_to_physical_range(addr, fb_paddr, length, page_flags);
 }
 
 static int bochs_fb_device_ioctl(file_description* desc, int request,

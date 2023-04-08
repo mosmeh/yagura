@@ -455,11 +455,10 @@ void fb_console_init(void) {
     ASSERT(line_is_dirty);
 
     size_t fb_size = fb_info.pitch * fb_info.height;
-    uintptr_t vaddr = range_allocator_alloc(&kernel_vaddr_allocator, fb_size);
-    ASSERT_OK(vaddr);
-    fb_addr = file_description_mmap(desc, vaddr, fb_size, 0,
-                                    PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL);
+    fb_addr = range_allocator_alloc(&kernel_vaddr_allocator, fb_size);
     ASSERT_OK(fb_addr);
+    ASSERT_OK(file_description_mmap(desc, fb_addr, fb_size, 0,
+                                    PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL));
 
     ASSERT_OK(file_description_close(desc));
 

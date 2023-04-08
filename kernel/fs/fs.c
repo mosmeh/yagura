@@ -194,9 +194,8 @@ ssize_t file_description_write(file_description* desc, const void* buffer,
     return inode->fops->write(desc, buffer, count);
 }
 
-uintptr_t file_description_mmap(file_description* desc, uintptr_t addr,
-                                size_t length, off_t offset,
-                                uint16_t page_flags) {
+int file_description_mmap(file_description* desc, uintptr_t addr, size_t length,
+                          off_t offset, uint16_t page_flags) {
     struct inode* inode = desc->inode;
     if (!inode->fops->mmap)
         return -ENODEV;

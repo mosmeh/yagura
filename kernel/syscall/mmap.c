@@ -46,8 +46,11 @@ void* sys_mmap(const mmap_params* params) {
     if (S_ISDIR(desc->inode->mode))
         return ERR_PTR(-ENODEV);
 
-    return (void*)file_description_mmap(desc, addr, params->length,
-                                        params->offset, page_flags);
+    int rc = file_description_mmap(desc, addr, params->length, params->offset,
+                                   page_flags);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
+    return (void*)addr;
 }
 
 int sys_munmap(void* addr, size_t length) {

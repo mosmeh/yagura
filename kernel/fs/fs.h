@@ -49,8 +49,8 @@ typedef int (*close_fn)(file_description*);
 typedef ssize_t (*read_fn)(file_description*, void* buffer, size_t count);
 typedef ssize_t (*write_fn)(file_description*, const void* buffer,
                             size_t count);
-typedef uintptr_t (*mmap_fn)(file_description*, uintptr_t addr, size_t length,
-                             off_t offset, uint16_t page_flags);
+typedef int (*mmap_fn)(file_description*, uintptr_t addr, size_t length,
+                       off_t offset, uint16_t page_flags);
 typedef int (*truncate_fn)(file_description*, off_t length);
 typedef int (*ioctl_fn)(file_description*, int request, void* argp);
 
@@ -107,9 +107,9 @@ NODISCARD ssize_t file_description_read(file_description*, void* buffer,
                                         size_t count);
 NODISCARD ssize_t file_description_write(file_description*, const void* buffer,
                                          size_t count);
-NODISCARD uintptr_t file_description_mmap(file_description*, uintptr_t addr,
-                                          size_t length, off_t offset,
-                                          uint16_t page_flags);
+NODISCARD int file_description_mmap(file_description*, uintptr_t addr,
+                                    size_t length, off_t offset,
+                                    uint16_t page_flags);
 NODISCARD int file_description_truncate(file_description*, off_t length);
 NODISCARD off_t file_description_lseek(file_description*, off_t offset,
                                        int whence);
