@@ -57,9 +57,7 @@ int sys_clock_nanosleep(clockid_t clockid, int flags,
     struct timespec deadline = {0};
     switch (flags) {
     case 0: {
-        int rc = time_now(&deadline);
-        if (IS_ERR(rc))
-            return rc;
+        time_now(&deadline);
         timespec_add(&deadline, request);
         break;
     }
@@ -77,9 +75,7 @@ int sys_clock_nanosleep(clockid_t clockid, int flags,
     if (remain) {
         *remain = deadline;
         struct timespec now;
-        int rc = time_now(&now);
-        if (IS_ERR(rc))
-            return rc;
+        time_now(&now);
         timespec_saturating_sub(remain, &now);
     }
     return 0;

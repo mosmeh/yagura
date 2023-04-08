@@ -93,9 +93,8 @@ void time_tick(void) {
     pop_cli(int_flag);
 }
 
-int time_now(struct timespec* tp) {
+void time_now(struct timespec* tp) {
     bool int_flag = push_cli();
     *tp = now;
     pop_cli(int_flag);
-    return 0;
 }

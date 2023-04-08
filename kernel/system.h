@@ -36,7 +36,7 @@ bool cmdline_contains(const char* key);
 
 void time_init(void);
 void time_tick(void);
-int time_now(struct timespec*);
+void time_now(struct timespec*);
 
 noreturn void reboot(void);
 noreturn void halt(void);
