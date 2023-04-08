@@ -210,8 +210,8 @@ static void unquickmap(size_t which) {
     flush_tlb_single(KERNEL_VADDR + PAGE_SIZE * which);
 }
 
-uintptr_t clone_page_table(const volatile page_table* src,
-                           uintptr_t src_vaddr) {
+static uintptr_t clone_page_table(const volatile page_table* src,
+                                  uintptr_t src_vaddr) {
     uintptr_t dest_pt_paddr = page_allocator_alloc();
     if (IS_ERR(dest_pt_paddr))
         return dest_pt_paddr;
@@ -285,7 +285,7 @@ page_directory* paging_clone_current_page_directory(void) {
 
 extern unsigned char kernel_page_directory[];
 
-page_directory* kernel_pd =
+static page_directory* kernel_pd =
     (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
 
 void paging_destroy_current_page_directory(void) {
