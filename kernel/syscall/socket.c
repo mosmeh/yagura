@@ -12,11 +12,13 @@ int sys_socket(int domain, int type, int protocol) {
     unix_socket* socket = unix_socket_create();
     if (IS_ERR(socket))
         return PTR_ERR(socket);
-    inode_ref((struct inode*)socket);
     file_description* desc = inode_open((struct inode*)socket, O_RDWR, 0);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    return process_alloc_file_descriptor(-1, desc);
+    int fd = process_alloc_file_descriptor(-1, desc);
+    if (IS_ERR(fd))
+        file_description_close(desc);
+    return fd;
 }
 
 int sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
@@ -72,15 +74,16 @@ int sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     unix_socket* connector = unix_socket_accept(listener);
     if (IS_ERR(connector))
         return PTR_ERR(connector);
-    inode_ref((struct inode*)connector);
     file_description* connector_desc =
         inode_open((struct inode*)connector, O_RDWR, 0);
     if (IS_ERR(connector_desc))
         return PTR_ERR(connector_desc);
 
     int fd = process_alloc_file_descriptor(-1, connector_desc);
-    if (IS_ERR(fd))
+    if (IS_ERR(fd)) {
+        file_description_close(connector_desc);
         return fd;
+    }
 
     if (addr) {
         sockaddr_un* addr_un = (sockaddr_un*)addr;

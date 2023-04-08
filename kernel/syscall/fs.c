@@ -10,7 +10,10 @@ int sys_open(const char* pathname, int flags, unsigned mode) {
     file_description* desc = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    return process_alloc_file_descriptor(-1, desc);
+    int rc = process_alloc_file_descriptor(-1, desc);
+    if (IS_ERR(rc))
+        file_description_close(desc);
+    return rc;
 }
 
 int sys_close(int fd) {

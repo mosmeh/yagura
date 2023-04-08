@@ -111,6 +111,8 @@ void unix_socket_set_backlog(unix_socket* socket, int backlog) {
 
 static void enqueue_pending(unix_socket* listener, unix_socket* connector) {
     ++listener->num_pending;
+
+    inode_ref((struct inode*)connector);
     connector->next = NULL;
 
     mutex_lock(&listener->pending_queue_lock);
