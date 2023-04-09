@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #define QOI_OP_INDEX 0x00
@@ -44,11 +45,66 @@ static uint32_t swap_bytes(uint32_t x) {
            ((x << 24) & 0xff000000);
 }
 
+static void read_bytes(unsigned char* dest, unsigned char** const cursor,
+                       size_t n) {
+    memcpy(dest, *cursor, n);
+    *cursor += n;
+}
+
 int main(int argc, char* const argv[]) {
     if (argc != 2) {
         dprintf(STDERR_FILENO, "Usage: imgview FILE\n");
         return EXIT_FAILURE;
     }
+
+    const char* filename = argv[1];
+
+    struct stat st;
+    if (stat(filename, &st) < 0) {
+        perror("stat");
+        return EXIT_FAILURE;
+    }
+    size_t num_bytes = st.st_size * sizeof(unsigned char);
+    if (num_bytes < sizeof(struct qoi_header)) {
+        dprintf(STDERR_FILENO, "Not a QOI file\n");
+        return EXIT_FAILURE;
+    }
+
+    int img_fd = open(filename, O_RDONLY);
+    if (img_fd < 0) {
+        perror("open");
+        return EXIT_FAILURE;
+    }
+
+    unsigned char* bytes = malloc(num_bytes);
+    if (!bytes) {
+        perror("malloc");
+        close(img_fd);
+        return EXIT_FAILURE;
+    }
+
+    size_t total_nread = 0;
+    while (total_nread < num_bytes) {
+        ssize_t nread = read(img_fd, bytes, num_bytes);
+        if (nread < 0) {
+            perror("read");
+            close(img_fd);
+            free(bytes);
+            return EXIT_FAILURE;
+        }
+        total_nread += nread;
+    }
+    close(img_fd);
+
+    struct qoi_header* header = (struct qoi_header*)bytes;
+    if (strncmp(header->magic, "qoif", 4) != 0) {
+        dprintf(STDERR_FILENO, "Not a QOI file\n");
+        free(bytes);
+        return EXIT_FAILURE;
+    }
+
+    uint32_t width = swap_bytes(header->width);
+    uint32_t height = swap_bytes(header->height);
 
     int fb_fd = open("/dev/fb0", O_RDWR);
     if (fb_fd < 0) {
@@ -62,6 +118,7 @@ int main(int argc, char* const argv[]) {
     if (ioctl(fb_fd, FBIOGET_INFO, &fb_info) < 0) {
         perror("ioctl");
         close(fb_fd);
+        free(bytes);
         return EXIT_FAILURE;
     }
     ASSERT(fb_info.bpp == 32);
@@ -70,35 +127,13 @@ int main(int argc, char* const argv[]) {
     if (fb == MAP_FAILED) {
         perror("mmap");
         close(fb_fd);
+        free(bytes);
         return EXIT_FAILURE;
     }
     close(fb_fd);
 
-    int img_fd = open(argv[1], O_RDONLY);
-    if (img_fd < 0) {
-        perror("open");
-        return EXIT_FAILURE;
-    }
-
-    struct qoi_header header;
-    ssize_t nread = read(img_fd, &header, sizeof(struct qoi_header));
-    if (nread < 0) {
-        perror("read");
-        close(img_fd);
-        return EXIT_FAILURE;
-    }
-    if ((size_t)nread < sizeof(struct qoi_header) ||
-        strncmp(header.magic, "qoif", 4) != 0) {
-        dprintf(STDERR_FILENO, "Not a QOI file\n");
-        close(img_fd);
-        return EXIT_FAILURE;
-    }
-
-    header.width = swap_bytes(header.width);
-    header.height = swap_bytes(header.height);
-
-    size_t visible_width = MIN(header.width, fb_info.width);
-    size_t visible_height = MIN(header.height, fb_info.height);
+    size_t visible_width = MIN(width, fb_info.width);
+    size_t visible_height = MIN(height, fb_info.height);
 
     qoi_rgba_t index[64];
     memset(index, 0, sizeof(index));
@@ -107,23 +142,24 @@ int main(int argc, char* const argv[]) {
 
     size_t run = 0;
     uintptr_t fb_row_addr = (uintptr_t)fb;
+    unsigned char* cursor = bytes + sizeof(struct qoi_header);
 
     for (size_t y = 0; y < visible_height; ++y) {
         uint32_t* pixel = (uint32_t*)fb_row_addr;
 
-        for (size_t x = 0; x < header.width; ++x) {
+        for (size_t x = 0; x < width; ++x) {
             if (run > 0) {
                 --run;
             } else {
                 uint8_t b1;
-                read(img_fd, &b1, 1);
+                read_bytes(&b1, &cursor, 1);
 
                 switch (b1) {
                 case QOI_OP_RGB:
-                    read(img_fd, &px.rgba, 3);
+                    read_bytes((unsigned char*)&px.rgba, &cursor, 3);
                     break;
                 case QOI_OP_RGBA:
-                    read(img_fd, &px.rgba, 4);
+                    read_bytes((unsigned char*)&px.rgba, &cursor, 4);
                     break;
                 default:
                     switch (b1 & QOI_MASK_2) {
@@ -137,7 +173,7 @@ int main(int argc, char* const argv[]) {
                         break;
                     case QOI_OP_LUMA: {
                         uint8_t b2;
-                        read(img_fd, &b2, 1);
+                        read_bytes(&b2, &cursor, 1);
                         int vg = (b1 & 0x3f) - 32;
                         px.rgba.r += vg - 8 + ((b2 >> 4) & 0x0f);
                         px.rgba.g += vg;
@@ -161,7 +197,7 @@ int main(int argc, char* const argv[]) {
         fb_row_addr += fb_info.pitch;
     }
 
-    close(img_fd);
+    free(bytes);
 
     (void)getchar();
 
