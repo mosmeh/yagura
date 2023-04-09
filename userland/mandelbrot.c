@@ -111,6 +111,7 @@ int main(void) {
                     PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (fb == MAP_FAILED) {
         perror("mmap");
+        close(fd);
         return EXIT_FAILURE;
     }
     close(fd);

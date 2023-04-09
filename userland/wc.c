@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -21,8 +22,11 @@ static int process_file(const char* name, const char* filename) {
         static char buf[BUF_SIZE];
         ssize_t nread = read(fd, buf, BUF_SIZE);
         if (nread < 0) {
-            if (fd > 0)
+            if (fd > 0) {
+                int saved_errno = errno;
                 close(fd);
+                errno = saved_errno;
+            }
             return -1;
         }
         if (nread == 0)
@@ -39,10 +43,11 @@ static int process_file(const char* name, const char* filename) {
             }
         }
     }
-    if (fd > 0)
-        close(fd);
 
     printf("%7u %7u %7u %s\n", lines, words, bytes, name);
+
+    if (fd > 0)
+        return close(fd);
     return 0;
 }
 

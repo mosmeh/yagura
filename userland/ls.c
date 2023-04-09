@@ -78,6 +78,7 @@ int main(int argc, char* argv[]) {
             if (errno == 0)
                 break;
             perror("readdir");
+            closedir(dirp);
             return EXIT_FAILURE;
         }
 
@@ -85,6 +86,7 @@ int main(int argc, char* argv[]) {
         size_t len;
         if (get_format(dent, &format, &len) < 0) {
             perror("get_format");
+            closedir(dirp);
             return EXIT_FAILURE;
         }
         size_t next_pos = round_up(width + len + 1, TAB_STOP);

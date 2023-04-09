@@ -99,11 +99,12 @@ int main(void) {
     ASSERT(fb_info.bpp == 32);
     void* fb = mmap(NULL, fb_info.pitch * fb_info.height,
                     PROT_READ | PROT_WRITE, MAP_SHARED, fb_fd, 0);
-    close(fb_fd);
     if (fb == MAP_FAILED) {
         perror("mmap");
+        close(fb_fd);
         return EXIT_FAILURE;
     }
+    close(fb_fd);
     fb_addr = (uintptr_t)fb;
 
     move_cursor_to(fb_info.width / 2, fb_info.height / 2);
@@ -119,6 +120,7 @@ int main(void) {
         ssize_t nread = read(mouse_fd, &event, sizeof(mouse_event));
         if (nread < 0) {
             perror("read");
+            close(mouse_fd);
             return EXIT_FAILURE;
         }
         restore_fb();

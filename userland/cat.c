@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,8 +15,11 @@ static int dump_file(const char* filename) {
         static char buf[BUF_SIZE];
         ssize_t nread = read(fd, buf, BUF_SIZE);
         if (nread < 0) {
-            if (fd > 0)
+            if (fd > 0) {
+                int saved_errno = errno;
                 close(fd);
+                errno = saved_errno;
+            }
             return -1;
         }
         if (nread == 0)
@@ -24,7 +28,7 @@ static int dump_file(const char* filename) {
             return -1;
     }
     if (fd > 0)
-        close(fd);
+        return close(fd);
     return 0;
 }
 

@@ -21,6 +21,7 @@ int main(void) {
             if (errno == 0)
                 break;
             perror("readdir");
+            closedir(dirp);
             return EXIT_FAILURE;
         }
 
@@ -34,6 +35,7 @@ int main(void) {
         int fd = open(pathname, O_RDONLY);
         if (fd < 0) {
             perror("open");
+            closedir(dirp);
             return EXIT_FAILURE;
         }
         char comm[32];
@@ -42,6 +44,7 @@ int main(void) {
 
         if (nread < 0) {
             perror("read");
+            closedir(dirp);
             return EXIT_FAILURE;
         }
         if (nread == 0)

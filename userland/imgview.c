@@ -67,11 +67,12 @@ int main(int argc, char* const argv[]) {
     ASSERT(fb_info.bpp == 32);
     void* fb = mmap(NULL, fb_info.pitch * fb_info.height,
                     PROT_READ | PROT_WRITE, MAP_SHARED, fb_fd, 0);
-    close(fb_fd);
     if (fb == MAP_FAILED) {
         perror("mmap");
+        close(fb_fd);
         return EXIT_FAILURE;
     }
+    close(fb_fd);
 
     int img_fd = open(argv[1], O_RDONLY);
     if (img_fd < 0) {
