@@ -104,15 +104,15 @@ int main(int argc, char* const argv[]) {
         perror("stat");
         return EXIT_FAILURE;
     }
-    int input_fd = open(filename, O_RDONLY);
-    if (input_fd < 0) {
-        perror("open");
-        return EXIT_FAILURE;
-    }
     size_t num_bytes = st.st_size * sizeof(unsigned char);
     if (num_bytes < QOA_MIN_FILESIZE) {
         dprintf(STDERR_FILENO, "Not a QOA file\n");
-        close(input_fd);
+        return EXIT_FAILURE;
+    }
+
+    int input_fd = open(filename, O_RDONLY);
+    if (input_fd < 0) {
+        perror("open");
         return EXIT_FAILURE;
     }
 
