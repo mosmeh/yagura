@@ -16,11 +16,8 @@ void* sys_mmap(const mmap_params* params) {
 
     if ((params->flags & MAP_FIXED) || !(params->prot & PROT_READ))
         return ERR_PTR(-ENOTSUP);
-
-    uintptr_t addr =
-        range_allocator_alloc(&current->vaddr_allocator, params->length);
-    if (IS_ERR(addr))
-        return ERR_PTR(addr);
+    if ((params->flags & MAP_ANONYMOUS) && (params->offset != 0))
+        return ERR_PTR(-ENOTSUP);
 
     uint16_t page_flags = PAGE_USER;
     if (params->prot & PROT_WRITE)
@@ -29,8 +26,10 @@ void* sys_mmap(const mmap_params* params) {
         page_flags |= PAGE_SHARED;
 
     if (params->flags & MAP_ANONYMOUS) {
-        if (params->offset != 0)
-            return ERR_PTR(-ENOTSUP);
+        uintptr_t addr =
+            range_allocator_alloc(&current->vaddr_allocator, params->length);
+        if (IS_ERR(addr))
+            return ERR_PTR(addr);
 
         int rc = paging_map_to_free_pages(addr, params->length, page_flags);
         if (IS_ERR(rc))
@@ -45,6 +44,11 @@ void* sys_mmap(const mmap_params* params) {
         return desc;
     if (S_ISDIR(desc->inode->mode))
         return ERR_PTR(-ENODEV);
+
+    uintptr_t addr =
+        range_allocator_alloc(&current->vaddr_allocator, params->length);
+    if (IS_ERR(addr))
+        return ERR_PTR(addr);
 
     int rc = file_description_mmap(desc, addr, params->length, params->offset,
                                    page_flags);
