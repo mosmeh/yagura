@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <dirent.h>
 #include <errno.h>
 #include <extra.h>
 #include <fcntl.h>
@@ -22,6 +23,105 @@ struct line_editor {
     char param_buf[BUF_SIZE];
     size_t param_len;
 };
+
+static bool starts_with(const char* str, size_t str_len, const char* prefix,
+                        size_t prefix_len) {
+    for (size_t i = 0; i < prefix_len; ++i) {
+        if (i >= str_len || str[i] != prefix[i])
+            return false;
+    }
+    return true;
+}
+
+static bool complete_entries_in_dir(struct line_editor* ed, const char* word,
+                                    size_t word_len, const char* path) {
+    DIR* dirp = opendir(path);
+    if (!dirp)
+        return false;
+
+    struct dirent* dent;
+    while ((dent = readdir(dirp))) {
+        if (dent->d_namlen <= word_len)
+            continue;
+        if (!starts_with(dent->d_name, dent->d_namlen, word, word_len))
+            continue;
+
+        size_t completed_len = dent->d_namlen - word_len;
+        memmove(ed->input_buf + ed->cursor + completed_len,
+                ed->input_buf + ed->cursor, ed->input_len - ed->cursor);
+        memcpy(ed->input_buf + ed->cursor, dent->d_name + word_len,
+               completed_len);
+        ed->input_len += completed_len;
+        ed->cursor += completed_len;
+
+        closedir(dirp);
+        return true;
+    }
+
+    closedir(dirp);
+    return false;
+}
+
+static bool is_valid_filename_character(char c) {
+    return isgraph(c) && c != '/';
+}
+
+static bool complete(struct line_editor* ed) {
+    if (ed->cursor == 0 ||
+        !is_valid_filename_character(ed->input_buf[ed->cursor - 1]))
+        return false;
+    if (ed->cursor != ed->input_len && ed->input_buf[ed->cursor] != ' ')
+        return false;
+
+    char* word = ed->input_buf + ed->cursor - 1;
+    size_t word_len = 1;
+    while (word > ed->input_buf && is_valid_filename_character(*(word - 1))) {
+        --word;
+        ++word_len;
+    }
+
+    if (word > ed->input_buf && *(word - 1) == '/') {
+        char* dir = word - 1;
+        size_t dir_len = 1;
+        while (dir > ed->input_buf && isgraph(*(dir - 1))) {
+            --dir;
+            ++dir_len;
+        }
+
+        char* null_terminated_dir = malloc((dir_len + 1) * sizeof(char));
+        if (!null_terminated_dir)
+            return false;
+        memcpy(null_terminated_dir, dir, dir_len);
+        null_terminated_dir[dir_len] = 0;
+        bool completed =
+            complete_entries_in_dir(ed, word, word_len, null_terminated_dir);
+        free(null_terminated_dir);
+        return completed;
+    }
+
+    if (complete_entries_in_dir(ed, word, word_len, "."))
+        return true;
+
+    const char* path = getenv("PATH");
+    if (!path)
+        return false;
+    char* dup_path = strdup(path);
+    if (!dup_path)
+        return false;
+
+    static const char* sep = ":";
+    char* saved_ptr;
+    for (const char* part = strtok_r(dup_path, sep, &saved_ptr); part;
+         part = strtok_r(NULL, sep, &saved_ptr)) {
+        if (complete_entries_in_dir(ed, word, word_len, part)) {
+            free(dup_path);
+            return true;
+        }
+    }
+    free(dup_path);
+
+    return false;
+}
 
 static void handle_ground(struct line_editor* ed, char c) {
     if (isprint(c)) {
@@ -65,6 +165,10 @@ static void handle_ground(struct line_editor* ed, char c) {
     case 'L' - '@': // ^L
         dprintf(STDERR_FILENO, "\x1b[H\x1b[2J");
         ed->dirty = true;
+        return;
+    case '\t':
+        if (complete(ed))
+            ed->dirty = true;
         return;
     }
 }
@@ -325,7 +429,7 @@ static void skip_whitespaces(struct parser* parser) {
     consume_while(parser, is_whitespace);
 }
 
-static bool is_valid_filename_character(char c) {
+static bool is_valid_pathname_character(char c) {
     switch (c) {
     case '>':
     case ' ':
@@ -334,11 +438,11 @@ static bool is_valid_filename_character(char c) {
     case ';':
         return false;
     }
-    return ' ' <= c && c <= '~';
+    return isgraph(c);
 }
 
-static char* parse_filename(struct parser* parser) {
-    return consume_while(parser, is_valid_filename_character);
+static char* parse_pathname(struct parser* parser) {
+    return consume_while(parser, is_valid_pathname_character);
 }
 
 static struct node* parse_execute(struct parser* parser) {
@@ -357,7 +461,7 @@ static struct node* parse_execute(struct parser* parser) {
             free(node);
             return NULL;
         }
-        char* arg = parse_filename(parser);
+        char* arg = parse_pathname(parser);
         if (!arg)
             break;
         char* saved_cursor = parser->cursor;
@@ -383,7 +487,7 @@ static struct node* parse_redirect(struct parser* parser) {
         return from;
     skip_whitespaces(parser);
 
-    char* to = parse_filename(parser);
+    char* to = parse_pathname(parser);
     if (!to) {
         parser->result = RESULT_SYNTAX_ERROR;
         destroy_node(from);
