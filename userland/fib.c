@@ -37,10 +37,10 @@ int main(void) {
     clk_tck = sysconf(_SC_CLK_TCK);
     ASSERT(clk_tck > 0);
 
-    printf("memoized recursion:\n");
+    puts("memoized recursion:");
     measure_and_report(memoized_recursion);
 
-    printf("recursion:\n");
+    puts("recursion:");
     measure_and_report(recursion);
 
     return 0;

@@ -74,8 +74,9 @@ static void write_char(uint16_t port, char c) {
 }
 
 size_t serial_write(uint16_t port, const char* s, size_t count) {
-    // this function is also called by kprintf, which can be used in critical
-    // situations, so we protect it by disabling interrupts, not with mutex.
+    // This function is called by kprintf, which might be used in critical
+    // situations. Thus it is protected by disabling interrupts instead of
+    // a mutex.
     bool int_flag = push_cli();
 
     for (size_t i = 0; i < count; ++i) {

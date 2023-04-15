@@ -40,7 +40,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     idt_init();
     irq_init();
     serial_init();
-    kprintf("\x1b[32mBooted\x1b[m\n");
+    kputs("\x1b[32mBooted\x1b[m\n");
     sti();
 
     ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
@@ -111,7 +111,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     scheduler_init();
     time_init();
     pit_init();
-    kprintf("\x1b[32mInitialization done\x1b[m\n");
+    kputs("\x1b[32mInitialization done\x1b[m\n");
 
     ASSERT_OK(process_spawn_kernel_process("userland_init", init));
 

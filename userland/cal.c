@@ -33,7 +33,7 @@ int main(void) {
         }
     }
     if (wday > 0)
-        printf("\n");
+        puts("");
 
     return EXIT_SUCCESS;
 }

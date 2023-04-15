@@ -13,7 +13,7 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    printf("  PID CMD\n");
+    puts("  PID CMD");
     for (;;) {
         errno = 0;
         struct dirent* dent = readdir(dirp);
