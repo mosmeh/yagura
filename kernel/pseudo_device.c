@@ -19,6 +19,11 @@ static ssize_t read_zeros(file_description* desc, void* buffer, size_t count) {
     return count;
 }
 
+static ssize_t read_random(file_description* desc, void* buffer, size_t count) {
+    (void)desc;
+    return random_get(buffer, count);
+}
+
 static ssize_t write_to_bit_bucket(file_description* desc, const void* buffer,
                                    size_t count) {
     (void)desc;
@@ -70,6 +75,32 @@ struct inode* full_device_create(void) {
     *inode = (struct inode){.fops = &fops,
                             .mode = S_IFCHR,
                             .device_id = makedev(1, 7),
+                            .ref_count = 1};
+    return inode;
+}
+
+struct inode* random_device_create(void) {
+    struct inode* inode = kmalloc(sizeof(struct inode));
+    if (!inode)
+        return ERR_PTR(-ENOMEM);
+
+    static file_ops fops = {.read = read_random, .write = write_to_bit_bucket};
+    *inode = (struct inode){.fops = &fops,
+                            .mode = S_IFCHR,
+                            .device_id = makedev(1, 8),
+                            .ref_count = 1};
+    return inode;
+}
+
+struct inode* urandom_device_create(void) {
+    struct inode* inode = kmalloc(sizeof(struct inode));
+    if (!inode)
+        return ERR_PTR(-ENOMEM);
+
+    static file_ops fops = {.read = read_random, .write = write_to_bit_bucket};
+    *inode = (struct inode){.fops = &fops,
+                            .mode = S_IFCHR,
+                            .device_id = makedev(1, 9),
                             .ref_count = 1};
     return inode;
 }

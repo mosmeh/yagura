@@ -44,6 +44,7 @@ OBJS := \
 	pit.o \
 	process.o \
 	pseudo_device.o \
+	random.o \
 	ring_buf.o \
 	scheduler.o \
 	serial.o \

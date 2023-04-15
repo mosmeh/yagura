@@ -22,7 +22,7 @@ static unsigned days_since_epoch(unsigned year, unsigned month, unsigned day) {
     return days;
 }
 
-static time_t rtc_now(void) {
+time_t rtc_now(void) {
     int timeout = 100;
     bool update_finished = false;
     while (--timeout >= 0) {

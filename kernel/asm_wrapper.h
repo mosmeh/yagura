@@ -104,3 +104,12 @@ static inline noreturn void ud2(void) {
 }
 
 static inline void pause(void) { __asm__ volatile("pause"); }
+
+// NOLINTBEGIN(readability-non-const-parameter)
+static inline void cpuid(uint32_t function, uint32_t* eax, uint32_t* ebx,
+                         uint32_t* ecx, uint32_t* edx) {
+    // NOLINTEND(readability-non-const-parameter)
+    __asm__ volatile("cpuid"
+                     : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
+                     : "a"(function));
+}

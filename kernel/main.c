@@ -69,9 +69,13 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     ASSERT_OK(vfs_mount("/dev/shm", tmpfs_create_root()));
     ASSERT_OK(vfs_mount("/proc", procfs_create_root()));
 
+    random_init();
+
     create_char_device("/dev/null", null_device_create());
     create_char_device("/dev/zero", zero_device_create());
     create_char_device("/dev/full", full_device_create());
+    create_char_device("/dev/random", random_device_create());
+    create_char_device("/dev/urandom", urandom_device_create());
 
     if (fb_init(mb_info)) {
         create_char_device("/dev/fb0", fb_device_create());

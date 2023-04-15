@@ -1,8 +1,10 @@
 #pragma once
 
+#include "api/sys/types.h"
 #include "forward.h"
 #include <stdalign.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdnoreturn.h>
 
@@ -34,9 +36,14 @@ const char* cmdline_get_raw(void);
 const char* cmdline_lookup(const char* key);
 bool cmdline_contains(const char* key);
 
+time_t rtc_now(void);
+
 void time_init(void);
 void time_tick(void);
 void time_now(struct timespec*);
+
+void random_init(void);
+ssize_t random_get(void* buffer, size_t count);
 
 noreturn void reboot(void);
 noreturn void halt(void);
@@ -45,6 +52,8 @@ noreturn void poweroff(void);
 struct inode* null_device_create(void);
 struct inode* zero_device_create(void);
 struct inode* full_device_create(void);
+struct inode* random_device_create(void);
+struct inode* urandom_device_create(void);
 
 bool ac97_init(void);
 struct inode* ac97_device_create(void);
