@@ -5,8 +5,6 @@
 #include <kernel/process.h>
 #include <kernel/ring_buf.h>
 
-#define BUF_CAPACITY 1024
-
 struct fifo {
     struct inode inode;
     ring_buf buf;
