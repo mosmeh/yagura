@@ -208,7 +208,7 @@ int file_description_truncate(file_description* desc, off_t length) {
     return inode->fops->truncate(desc, length);
 }
 
-off_t file_description_lseek(file_description* desc, off_t offset, int whence) {
+off_t file_description_seek(file_description* desc, off_t offset, int whence) {
     switch (whence) {
     case SEEK_SET:
         if (offset < 0)

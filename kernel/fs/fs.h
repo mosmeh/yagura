@@ -111,8 +111,8 @@ NODISCARD int file_description_mmap(file_description*, uintptr_t addr,
                                     size_t length, off_t offset,
                                     uint16_t page_flags);
 NODISCARD int file_description_truncate(file_description*, off_t length);
-NODISCARD off_t file_description_lseek(file_description*, off_t offset,
-                                       int whence);
+NODISCARD off_t file_description_seek(file_description*, off_t offset,
+                                      int whence);
 NODISCARD int file_description_ioctl(file_description*, int request,
                                      void* argp);
 NODISCARD long file_description_getdents(file_description*, void* dirp,

@@ -53,7 +53,7 @@ off_t sys_lseek(int fd, off_t offset, int whence) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    return file_description_lseek(desc, offset, whence);
+    return file_description_seek(desc, offset, whence);
 }
 
 int sys_stat(const char* pathname, struct stat* buf) {
