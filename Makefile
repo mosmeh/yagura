@@ -1,5 +1,5 @@
 MAKEFLAGS += --jobs=$(shell nproc)
-SUBDIRS := kernel userland tool
+SUBDIRS := kernel userland
 
 export CFLAGS := \
 	-std=c11 \
