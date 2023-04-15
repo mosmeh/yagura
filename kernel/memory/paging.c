@@ -375,3 +375,17 @@ void paging_unmap(uintptr_t vaddr, uintptr_t size) {
         flush_tlb_single(page_vaddr);
     }
 }
+
+void paging_set_flags(uintptr_t vaddr, uintptr_t size, uint16_t flags) {
+    ASSERT((vaddr % PAGE_SIZE) == 0);
+    uintptr_t end_vaddr = vaddr + round_up(size, PAGE_SIZE);
+
+    for (uintptr_t page_vaddr = vaddr; page_vaddr < end_vaddr;
+         page_vaddr += PAGE_SIZE) {
+        volatile page_table_entry* pte = get_pte(page_vaddr);
+        ASSERT(pte && pte->present);
+        pte->raw = (pte->raw & ~PTE_FLAGS_MASK) | flags;
+        pte->present = true;
+        flush_tlb_single(page_vaddr);
+    }
+}

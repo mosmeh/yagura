@@ -55,6 +55,7 @@ NODISCARD int paging_copy_mapping(uintptr_t to_virtual_addr,
                                   uintptr_t from_virtual_addr, uintptr_t size,
                                   uint16_t flags);
 void paging_unmap(uintptr_t virtual_addr, uintptr_t size);
+void paging_set_flags(uintptr_t virtual_addr, uintptr_t size, uint16_t flags);
 
 void* kmalloc(size_t size);
 void* kaligned_alloc(size_t alignment, size_t size);

@@ -229,6 +229,10 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
         memset((void*)(phdr->p_vaddr + phdr->p_filesz), 0,
                region_end - phdr->p_vaddr - phdr->p_filesz);
 
+        if (!(phdr->p_flags & PF_W))
+            paging_set_flags(region_start, region_end - region_start,
+                             PAGE_USER);
+
         if (max_segment_addr < region_end)
             max_segment_addr = region_end;
     }
