@@ -105,8 +105,8 @@ size_t strnlen(const char* str, size_t n) {
 
 char* strcpy(char* dest, const char* src) {
     char* d = dest;
-    while (*src)
-        *d++ = *src++;
+    while ((*d++ = *src++))
+        ;
     return dest;
 }
 
