@@ -350,8 +350,9 @@ char* vfs_canonicalize_path(const char* pathname) {
     size_t idx = 0;
     for (list_node* node = component_list; node; node = node->next) {
         canonicalized[idx++] = PATH_SEPARATOR;
-        strcpy(canonicalized + idx, node->value);
-        idx += strlen(node->value);
+        size_t len = strlen(node->value);
+        strncpy(canonicalized + idx, node->value, len);
+        idx += len;
     }
     canonicalized[idx] = '\0';
 

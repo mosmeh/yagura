@@ -274,7 +274,7 @@ static bool getdents_callback(struct getdents_ctx* ctx, const char* name,
     dent->d_type = type;
     dent->d_reclen = size;
     dent->d_namlen = name_len;
-    strlcpy(dent->d_name, name, name_size);
+    strncpy(dent->d_name, name, name_size);
 
     ctx->dirp += size;
     ctx->remaining_count -= size;

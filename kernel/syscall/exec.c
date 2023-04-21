@@ -43,7 +43,7 @@ static int string_list_create(string_list* strings, char* const src[]) {
     char* cursor = strings->buf;
     for (size_t i = 0; i < strings->count; ++i) {
         size_t size = strlen(src[i]) + 1;
-        strlcpy(cursor, src[i], size);
+        strncpy(cursor, src[i], size);
         strings->elements[i] = cursor;
         cursor += size;
     }
@@ -104,7 +104,7 @@ NODISCARD static int push_strings(uintptr_t* sp, uintptr_t stack_base,
             return -E2BIG;
         }
         *sp -= next_power_of_two(size);
-        strlcpy((char*)*sp, strings->elements[i], size);
+        strncpy((char*)*sp, strings->elements[i], size);
         ptrs->elements[ptrs->count - i - 1] = *sp;
     }
 
