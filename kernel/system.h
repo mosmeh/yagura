@@ -18,6 +18,7 @@ typedef struct registers {
 } __attribute__((packed)) registers;
 
 void dump_registers(const registers*);
+void dump_stack_trace(const registers*);
 
 struct fpu_state {
     alignas(16) unsigned char buffer[512];

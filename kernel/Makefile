@@ -1,6 +1,4 @@
-CFLAGS += \
-	-fno-omit-frame-pointer \
-	-isystem..
+CFLAGS += -isystem..
 
 TARGET := kernel
 

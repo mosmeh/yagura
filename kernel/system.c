@@ -1,8 +1,10 @@
 #include "system.h"
 #include "asm_wrapper.h"
+#include "boot_defs.h"
 #include "hid/hid.h"
 #include "kprintf.h"
 #include "panic.h"
+#include "safe_string.h"
 #include <string.h>
 
 noreturn void reboot(void) {
@@ -56,4 +58,32 @@ void dump_registers(const registers* regs) {
             esp, regs->ds, regs->es, regs->fs, regs->gs, regs->eax, regs->ebx,
             regs->ecx, regs->edx, regs->ebp, regs->esp, regs->esi, regs->edi,
             read_cr0(), read_cr2(), read_cr3(), read_cr4());
+}
+
+void dump_stack_trace(const registers* regs) {
+    uintptr_t ip = regs->eip;
+    uintptr_t bp = regs->ebp;
+    bool in_userland = ip < KERNEL_VADDR;
+    kputs("stack trace:\n");
+    for (unsigned depth = 0;; ++depth) {
+        if (depth >= 20) {
+            kputs("  ...\n");
+            break;
+        }
+        kprintf("  0x%08x\n", ip);
+
+        if (!safe_memcpy(&ip, (uintptr_t*)bp + 1, sizeof(uintptr_t)))
+            break;
+        if (!safe_memcpy(&bp, (uintptr_t*)bp, sizeof(uintptr_t)))
+            break;
+
+        if (!ip || !bp)
+            break;
+
+        if (in_userland && ip >= KERNEL_VADDR) {
+            // somehow stack looks like userland function is called from kernel
+            break;
+        }
+        in_userland |= ip < KERNEL_VADDR;
+    }
 }

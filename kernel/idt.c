@@ -70,6 +70,8 @@ void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
 
 static noreturn void crash(registers* regs, int signum) {
     dump_registers(regs);
+    dump_stack_trace(regs);
+
     if ((regs->cs & 3) != 3)
         PANIC("Kernel crashed");
     process_crash_in_userland(signum);

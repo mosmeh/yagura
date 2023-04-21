@@ -6,6 +6,7 @@ export CFLAGS := \
 	-m32 \
 	-static \
 	-nostdlib -ffreestanding \
+	-fno-omit-frame-pointer \
 	-U_FORTIFY_SOURCE \
 	-Wall -Wextra -pedantic \
 	-O2 -g
