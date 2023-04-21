@@ -5,6 +5,7 @@
 #include "kprintf.h"
 #include "panic.h"
 #include "process.h"
+#include "safe_string.h"
 #include "system.h"
 
 typedef struct idt_descriptor {
@@ -135,6 +136,9 @@ static void handle_exception13(registers* regs) {
 
 DEFINE_ISR_WITH_ERROR_CODE(14)
 static void handle_exception14(registers* regs) {
+    if (safe_string_handle_page_fault(regs))
+        return;
+
     uint32_t present = regs->err_code & 0x1;
     uint32_t write = regs->err_code & 0x2;
     uint32_t user = regs->err_code & 0x4;

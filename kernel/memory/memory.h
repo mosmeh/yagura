@@ -1,6 +1,7 @@
 #pragma once
 
 #include <common/extra.h>
+#include <kernel/boot_defs.h>
 #include <kernel/forward.h>
 #include <kernel/lock.h>
 #include <stddef.h>
@@ -11,6 +12,25 @@
 
 // last 4MiB is for recursive mapping
 #define KERNEL_HEAP_END 0xffc00000
+
+static inline bool is_user_address(const void* addr) {
+    return addr && (uintptr_t)addr < KERNEL_VADDR;
+}
+
+static inline bool is_user_range(const void* addr, size_t size) {
+    if (!is_user_address(addr))
+        return false;
+    uintptr_t end = (uintptr_t)addr + size;
+    return (uintptr_t)addr <= end && end <= KERNEL_VADDR;
+}
+
+static inline bool is_kernel_address(const void* addr) {
+    return addr && (uintptr_t)addr >= KERNEL_VADDR;
+}
+
+static inline bool is_kernel_range(const void* addr, size_t size) {
+    return is_kernel_address(addr) && (uintptr_t)addr <= (uintptr_t)addr + size;
+}
 
 typedef struct range_allocator {
     uintptr_t start;

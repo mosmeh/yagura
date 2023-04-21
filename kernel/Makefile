@@ -46,6 +46,7 @@ OBJS := \
 	pseudo_device.o \
 	random.o \
 	ring_buf.o \
+	safe_string.o \
 	scheduler.o \
 	serial.o \
 	syscall/clock.o \
