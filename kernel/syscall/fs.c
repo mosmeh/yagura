@@ -1,16 +1,34 @@
 #include <kernel/api/err.h>
+#include <kernel/api/errno.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/stat.h>
 #include <kernel/fs/fs.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+#include <kernel/safe_string.h>
 #include <kernel/system.h>
 
-int sys_open(const char* pathname, int flags, unsigned mode) {
+static int copy_pathname_from_user(char* dest, const char* user_src) {
+    ssize_t pathname_len = strncpy_from_user(dest, user_src, PATH_MAX);
+    if (IS_ERR(pathname_len))
+        return pathname_len;
+    if (pathname_len >= PATH_MAX)
+        return -ENAMETOOLONG;
+    return 0;
+}
+
+int sys_open(const char* user_pathname, int flags, unsigned mode) {
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
+
     file_description* desc = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    int rc = process_alloc_file_descriptor(-1, desc);
+    rc = process_alloc_file_descriptor(-1, desc);
     if (IS_ERR(rc))
         file_description_close(desc);
     return rc;
@@ -56,8 +74,18 @@ off_t sys_lseek(int fd, off_t offset, int whence) {
     return file_description_seek(desc, offset, whence);
 }
 
-int sys_stat(const char* pathname, struct stat* buf) {
-    return vfs_stat(pathname, buf);
+int sys_stat(const char* user_pathname, struct stat* user_buf) {
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
+    struct stat buf;
+    rc = vfs_stat(pathname, &buf);
+    if (IS_ERR(rc))
+        return rc;
+    if (!copy_to_user(user_buf, &buf, sizeof(struct stat)))
+        return -EFAULT;
+    return 0;
 }
 
 int sys_ioctl(int fd, int request, void* argp) {
@@ -67,7 +95,11 @@ int sys_ioctl(int fd, int request, void* argp) {
     return file_description_ioctl(desc, request, argp);
 }
 
-int sys_mkdir(const char* pathname, mode_t mode) {
+int sys_mkdir(const char* user_pathname, mode_t mode) {
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
     struct inode* inode = vfs_create(pathname, (mode & 0777) | S_IFDIR);
     if (IS_ERR(inode))
         return PTR_ERR(inode);
@@ -262,7 +294,12 @@ do_nothing:
     return rc;
 }
 
-int sys_rmdir(const char* pathname) {
+int sys_rmdir(const char* user_pathname) {
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
+
     struct inode* parent = NULL;
     char* basename = NULL;
     struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
@@ -283,7 +320,7 @@ int sys_rmdir(const char* pathname) {
         kfree(basename);
         return -ENOTDIR;
     }
-    int rc = ensure_empty_directory(inode);
+    rc = ensure_empty_directory(inode);
     if (IS_ERR(rc)) {
         inode_unref(parent);
         kfree(basename);
