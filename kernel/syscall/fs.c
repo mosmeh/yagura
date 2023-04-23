@@ -392,6 +392,8 @@ int sys_dup2(int oldfd, int newfd) {
     file_description* oldfd_desc = process_get_file_description(oldfd);
     if (IS_ERR(oldfd_desc))
         return PTR_ERR(oldfd_desc);
+    if (oldfd == newfd)
+        return oldfd;
     file_description* newfd_desc = process_get_file_description(newfd);
     if (IS_OK(newfd_desc)) {
         int rc = file_description_close(newfd_desc);
