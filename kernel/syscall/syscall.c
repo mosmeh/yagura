@@ -7,6 +7,7 @@
 #include <kernel/kprintf.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+#include <kernel/safe_string.h>
 
 int sys_reboot(int howto) {
     switch (howto) {
@@ -39,7 +40,16 @@ long sys_sysconf(int name) {
     }
 }
 
-int sys_dbgputs(const char* str) { return kputs(str); }
+int sys_dbgputs(const char* user_str) {
+    char copied_str[1024];
+    ssize_t str_len =
+        strncpy_from_user(copied_str, user_str, sizeof(copied_str));
+    if (IS_ERR(str_len))
+        return str_len;
+    if ((size_t)str_len >= sizeof(copied_str))
+        return -E2BIG;
+    return kputs(user_str);
+}
 
 typedef uintptr_t (*syscall_handler_fn)(uintptr_t arg1, uintptr_t arg2,
                                         uintptr_t arg3, uintptr_t arg4);
