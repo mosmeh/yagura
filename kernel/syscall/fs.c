@@ -207,7 +207,7 @@ int sys_rename(const char* oldpath, const char* newpath) {
     if (IS_OK(new_inode)) {
         if (new_inode == old_inode) {
             rc = 0;
-            goto fail;
+            goto do_nothing;
         }
         if (S_ISDIR(new_inode->mode)) {
             if (!S_ISDIR(old_inode->mode)) {
@@ -251,7 +251,8 @@ int sys_rename(const char* oldpath, const char* newpath) {
     return rc;
 
 fail:
-    ASSERT(rc < 0);
+    ASSERT(IS_ERR(rc));
+do_nothing:
     inode_unref(old_parent);
     inode_unref(old_inode);
     kfree(old_basename);
