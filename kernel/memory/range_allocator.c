@@ -42,7 +42,8 @@ uintptr_t range_allocator_alloc(range_allocator* allocator, size_t size) {
         it = it->next;
     }
     if (!it) {
-        kputs("Out of userland virtual address space\n");
+        kprintf("Out of virtual address space (0x%x - 0x%x)\n",
+                allocator->start, allocator->end);
         mutex_unlock(&allocator->lock);
         return -ENOMEM;
     }
