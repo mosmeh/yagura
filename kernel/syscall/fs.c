@@ -126,7 +126,16 @@ int sys_mknod(const char* pathname, mode_t mode, dev_t dev) {
     return 0;
 }
 
-int sys_link(const char* oldpath, const char* newpath) {
+int sys_link(const char* user_oldpath, const char* user_newpath) {
+    char oldpath[PATH_MAX];
+    int rc = copy_pathname_from_user(oldpath, user_oldpath);
+    if (IS_ERR(rc))
+        return rc;
+    char newpath[PATH_MAX];
+    rc = copy_pathname_from_user(newpath, user_newpath);
+    if (IS_ERR(rc))
+        return rc;
+
     struct inode* old_inode = vfs_resolve_path(oldpath, NULL, NULL);
     if (IS_ERR(old_inode))
         return PTR_ERR(old_inode);
@@ -159,12 +168,17 @@ int sys_link(const char* oldpath, const char* newpath) {
     }
     ASSERT(new_basename);
 
-    int rc = inode_link_child(new_parent, new_basename, old_inode);
+    rc = inode_link_child(new_parent, new_basename, old_inode);
     kfree(new_basename);
     return rc;
 }
 
-int sys_unlink(const char* pathname) {
+int sys_unlink(const char* user_pathname) {
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
+
     struct inode* parent = NULL;
     char* basename = NULL;
     struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
@@ -182,7 +196,7 @@ int sys_unlink(const char* pathname) {
     ASSERT(basename);
 
     inode_unref(inode);
-    int rc = inode_unlink_child(parent, basename);
+    rc = inode_unlink_child(parent, basename);
     kfree(basename);
     return rc;
 }
@@ -214,8 +228,16 @@ static int ensure_empty_directory(struct inode* inode) {
     return nread > 0 ? -ENOTEMPTY : nread;
 }
 
-int sys_rename(const char* oldpath, const char* newpath) {
-    int rc = 0;
+int sys_rename(const char* user_oldpath, const char* user_newpath) {
+    char oldpath[PATH_MAX];
+    int rc = copy_pathname_from_user(oldpath, user_oldpath);
+    if (IS_ERR(rc))
+        return rc;
+    char newpath[PATH_MAX];
+    rc = copy_pathname_from_user(newpath, user_newpath);
+    if (IS_ERR(rc))
+        return rc;
+
     struct inode* old_parent = NULL;
     char* old_basename = NULL;
     struct inode* old_inode = NULL;
@@ -380,7 +402,7 @@ int sys_dup2(int oldfd, int newfd) {
     return ret;
 }
 
-int sys_pipe(int fifofd[2]) {
+int sys_pipe(int user_fifofd[2]) {
     struct inode* fifo = fifo_create();
     if (IS_ERR(fifo))
         return PTR_ERR(fifo);
@@ -398,24 +420,37 @@ int sys_pipe(int fifofd[2]) {
         return PTR_ERR(writer_desc);
     }
 
+    int rc = 0;
+    int writer_fd = -1;
+
     int reader_fd = process_alloc_file_descriptor(-1, reader_desc);
     if (IS_ERR(reader_fd)) {
-        file_description_close(reader_desc);
-        file_description_close(writer_desc);
-        return reader_fd;
+        rc = reader_fd;
+        goto fail;
     }
 
-    int writer_fd = process_alloc_file_descriptor(-1, writer_desc);
+    writer_fd = process_alloc_file_descriptor(-1, writer_desc);
     if (IS_ERR(writer_fd)) {
-        file_description_close(reader_desc);
-        file_description_close(writer_desc);
-        int rc = process_free_file_descriptor(reader_fd);
-        (void)rc;
-        return writer_fd;
+        rc = writer_fd;
+        goto fail;
     }
 
-    fifofd[0] = reader_fd;
-    fifofd[1] = writer_fd;
+    int fifofd[2] = {reader_fd, writer_fd};
+    if (!copy_to_user(user_fifofd, fifofd, sizeof(int[2]))) {
+        rc = -EFAULT;
+        goto fail;
+    }
 
+    ASSERT(IS_OK(rc));
     return 0;
+
+fail:
+    ASSERT(IS_ERR(rc));
+    if (IS_OK(reader_fd))
+        process_free_file_descriptor(reader_fd);
+    if (IS_OK(writer_fd))
+        process_free_file_descriptor(writer_fd);
+    file_description_close(reader_desc);
+    file_description_close(writer_desc);
+    return rc;
 }

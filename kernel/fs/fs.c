@@ -146,6 +146,7 @@ int inode_stat(struct inode* inode, struct stat* buf) {
 }
 
 int file_description_close(file_description* desc) {
+    ASSERT(desc);
     ASSERT(desc->ref_count > 0);
     if (--desc->ref_count > 0)
         return 0;

@@ -71,7 +71,7 @@ void process_tick(bool in_kernel);
 // if fd < 0, allocates lowest-numbered file descriptor that was unused
 NODISCARD int process_alloc_file_descriptor(int fd, file_description*);
 
-NODISCARD int process_free_file_descriptor(int fd);
+int process_free_file_descriptor(int fd);
 file_description* process_get_file_description(int fd);
 
 NODISCARD int process_send_signal_to_one(pid_t pid, int signum);
