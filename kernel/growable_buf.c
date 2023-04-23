@@ -23,10 +23,16 @@ ssize_t growable_buf_pread(growable_buf* buf, void* bytes, size_t count,
 }
 
 NODISCARD static int grow_buf(growable_buf* buf, size_t requested_size) {
-    size_t new_capacity =
-        round_up(MAX(buf->capacity * 2, requested_size), PAGE_SIZE);
+    size_t new_capacity = buf->capacity * 2;
+    if (new_capacity < buf->capacity)
+        return -EOVERFLOW;
+    new_capacity = MAX(new_capacity, requested_size);
     if (new_capacity == 0)
         new_capacity = PAGE_SIZE;
+    new_capacity = round_up(new_capacity, PAGE_SIZE);
+    if (new_capacity == 0)
+        return -EOVERFLOW;
+    ASSERT(new_capacity > buf->capacity);
 
     uintptr_t new_addr =
         range_allocator_alloc(&kernel_vaddr_allocator, new_capacity);
@@ -34,6 +40,7 @@ NODISCARD static int grow_buf(growable_buf* buf, size_t requested_size) {
         return new_addr;
 
     if (buf->addr) {
+        ASSERT(buf->capacity > 0);
         int rc = paging_copy_mapping(new_addr, buf->addr, buf->capacity,
                                      PAGE_WRITE | PAGE_GLOBAL);
         if (IS_ERR(rc))
