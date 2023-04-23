@@ -1,10 +1,12 @@
 #include <common/string.h>
+#include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/times.h>
 #include <kernel/api/sys/wait.h>
 #include <kernel/boot_defs.h>
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+#include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
 
 noreturn uintptr_t sys_exit(int status) { process_exit(status); }
@@ -172,7 +174,7 @@ static bool waitpid_should_unblock(struct waitpid_blocker* blocker) {
     return true;
 }
 
-pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
+pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
     if (options & ~WNOHANG)
         return -ENOTSUP;
 
@@ -195,30 +197,50 @@ pid_t sys_waitpid(pid_t pid, int* wstatus, int options) {
         return -ECHILD;
 
     scheduler_unregister(waited_process);
-    if (wstatus)
-        *wstatus = waited_process->exit_status;
+
     pid_t result = waited_process->pid;
+    int wstatus = waited_process->exit_status;
+
     kfree((void*)(waited_process->stack_top - STACK_SIZE));
     kfree(waited_process);
+
+    if (user_wstatus) {
+        if (!copy_to_user(user_wstatus, &wstatus, sizeof(int)))
+            return -EFAULT;
+    }
+
     return result;
 }
 
-clock_t sys_times(struct tms* buf) {
-    buf->tms_utime = current->user_ticks;
-    buf->tms_stime = current->kernel_ticks;
+clock_t sys_times(struct tms* user_buf) {
+    struct tms buf = {.tms_utime = current->user_ticks,
+                      .tms_stime = current->kernel_ticks};
+    if (!copy_to_user(user_buf, &buf, sizeof(struct tms)))
+        return -EFAULT;
     return uptime;
 }
 
-char* sys_getcwd(char* buf, size_t size) {
-    if (!buf || size == 0)
+char* sys_getcwd(char* user_buf, size_t size) {
+    if (!user_buf || size == 0)
         return ERR_PTR(-EINVAL);
-    if (size < strlen(current->cwd_path) + 1)
+
+    size_t cwd_path_len = strlen(current->cwd_path);
+    if (size < cwd_path_len + 1)
         return ERR_PTR(-ERANGE);
-    strlcpy(buf, current->cwd_path, size);
-    return buf;
+    if (!copy_to_user(user_buf, current->cwd_path, size))
+        return ERR_PTR(-EFAULT);
+
+    return user_buf;
 }
 
-int sys_chdir(const char* path) {
+int sys_chdir(const char* user_path) {
+    char path[PATH_MAX];
+    ssize_t path_len = strncpy_from_user(path, user_path, PATH_MAX);
+    if (IS_ERR(path_len))
+        return path_len;
+    if (path_len >= PATH_MAX)
+        return -ENAMETOOLONG;
+
     char* new_cwd_path = vfs_canonicalize_path(path);
     if (IS_ERR(new_cwd_path))
         return PTR_ERR(new_cwd_path);
