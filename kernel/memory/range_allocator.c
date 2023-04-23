@@ -32,6 +32,8 @@ int range_allocator_init(range_allocator* allocator, uintptr_t start,
 uintptr_t range_allocator_alloc(range_allocator* allocator, size_t size) {
     ASSERT(allocator->ranges);
     size = round_up(size, PAGE_SIZE);
+    if (size > allocator->end - allocator->start)
+        return -EINVAL;
 
     mutex_lock(&allocator->lock);
 
@@ -86,6 +88,8 @@ int range_allocator_free(range_allocator* allocator, uintptr_t addr,
     ASSERT(addr % PAGE_SIZE == 0);
     ASSERT(allocator->ranges);
     size = round_up(size, PAGE_SIZE);
+    if (size > allocator->end - allocator->start)
+        return -EINVAL;
     if (addr < allocator->start || allocator->end < addr + size)
         return -EINVAL;
 
