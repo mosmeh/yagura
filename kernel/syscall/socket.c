@@ -2,7 +2,9 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/socket.h>
 #include <kernel/process.h>
+#include <kernel/safe_string.h>
 #include <kernel/socket.h>
+#include <string.h>
 
 int sys_socket(int domain, int type, int protocol) {
     (void)protocol;
@@ -21,7 +23,7 @@ int sys_socket(int domain, int type, int protocol) {
     return fd;
 }
 
-int sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
+int sys_bind(int sockfd, const sockaddr* user_addr, socklen_t addrlen) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
@@ -31,17 +33,18 @@ int sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
 
     if (addrlen <= sizeof(sa_family_t) || sizeof(sockaddr_un) < addrlen)
         return -EINVAL;
-    const sockaddr_un* addr_un = (const sockaddr_un*)addr;
-    if (addr->sa_family != AF_UNIX)
+
+    sockaddr_un addr_un;
+    if (!copy_from_user(&addr_un, user_addr, addrlen))
+        return -EFAULT;
+
+    if (addr_un.sun_family != AF_UNIX)
         return -EINVAL;
 
-    char* path =
-        kstrndup(addr_un->sun_path, addrlen - offsetof(sockaddr_un, sun_path));
-    if (!path)
-        return -ENOMEM;
+    char path[sizeof(addr_un.sun_path) + 1];
+    strncpy(path, addr_un.sun_path, sizeof(path));
 
     file_description* bound_desc = vfs_open(path, O_CREAT | O_EXCL, S_IFSOCK);
-    kfree(path);
     if (IS_ERR(bound_desc)) {
         if (PTR_ERR(bound_desc) == -EEXIST)
             return -EADDRINUSE;
@@ -63,12 +66,31 @@ int sys_listen(int sockfd, int backlog) {
     return 0;
 }
 
-int sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
+int sys_accept(int sockfd, struct sockaddr* user_addr,
+               socklen_t* user_addrlen) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
     if (!S_ISSOCK(desc->inode->mode))
         return -ENOTSOCK;
+
+    if (user_addr) {
+        if (!user_addrlen)
+            return -EINVAL;
+
+        socklen_t requested_addrlen;
+        if (!copy_from_user(&requested_addrlen, user_addrlen,
+                            sizeof(socklen_t)))
+            return -EFAULT;
+
+        sockaddr_un addr_un = {.sun_family = AF_UNIX, .sun_path = {0}};
+        if (!copy_to_user(user_addr, &addr_un, requested_addrlen))
+            return -EFAULT;
+
+        socklen_t actual_addrlen = sizeof(sockaddr_un);
+        if (!copy_to_user(user_addrlen, &actual_addrlen, sizeof(socklen_t)))
+            return -EFAULT;
+    }
 
     unix_socket* listener = (unix_socket*)desc->inode;
     unix_socket* connector = unix_socket_accept(listener);
@@ -85,18 +107,11 @@ int sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
         return fd;
     }
 
-    if (addr) {
-        sockaddr_un* addr_un = (sockaddr_un*)addr;
-        addr_un->sun_family = AF_UNIX;
-        addr_un->sun_path[0] = 0;
-    }
-    if (addrlen)
-        *addrlen = sizeof(sockaddr_un);
-
     return fd;
 }
 
-int sys_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
+int sys_connect(int sockfd, const struct sockaddr* user_addr,
+                socklen_t addrlen) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
@@ -108,17 +123,18 @@ int sys_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
 
     if (addrlen <= sizeof(sa_family_t) || sizeof(sockaddr_un) < addrlen)
         return -EINVAL;
-    if (addr->sa_family != AF_UNIX)
+
+    sockaddr_un addr_un;
+    if (!copy_from_user(&addr_un, user_addr, addrlen))
+        return -EFAULT;
+
+    if (addr_un.sun_family != AF_UNIX)
         return -EINVAL;
 
-    const sockaddr_un* addr_un = (const sockaddr_un*)addr;
+    char path[sizeof(addr_un.sun_path) + 1];
+    strncpy(path, addr_un.sun_path, sizeof(path));
 
-    char* path =
-        kstrndup(addr_un->sun_path, addrlen - offsetof(sockaddr_un, sun_path));
-    if (!path)
-        return -ENOMEM;
     file_description* listener_desc = vfs_open(path, 0, 0);
-    kfree(path);
     if (IS_ERR(listener_desc))
         return PTR_ERR(listener_desc);
 
