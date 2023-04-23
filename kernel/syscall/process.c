@@ -40,6 +40,22 @@ int sys_sched_yield(void) {
     return 0;
 }
 
+int sys_execve(const char* user_pathname, char* const user_argv[],
+               char* const user_envp[]) {
+    if (!user_pathname || !user_argv || !user_envp)
+        return -EFAULT;
+
+    char pathname[PATH_MAX];
+    ssize_t pathname_len = strncpy_from_user(pathname, user_pathname, PATH_MAX);
+    if (IS_ERR(pathname_len))
+        return pathname_len;
+    if (pathname_len >= PATH_MAX)
+        return -ENAMETOOLONG;
+
+    return process_user_execve(pathname, (const char* const*)user_argv,
+                               (const char* const*)user_envp);
+}
+
 void return_to_userland(registers);
 
 pid_t sys_fork(registers* regs) {

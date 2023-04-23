@@ -11,6 +11,7 @@ OBJS := \
 	console/serial_console.o \
 	console/system_console.o \
 	console/tty.o \
+	exec.o \
 	fs/dentry.o \
 	fs/fifo.o \
 	fs/fs.o \
@@ -48,7 +49,6 @@ OBJS := \
 	scheduler.o \
 	serial.o \
 	syscall/clock.o \
-	syscall/exec.o \
 	syscall/fs.o \
 	syscall/mmap.o \
 	syscall/process.o \

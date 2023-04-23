@@ -21,10 +21,11 @@ static noreturn void init(void) {
     const char* init_path = cmdline_lookup("init");
     if (!init_path)
         init_path = "/bin/init";
+
     const char* argv[] = {init_path, NULL};
     static const char* envp[] = {NULL};
-    ASSERT_OK(sys_execve(init_path, (char* const*)argv, (char* const*)envp));
-    UNREACHABLE();
+    process_kernel_execve(init_path, argv, envp);
+    PANIC("Failed to start init process");
 }
 
 extern unsigned char kernel_end[];

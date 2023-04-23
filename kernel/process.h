@@ -56,7 +56,13 @@ pid_t process_spawn_kernel_process(const char* comm, void (*entry_point)(void));
 pid_t process_generate_next_pid(void);
 struct process* process_find_process_by_pid(pid_t);
 struct process* process_find_process_by_ppid(pid_t ppid);
+
+int process_user_execve(const char* pathname, const char* const* user_argv,
+                        const char* const* user_envp);
+int process_kernel_execve(const char* pathname, const char* const* argv,
+                          const char* const* envp);
 noreturn void process_exit(int status);
+
 noreturn void process_crash_in_userland(int signum);
 
 void process_die_if_needed(void);

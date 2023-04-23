@@ -3,71 +3,104 @@
 #include <common/string.h>
 #include <kernel/api/elf.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/api/sys/limits.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/boot_defs.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
-#include <string.h>
+#include <kernel/safe_string.h>
 
-typedef struct string_list {
+typedef struct string_vec {
     size_t count;
-    char* buf;
-    char** elements;
-} string_list;
+    bool is_owned;
+    union {
+        struct {
+            const char** elements;
+            char* buffer;
+        } owned;
+        struct {
+            const char* const* elements;
+        } borrowed;
+    };
+} string_vec;
 
-static int string_list_create(string_list* strings, char* const src[]) {
+static int string_vec_clone_from_user(string_vec* strings,
+                                      const char* const* user_src) {
+    strings->is_owned = true;
     strings->count = 0;
+
     size_t total_size = 0;
-    for (char* const* it = src; *it; ++it) {
-        total_size += strlen(*it) + 1;
+    for (const char* const* it = user_src;; ++it) {
+        const char* p = NULL;
+        if (!copy_from_user(&p, it, sizeof(char*)))
+            return -EFAULT;
+        if (!p)
+            break;
+        ssize_t len = strnlen_user(p, ARG_MAX);
+        if (IS_ERR(len))
+            return -EFAULT;
+        if (len >= ARG_MAX)
+            return -E2BIG;
+        total_size += len + 1;
         ++strings->count;
     }
 
     if (strings->count == 0) {
-        strings->buf = NULL;
-        strings->elements = NULL;
+        strings->owned.buffer = NULL;
+        strings->owned.elements = NULL;
         return 0;
     }
 
-    strings->buf = kmalloc(total_size);
-    if (!strings->buf)
+    strings->owned.buffer = kmalloc(total_size);
+    if (!strings->owned.buffer)
         return -ENOMEM;
 
-    strings->elements = kmalloc(strings->count * sizeof(char*));
-    if (!strings->elements) {
-        kfree(strings->buf);
-        strings->buf = NULL;
+    strings->owned.elements = kmalloc(strings->count * sizeof(char*));
+    if (!strings->owned.elements) {
+        kfree(strings->owned.buffer);
+        strings->owned.buffer = NULL;
         return -ENOMEM;
     }
 
-    char* cursor = strings->buf;
+    char* cursor = strings->owned.buffer;
     for (size_t i = 0; i < strings->count; ++i) {
-        size_t size = strlen(src[i]) + 1;
-        strncpy(cursor, src[i], size);
-        strings->elements[i] = cursor;
+        size_t size = strlen(user_src[i]) + 1;
+        strncpy(cursor, user_src[i], size);
+        strings->owned.elements[i] = cursor;
         cursor += size;
     }
 
     return 0;
 }
 
-static void string_list_destroy(string_list* strings) {
-    if (strings->buf) {
-        kfree(strings->buf);
-        strings->buf = NULL;
+static void string_vec_borrow_from_kernel(string_vec* strings,
+                                          const char* const* src) {
+    strings->is_owned = false;
+    strings->count = 0;
+    for (const char* const* it = src; *it; ++it)
+        ++strings->count;
+    strings->borrowed.elements = src;
+}
+
+static void string_vec_destroy(string_vec* strings) {
+    if (!strings->is_owned)
+        return;
+    if (strings->owned.buffer) {
+        kfree(strings->owned.buffer);
+        strings->owned.buffer = NULL;
     }
-    if (strings->elements) {
-        kfree(strings->elements);
-        strings->elements = NULL;
+    if (strings->owned.elements) {
+        kfree(strings->owned.elements);
+        strings->owned.elements = NULL;
     }
 }
 
-typedef struct ptr_list {
+typedef struct ptr_vec {
     size_t count;
     uintptr_t* elements;
-} ptr_list;
+} ptr_vec;
 
-static void ptr_list_destroy(ptr_list* ptrs) {
+static void ptr_vec_destroy(ptr_vec* ptrs) {
     if (ptrs->elements) {
         kfree(ptrs->elements);
         ptrs->elements = NULL;
@@ -84,7 +117,7 @@ NODISCARD static int push_value(uintptr_t* sp, uintptr_t stack_base,
 }
 
 NODISCARD static int push_strings(uintptr_t* sp, uintptr_t stack_base,
-                                  ptr_list* ptrs, const string_list* strings) {
+                                  ptr_vec* ptrs, const string_vec* strings) {
     ptrs->count = strings->count;
 
     if (strings->count == 0) {
@@ -97,14 +130,16 @@ NODISCARD static int push_strings(uintptr_t* sp, uintptr_t stack_base,
         return -ENOMEM;
 
     for (size_t i = 0; i < strings->count; ++i) {
-        size_t size = strlen(strings->elements[i]) + 1;
+        const char* str = strings->is_owned ? strings->owned.elements[i]
+                                            : strings->borrowed.elements[i];
+        size_t size = strlen(str) + 1;
         if (*sp - size < stack_base) {
             kfree(ptrs->elements);
             ptrs->elements = NULL;
             return -E2BIG;
         }
         *sp -= next_power_of_two(size);
-        strncpy((char*)*sp, strings->elements[i], size);
+        strncpy((char*)*sp, str, size);
         ptrs->elements[ptrs->count - i - 1] = *sp;
     }
 
@@ -112,7 +147,7 @@ NODISCARD static int push_strings(uintptr_t* sp, uintptr_t stack_base,
 }
 
 NODISCARD static int push_ptrs(uintptr_t* sp, uintptr_t stack_base,
-                               const ptr_list* ptrs) {
+                               const ptr_vec* ptrs) {
     for (size_t i = 0; i < ptrs->count; ++i) {
         int rc = push_value(sp, stack_base, ptrs->elements[i]);
         if (IS_ERR(rc))
@@ -121,10 +156,7 @@ NODISCARD static int push_ptrs(uintptr_t* sp, uintptr_t stack_base,
     return 0;
 }
 
-int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
-    if (!pathname || !argv || !envp)
-        return -EFAULT;
-
+static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
     struct stat stat;
     int rc = vfs_stat(pathname, &stat);
     if (IS_ERR(rc))
@@ -134,13 +166,11 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     if ((size_t)stat.st_size < sizeof(Elf32_Ehdr))
         return -ENOEXEC;
 
-    char* dup_pathname = kstrdup(pathname);
-    if (!dup_pathname)
-        return -ENOMEM;
-    const char* exe_basename = basename(dup_pathname);
+    char copied_pathname[PATH_MAX];
+    strncpy(copied_pathname, pathname, PATH_MAX);
+    const char* exe_basename = basename(copied_pathname);
     char comm[sizeof(current->comm)];
     strlcpy(comm, exe_basename, sizeof(current->comm));
-    kfree(dup_pathname);
 
     file_description* desc = vfs_open(pathname, O_RDONLY, 0);
     if (IS_ERR(desc))
@@ -169,30 +199,13 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
         return -ENOEXEC;
     }
 
-    // after switching page directory we will no longer be able to access
-    // argv and envp, so we copy them here.
-    string_list copied_argv = (string_list){0};
-    rc = string_list_create(&copied_argv, argv);
-    if (IS_ERR(rc)) {
-        kfree(executable_buf);
-        return rc;
-    }
-
-    string_list copied_envp = (string_list){0};
-    rc = string_list_create(&copied_envp, envp);
-    if (IS_ERR(rc)) {
-        kfree(executable_buf);
-        string_list_destroy(&copied_argv);
-        return rc;
-    }
-
     page_directory* prev_pd = paging_current_page_directory();
 
     page_directory* new_pd = paging_create_page_directory();
     if (IS_ERR(new_pd)) {
         kfree(executable_buf);
-        string_list_destroy(&copied_argv);
-        string_list_destroy(&copied_envp);
+        string_vec_destroy(argv);
+        string_vec_destroy(envp);
         return PTR_ERR(new_pd);
     }
 
@@ -201,8 +214,8 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     // after this point, we have to revert to prev_pd if we want to abort.
 
     int ret = 0;
-    ptr_list envp_ptrs = (ptr_list){0};
-    ptr_list argv_ptrs = (ptr_list){0};
+    ptr_vec envp_ptrs = (ptr_vec){0};
+    ptr_vec argv_ptrs = (ptr_vec){0};
 
     Elf32_Phdr* phdr = (Elf32_Phdr*)((uintptr_t)executable_buf + ehdr->e_phoff);
     uintptr_t max_segment_addr = 0;
@@ -264,15 +277,13 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     uintptr_t sp = stack_base + STACK_SIZE;
     memset((void*)stack_base, 0, STACK_SIZE);
 
-    int argc = copied_argv.count;
-
-    ret = push_strings(&sp, stack_base, &envp_ptrs, &copied_envp);
-    string_list_destroy(&copied_envp);
+    ret = push_strings(&sp, stack_base, &envp_ptrs, envp);
+    string_vec_destroy(envp);
     if (IS_ERR(ret))
         goto fail;
 
-    ret = push_strings(&sp, stack_base, &argv_ptrs, &copied_argv);
-    string_list_destroy(&copied_argv);
+    ret = push_strings(&sp, stack_base, &argv_ptrs, argv);
+    string_vec_destroy(argv);
     if (IS_ERR(ret))
         goto fail;
 
@@ -283,7 +294,7 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     if (IS_ERR(ret))
         goto fail;
     uintptr_t user_envp = sp;
-    ptr_list_destroy(&envp_ptrs);
+    ptr_vec_destroy(&envp_ptrs);
 
     ret = push_value(&sp, stack_base, 0);
     if (IS_ERR(ret))
@@ -292,7 +303,7 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     if (IS_ERR(ret))
         goto fail;
     uintptr_t user_argv = sp;
-    ptr_list_destroy(&argv_ptrs);
+    ptr_vec_destroy(&argv_ptrs);
 
     sp = round_down(sp, 16);
 
@@ -302,7 +313,7 @@ int sys_execve(const char* pathname, char* const argv[], char* const envp[]) {
     ret = push_value(&sp, stack_base, user_argv);
     if (IS_ERR(ret))
         goto fail;
-    ret = push_value(&sp, stack_base, argc);
+    ret = push_value(&sp, stack_base, argv->count);
     if (IS_ERR(ret))
         goto fail;
     ret = push_value(&sp, stack_base, 0); // fake return address
@@ -347,13 +358,44 @@ fail:
     ASSERT(IS_ERR(ret));
 
     kfree(executable_buf);
-    string_list_destroy(&copied_envp);
-    string_list_destroy(&copied_argv);
-    ptr_list_destroy(&envp_ptrs);
-    ptr_list_destroy(&argv_ptrs);
+    string_vec_destroy(envp);
+    string_vec_destroy(argv);
+    ptr_vec_destroy(&envp_ptrs);
+    ptr_vec_destroy(&argv_ptrs);
 
     paging_destroy_current_page_directory();
     paging_switch_page_directory(prev_pd);
 
     return ret;
+}
+
+int process_user_execve(const char* pathname, const char* const* user_argv,
+                        const char* const* user_envp) {
+    if (!pathname || !user_argv || !user_envp)
+        return -EFAULT;
+
+    string_vec argv = (string_vec){0};
+    int rc = string_vec_clone_from_user(&argv, user_argv);
+    if (IS_ERR(rc))
+        return rc;
+
+    string_vec envp = (string_vec){0};
+    rc = string_vec_clone_from_user(&envp, user_envp);
+    if (IS_ERR(rc)) {
+        string_vec_destroy(&argv);
+        return rc;
+    }
+
+    return execve(pathname, &argv, &envp);
+}
+
+int process_kernel_execve(const char* pathname, const char* const* argv,
+                          const char* const* envp) {
+    string_vec argv_vec = (string_vec){0};
+    string_vec_borrow_from_kernel(&argv_vec, argv);
+
+    string_vec envp_vec = (string_vec){0};
+    string_vec_borrow_from_kernel(&envp_vec, envp);
+
+    return execve(pathname, &argv_vec, &envp_vec);
 }
