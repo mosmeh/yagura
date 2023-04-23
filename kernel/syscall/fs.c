@@ -107,7 +107,7 @@ int sys_mkdir(const char* user_pathname, mode_t mode) {
     return 0;
 }
 
-int sys_mknod(const char* pathname, mode_t mode, dev_t dev) {
+int sys_mknod(const char* user_pathname, mode_t mode, dev_t dev) {
     switch (mode & S_IFMT) {
     case S_IFREG:
     case S_IFCHR:
@@ -118,6 +118,12 @@ int sys_mknod(const char* pathname, mode_t mode, dev_t dev) {
     default:
         return -EINVAL;
     }
+
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
+
     struct inode* inode = vfs_create(pathname, mode);
     if (IS_ERR(inode))
         return PTR_ERR(inode);

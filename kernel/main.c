@@ -32,8 +32,12 @@ extern unsigned char kernel_end[];
 extern unsigned char stack_top[];
 
 static void create_char_device(const char* pathname, struct inode* device) {
-    ASSERT_OK(sys_mknod(pathname, S_IFCHR, device->device_id));
     ASSERT_OK(vfs_register_device(device));
+
+    struct inode* inode = vfs_create(pathname, S_IFCHR);
+    ASSERT_OK(inode);
+    inode->device_id = device->device_id;
+    inode_unref(inode);
 }
 
 void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
