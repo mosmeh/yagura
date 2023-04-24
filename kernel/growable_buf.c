@@ -3,8 +3,8 @@
 #include "boot_defs.h"
 #include "memory/memory.h"
 #include "panic.h"
-#include <common/string.h>
 #include <stdio.h>
+#include <string.h>
 
 void growable_buf_destroy(growable_buf* buf) {
     if (buf->addr)
@@ -41,7 +41,7 @@ NODISCARD static int grow_buf(growable_buf* buf, size_t requested_size) {
 
     if (buf->addr) {
         ASSERT(buf->capacity > 0);
-        int rc = paging_copy_mapping(new_addr, buf->addr, buf->capacity,
+        int rc = paging_shallow_copy(new_addr, buf->addr, buf->capacity,
                                      PAGE_WRITE | PAGE_GLOBAL);
         if (IS_ERR(rc))
             return rc;
@@ -111,13 +111,14 @@ int growable_buf_truncate(growable_buf* buf, off_t length) {
 
 int growable_buf_mmap(growable_buf* buf, uintptr_t addr, size_t length,
                       off_t offset, uint16_t page_flags) {
-    if (offset != 0 || !(page_flags & PAGE_SHARED))
+    if (offset != 0)
         return -ENOTSUP;
-
     if (length > buf->size)
         return -EINVAL;
 
-    return paging_copy_mapping(addr, buf->addr, length, page_flags);
+    if (page_flags & PAGE_SHARED)
+        return paging_shallow_copy(addr, buf->addr, length, page_flags);
+    return paging_deep_copy(addr, buf->addr, length, page_flags);
 }
 
 int growable_buf_printf(growable_buf* buf, const char* format, ...) {

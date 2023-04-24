@@ -63,7 +63,7 @@ uintptr_t range_allocator_alloc(range_allocator* allocator, size_t size) {
     }
 
     uintptr_t addr = (uintptr_t)it + size;
-    int rc = paging_copy_mapping(addr, (uintptr_t)it, sizeof(struct range),
+    int rc = paging_shallow_copy(addr, (uintptr_t)it, sizeof(struct range),
                                  PAGE_WRITE);
     if (IS_ERR(rc)) {
         mutex_unlock(&allocator->lock);
@@ -115,7 +115,7 @@ int range_allocator_free(range_allocator* allocator, uintptr_t addr,
         return 0;
     }
     if (it && (uintptr_t)it == addr + size) {
-        int rc = paging_copy_mapping(addr, (uintptr_t)it, sizeof(struct range),
+        int rc = paging_shallow_copy(addr, (uintptr_t)it, sizeof(struct range),
                                      PAGE_WRITE);
         if (IS_ERR(rc)) {
             mutex_unlock(&allocator->lock);

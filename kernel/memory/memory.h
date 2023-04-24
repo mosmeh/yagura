@@ -71,9 +71,12 @@ NODISCARD int paging_map_to_free_pages(uintptr_t virtual_addr, uintptr_t size,
 NODISCARD int paging_map_to_physical_range(uintptr_t virtual_addr,
                                            uintptr_t physical_addr,
                                            uintptr_t size, uint16_t flags);
-NODISCARD int paging_copy_mapping(uintptr_t to_virtual_addr,
+NODISCARD int paging_shallow_copy(uintptr_t to_virtual_addr,
                                   uintptr_t from_virtual_addr, uintptr_t size,
-                                  uint16_t flags);
+                                  uint16_t new_flags);
+NODISCARD int paging_deep_copy(uintptr_t to_virtual_addr,
+                               uintptr_t from_virtual_addr, uintptr_t size,
+                               uint16_t new_flags);
 void paging_unmap(uintptr_t virtual_addr, uintptr_t size);
 void paging_set_flags(uintptr_t virtual_addr, uintptr_t size, uint16_t flags);
 

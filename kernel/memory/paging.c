@@ -333,8 +333,8 @@ int paging_map_to_physical_range(uintptr_t vaddr, uintptr_t paddr,
     return 0;
 }
 
-int paging_copy_mapping(uintptr_t to_vaddr, uintptr_t from_vaddr,
-                        uintptr_t size, uint16_t flags) {
+int paging_shallow_copy(uintptr_t to_vaddr, uintptr_t from_vaddr,
+                        uintptr_t size, uint16_t new_flags) {
     ASSERT((to_vaddr % PAGE_SIZE) == 0);
     ASSERT((from_vaddr % PAGE_SIZE) == 0);
     size = round_up(size, PAGE_SIZE);
@@ -354,11 +354,26 @@ int paging_copy_mapping(uintptr_t to_vaddr, uintptr_t from_vaddr,
         uintptr_t paddr = from_pte->raw & ~PTE_FLAGS_MASK;
         page_allocator_ref_page(paddr);
 
-        to_pte->raw = paddr | flags;
+        to_pte->raw = paddr | new_flags;
         to_pte->present = true;
         flush_tlb_single(to_page_vaddr);
     }
 
+    return 0;
+}
+
+int paging_deep_copy(uintptr_t to_vaddr, uintptr_t from_vaddr, uintptr_t size,
+                     uint16_t new_flags) {
+    ASSERT((to_vaddr % PAGE_SIZE) == 0);
+    ASSERT((from_vaddr % PAGE_SIZE) == 0);
+    size = round_up(size, PAGE_SIZE);
+
+    int rc = paging_map_to_free_pages(to_vaddr, size, new_flags | PAGE_WRITE);
+    if (IS_ERR(rc))
+        return rc;
+    memcpy((void*)to_vaddr, (const void*)from_vaddr, size);
+    if (!(new_flags & PAGE_WRITE))
+        paging_set_flags(to_vaddr, size, new_flags);
     return 0;
 }
 

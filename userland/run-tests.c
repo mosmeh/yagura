@@ -236,6 +236,44 @@ static void test_socket(void) {
     ASSERT_OK(close(peer_fd2));
 }
 
+static void test_mmap_private(void) {
+    puts("mmap(MAP_PRIVATE)");
+    mkdir("/tmp/test-mmap-private", 0);
+    int fd = open("/tmp/test-mmap-private/foo", O_CREAT | O_RDWR);
+    ASSERT_OK(fd);
+
+    size_t size = 30000 * sizeof(int);
+    ASSERT_OK(ftruncate(fd, size));
+
+    int* buf = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    ASSERT(buf != MAP_FAILED);
+    for (int i = 0; i < 30000; ++i)
+        buf[i] = i;
+    ASSERT_OK(munmap(buf, size));
+
+    buf = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+    ASSERT(buf != MAP_FAILED);
+    for (int i = 0; i < 30000; ++i) {
+        ASSERT(buf[i] == i);
+        buf[i] = i + 30000;
+    }
+    ASSERT_OK(munmap(buf, size));
+
+    buf = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+    ASSERT(buf != MAP_FAILED);
+    for (int i = 0; i < 30000; ++i)
+        ASSERT(buf[i] == i);
+    ASSERT_OK(munmap(buf, size));
+
+    buf = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+    ASSERT(buf != MAP_FAILED);
+    for (int i = 0; i < 30000; ++i)
+        ASSERT(buf[i] == i);
+    ASSERT_OK(munmap(buf, size));
+
+    ASSERT_OK(close(fd));
+}
+
 static void* shared_mmap_addr;
 
 static void mmap_reader(void) {
@@ -302,6 +340,7 @@ static void test_malloc(void) {
 int main(void) {
     test_fs();
     test_socket();
+    test_mmap_private();
     test_mmap_shared();
     test_framebuffer();
     test_malloc();
