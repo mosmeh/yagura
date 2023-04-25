@@ -42,14 +42,13 @@ static struct inode* procfs_root_lookup_child(struct inode* inode,
     return procfs_dir_lookup_child(inode, name);
 }
 
-static int procfs_root_getdents(struct getdents_ctx* ctx,
-                                file_description* desc,
-                                getdents_callback_fn callback) {
+static int procfs_root_getdents(file_description* desc,
+                                getdents_callback_fn callback, void* ctx) {
     procfs_dir_inode* node = (procfs_dir_inode*)desc->inode;
 
     mutex_lock(&desc->offset_lock);
     if ((size_t)desc->offset < NUM_ITEMS) {
-        int rc = dentry_getdents(ctx, desc, node->children, callback);
+        int rc = dentry_getdents(desc, node->children, callback, ctx);
         if (IS_ERR(rc)) {
             mutex_unlock(&desc->offset_lock);
             return rc;
@@ -73,7 +72,7 @@ static int procfs_root_getdents(struct getdents_ctx* ctx,
     while (it) {
         char name[16];
         (void)snprintf(name, sizeof(name), "%d", it->pid);
-        if (!callback(ctx, name, DT_DIR))
+        if (!callback(name, DT_DIR, ctx))
             break;
         desc->offset = it->pid + NUM_ITEMS;
         it = it->next_in_all_processes;

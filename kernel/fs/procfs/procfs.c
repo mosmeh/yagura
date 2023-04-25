@@ -61,11 +61,11 @@ struct inode* procfs_dir_lookup_child(struct inode* inode, const char* name) {
     return child;
 }
 
-int procfs_dir_getdents(struct getdents_ctx* ctx, file_description* desc,
-                        getdents_callback_fn callback) {
+int procfs_dir_getdents(file_description* desc, getdents_callback_fn callback,
+                        void* ctx) {
     procfs_dir_inode* node = (procfs_dir_inode*)desc->inode;
     mutex_lock(&desc->offset_lock);
-    int rc = dentry_getdents(ctx, desc, node->children, callback);
+    int rc = dentry_getdents(desc, node->children, callback, ctx);
     mutex_unlock(&desc->offset_lock);
     return rc;
 }

@@ -54,11 +54,9 @@ typedef int (*mmap_fn)(file_description*, uintptr_t addr, size_t length,
 typedef int (*truncate_fn)(file_description*, off_t length);
 typedef int (*ioctl_fn)(file_description*, int request, void* argp);
 
-struct getdents_ctx;
-typedef bool (*getdents_callback_fn)(struct getdents_ctx*, const char* name,
-                                     uint8_t type);
-typedef int (*getdents_fn)(struct getdents_ctx*, file_description*,
-                           getdents_callback_fn callback);
+typedef bool (*getdents_callback_fn)(const char* name, uint8_t type, void* ctx);
+typedef int (*getdents_fn)(file_description*, getdents_callback_fn callback,
+                           void* ctx);
 
 typedef struct file_ops {
     destroy_inode_fn destroy_inode;
@@ -115,8 +113,8 @@ NODISCARD off_t file_description_seek(file_description*, off_t offset,
                                       int whence);
 NODISCARD int file_description_ioctl(file_description*, int request,
                                      void* argp);
-NODISCARD long file_description_getdents(file_description*, void* dirp,
-                                         unsigned int count);
+NODISCARD int file_description_getdents(file_description*, getdents_callback_fn,
+                                        void* ctx);
 
 NODISCARD int file_description_block(file_description*,
                                      bool (*should_unblock)(file_description*));

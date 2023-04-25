@@ -1,14 +1,11 @@
-#include <kernel/api/err.h>
-#include <kernel/api/errno.h>
+#include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/limits.h>
-#include <kernel/api/sys/stat.h>
 #include <kernel/fs/fs.h>
-#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/safe_string.h>
-#include <kernel/system.h>
+#include <string.h>
 
 static int copy_pathname_from_user(char* dest, const char* user_src) {
     ssize_t pathname_len = strncpy_from_user(dest, user_src, PATH_MAX);
@@ -207,6 +204,13 @@ int sys_unlink(const char* user_pathname) {
     return rc;
 }
 
+static bool set_has_children(const char* name, uint8_t type, void* ctx) {
+    (void)name;
+    (void)type;
+    *(bool*)ctx = true;
+    return false;
+}
+
 static int ensure_empty_directory(struct inode* inode) {
     ASSERT(S_ISDIR(inode->mode));
 
@@ -214,24 +218,13 @@ static int ensure_empty_directory(struct inode* inode) {
     if (IS_ERR(desc))
         return PTR_ERR(desc);
 
-    unsigned char* buf = NULL;
-    size_t capacity = 1024;
-    ssize_t nread;
-    for (;;) {
-        buf = krealloc(buf, capacity);
-        if (!buf) {
-            nread = -ENOMEM;
-            break;
-        }
-        nread = file_description_getdents(desc, buf, capacity);
-        if (nread != -EINVAL)
-            break;
-        capacity *= 2;
-    }
+    bool has_children = false;
+    int rc = file_description_getdents(desc, set_has_children, &has_children);
     file_description_close(desc);
-    kfree(buf);
+    if (IS_ERR(rc))
+        return rc;
 
-    return nread > 0 ? -ENOTEMPTY : nread;
+    return has_children ? -ENOTEMPTY : 0;
 }
 
 int sys_rename(const char* user_oldpath, const char* user_newpath) {
@@ -359,11 +352,50 @@ int sys_rmdir(const char* user_pathname) {
     return rc;
 }
 
+struct fill_dir_ctx {
+    unsigned char* dirp;
+    unsigned remaining_count;
+    long nwritten;
+    bool buffer_is_too_small;
+};
+
+static bool fill_dir(const char* name, uint8_t type, void* raw_ctx) {
+    struct fill_dir_ctx* ctx = (struct fill_dir_ctx*)raw_ctx;
+    size_t name_len = strlen(name);
+    size_t name_size = name_len + 1;
+    size_t size = offsetof(struct dirent, d_name) + name_size;
+    if (ctx->remaining_count < size) {
+        ctx->buffer_is_too_small = true;
+        return false;
+    }
+
+    struct dirent* dent = (struct dirent*)ctx->dirp;
+    dent->d_type = type;
+    dent->d_reclen = size;
+    dent->d_namlen = name_len;
+    strncpy(dent->d_name, name, name_size);
+
+    ctx->dirp += size;
+    ctx->remaining_count -= size;
+    ctx->nwritten += size;
+    return true;
+}
+
 long sys_getdents(int fd, void* dirp, size_t count) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    return file_description_getdents(desc, dirp, count);
+
+    struct fill_dir_ctx ctx = {.dirp = dirp,
+                               .remaining_count = count,
+                               .nwritten = 0,
+                               .buffer_is_too_small = false};
+    int rc = file_description_getdents(desc, fill_dir, &ctx);
+    if (IS_ERR(rc))
+        return rc;
+    if (ctx.nwritten == 0 && ctx.buffer_is_too_small)
+        return -EINVAL;
+    return ctx.nwritten;
 }
 
 int sys_fcntl(int fd, int cmd, uintptr_t arg) {

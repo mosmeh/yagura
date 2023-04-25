@@ -7,7 +7,6 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/scheduler.h>
-#include <string.h>
 
 int file_descriptor_table_init(file_descriptor_table* table) {
     table->entries = kmalloc(OPEN_MAX * sizeof(file_description*));
@@ -254,52 +253,13 @@ int file_description_ioctl(file_description* desc, int request, void* argp) {
     return inode->fops->ioctl(desc, request, argp);
 }
 
-struct getdents_ctx {
-    unsigned char* dirp;
-    unsigned remaining_count;
-    long nwritten;
-    bool buffer_is_too_small;
-};
-
-static bool getdents_callback(struct getdents_ctx* ctx, const char* name,
-                              uint8_t type) {
-    size_t name_len = strlen(name);
-    size_t name_size = name_len + 1;
-    size_t size = offsetof(struct dirent, d_name) + name_size;
-    if (ctx->remaining_count < size) {
-        ctx->buffer_is_too_small = true;
-        return false;
-    }
-
-    struct dirent* dent = (struct dirent*)ctx->dirp;
-    dent->d_type = type;
-    dent->d_reclen = size;
-    dent->d_namlen = name_len;
-    strncpy(dent->d_name, name, name_size);
-
-    ctx->dirp += size;
-    ctx->remaining_count -= size;
-    ctx->nwritten += size;
-    return true;
-}
-
-long file_description_getdents(file_description* desc, void* dirp,
-                               unsigned int count) {
+int file_description_getdents(file_description* desc,
+                              getdents_callback_fn callback, void* ctx) {
     struct inode* inode = desc->inode;
     if (!inode->fops->getdents || !S_ISDIR(inode->mode))
         return -ENOTDIR;
 
-    struct getdents_ctx ctx = {.dirp = dirp,
-                               .remaining_count = count,
-                               .nwritten = 0,
-                               .buffer_is_too_small = false};
-    int rc = inode->fops->getdents(&ctx, desc, getdents_callback);
-    if (IS_ERR(rc))
-        return rc;
-
-    if (ctx.nwritten == 0 && ctx.buffer_is_too_small)
-        return -EINVAL;
-    return ctx.nwritten;
+    return inode->fops->getdents(desc, callback, ctx);
 }
 
 int file_description_block(file_description* desc,

@@ -79,12 +79,12 @@ static int tmpfs_truncate(file_description* desc, off_t length) {
     return rc;
 }
 
-static int tmpfs_getdents(struct getdents_ctx* ctx, file_description* desc,
-                          getdents_callback_fn callback) {
+static int tmpfs_getdents(file_description* desc, getdents_callback_fn callback,
+                          void* ctx) {
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
     mutex_lock(&node->children_lock);
     mutex_lock(&desc->offset_lock);
-    int rc = dentry_getdents(ctx, desc, node->children, callback);
+    int rc = dentry_getdents(desc, node->children, callback, ctx);
     mutex_unlock(&desc->offset_lock);
     mutex_unlock(&node->children_lock);
     return rc;

@@ -24,7 +24,7 @@ typedef struct procfs_dir_inode {
 
 void procfs_dir_destroy_inode(struct inode* inode);
 struct inode* procfs_dir_lookup_child(struct inode* inode, const char* name);
-int procfs_dir_getdents(struct getdents_ctx* ctx, file_description* desc,
-                        getdents_callback_fn callback);
+int procfs_dir_getdents(file_description* desc, getdents_callback_fn callback,
+                        void* ctx);
 
 struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid);
