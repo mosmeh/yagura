@@ -353,10 +353,10 @@ int sys_rmdir(const char* user_pathname) {
 }
 
 struct fill_dir_ctx {
-    unsigned char* dirp;
+    unsigned char* user_dirp;
     unsigned remaining_count;
     long nwritten;
-    bool buffer_is_too_small;
+    int rc;
 };
 
 static bool fill_dir(const char* name, uint8_t type, void* raw_ctx) {
@@ -365,36 +365,43 @@ static bool fill_dir(const char* name, uint8_t type, void* raw_ctx) {
     size_t name_size = name_len + 1;
     size_t size = offsetof(struct dirent, d_name) + name_size;
     if (ctx->remaining_count < size) {
-        ctx->buffer_is_too_small = true;
+        if (ctx->nwritten == 0)
+            ctx->rc = -EINVAL;
         return false;
     }
 
-    struct dirent* dent = (struct dirent*)ctx->dirp;
-    dent->d_type = type;
-    dent->d_reclen = size;
-    dent->d_namlen = name_len;
-    strncpy(dent->d_name, name, name_size);
+    struct dirent dent = {
+        .d_reclen = size, .d_type = type, .d_namlen = name_len};
+    struct dirent* user_dent = (struct dirent*)ctx->user_dirp;
+    if (!copy_to_user(user_dent, &dent, sizeof(struct dirent))) {
+        ctx->rc = -EFAULT;
+        return false;
+    }
+    if (!copy_to_user(user_dent->d_name, name, name_len)) {
+        ctx->rc = -EFAULT;
+        return false;
+    }
 
-    ctx->dirp += size;
+    ctx->user_dirp += size;
     ctx->remaining_count -= size;
     ctx->nwritten += size;
     return true;
 }
 
-long sys_getdents(int fd, void* dirp, size_t count) {
+long sys_getdents(int fd, void* user_dirp, size_t count) {
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
 
-    struct fill_dir_ctx ctx = {.dirp = dirp,
+    struct fill_dir_ctx ctx = {.user_dirp = user_dirp,
                                .remaining_count = count,
                                .nwritten = 0,
-                               .buffer_is_too_small = false};
+                               .rc = 0};
     int rc = file_description_getdents(desc, fill_dir, &ctx);
     if (IS_ERR(rc))
         return rc;
-    if (ctx.nwritten == 0 && ctx.buffer_is_too_small)
-        return -EINVAL;
+    if (IS_ERR(ctx.rc))
+        return ctx.rc;
     return ctx.nwritten;
 }
 
