@@ -244,6 +244,8 @@ static key_event queue[QUEUE_SIZE];
 static size_t queue_read_idx = 0;
 static size_t queue_write_idx = 0;
 
+static ps2_key_event_handler_fn event_handler = NULL;
+
 static void irq_handler(registers* reg) {
     (void)reg;
 
@@ -309,12 +311,17 @@ static void irq_handler(registers* reg) {
 
     received_e0 = false;
 
-    fb_console_on_key(event);
+    if (event_handler)
+        event_handler(event);
 }
 
 void ps2_keyboard_init(void) {
     ps2_write(PS2_COMMAND, PS2_ENABLE_PORT1);
     idt_set_interrupt_handler(IRQ(1), irq_handler);
+}
+
+void ps2_set_key_event_handler(ps2_key_event_handler_fn handler) {
+    event_handler = handler;
 }
 
 static bool read_should_unblock(file_description* desc) {

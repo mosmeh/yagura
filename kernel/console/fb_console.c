@@ -11,6 +11,7 @@
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/fs/fs.h>
+#include <kernel/hid/hid.h>
 #include <kernel/interrupts.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
@@ -432,43 +433,7 @@ static void on_char(char c) {
     UNREACHABLE();
 }
 
-static bool initialized = false;
 static ring_buf input_buf;
-static mutex lock;
-
-void fb_console_init(void) {
-    font = load_psf("/usr/share/fonts/ter-u16n.psf");
-    ASSERT_OK(font);
-
-    file_description* desc = vfs_open("/dev/fb0", O_RDWR, 0);
-    ASSERT_OK(desc);
-
-    ASSERT_OK(file_description_ioctl(desc, FBIOGET_INFO, &fb_info));
-    ASSERT(fb_info.bpp == 32);
-
-    console_width = fb_info.width / font->glyph_width;
-    console_height = fb_info.height / font->glyph_height;
-
-    cells = kmalloc(console_width * console_height * sizeof(struct cell));
-    ASSERT(cells);
-    line_is_dirty = kmalloc(console_height * sizeof(bool));
-    ASSERT(line_is_dirty);
-
-    size_t fb_size = fb_info.pitch * fb_info.height;
-    fb_addr = range_allocator_alloc(&kernel_vaddr_allocator, fb_size);
-    ASSERT_OK(fb_addr);
-    ASSERT_OK(file_description_mmap(desc, fb_addr, fb_size, 0,
-                                    PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL));
-
-    ASSERT_OK(file_description_close(desc));
-
-    clear_screen();
-    flush();
-
-    ASSERT_OK(ring_buf_init(&input_buf));
-
-    initialized = true;
-}
 
 static void input_buf_write_str(const char* s) {
     bool int_flag = push_cli();
@@ -478,7 +443,7 @@ static void input_buf_write_str(const char* s) {
 
 static pid_t pgid;
 
-void fb_console_on_key(const key_event* event) {
+static void on_key_event(const key_event* event) {
     if (!event->pressed)
         return;
     switch (event->keycode) {
@@ -522,6 +487,45 @@ void fb_console_on_key(const key_event* event) {
     bool int_flag = push_cli();
     ring_buf_write_evicting_oldest(&input_buf, &key, 1);
     pop_cli(int_flag);
+}
+
+static bool initialized = false;
+static mutex lock;
+
+void fb_console_init(void) {
+    font = load_psf("/usr/share/fonts/ter-u16n.psf");
+    ASSERT_OK(font);
+
+    file_description* desc = vfs_open("/dev/fb0", O_RDWR, 0);
+    ASSERT_OK(desc);
+
+    ASSERT_OK(file_description_ioctl(desc, FBIOGET_INFO, &fb_info));
+    ASSERT(fb_info.bpp == 32);
+
+    console_width = fb_info.width / font->glyph_width;
+    console_height = fb_info.height / font->glyph_height;
+
+    cells = kmalloc(console_width * console_height * sizeof(struct cell));
+    ASSERT(cells);
+    line_is_dirty = kmalloc(console_height * sizeof(bool));
+    ASSERT(line_is_dirty);
+
+    size_t fb_size = fb_info.pitch * fb_info.height;
+    fb_addr = range_allocator_alloc(&kernel_vaddr_allocator, fb_size);
+    ASSERT_OK(fb_addr);
+    ASSERT_OK(file_description_mmap(desc, fb_addr, fb_size, 0,
+                                    PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL));
+
+    ASSERT_OK(file_description_close(desc));
+
+    clear_screen();
+    flush();
+
+    ASSERT_OK(ring_buf_init(&input_buf));
+
+    ps2_set_key_event_handler(on_key_event);
+
+    initialized = true;
 }
 
 static bool read_should_unblock(file_description* desc) {
