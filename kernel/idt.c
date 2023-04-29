@@ -29,7 +29,7 @@ static idt_descriptor idt[NUM_IDT_ENTRIES];
 static idt_pointer idtr;
 interrupt_handler_fn interrupt_handlers[NUM_IDT_ENTRIES];
 
-void idt_register_interrupt_handler(uint8_t num, interrupt_handler_fn handler) {
+void idt_set_interrupt_handler(uint8_t num, interrupt_handler_fn handler) {
     interrupt_handlers[num] = handler;
 }
 
@@ -166,7 +166,7 @@ void idt_init(void) {
 
 #define REGISTER_EXCEPTION(num)                                                \
     REGISTER_ISR(num);                                                         \
-    idt_register_interrupt_handler(num, handle_exception##num);
+    idt_set_interrupt_handler(num, handle_exception##num);
 
     REGISTER_EXCEPTION(0);
     REGISTER_EXCEPTION(1);

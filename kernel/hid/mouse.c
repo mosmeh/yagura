@@ -59,7 +59,7 @@ void ps2_mouse_init(void) {
     ps2_write(PS2_COMMAND, PS2_ENABLE_PORT2);
     write_mouse(PS2_MOUSE_SET_DEFAULTS);
     write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
-    idt_register_interrupt_handler(IRQ(12), irq_handler);
+    idt_set_interrupt_handler(IRQ(12), irq_handler);
 }
 
 static bool read_should_unblock(file_description* desc) {

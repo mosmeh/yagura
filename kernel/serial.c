@@ -57,11 +57,11 @@ bool serial_enable_port(uint16_t port) {
     switch (port) {
     case SERIAL_COM1:
     case SERIAL_COM3:
-        idt_register_interrupt_handler(IRQ(4), handle_1_and_3);
+        idt_set_interrupt_handler(IRQ(4), handle_1_and_3);
         return true;
     case SERIAL_COM2:
     case SERIAL_COM4:
-        idt_register_interrupt_handler(IRQ(3), handle_2_and_4);
+        idt_set_interrupt_handler(IRQ(3), handle_2_and_4);
         return true;
     }
     UNREACHABLE();

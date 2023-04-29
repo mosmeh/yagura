@@ -88,7 +88,7 @@ static void syscall_handler(registers* regs) {
 }
 
 void syscall_init(void) {
-    idt_register_interrupt_handler(SYSCALL_VECTOR, syscall_handler);
+    idt_set_interrupt_handler(SYSCALL_VECTOR, syscall_handler);
     idt_set_gate_user_callable(SYSCALL_VECTOR);
     idt_flush();
 }

@@ -109,7 +109,7 @@ bool ac97_init(void) {
         delay(50);
 
     uint8_t irq_num = pci_get_interrupt_line(&device_addr);
-    idt_register_interrupt_handler(IRQ(irq_num), irq_handler);
+    idt_set_interrupt_handler(IRQ(irq_num), irq_handler);
 
     return true;
 }

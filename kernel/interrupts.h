@@ -24,7 +24,7 @@ void idt_flush(void);
 
 typedef void (*interrupt_handler_fn)(registers*);
 
-void idt_register_interrupt_handler(uint8_t num, interrupt_handler_fn handler);
+void idt_set_interrupt_handler(uint8_t num, interrupt_handler_fn handler);
 
 static inline bool interrupts_enabled(void) { return read_eflags() & 0x200; }
 
