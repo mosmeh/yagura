@@ -34,7 +34,7 @@ static inline bool rdrand(uint32_t* v) {
 
 // based on
 // https://github.com/rust-random/getrandom/blob/666b2d4c8352a188da7dbb4a4d6754a6ba2ac3f8/src/rdrand.rs#L46-L101
-static bool rdrand_init(void) {
+NODISCARD static bool rdrand_init(void) {
     // is RDRAND available?
     uint32_t eax;
     uint32_t ebx;

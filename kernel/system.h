@@ -2,6 +2,7 @@
 
 #include "api/sys/types.h"
 #include "forward.h"
+#include <common/extra.h>
 #include <stdalign.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -56,5 +57,5 @@ struct inode* full_device_create(void);
 struct inode* random_device_create(void);
 struct inode* urandom_device_create(void);
 
-bool ac97_init(void);
+NODISCARD bool ac97_init(void);
 struct inode* ac97_device_create(void);

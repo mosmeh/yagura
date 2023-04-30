@@ -1,6 +1,7 @@
 #pragma once
 
 #include "forward.h"
+#include <common/extra.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -11,7 +12,7 @@
 #define SERIAL_COM4 0x2e8
 
 void serial_init(void);
-bool serial_enable_port(uint16_t port);
+NODISCARD bool serial_enable_port(uint16_t port);
 size_t serial_write(uint16_t port, const char* s, size_t count);
 
 static inline bool serial_is_valid_port(uint16_t port) {
