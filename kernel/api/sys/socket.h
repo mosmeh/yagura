@@ -10,12 +10,7 @@
 typedef uint16_t sa_family_t;
 typedef uint32_t socklen_t;
 
-typedef struct sockaddr {
+struct sockaddr {
     sa_family_t sa_family;
     char sa_data[14];
-} sockaddr;
-
-typedef struct sockaddr_un {
-    sa_family_t sun_family;
-    char sun_path[108];
-} sockaddr_un;
+};

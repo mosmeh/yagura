@@ -35,7 +35,7 @@ int accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
-int bind(int sockfd, const sockaddr* addr, socklen_t addrlen) {
+int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
     int rc = syscall(SYS_bind, sockfd, (uintptr_t)addr, addrlen, 0);
     RETURN_WITH_ERRNO(rc, int)
 }

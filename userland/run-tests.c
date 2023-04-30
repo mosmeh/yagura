@@ -10,6 +10,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -179,8 +180,9 @@ static size_t write_all(int fd, unsigned char* buf, size_t count) {
 static noreturn void socket_receiver(void) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     ASSERT_OK(sockfd);
-    sockaddr_un addr = {AF_UNIX, "/tmp/test-socket"};
-    ASSERT_OK(connect(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un)));
+    struct sockaddr_un addr = {AF_UNIX, "/tmp/test-socket"};
+    ASSERT_OK(connect(sockfd, (const struct sockaddr*)&addr,
+                      sizeof(struct sockaddr_un)));
     static unsigned buf[1024];
     size_t total = 0;
     for (size_t i = 0; i < 55000; i += 1024) {
@@ -200,8 +202,9 @@ static void test_socket(void) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     ASSERT_OK(sockfd);
     unlink("/tmp/test-socket");
-    sockaddr_un addr = {AF_UNIX, "/tmp/test-socket"};
-    ASSERT_OK(bind(sockfd, (const sockaddr*)&addr, sizeof(sockaddr_un)));
+    struct sockaddr_un addr = {AF_UNIX, "/tmp/test-socket"};
+    ASSERT_OK(bind(sockfd, (const struct sockaddr*)&addr,
+                   sizeof(struct sockaddr_un)));
     ASSERT_OK(listen(sockfd, 5));
 
     pid_t pid1 = fork();

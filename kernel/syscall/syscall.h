@@ -10,7 +10,7 @@
 #include <stdnoreturn.h>
 
 int sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen);
-int sys_bind(int sockfd, const sockaddr* addr, socklen_t addrlen);
+int sys_bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
 int sys_chdir(const char* path);
 int sys_clock_gettime(clockid_t clk_id, struct timespec* tp);
 int sys_clock_nanosleep(clockid_t clockid, int flags,

@@ -1,6 +1,7 @@
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/socket.h>
+#include <kernel/api/sys/un.h>
 #include <kernel/process.h>
 #include <kernel/safe_string.h>
 #include <kernel/socket.h>
@@ -23,7 +24,7 @@ int sys_socket(int domain, int type, int protocol) {
     return fd;
 }
 
-int sys_bind(int sockfd, const sockaddr* user_addr, socklen_t addrlen) {
+int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
     file_description* desc = process_get_file_description(sockfd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
@@ -31,17 +32,17 @@ int sys_bind(int sockfd, const sockaddr* user_addr, socklen_t addrlen) {
         return -ENOTSOCK;
     unix_socket* socket = (unix_socket*)desc->inode;
 
-    if (addrlen <= sizeof(sa_family_t) || sizeof(sockaddr_un) < addrlen)
+    if (addrlen <= sizeof(sa_family_t) || sizeof(struct sockaddr_un) < addrlen)
         return -EINVAL;
 
-    sockaddr_un addr_un;
+    struct sockaddr_un addr_un;
     if (!copy_from_user(&addr_un, user_addr, addrlen))
         return -EFAULT;
 
     if (addr_un.sun_family != AF_UNIX)
         return -EINVAL;
 
-    char path[sizeof(addr_un.sun_path) + 1];
+    char path[UNIX_PATH_MAX + 1];
     strncpy(path, addr_un.sun_path, sizeof(path));
 
     file_description* bound_desc = vfs_open(path, O_CREAT | O_EXCL, S_IFSOCK);
@@ -83,11 +84,11 @@ int sys_accept(int sockfd, struct sockaddr* user_addr,
                             sizeof(socklen_t)))
             return -EFAULT;
 
-        sockaddr_un addr_un = {.sun_family = AF_UNIX, .sun_path = {0}};
+        struct sockaddr_un addr_un = {.sun_family = AF_UNIX, .sun_path = {0}};
         if (!copy_to_user(user_addr, &addr_un, requested_addrlen))
             return -EFAULT;
 
-        socklen_t actual_addrlen = sizeof(sockaddr_un);
+        socklen_t actual_addrlen = sizeof(struct sockaddr_un);
         if (!copy_to_user(user_addrlen, &actual_addrlen, sizeof(socklen_t)))
             return -EFAULT;
     }
@@ -121,17 +122,17 @@ int sys_connect(int sockfd, const struct sockaddr* user_addr,
     if (socket->connected)
         return -EISCONN;
 
-    if (addrlen <= sizeof(sa_family_t) || sizeof(sockaddr_un) < addrlen)
+    if (addrlen <= sizeof(sa_family_t) || sizeof(struct sockaddr_un) < addrlen)
         return -EINVAL;
 
-    sockaddr_un addr_un;
+    struct sockaddr_un addr_un;
     if (!copy_from_user(&addr_un, user_addr, addrlen))
         return -EFAULT;
 
     if (addr_un.sun_family != AF_UNIX)
         return -EINVAL;
 
-    char path[sizeof(addr_un.sun_path) + 1];
+    char path[UNIX_PATH_MAX + 1];
     strncpy(path, addr_un.sun_path, sizeof(path));
 
     file_description* listener_desc = vfs_open(path, 0, 0);
