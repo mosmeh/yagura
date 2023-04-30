@@ -1,4 +1,4 @@
-#include "procfs.h"
+#include "procfs_private.h"
 #include <kernel/fs/dentry.h>
 #include <kernel/growable_buf.h>
 #include <kernel/memory/memory.h>

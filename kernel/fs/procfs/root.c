@@ -1,5 +1,4 @@
-#include "procfs.h"
-#include <common/stdio.h>
+#include "procfs_private.h"
 #include <common/stdlib.h>
 #include <kernel/api/dirent.h>
 #include <kernel/fs/dentry.h>
@@ -7,6 +6,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+#include <stdio.h>
 
 static int populate_cmdline(file_description* desc, growable_buf* buf) {
     (void)desc;
