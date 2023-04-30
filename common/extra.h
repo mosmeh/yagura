@@ -11,6 +11,8 @@
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+
 #define NODISCARD __attribute__((__warn_unused_result__))
 #define NOINLINE __attribute__((noinline))
 

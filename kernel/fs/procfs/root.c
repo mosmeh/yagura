@@ -31,7 +31,7 @@ static int populate_uptime(file_description* desc, growable_buf* buf) {
 static procfs_item_def root_items[] = {{"cmdline", populate_cmdline},
                                        {"meminfo", populate_meminfo},
                                        {"uptime", populate_uptime}};
-#define NUM_ITEMS (sizeof(root_items) / sizeof(procfs_item_def))
+#define NUM_ITEMS ARRAY_SIZE(root_items)
 
 static struct inode* procfs_root_lookup_child(struct inode* inode,
                                               const char* name) {

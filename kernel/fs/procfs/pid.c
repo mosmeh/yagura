@@ -49,7 +49,7 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
 }
 
 static procfs_item_def pid_items[] = {{"comm", populate_comm}};
-#define NUM_ITEMS (sizeof(pid_items) / sizeof(procfs_item_def))
+#define NUM_ITEMS ARRAY_SIZE(pid_items)
 
 struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid) {
     struct process* process = process_find_process_by_pid(pid);
