@@ -1,65 +1,52 @@
+#include "fb_private.h"
 #include <kernel/api/err.h>
-#include <kernel/api/fb.h>
-#include <kernel/api/sys/sysmacros.h>
-#include <kernel/fs/fs.h>
 #include <kernel/kprintf.h>
 #include <kernel/memory/memory.h>
 #include <kernel/multiboot.h>
 
-static uintptr_t fb_paddr;
-static struct fb_info fb_info;
+static uintptr_t paddr;
+static struct fb_info info;
 
-bool multiboot_fb_init(const multiboot_info_t* mb_info) {
-    if (!(mb_info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO))
-        return false;
-    if (mb_info->framebuffer_type != MULTIBOOT_FRAMEBUFFER_TYPE_RGB)
-        return false;
-
-    fb_paddr = mb_info->framebuffer_addr;
-    fb_info.width = mb_info->framebuffer_width;
-    fb_info.height = mb_info->framebuffer_height;
-    fb_info.pitch = mb_info->framebuffer_pitch;
-    fb_info.bpp = mb_info->framebuffer_bpp;
-    kprintf("Found framebuffer at P0x%x\n", fb_paddr);
-    return true;
+static int multiboot_fb_get_info(struct fb_info* out_info) {
+    *out_info = info;
+    return 0;
 }
 
-static int multiboot_fb_device_mmap(file_description* desc, uintptr_t addr,
-                                    size_t length, off_t offset,
-                                    uint16_t page_flags) {
-    (void)desc;
+static int multiboot_fb_set_info(struct fb_info* inout_info) {
+    (void)inout_info;
+    return -ENOTSUP;
+}
+
+static int multiboot_fb_mmap(uintptr_t addr, size_t length, off_t offset,
+                             uint16_t page_flags) {
     if (offset != 0)
         return -ENXIO;
     if (!(page_flags & PAGE_SHARED))
         return -ENODEV;
 
-    return paging_map_to_physical_range(addr, fb_paddr, length,
+    return paging_map_to_physical_range(addr, paddr, length,
                                         page_flags | PAGE_PAT);
 }
 
-static int multiboot_fb_device_ioctl(file_description* desc, int request,
-                                     void* argp) {
-    (void)desc;
-    switch (request) {
-    case FBIOGET_INFO:
-        *(struct fb_info*)argp = fb_info;
-        return 0;
-    case FBIOSET_INFO:
-        return -ENOTSUP;
-    }
-    return -EINVAL;
-}
+struct fb* multiboot_fb_init(const multiboot_info_t* mb_info) {
+    if (!(mb_info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO))
+        return NULL;
+    if (mb_info->framebuffer_type != MULTIBOOT_FRAMEBUFFER_TYPE_RGB)
+        return NULL;
 
-struct inode* multiboot_fb_device_create(void) {
-    struct inode* inode = kmalloc(sizeof(struct inode));
-    if (!inode)
+    paddr = mb_info->framebuffer_addr;
+    info.width = mb_info->framebuffer_width;
+    info.height = mb_info->framebuffer_height;
+    info.pitch = mb_info->framebuffer_pitch;
+    info.bpp = mb_info->framebuffer_bpp;
+    kprintf("Found framebuffer at P0x%x\n", paddr);
+
+    struct fb* fb = kmalloc(sizeof(struct fb));
+    if (!fb)
         return ERR_PTR(-ENOMEM);
+    *fb = (struct fb){.get_info = multiboot_fb_get_info,
+                      .set_info = multiboot_fb_set_info,
+                      .mmap = multiboot_fb_mmap};
 
-    static file_ops fops = {.mmap = multiboot_fb_device_mmap,
-                            .ioctl = multiboot_fb_device_ioctl};
-    *inode = (struct inode){.fops = &fops,
-                            .mode = S_IFBLK,
-                            .device_id = makedev(29, 0),
-                            .ref_count = 1};
-    return inode;
+    return fb;
 }

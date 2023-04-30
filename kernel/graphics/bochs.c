@@ -1,8 +1,6 @@
+#include "fb_private.h"
 #include <kernel/api/err.h>
-#include <kernel/api/fb.h>
-#include <kernel/api/sys/sysmacros.h>
 #include <kernel/asm_wrapper.h>
-#include <kernel/fs/fs.h>
 #include <kernel/kprintf.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
@@ -26,15 +24,15 @@
 #define VBE_DISPI_ENABLED 0x01
 #define VBE_DISPI_LFB_ENABLED 0x40
 
-static uintptr_t fb_paddr;
-static struct fb_info fb_info;
+static uintptr_t paddr;
+static struct fb_info info;
 static mutex lock;
 
 static void pci_enumeration_callback(const struct pci_addr* addr,
                                      uint16_t vendor_id, uint16_t device_id) {
     if ((vendor_id == 0x1234 && device_id == 0x1111) ||
         (vendor_id == 0x80ee && device_id == 0xbeef))
-        fb_paddr = pci_get_bar0(addr) & 0xfffffff0;
+        paddr = pci_get_bar0(addr) & 0xfffffff0;
 }
 
 static uint16_t read_reg(uint16_t index) {
@@ -57,66 +55,51 @@ static void configure(size_t width, size_t height, size_t bpp) {
     write_reg(VBE_DISPI_INDEX_ENABLE,
               VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED);
 
-    fb_info.width = read_reg(VBE_DISPI_INDEX_XRES);
-    fb_info.height = read_reg(VBE_DISPI_INDEX_YRES);
-    fb_info.bpp = read_reg(VBE_DISPI_INDEX_BPP);
-    fb_info.pitch = fb_info.width * (fb_info.bpp / 8);
+    info.width = read_reg(VBE_DISPI_INDEX_XRES);
+    info.height = read_reg(VBE_DISPI_INDEX_YRES);
+    info.bpp = read_reg(VBE_DISPI_INDEX_BPP);
+    info.pitch = info.width * (info.bpp / 8);
 }
 
-bool bochs_fb_init(void) {
-    pci_enumerate(pci_enumeration_callback);
-    if (!fb_paddr)
-        return false;
-
-    kprintf("Found framebuffer at P0x%x\n", fb_paddr);
-    configure(640, 480, 32);
-    return true;
+static int bochs_fb_get_info(struct fb_info* out_info) {
+    mutex_lock(&lock);
+    *out_info = info;
+    mutex_unlock(&lock);
+    return 0;
 }
 
-static int bochs_fb_device_mmap(file_description* desc, uintptr_t addr,
-                                size_t length, off_t offset,
-                                uint16_t page_flags) {
-    (void)desc;
+static int bochs_fb_set_info(struct fb_info* inout_info) {
+    mutex_lock(&lock);
+    configure(inout_info->width, inout_info->height, inout_info->bpp);
+    *inout_info = info;
+    mutex_unlock(&lock);
+    return 0;
+}
+
+static int bochs_fb_mmap(uintptr_t addr, size_t length, off_t offset,
+                         uint16_t page_flags) {
     if (offset != 0)
         return -ENXIO;
     if (!(page_flags & PAGE_SHARED))
         return -ENODEV;
 
-    return paging_map_to_physical_range(addr, fb_paddr, length, page_flags);
+    return paging_map_to_physical_range(addr, paddr, length, page_flags);
 }
 
-static int bochs_fb_device_ioctl(file_description* desc, int request,
-                                 void* argp) {
-    (void)desc;
-    switch (request) {
-    case FBIOGET_INFO: {
-        mutex_lock(&lock);
-        *(struct fb_info*)argp = fb_info;
-        mutex_unlock(&lock);
-        return 0;
-    }
-    case FBIOSET_INFO: {
-        struct fb_info* request = (struct fb_info*)argp;
-        mutex_lock(&lock);
-        configure(request->width, request->height, request->bpp);
-        *(struct fb_info*)argp = fb_info;
-        mutex_unlock(&lock);
-        return 0;
-    }
-    }
-    return -EINVAL;
-}
+struct fb* bochs_fb_init(void) {
+    pci_enumerate(pci_enumeration_callback);
+    if (!paddr)
+        return NULL;
 
-struct inode* bochs_fb_device_create(void) {
-    struct inode* inode = kmalloc(sizeof(struct inode));
-    if (!inode)
+    kprintf("Found framebuffer at P0x%x\n", paddr);
+    configure(640, 480, 32);
+
+    struct fb* fb = kmalloc(sizeof(struct fb));
+    if (!fb)
         return ERR_PTR(-ENOMEM);
+    *fb = (struct fb){.get_info = bochs_fb_get_info,
+                      .set_info = bochs_fb_set_info,
+                      .mmap = bochs_fb_mmap};
 
-    static file_ops fops = {.mmap = bochs_fb_device_mmap,
-                            .ioctl = bochs_fb_device_ioctl};
-    *inode = (struct inode){.fops = &fops,
-                            .mode = S_IFBLK,
-                            .device_id = makedev(29, 0),
-                            .ref_count = 1};
-    return inode;
+    return fb;
 }

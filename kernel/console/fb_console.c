@@ -10,7 +10,7 @@
 #include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/api/sys/types.h>
-#include <kernel/fs/fs.h>
+#include <kernel/graphics/graphics.h>
 #include <kernel/hid/hid.h>
 #include <kernel/interrupts.h>
 #include <kernel/lock.h>
@@ -41,8 +41,8 @@ struct cell {
 static struct font* font;
 static uintptr_t fb_addr;
 static struct fb_info fb_info;
-static size_t console_width;
-static size_t console_height;
+static size_t num_columns;
+static size_t num_rows;
 static size_t cursor_x = 0;
 static size_t cursor_y = 0;
 static bool is_cursor_visible = true;
@@ -63,7 +63,7 @@ static void set_cursor(size_t x, size_t y) {
 }
 
 static void clear_line_at(size_t x, size_t y, size_t length) {
-    struct cell* cell = cells + x + y * console_width;
+    struct cell* cell = cells + x + y * num_columns;
     for (size_t i = 0; i < length; ++i) {
         cell->ch = ' ';
         cell->fg_color = fg_color;
@@ -74,13 +74,13 @@ static void clear_line_at(size_t x, size_t y, size_t length) {
 }
 
 static void clear_screen(void) {
-    for (size_t y = 0; y < console_height; ++y)
-        clear_line_at(0, y, console_width);
+    for (size_t y = 0; y < num_rows; ++y)
+        clear_line_at(0, y, num_columns);
     whole_screen_should_be_cleared = true;
 }
 
 static void write_char_at(size_t x, size_t y, char c) {
-    struct cell* cell = cells + x + y * console_width;
+    struct cell* cell = cells + x + y * num_columns;
     cell->ch = c;
     cell->fg_color = fg_color;
     cell->bg_color = bg_color;
@@ -88,11 +88,11 @@ static void write_char_at(size_t x, size_t y, char c) {
 }
 
 static void scroll_up(void) {
-    memmove(cells, cells + console_width,
-            console_width * (console_height - 1) * sizeof(struct cell));
-    for (size_t y = 0; y < console_height - 1; ++y)
+    memmove(cells, cells + num_columns,
+            num_columns * (num_rows - 1) * sizeof(struct cell));
+    for (size_t y = 0; y < num_rows - 1; ++y)
         line_is_dirty[y] = true;
-    clear_line_at(0, console_height - 1, console_width);
+    clear_line_at(0, num_rows - 1, num_columns);
 }
 
 static void flush_cell_at(size_t x, size_t y, struct cell* cell) {
@@ -128,14 +128,14 @@ static void flush(void) {
 
     struct cell* row_cells = cells;
     bool* dirty = line_is_dirty;
-    for (size_t y = 0; y < console_height; ++y) {
+    for (size_t y = 0; y < num_rows; ++y) {
         if (*dirty) {
             struct cell* cell = row_cells;
-            for (size_t x = 0; x < console_width; ++x)
+            for (size_t x = 0; x < num_columns; ++x)
                 flush_cell_at(x, y, cell++);
             *dirty = false;
         }
-        row_cells += console_width;
+        row_cells += num_columns;
         ++dirty;
     }
 }
@@ -163,16 +163,16 @@ static void handle_ground(char c) {
             return;
         if (stomp)
             set_cursor(0, cursor_y + 1);
-        if (cursor_y >= console_height) {
+        if (cursor_y >= num_rows) {
             scroll_up();
-            set_cursor(cursor_x, console_height - 1);
+            set_cursor(cursor_x, num_rows - 1);
         }
         write_char_at(cursor_x, cursor_y, c);
         set_cursor(cursor_x + 1, cursor_y);
         break;
     }
-    if (cursor_x >= console_width) {
-        set_cursor(console_width - 1, cursor_y);
+    if (cursor_x >= num_columns) {
+        set_cursor(num_columns - 1, cursor_y);
 
         // event if we reach at the right end of a screen, we don't proceed to
         // the next line until we write the next character
@@ -210,8 +210,8 @@ static void handle_csi_cud(void) {
     unsigned dy = atoi(param_buf);
     if (dy == 0)
         dy = 1;
-    if (dy + cursor_y >= console_height)
-        set_cursor(cursor_x, console_height - 1);
+    if (dy + cursor_y >= num_rows)
+        set_cursor(cursor_x, num_rows - 1);
     else
         set_cursor(cursor_x, cursor_y + dy);
 }
@@ -221,8 +221,8 @@ static void handle_csi_cuf(void) {
     unsigned dx = atoi(param_buf);
     if (dx == 0)
         dx = 1;
-    if (dx + cursor_x >= console_width)
-        set_cursor(console_width - 1, cursor_y);
+    if (dx + cursor_x >= num_columns)
+        set_cursor(num_columns - 1, cursor_y);
     else
         set_cursor(cursor_x + dx, cursor_y);
 }
@@ -243,8 +243,8 @@ static void handle_csi_cha(void) {
     unsigned x = atoi(param_buf);
     if (x > 0)
         --x;
-    if (x >= console_width)
-        x = console_width - 1;
+    if (x >= num_columns)
+        x = num_columns - 1;
     set_cursor(x, cursor_y);
 }
 
@@ -272,10 +272,10 @@ static void handle_csi_cup(void) {
         param = strtok_r(NULL, sep, &saved_ptr);
     }
 
-    if (x >= console_width)
-        x = console_width - 1;
-    if (y >= console_height)
-        y = console_height - 1;
+    if (x >= num_columns)
+        x = num_columns - 1;
+    if (y >= num_rows)
+        y = num_rows - 1;
     set_cursor(x, y);
 }
 
@@ -283,14 +283,14 @@ static void handle_csi_cup(void) {
 static void handle_csi_ed(void) {
     switch (atoi(param_buf)) {
     case 0:
-        clear_line_at(cursor_x, cursor_y, console_width - cursor_x);
-        for (size_t y = cursor_y + 1; y < console_height; ++y)
-            clear_line_at(0, y, console_width);
+        clear_line_at(cursor_x, cursor_y, num_columns - cursor_x);
+        for (size_t y = cursor_y + 1; y < num_rows; ++y)
+            clear_line_at(0, y, num_columns);
         break;
     case 1:
         if (cursor_y > 0) {
             for (size_t y = 0; y < cursor_y; ++y)
-                clear_line_at(0, y, console_width);
+                clear_line_at(0, y, num_columns);
         }
         clear_line_at(0, cursor_y, cursor_x + 1);
         break;
@@ -304,13 +304,13 @@ static void handle_csi_ed(void) {
 static void handle_csi_el(void) {
     switch (atoi(param_buf)) {
     case 0:
-        clear_line_at(cursor_x, cursor_y, console_width - cursor_x);
+        clear_line_at(cursor_x, cursor_y, num_columns - cursor_x);
         break;
     case 1:
         clear_line_at(0, cursor_y, cursor_x + 1);
         break;
     case 2:
-        clear_line_at(0, cursor_y, console_width);
+        clear_line_at(0, cursor_y, num_columns);
         break;
     }
 }
@@ -496,33 +496,27 @@ void fb_console_init(void) {
     font = load_psf("/usr/share/fonts/ter-u16n.psf");
     ASSERT_OK(font);
 
-    file_description* desc = vfs_open("/dev/fb0", O_RDWR, 0);
-    ASSERT_OK(desc);
-
-    ASSERT_OK(file_description_ioctl(desc, FBIOGET_INFO, &fb_info));
+    ASSERT_OK(fb_get_info(&fb_info));
     ASSERT(fb_info.bpp == 32);
 
-    console_width = fb_info.width / font->glyph_width;
-    console_height = fb_info.height / font->glyph_height;
+    num_columns = fb_info.width / font->glyph_width;
+    num_rows = fb_info.height / font->glyph_height;
 
-    cells = kmalloc(console_width * console_height * sizeof(struct cell));
+    cells = kmalloc(num_columns * num_rows * sizeof(struct cell));
     ASSERT(cells);
-    line_is_dirty = kmalloc(console_height * sizeof(bool));
+    line_is_dirty = kmalloc(num_rows * sizeof(bool));
     ASSERT(line_is_dirty);
 
     size_t fb_size = fb_info.pitch * fb_info.height;
     fb_addr = range_allocator_alloc(&kernel_vaddr_allocator, fb_size);
     ASSERT_OK(fb_addr);
-    ASSERT_OK(file_description_mmap(desc, fb_addr, fb_size, 0,
-                                    PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL));
-
-    ASSERT_OK(file_description_close(desc));
+    ASSERT_OK(
+        fb_mmap(fb_addr, fb_size, 0, PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL));
 
     clear_screen();
     flush();
 
     ASSERT_OK(ring_buf_init(&input_buf));
-
     ps2_set_key_event_handler(on_key_event);
 
     initialized = true;
@@ -587,8 +581,8 @@ static int fb_console_device_ioctl(file_description* desc, int request,
     }
     case TIOCGWINSZ: {
         struct winsize* winsize = (struct winsize*)argp;
-        winsize->ws_col = console_width;
-        winsize->ws_row = console_height;
+        winsize->ws_col = num_columns;
+        winsize->ws_row = num_rows;
         winsize->ws_xpixel = winsize->ws_ypixel = 0;
         return 0;
     }
