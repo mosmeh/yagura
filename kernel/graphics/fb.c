@@ -4,6 +4,7 @@
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
 #include <kernel/memory/memory.h>
+#include <kernel/safe_string.h>
 #include <stddef.h>
 
 static struct fb* fb;
@@ -30,7 +31,8 @@ static int fb_device_mmap(file_description* desc, uintptr_t addr, size_t length,
     return fb_mmap(addr, length, offset, page_flags);
 }
 
-static int fb_device_ioctl(file_description* desc, int request, void* argp) {
+static int fb_device_ioctl(file_description* desc, int request,
+                           void* user_argp) {
     (void)desc;
 
     struct fb_info info;
@@ -42,7 +44,8 @@ static int fb_device_ioctl(file_description* desc, int request, void* argp) {
         break;
     }
     case FBIOSET_INFO: {
-        info = *(struct fb_info*)argp;
+        if (!copy_from_user(&info, user_argp, sizeof(struct fb_info)))
+            return -EFAULT;
         int rc = fb_set_info(&info);
         if (IS_ERR(rc))
             return rc;
@@ -52,7 +55,8 @@ static int fb_device_ioctl(file_description* desc, int request, void* argp) {
         return -EINVAL;
     }
 
-    *(struct fb_info*)argp = info;
+    if (!copy_to_user(user_argp, &info, sizeof(struct fb_info)))
+        return -EFAULT;
     return 0;
 }
 

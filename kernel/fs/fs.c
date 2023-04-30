@@ -6,6 +6,7 @@
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
+#include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
 
 int file_descriptor_table_init(file_descriptor_table* table) {
@@ -246,11 +247,12 @@ off_t file_description_seek(file_description* desc, off_t offset, int whence) {
     }
 }
 
-int file_description_ioctl(file_description* desc, int request, void* argp) {
+int file_description_ioctl(file_description* desc, int request,
+                           void* user_argp) {
     struct inode* inode = desc->inode;
     if (!inode->fops->ioctl)
         return -ENOTTY;
-    return inode->fops->ioctl(desc, request, argp);
+    return inode->fops->ioctl(desc, request, user_argp);
 }
 
 int file_description_getdents(file_description* desc,

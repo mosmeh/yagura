@@ -6,6 +6,7 @@
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/ring_buf.h>
+#include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
 #include <kernel/serial.h>
 
@@ -78,14 +79,17 @@ static ssize_t serial_console_device_write(file_description* desc,
 }
 
 static int serial_console_device_ioctl(file_description* desc, int request,
-                                       void* argp) {
+                                       void* user_argp) {
     (void)desc;
     switch (request) {
     case TIOCGPGRP:
-        *(pid_t*)argp = pgid;
+        if (!copy_to_user(user_argp, &pgid, sizeof(pid_t)))
+            return -EFAULT;
         return 0;
     case TIOCSPGRP: {
-        pid_t new_pgid = *(pid_t*)argp;
+        pid_t new_pgid;
+        if (!copy_from_user(&new_pgid, user_argp, sizeof(pid_t)))
+            return -EFAULT;
         if (new_pgid < 0)
             return -EINVAL;
         pgid = new_pgid;

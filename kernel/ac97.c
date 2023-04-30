@@ -6,8 +6,9 @@
 #include "interrupts.h"
 #include "memory/memory.h"
 #include "pci.h"
+#include "safe_string.h"
 #include "system.h"
-#include <common/string.h>
+#include <string.h>
 
 #define PCI_CLASS_MULTIMEDIA 4
 #define PCI_SUBCLASS_AUDIO_CONTROLLER 1
@@ -216,29 +217,45 @@ static ssize_t ac97_device_write(file_description* desc, const void* buffer,
     return nwritten;
 }
 
-static int ac97_device_ioctl(file_description* desc, int request, void* argp) {
+static int ac97_device_ioctl(file_description* desc, int request,
+                             void* user_argp) {
     (void)desc;
 
-    uint16_t* value = (uint16_t*)argp;
     switch (request) {
-    case SOUND_GET_SAMPLE_RATE:
-        *value = in16(mixer_base + MIXER_SAMPLE_RATE);
-        return 0;
-    case SOUND_SET_SAMPLE_RATE: {
-        out16(mixer_base + MIXER_SAMPLE_RATE, *value);
-        uint16_t new_sample_rate = in16(mixer_base + MIXER_SAMPLE_RATE);
-        if (dma_is_running)
-            start_dma();
-        *value = new_sample_rate;
+    case SOUND_GET_SAMPLE_RATE: {
+        uint16_t value = in16(mixer_base + MIXER_SAMPLE_RATE);
+        if (!copy_to_user(user_argp, &value, sizeof(uint16_t)))
+            return -EFAULT;
         return 0;
     }
-    case SOUND_GET_ATTENUATION:
-        *value = in16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME);
+    case SOUND_SET_SAMPLE_RATE: {
+        uint16_t value;
+        if (!copy_from_user(&value, user_argp, sizeof(uint16_t)))
+            return -EFAULT;
+        out16(mixer_base + MIXER_SAMPLE_RATE, value);
+        value = in16(mixer_base + MIXER_SAMPLE_RATE);
+        if (dma_is_running)
+            start_dma();
+        if (!copy_to_user(user_argp, &value, sizeof(uint16_t)))
+            return -EFAULT;
         return 0;
-    case SOUND_SET_ATTENUATION:
-        out16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME, *value);
-        *value = in16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME);
+    }
+    case SOUND_GET_ATTENUATION: {
+        uint16_t value = in16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME);
+        if (!copy_to_user(user_argp, &value, sizeof(uint16_t)))
+            return -EFAULT;
         return 0;
+    }
+    case SOUND_SET_ATTENUATION: {
+        uint16_t value;
+        if (!copy_from_user(&value, user_argp, sizeof(uint16_t)))
+            return -EFAULT;
+        out16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME, value);
+        value = in16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME);
+        if (!copy_to_user(user_argp, &value, sizeof(uint16_t)))
+            return -EFAULT;
+        return 0;
+    }
     }
     return -EINVAL;
 }

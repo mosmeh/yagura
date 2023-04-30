@@ -1,9 +1,9 @@
 #include "console.h"
-#include "kernel/panic.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
 #include <kernel/memory/memory.h>
+#include <kernel/panic.h>
 
 static file_description* active_console = NULL;
 
@@ -32,9 +32,9 @@ static ssize_t system_console_device_write(file_description* desc,
 }
 
 static int system_console_device_ioctl(file_description* desc, int request,
-                                       void* argp) {
+                                       void* user_argp) {
     (void)desc;
-    return file_description_ioctl(active_console, request, argp);
+    return file_description_ioctl(active_console, request, user_argp);
 }
 
 struct inode* system_console_device_create(void) {

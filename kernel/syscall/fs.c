@@ -85,11 +85,13 @@ int sys_stat(const char* user_pathname, struct stat* user_buf) {
     return 0;
 }
 
-int sys_ioctl(int fd, int request, void* argp) {
+int sys_ioctl(int fd, int request, void* user_argp) {
+    if (!is_user_address(user_argp))
+        return -EFAULT;
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    return file_description_ioctl(desc, request, argp);
+    return file_description_ioctl(desc, request, user_argp);
 }
 
 int sys_mkdir(const char* user_pathname, mode_t mode) {

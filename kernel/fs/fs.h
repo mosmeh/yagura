@@ -52,7 +52,7 @@ typedef ssize_t (*write_fn)(file_description*, const void* buffer,
 typedef int (*mmap_fn)(file_description*, uintptr_t addr, size_t length,
                        off_t offset, uint16_t page_flags);
 typedef int (*truncate_fn)(file_description*, off_t length);
-typedef int (*ioctl_fn)(file_description*, int request, void* argp);
+typedef int (*ioctl_fn)(file_description*, int request, void* user_argp);
 
 typedef bool (*getdents_callback_fn)(const char* name, uint8_t type, void* ctx);
 typedef int (*getdents_fn)(file_description*, getdents_callback_fn callback,
@@ -112,7 +112,7 @@ NODISCARD int file_description_truncate(file_description*, off_t length);
 NODISCARD off_t file_description_seek(file_description*, off_t offset,
                                       int whence);
 NODISCARD int file_description_ioctl(file_description*, int request,
-                                     void* argp);
+                                     void* user_argp);
 NODISCARD int file_description_getdents(file_description*, getdents_callback_fn,
                                         void* ctx);
 

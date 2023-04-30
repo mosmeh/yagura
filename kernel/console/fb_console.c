@@ -18,8 +18,8 @@
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/ring_buf.h>
+#include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
-#include <string.h>
 
 #define TAB_STOP 8
 
@@ -566,24 +566,29 @@ static ssize_t fb_console_device_write(file_description* desc,
 }
 
 static int fb_console_device_ioctl(file_description* desc, int request,
-                                   void* argp) {
+                                   void* user_argp) {
     (void)desc;
     switch (request) {
     case TIOCGPGRP:
-        *(pid_t*)argp = pgid;
+        if (!copy_to_user(user_argp, &pgid, sizeof(pid_t)))
+            return -EFAULT;
         return 0;
     case TIOCSPGRP: {
-        pid_t new_pgid = *(pid_t*)argp;
+        pid_t new_pgid;
+        if (!copy_from_user(&new_pgid, user_argp, sizeof(pid_t)))
+            return -EFAULT;
         if (new_pgid < 0)
             return -EINVAL;
         pgid = new_pgid;
         return 0;
     }
     case TIOCGWINSZ: {
-        struct winsize* winsize = (struct winsize*)argp;
-        winsize->ws_col = num_columns;
-        winsize->ws_row = num_rows;
-        winsize->ws_xpixel = winsize->ws_ypixel = 0;
+        struct winsize winsize = {.ws_col = num_columns,
+                                  .ws_row = num_rows,
+                                  .ws_xpixel = 0,
+                                  .ws_ypixel = 0};
+        if (!copy_to_user(user_argp, &winsize, sizeof(struct winsize)))
+            return -EFAULT;
         return 0;
     }
     }
