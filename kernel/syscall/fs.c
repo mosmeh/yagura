@@ -1,3 +1,4 @@
+#include "syscall.h"
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/limits.h>

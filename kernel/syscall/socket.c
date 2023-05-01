@@ -1,3 +1,4 @@
+#include "syscall.h"
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/socket.h>

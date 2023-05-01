@@ -1,3 +1,4 @@
+#include "syscall.h"
 #include <common/string.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/times.h>
@@ -9,7 +10,7 @@
 #include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
 
-noreturn uintptr_t sys_exit(int status) { process_exit(status); }
+void sys_exit(int status) { process_exit(status); }
 
 pid_t sys_getpid(void) { return current->pid; }
 

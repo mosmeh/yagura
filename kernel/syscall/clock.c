@@ -1,3 +1,4 @@
+#include "syscall.h"
 #include <kernel/api/err.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/time.h>

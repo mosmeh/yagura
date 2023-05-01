@@ -6,8 +6,6 @@
 #include <kernel/api/sys/times.h>
 #include <kernel/api/time.h>
 #include <kernel/forward.h>
-#include <stddef.h>
-#include <stdnoreturn.h>
 
 int sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen);
 int sys_bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
@@ -21,7 +19,7 @@ int sys_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
 int sys_dbgputs(const char* str);
 int sys_dup2(int oldfd, int newfd);
 int sys_execve(const char* pathname, char* const argv[], char* const envp[]);
-noreturn void sys_exit(int status);
+void sys_exit(int status);
 int sys_fcntl(int fd, int cmd, uintptr_t arg);
 pid_t sys_fork(registers*);
 int sys_ftruncate(int fd, off_t length);

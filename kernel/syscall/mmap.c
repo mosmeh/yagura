@@ -1,3 +1,4 @@
+#include "syscall.h"
 #include <common/extra.h>
 #include <kernel/api/err.h>
 #include <kernel/api/sys/mman.h>
