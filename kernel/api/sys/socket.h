@@ -7,6 +7,8 @@
 
 #define SOCK_STREAM 1
 
+enum { SHUT_RD, SHUT_WR, SHUT_RDWR };
+
 typedef uint16_t sa_family_t;
 typedef uint32_t socklen_t;
 

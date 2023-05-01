@@ -46,6 +46,7 @@ int sys_rename(const char* oldpath, const char* newpath);
 int sys_rmdir(const char* pathname);
 int sys_sched_yield(void);
 int sys_setpgid(pid_t pid, pid_t pgid);
+int sys_shutdown(int sockfd, int how);
 int sys_socket(int domain, int type, int protocol);
 int sys_stat(const char* pathname, struct stat* buf);
 long sys_sysconf(int name);

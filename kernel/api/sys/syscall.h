@@ -41,6 +41,7 @@
     F(rmdir)                                                                   \
     F(sched_yield)                                                             \
     F(setpgid)                                                                 \
+    F(shutdown)                                                                \
     F(socket)                                                                  \
     F(stat)                                                                    \
     F(sysconf)                                                                 \

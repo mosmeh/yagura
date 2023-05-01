@@ -236,6 +236,11 @@ int setpgid(pid_t pid, pid_t pgid) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
+int shutdown(int sockfd, int how) {
+    int rc = syscall(SYS_shutdown, sockfd, how, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 int socket(int domain, int type, int protocol) {
     int rc = syscall(SYS_socket, domain, type, protocol, 0);
     RETURN_WITH_ERRNO(rc, int)
