@@ -21,7 +21,11 @@ void* kaligned_alloc(size_t alignment, size_t size) {
     ASSERT(alignment <= PAGE_SIZE);
 
     size_t data_offset = round_up(sizeof(struct header), alignment);
+    if (data_offset == 0)
+        return NULL;
     size_t real_size = data_offset + size;
+    if (real_size < size)
+        return NULL;
     uintptr_t addr = range_allocator_alloc(&kernel_vaddr_allocator, real_size);
     if (IS_ERR(addr))
         return NULL;
