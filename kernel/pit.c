@@ -4,7 +4,7 @@
 #include "panic.h"
 #include "process.h"
 #include "scheduler.h"
-#include "system.h"
+#include "time.h"
 
 #define TIMER0_CTL 0x40
 #define PIT_CTL 0x43

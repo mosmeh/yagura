@@ -2,8 +2,41 @@
 #include "asm_wrapper.h"
 #include "interrupts.h"
 #include "panic.h"
-#include "system.h"
+#include "time.h"
 #include <common/calendar.h>
+
+void timespec_add(struct timespec* this, const struct timespec* other) {
+    this->tv_sec += other->tv_sec;
+    this->tv_nsec += other->tv_nsec;
+    if (this->tv_nsec >= 1000000000) {
+        ++this->tv_sec;
+        this->tv_nsec -= 1000000000;
+    }
+}
+
+void timespec_saturating_sub(struct timespec* this,
+                             const struct timespec* other) {
+    this->tv_sec -= other->tv_sec;
+    this->tv_nsec -= other->tv_nsec;
+    if (this->tv_nsec < 0) {
+        --this->tv_sec;
+        this->tv_nsec += 1000000000;
+    }
+    if (this->tv_sec < 0)
+        this->tv_sec = this->tv_nsec = 0;
+}
+
+int timespec_compare(const struct timespec* a, const struct timespec* b) {
+    if (a->tv_sec > b->tv_sec)
+        return 1;
+    if (a->tv_sec < b->tv_sec)
+        return -1;
+    if (a->tv_nsec > b->tv_nsec)
+        return 1;
+    if (a->tv_nsec < b->tv_nsec)
+        return -1;
+    return 0;
+}
 
 static uint8_t cmos_read(uint8_t idx) {
     out8(0x70, idx);

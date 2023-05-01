@@ -13,7 +13,7 @@
 #include "scheduler.h"
 #include "serial.h"
 #include "syscall/syscall.h"
-#include "system.h"
+#include "time.h"
 
 static noreturn void init(void) {
     current->pid = current->pgid = process_generate_next_pid();

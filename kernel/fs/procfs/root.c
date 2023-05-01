@@ -6,6 +6,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+#include <kernel/time.h>
 #include <stdio.h>
 
 static int populate_cmdline(file_description* desc, growable_buf* buf) {

@@ -9,8 +9,6 @@
 #include <stdint.h>
 #include <stdnoreturn.h>
 
-#define CLK_TCK 250
-
 typedef struct registers {
     uint32_t ss, gs, fs, es, ds;
     uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
@@ -37,12 +35,6 @@ void cmdline_init(const multiboot_info_t*);
 const char* cmdline_get_raw(void);
 const char* cmdline_lookup(const char* key);
 bool cmdline_contains(const char* key);
-
-time_t rtc_now(void);
-
-void time_init(void);
-void time_tick(void);
-void time_now(struct timespec*);
 
 void random_init(void);
 ssize_t random_get(void* buffer, size_t count);

@@ -4,7 +4,7 @@
 #include <kernel/api/time.h>
 #include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
-#include <kernel/system.h>
+#include <kernel/time.h>
 
 int sys_clock_gettime(clockid_t clk_id, struct timespec* user_tp) {
     switch (clk_id) {
@@ -21,32 +21,10 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec* user_tp) {
     }
 }
 
-static void timespec_add(struct timespec* this, const struct timespec* other) {
-    this->tv_sec += other->tv_sec;
-    this->tv_nsec += other->tv_nsec;
-    if (this->tv_nsec >= 1000000000) {
-        ++this->tv_sec;
-        this->tv_nsec -= 1000000000;
-    }
-}
-
-static void timespec_saturating_sub(struct timespec* this,
-                                    const struct timespec* other) {
-    this->tv_sec -= other->tv_sec;
-    this->tv_nsec -= other->tv_nsec;
-    if (this->tv_nsec < 0) {
-        --this->tv_sec;
-        this->tv_nsec += 1000000000;
-    }
-    if (this->tv_sec < 0)
-        this->tv_sec = this->tv_nsec = 0;
-}
-
 static bool sleep_should_unblock(const struct timespec* deadline) {
-    struct timespec now = {0};
+    struct timespec now;
     time_now(&now);
-    return now.tv_sec > deadline->tv_sec ||
-           (now.tv_sec == deadline->tv_sec && now.tv_nsec >= deadline->tv_nsec);
+    return timespec_compare(&now, deadline) >= 0;
 }
 
 int sys_clock_nanosleep(clockid_t clockid, int flags,

@@ -1,6 +1,5 @@
 #include "syscall.h"
 #include <kernel/api/sys/reboot.h>
-#include <kernel/api/sys/syscall.h>
 #include <kernel/api/unistd.h>
 #include <kernel/boot_defs.h>
 #include <kernel/interrupts.h>
@@ -8,6 +7,7 @@
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/safe_string.h>
+#include <kernel/time.h>
 
 int sys_reboot(int howto) {
     switch (howto) {

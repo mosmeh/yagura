@@ -1,8 +1,9 @@
 #include "api/errno.h"
 #include "asm_wrapper.h"
 #include "kprintf.h"
-#include "system.h"
+#include "time.h"
 #include <common/extra.h>
+#include <stdalign.h>
 
 static bool use_rdrand = false;
 
