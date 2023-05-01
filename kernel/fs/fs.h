@@ -34,47 +34,27 @@ NODISCARD int
 file_descriptor_table_clone_from(file_descriptor_table* to,
                                  const file_descriptor_table* from);
 
-typedef void (*destroy_inode_fn)(struct inode*);
-
-typedef struct inode* (*lookup_child_fn)(struct inode*, const char* name);
-typedef struct inode* (*create_child_fn)(struct inode*, const char* name,
-                                         mode_t mode);
-typedef int (*link_child_fn)(struct inode*, const char* name,
-                             struct inode* child);
-typedef struct inode* (*unlink_child_fn)(struct inode*, const char* name);
-typedef int (*stat_fn)(struct inode*, struct stat* buf);
-
-typedef int (*open_fn)(file_description*, int flags, mode_t mode);
-typedef int (*close_fn)(file_description*);
-typedef ssize_t (*read_fn)(file_description*, void* buffer, size_t count);
-typedef ssize_t (*write_fn)(file_description*, const void* buffer,
-                            size_t count);
-typedef int (*mmap_fn)(file_description*, uintptr_t addr, size_t length,
-                       off_t offset, uint16_t page_flags);
-typedef int (*truncate_fn)(file_description*, off_t length);
-typedef int (*ioctl_fn)(file_description*, int request, void* user_argp);
-
 typedef bool (*getdents_callback_fn)(const char* name, uint8_t type, void* ctx);
-typedef int (*getdents_fn)(file_description*, getdents_callback_fn callback,
-                           void* ctx);
 
 typedef struct file_ops {
-    destroy_inode_fn destroy_inode;
+    void (*destroy_inode)(struct inode*);
 
-    lookup_child_fn lookup_child;
-    create_child_fn create_child;
-    link_child_fn link_child;
-    unlink_child_fn unlink_child;
-    open_fn open;
-    stat_fn stat;
+    struct inode* (*lookup_child)(struct inode*, const char* name);
+    struct inode* (*create_child)(struct inode*, const char* name, mode_t mode);
+    int (*link_child)(struct inode*, const char* name, struct inode* child);
+    struct inode* (*unlink_child)(struct inode*, const char* name);
+    int (*open)(file_description*, int flags, mode_t mode);
+    int (*stat)(struct inode*, struct stat* buf);
 
-    close_fn close;
-    read_fn read;
-    write_fn write;
-    mmap_fn mmap;
-    truncate_fn truncate;
-    ioctl_fn ioctl;
-    getdents_fn getdents;
+    int (*close)(file_description*);
+    ssize_t (*read)(file_description*, void* buffer, size_t count);
+    ssize_t (*write)(file_description*, const void* buffer, size_t count);
+    int (*mmap)(file_description*, uintptr_t addr, size_t length, off_t offset,
+                uint16_t page_flags);
+    int (*truncate)(file_description*, off_t length);
+    int (*ioctl)(file_description*, int request, void* user_argp);
+    int (*getdents)(file_description*, getdents_callback_fn callback,
+                    void* ctx);
 } file_ops;
 
 struct inode {
