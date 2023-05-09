@@ -1,4 +1,5 @@
 #include "api/signum.h"
+#include "api/sys/poll.h"
 #include "api/sys/socket.h"
 #include "memory/memory.h"
 #include "panic.h"
@@ -116,6 +117,26 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
     }
 }
 
+static short unix_socket_poll(file_description* desc, short events) {
+    unix_socket* socket = (unix_socket*)desc->inode;
+    short revents = 0;
+    if (events & POLLIN) {
+        bool can_read = socket->is_connected ? read_should_unblock(desc)
+                                             : socket->num_pending > 0;
+        if (can_read)
+            revents |= POLLIN;
+    }
+    if (events & POLLOUT) {
+        bool can_write = socket->is_connected && write_should_unblock(desc);
+        if (can_write)
+            revents |= POLLOUT;
+    }
+    if (!socket->is_open_for_writing_to_connector &&
+        !socket->is_open_for_writing_to_acceptor)
+        revents |= POLLHUP;
+    return revents;
+}
+
 unix_socket* unix_socket_create(void) {
     unix_socket* socket = kmalloc(sizeof(unix_socket));
     if (!socket)
@@ -126,7 +147,8 @@ unix_socket* unix_socket_create(void) {
     static file_ops fops = {.destroy_inode = unix_socket_destroy_inode,
                             .close = unix_socket_close,
                             .read = unix_socket_read,
-                            .write = unix_socket_write};
+                            .write = unix_socket_write,
+                            .poll = unix_socket_poll};
     inode->fops = &fops;
     inode->mode = S_IFSOCK;
     inode->ref_count = 1;

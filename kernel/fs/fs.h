@@ -55,6 +55,7 @@ typedef struct file_ops {
     int (*ioctl)(file_description*, int request, void* user_argp);
     int (*getdents)(file_description*, getdents_callback_fn callback,
                     void* ctx);
+    short (*poll)(file_description*, short events);
 } file_ops;
 
 struct inode {

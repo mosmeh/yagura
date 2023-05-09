@@ -35,6 +35,7 @@
     F(munmap)                                                                  \
     F(open)                                                                    \
     F(pipe)                                                                    \
+    F(poll)                                                                    \
     F(read)                                                                    \
     F(reboot)                                                                  \
     F(rename)                                                                  \

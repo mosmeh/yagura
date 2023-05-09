@@ -51,6 +51,7 @@ OBJS := \
 	syscall/clock.o \
 	syscall/fs.o \
 	syscall/mmap.o \
+	syscall/poll.o \
 	syscall/process.o \
 	syscall/socket.o \
 	syscall/syscall.o \

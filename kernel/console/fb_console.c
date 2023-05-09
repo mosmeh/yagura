@@ -8,6 +8,7 @@
 #include <kernel/api/hid.h>
 #include <kernel/api/signum.h>
 #include <kernel/api/sys/ioctl.h>
+#include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/graphics/graphics.h>
@@ -522,12 +523,16 @@ void fb_console_init(void) {
     initialized = true;
 }
 
+static bool can_read(void) {
+    bool int_flag = push_cli();
+    bool ret = !ring_buf_is_empty(&input_buf);
+    pop_cli(int_flag);
+    return ret;
+}
+
 static bool read_should_unblock(file_description* desc) {
     (void)desc;
-    bool int_flag = push_cli();
-    bool should_unblock = !ring_buf_is_empty(&input_buf);
-    pop_cli(int_flag);
-    return should_unblock;
+    return can_read();
 }
 
 static ssize_t fb_console_device_read(file_description* desc, void* buffer,
@@ -595,6 +600,16 @@ static int fb_console_device_ioctl(file_description* desc, int request,
     return -EINVAL;
 }
 
+static short fb_console_device_poll(file_description* desc, short events) {
+    (void)desc;
+    short revents = 0;
+    if ((events & POLLIN) && can_read())
+        revents |= POLLIN;
+    if (events & POLLOUT)
+        revents |= POLLOUT;
+    return revents;
+}
+
 struct inode* fb_console_device_create(void) {
     struct inode* inode = kmalloc(sizeof(struct inode));
     if (!inode)
@@ -602,7 +617,8 @@ struct inode* fb_console_device_create(void) {
 
     static file_ops fops = {.read = fb_console_device_read,
                             .write = fb_console_device_write,
-                            .ioctl = fb_console_device_ioctl};
+                            .ioctl = fb_console_device_ioctl,
+                            .poll = fb_console_device_poll};
     *inode = (struct inode){.fops = &fops,
                             .mode = S_IFCHR,
                             .device_id = makedev(5, 0),

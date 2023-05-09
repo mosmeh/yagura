@@ -1,5 +1,6 @@
 #include "api/err.h"
 #include "api/sound.h"
+#include "api/sys/poll.h"
 #include "api/sys/sysmacros.h"
 #include "boot_defs.h"
 #include "fs/fs.h"
@@ -133,9 +134,11 @@ static struct buffer_descriptor_list_entry
     buffer_descriptor_list[BUFFER_DESCRIPTOR_LIST_MAX_NUM_ENTRIES];
 static uint8_t buffer_descriptor_list_idx = 0;
 
+static bool can_write(void) { return !buffer_descriptor_list_is_full; }
+
 static bool write_should_unblock(file_description* desc) {
     (void)desc;
-    return !buffer_descriptor_list_is_full;
+    return can_write();
 }
 
 static void start_dma(void) {
@@ -260,13 +263,24 @@ static int ac97_device_ioctl(file_description* desc, int request,
     return -EINVAL;
 }
 
+static short ac97_device_poll(file_description* desc, short events) {
+    (void)desc;
+    short revents = 0;
+    if (events & POLLIN)
+        revents |= POLLIN;
+    if ((events & POLLOUT) && can_write())
+        revents |= POLLOUT;
+    return revents;
+}
+
 struct inode* ac97_device_create(void) {
     struct inode* inode = kmalloc(sizeof(struct inode));
     if (!inode)
         return ERR_PTR(-ENOMEM);
 
     static file_ops fops = {.write = ac97_device_write,
-                            .ioctl = ac97_device_ioctl};
+                            .ioctl = ac97_device_ioctl,
+                            .poll = ac97_device_poll};
     *inode = (struct inode){.fops = &fops,
                             .mode = S_IFCHR,
                             .device_id = makedev(14, 3),

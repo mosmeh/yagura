@@ -1,6 +1,7 @@
 #include "fs.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/api/signum.h>
+#include <kernel/api/sys/poll.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/ring_buf.h>
@@ -19,7 +20,6 @@ static void fifo_destroy_inode(struct inode* inode) {
 }
 
 static int fifo_open(file_description* desc, int flags, mode_t mode) {
-    (void)flags;
     (void)mode;
     if ((flags & O_RDONLY) && (flags & O_WRONLY))
         return -EINVAL;
@@ -69,8 +69,8 @@ static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
     }
 }
 
-static bool write_should_unblock(struct file_description* desc) {
-    struct fifo* fifo = (struct fifo*)desc->inode;
+static bool write_should_unblock(file_description* desc) {
+    const struct fifo* fifo = (const struct fifo*)desc->inode;
     return fifo->num_readers == 0 || !ring_buf_is_full(&fifo->buf);
 }
 
@@ -104,6 +104,20 @@ static ssize_t fifo_write(file_description* desc, const void* buffer,
     }
 }
 
+static short fifo_poll(file_description* desc, short events) {
+    short revents = 0;
+    const struct fifo* fifo = (const struct fifo*)desc->inode;
+    if ((events & POLLIN) && !ring_buf_is_empty(&fifo->buf))
+        revents |= POLLIN;
+    if ((events & POLLOUT) && !ring_buf_is_full(&fifo->buf))
+        revents |= POLLOUT;
+    if ((desc->flags & O_RDONLY) && (fifo->num_writers == 0))
+        revents |= POLLHUP;
+    if ((desc->flags & O_WRONLY) && (fifo->num_readers == 0))
+        revents |= POLLERR;
+    return revents;
+}
+
 struct inode* fifo_create(void) {
     struct fifo* fifo = kmalloc(sizeof(struct fifo));
     if (!fifo)
@@ -121,7 +135,8 @@ struct inode* fifo_create(void) {
                             .open = fifo_open,
                             .close = fifo_close,
                             .read = fifo_read,
-                            .write = fifo_write};
+                            .write = fifo_write,
+                            .poll = fifo_poll};
     inode->fops = &fops;
     inode->mode = S_IFIFO;
     inode->ref_count = 1;

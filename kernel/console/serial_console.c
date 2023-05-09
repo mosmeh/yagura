@@ -1,6 +1,7 @@
 #include "console.h"
 #include <kernel/api/signum.h>
 #include <kernel/api/sys/ioctl.h>
+#include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
@@ -42,13 +43,13 @@ typedef struct serial_console_device {
     uint16_t port;
 } serial_console_device;
 
-static bool read_should_unblock(file_description* desc) {
+static bool can_read(file_description* desc) {
     serial_console_device* dev = (serial_console_device*)desc->inode;
     ring_buf* buf = get_input_buf_for_port(dev->port);
     bool int_flag = push_cli();
-    bool should_unblock = !ring_buf_is_empty(buf);
+    bool ret = !ring_buf_is_empty(buf);
     pop_cli(int_flag);
-    return should_unblock;
+    return ret;
 }
 
 static ssize_t serial_console_device_read(file_description* desc, void* buffer,
@@ -57,7 +58,7 @@ static ssize_t serial_console_device_read(file_description* desc, void* buffer,
     ring_buf* buf = get_input_buf_for_port(dev->port);
 
     for (;;) {
-        int rc = file_description_block(desc, read_should_unblock);
+        int rc = file_description_block(desc, can_read);
         if (IS_ERR(rc))
             return rc;
 
@@ -101,6 +102,15 @@ static int serial_console_device_ioctl(file_description* desc, int request,
     return -EINVAL;
 }
 
+static short serial_console_device_poll(file_description* desc, short events) {
+    short revents = 0;
+    if ((events & POLLIN) && can_read(desc))
+        revents |= POLLIN;
+    if (events & POLLOUT)
+        revents |= POLLOUT;
+    return revents;
+}
+
 struct inode* serial_console_device_create(uint16_t port) {
     if (!serial_is_valid_port(port))
         return NULL;
@@ -115,7 +125,8 @@ struct inode* serial_console_device_create(uint16_t port) {
     struct inode* inode = (struct inode*)dev;
     static file_ops fops = {.read = serial_console_device_read,
                             .write = serial_console_device_write,
-                            .ioctl = serial_console_device_ioctl};
+                            .ioctl = serial_console_device_ioctl,
+                            .poll = serial_console_device_poll};
     inode->fops = &fops;
     inode->mode = S_IFCHR;
     inode->device_id = makedev(4, 63 + (dev_t)serial_port_to_com_number(port));

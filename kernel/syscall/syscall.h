@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/socket.h>
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/syscall.h>
@@ -38,6 +39,7 @@ void* sys_mmap(const mmap_params* params);
 int sys_munmap(void* addr, size_t length);
 int sys_open(const char* pathname, int flags, unsigned mode);
 int sys_pipe(int pipefd[2]);
+int sys_poll(struct pollfd* fds, nfds_t nfds, int timeout);
 ssize_t sys_read(int fd, void* buf, size_t count);
 int sys_reboot(int howto);
 int sys_rename(const char* oldpath, const char* newpath);

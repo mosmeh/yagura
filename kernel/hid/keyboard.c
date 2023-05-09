@@ -1,4 +1,5 @@
 #include "hid.h"
+#include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/console/console.h>
 #include <kernel/fs/fs.h>
@@ -324,12 +325,16 @@ void ps2_set_key_event_handler(ps2_key_event_handler_fn handler) {
     event_handler = handler;
 }
 
+static bool can_read(void) {
+    bool int_flag = push_cli();
+    bool ret = queue_read_idx != queue_write_idx;
+    pop_cli(int_flag);
+    return ret;
+}
+
 static bool read_should_unblock(file_description* desc) {
     (void)desc;
-    bool int_flag = push_cli();
-    bool should_unblock = queue_read_idx != queue_write_idx;
-    pop_cli(int_flag);
-    return should_unblock;
+    return can_read();
 }
 
 static ssize_t ps2_keyboard_device_read(file_description* desc, void* buffer,
@@ -362,12 +367,23 @@ static ssize_t ps2_keyboard_device_read(file_description* desc, void* buffer,
     }
 }
 
+static short ps2_keyboard_device_poll(file_description* desc, short events) {
+    (void)desc;
+    short revents = 0;
+    if ((events & POLLIN) && can_read())
+        revents |= POLLIN;
+    if (events & POLLOUT)
+        revents |= POLLOUT;
+    return revents;
+}
+
 struct inode* ps2_keyboard_device_create(void) {
     struct inode* inode = kmalloc(sizeof(struct inode));
     if (!inode)
         return ERR_PTR(-ENOMEM);
 
-    static file_ops fops = {.read = ps2_keyboard_device_read};
+    static file_ops fops = {.read = ps2_keyboard_device_read,
+                            .poll = ps2_keyboard_device_poll};
     *inode = (struct inode){.fops = &fops,
                             .mode = S_IFCHR,
                             .device_id = makedev(11, 0),

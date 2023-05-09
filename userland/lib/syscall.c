@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdnoreturn.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/times.h>
@@ -203,6 +204,11 @@ int open(const char* pathname, int flags, ...) {
 
 int pipe(int pipefd[2]) {
     int rc = syscall(SYS_pipe, (uintptr_t)pipefd, 0, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
+int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
+    int rc = syscall(SYS_poll, (uintptr_t)fds, nfds, timeout, 0);
     RETURN_WITH_ERRNO(rc, int)
 }
 
