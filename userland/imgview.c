@@ -121,7 +121,12 @@ int main(int argc, char* const argv[]) {
         free(bytes);
         return EXIT_FAILURE;
     }
-    ASSERT(fb_info.bpp == 32);
+    if (fb_info.bpp != 32) {
+        dprintf(STDERR_FILENO, "Unsupported bit depth\n");
+        close(fb_fd);
+        free(bytes);
+        return EXIT_FAILURE;
+    }
     void* fb = mmap(NULL, fb_info.pitch * fb_info.height,
                     PROT_READ | PROT_WRITE, MAP_SHARED, fb_fd, 0);
     if (fb == MAP_FAILED) {

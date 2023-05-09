@@ -105,6 +105,12 @@ int main(void) {
     struct fb_info fb_info;
     if (ioctl(fd, FBIOGET_INFO, &fb_info) < 0) {
         perror("ioctl");
+        close(fd);
+        return EXIT_FAILURE;
+    }
+    if (fb_info.bpp != 32) {
+        dprintf(STDERR_FILENO, "Unsupported bit depth\n");
+        close(fd);
         return EXIT_FAILURE;
     }
     void* fb = mmap(NULL, fb_info.pitch * fb_info.height,
