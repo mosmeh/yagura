@@ -52,15 +52,19 @@ void scheduler_unregister(struct process* process) {
 }
 
 void scheduler_enqueue(struct process* process) {
-    ASSERT(process->state != PROCESS_STATE_DEAD);
+    ASSERT(process->state != PROCESS_STATE_DEAD &&
+           process->state != PROCESS_STATE_BLOCKED);
 
     bool int_flag = push_cli();
 
     process->next_in_ready_queue = NULL;
     if (ready_queue) {
         struct process* it = ready_queue;
-        while (it->next_in_ready_queue)
+        ASSERT(it != process);
+        while (it->next_in_ready_queue) {
             it = it->next_in_ready_queue;
+            ASSERT(it != process);
+        }
         it->next_in_ready_queue = process;
     } else {
         ready_queue = process;
@@ -222,12 +226,16 @@ int scheduler_block(bool (*should_unblock)(void*), void* data) {
     if (should_unblock(data))
         return 0;
 
+    bool int_flag = push_cli();
+
     current->state = PROCESS_STATE_BLOCKED;
     current->should_unblock = should_unblock;
     current->blocker_data = data;
     current->blocker_was_interrupted = false;
 
     scheduler_yield(false);
+
+    pop_cli(int_flag);
 
     return current->blocker_was_interrupted ? -EINTR : 0;
 }
