@@ -1,14 +1,16 @@
+#include "moused.h"
 #include <errno.h>
 #include <extra.h>
 #include <fb.h>
 #include <fcntl.h>
-#include <hid.h>
 #include <panic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #define CURSOR_WIDTH 8
@@ -32,15 +34,15 @@ static const char mask[] = "x......."
 
 static uintptr_t fb_addr;
 static struct fb_info fb_info;
-static int32_t cursor_x;
-static int32_t cursor_y;
+static uint32_t cursor_x;
+static uint32_t cursor_y;
 static size_t visible_width;
 static size_t visible_height;
 static uint32_t fb_buf[CURSOR_WIDTH * CURSOR_HEIGHT];
 
-static void move_cursor_to(int32_t x, int32_t y) {
-    cursor_x = MAX(0, MIN((int32_t)(fb_info.width - 1), x));
-    cursor_y = MAX(0, MIN((int32_t)(fb_info.height - 1), y));
+static void move_cursor_to(uint32_t x, uint32_t y) {
+    cursor_x = MIN(fb_info.width - 1, x);
+    cursor_y = MIN(fb_info.height - 1, y);
     visible_width = MIN(CURSOR_WIDTH, fb_info.width - cursor_x);
     visible_height = MIN(CURSOR_HEIGHT, fb_info.height - cursor_y);
 
@@ -111,26 +113,43 @@ int main(void) {
     close(fb_fd);
     fb_addr = (uintptr_t)fb;
 
-    move_cursor_to(fb_info.width / 2, fb_info.height / 2);
-
-    int mouse_fd = open("/dev/psaux", O_RDONLY);
-    if (mouse_fd < 0) {
-        perror("open");
+    int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        perror("socket");
+        return EXIT_FAILURE;
+    }
+    struct sockaddr_un addr = {AF_UNIX, "/tmp/moused-socket"};
+    if (connect(sockfd, (const struct sockaddr*)&addr,
+                sizeof(struct sockaddr_un)) < 0) {
+        perror("connect");
+        close(sockfd);
         return EXIT_FAILURE;
     }
 
-    mouse_event event;
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("fork");
+        close(sockfd);
+        return EXIT_FAILURE;
+    }
+    if (pid > 0)
+        exit(0);
+
+    move_cursor_to(fb_info.width / 2, fb_info.height / 2);
+
+    moused_event event;
     for (;;) {
-        ssize_t nread = read(mouse_fd, &event, sizeof(mouse_event));
+        ssize_t nread = read(sockfd, &event, sizeof(moused_event));
+        if (nread == 0) {
+            close(sockfd);
+            return EXIT_FAILURE;
+        }
         if (nread < 0) {
             perror("read");
-            close(mouse_fd);
+            close(sockfd);
             return EXIT_FAILURE;
         }
         restore_fb();
-        move_cursor_to(cursor_x + event.dx, cursor_y + event.dy);
+        move_cursor_to(event.x, event.y);
     }
-
-    close(mouse_fd);
-    return EXIT_SUCCESS;
 }

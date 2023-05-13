@@ -24,6 +24,7 @@ BIN_TARGET_NAMES := \
 	mandelbrot \
 	mkdir \
 	mouse-cursor \
+	moused \
 	mv \
 	play \
 	poweroff \

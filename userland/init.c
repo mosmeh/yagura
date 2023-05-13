@@ -33,10 +33,14 @@ int main(void) {
 
     chdir("/root");
 
-    spawn("/bin/mouse-cursor");
+    pid_t pid = spawn("/bin/moused");
+    if (pid > 0) {
+        waitpid(pid, NULL, 0);
+        spawn("/bin/mouse-cursor");
+    }
 
     for (;;) {
-        pid_t pid = spawn("/bin/sh");
+        pid = spawn("/bin/sh");
         if (pid < 0) {
             perror("spawn");
             continue;
