@@ -82,7 +82,7 @@ void kfree(void* ptr) {
         return;
     struct header* header = header_from_ptr(ptr);
     size_t size = header->size;
-    paging_unmap((uintptr_t)header, size);
+    paging_kernel_unmap((uintptr_t)header, size);
     ASSERT_OK(
         range_allocator_free(&kernel_vaddr_allocator, (uintptr_t)header, size));
 }

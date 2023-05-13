@@ -64,9 +64,11 @@ void* sys_mmap(const mmap_params* user_params) {
 }
 
 int sys_munmap(void* addr, size_t length) {
-    if ((uintptr_t)addr % PAGE_SIZE)
+    if ((uintptr_t)addr % PAGE_SIZE || length == 0)
         return -EINVAL;
-    paging_unmap((uintptr_t)addr, length);
-    return range_allocator_free(&current->vaddr_allocator, (uintptr_t)addr,
-                                length);
+    paging_user_unmap((uintptr_t)addr, length);
+    int rc = range_allocator_free(&current->vaddr_allocator, (uintptr_t)addr,
+                                  length);
+    (void)rc;
+    return 0;
 }

@@ -57,7 +57,7 @@ uintptr_t range_allocator_alloc(range_allocator* allocator, size_t size) {
             ASSERT(allocator->ranges == it);
             allocator->ranges = it->next;
         }
-        paging_unmap((uintptr_t)it, sizeof(struct range));
+        paging_kernel_unmap((uintptr_t)it, sizeof(struct range));
         mutex_unlock(&allocator->lock);
         return (uintptr_t)it;
     }
@@ -71,7 +71,7 @@ uintptr_t range_allocator_alloc(range_allocator* allocator, size_t size) {
     }
     struct range* range = (struct range*)addr;
     range->size -= size;
-    paging_unmap((uintptr_t)it, sizeof(struct range));
+    paging_kernel_unmap((uintptr_t)it, sizeof(struct range));
     if (prev) {
         prev->next = range;
     } else {
@@ -98,18 +98,24 @@ int range_allocator_free(range_allocator* allocator, uintptr_t addr,
     struct range* prev = NULL;
     struct range* it = allocator->ranges;
     while (it && (uintptr_t)it + it->size <= addr) {
-        ASSERT(((uintptr_t)it + it->size <= addr) ||
-               (addr + size <= (uintptr_t)it));
         prev = it;
         it = it->next;
     }
+
+    if ((prev && addr < (uintptr_t)prev + prev->size) ||
+        (it && (uintptr_t)it < addr + size)) {
+        // this range has not been allocated or has been already freed
+        mutex_unlock(&allocator->lock);
+        return -EINVAL;
+    }
+
     if (prev && (uintptr_t)prev + prev->size == addr) {
         prev->size += size;
         if (it && (uintptr_t)prev + prev->size == (uintptr_t)it) {
             // we're filling a gap
             prev->size += it->size;
             prev->next = it->next;
-            paging_unmap((uintptr_t)it, sizeof(struct range));
+            paging_kernel_unmap((uintptr_t)it, sizeof(struct range));
         }
         mutex_unlock(&allocator->lock);
         return 0;
@@ -123,7 +129,7 @@ int range_allocator_free(range_allocator* allocator, uintptr_t addr,
         }
         struct range* range = (struct range*)addr;
         range->size += size;
-        paging_unmap((uintptr_t)it, sizeof(struct range));
+        paging_kernel_unmap((uintptr_t)it, sizeof(struct range));
         if (prev) {
             prev->next = range;
         } else {
@@ -133,11 +139,6 @@ int range_allocator_free(range_allocator* allocator, uintptr_t addr,
         mutex_unlock(&allocator->lock);
         return 0;
     }
-
-    if (prev)
-        ASSERT((uintptr_t)prev + prev->size < addr);
-    if (it)
-        ASSERT(addr + size < (uintptr_t)it);
 
     int rc = paging_map_to_free_pages(addr, sizeof(struct range), PAGE_WRITE);
     if (IS_ERR(rc)) {

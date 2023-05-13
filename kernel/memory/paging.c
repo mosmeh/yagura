@@ -377,7 +377,7 @@ int paging_deep_copy(uintptr_t to_vaddr, uintptr_t from_vaddr, uintptr_t size,
     return 0;
 }
 
-void paging_unmap(uintptr_t vaddr, uintptr_t size) {
+void paging_kernel_unmap(uintptr_t vaddr, uintptr_t size) {
     ASSERT((vaddr % PAGE_SIZE) == 0);
     uintptr_t end_vaddr = vaddr + round_up(size, PAGE_SIZE);
 
@@ -385,9 +385,25 @@ void paging_unmap(uintptr_t vaddr, uintptr_t size) {
          page_vaddr += PAGE_SIZE) {
         volatile page_table_entry* pte = get_pte(page_vaddr);
         ASSERT(pte && pte->present);
+        ASSERT(!pte->user);
         page_allocator_unref_page(pte->raw & ~PTE_FLAGS_MASK);
         pte->raw = 0;
         flush_tlb_single(page_vaddr);
+    }
+}
+
+void paging_user_unmap(uintptr_t vaddr, uintptr_t size) {
+    ASSERT((vaddr % PAGE_SIZE) == 0);
+    uintptr_t end_vaddr = vaddr + round_up(size, PAGE_SIZE);
+
+    for (uintptr_t page_vaddr = vaddr; page_vaddr < end_vaddr;
+         page_vaddr += PAGE_SIZE) {
+        volatile page_table_entry* pte = get_pte(page_vaddr);
+        if (pte && pte->present && pte->user) {
+            page_allocator_unref_page(pte->raw & ~PTE_FLAGS_MASK);
+            pte->raw = 0;
+            flush_tlb_single(page_vaddr);
+        }
     }
 }
 

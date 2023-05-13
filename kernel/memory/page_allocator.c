@@ -128,7 +128,7 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
         } else {
             // By setting initial reference counts to be non-zero values,
             // the reference counts of these pages will never reach zero,
-            // avoiding accidentaly marking the pages available for allocation.
+            // avoiding accidentally marking the pages available for allocation.
             ref_counts[i] = UINT8_MAX;
         }
     }

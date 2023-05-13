@@ -83,7 +83,7 @@ void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
         cursor += sizeof(struct cpio_odc_header) + name_size + file_size;
     }
 
-    paging_unmap(vaddr, region_size);
+    paging_kernel_unmap(vaddr, region_size);
     ASSERT_OK(
         range_allocator_free(&kernel_vaddr_allocator, vaddr, region_size));
 }

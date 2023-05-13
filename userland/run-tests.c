@@ -428,6 +428,7 @@ static void test_mmap_private(void) {
     for (int i = 0; i < 30000; ++i)
         buf[i] = i;
     ASSERT_OK(munmap(buf, size));
+    ASSERT_OK(munmap(buf, size));
 
     buf = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
     ASSERT(buf != MAP_FAILED);
