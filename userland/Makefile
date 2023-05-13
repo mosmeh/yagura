@@ -13,6 +13,7 @@ BIN_TARGET_NAMES := \
 	date \
 	echo \
 	env \
+	eyes \
 	fib \
 	halt \
 	imgview \
