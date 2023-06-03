@@ -25,5 +25,7 @@ NODISCARD int growable_buf_truncate(growable_buf*, off_t length);
 NODISCARD int growable_buf_mmap(growable_buf*, uintptr_t addr, size_t length,
                                 off_t offset, uint16_t page_flags);
 
-int growable_buf_printf(growable_buf*, const char* format, ...);
-int growable_buf_vsprintf(growable_buf*, const char* format, va_list args);
+int growable_buf_printf(growable_buf*, const char* format, ...)
+    PRINTF_LIKE(2, 3);
+int growable_buf_vsprintf(growable_buf*, const char* format, va_list args)
+    PRINTF_LIKE(2, 0);

@@ -16,6 +16,8 @@
 #define NODISCARD __attribute__((__warn_unused_result__))
 #define NOINLINE __attribute__((noinline))
 
+#define PRINTF_LIKE(a, b) __attribute__((format(printf, a, b)))
+
 static inline uintptr_t round_up(uintptr_t x, size_t align) {
     return (x + (align - 1)) & ~(align - 1);
 }
