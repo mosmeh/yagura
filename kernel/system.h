@@ -4,6 +4,7 @@
 #include "forward.h"
 #include <common/extra.h>
 #include <stdalign.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -28,7 +29,7 @@ void gdt_set_kernel_stack(uintptr_t stack_top);
 
 void syscall_init(void);
 
-extern uint32_t uptime;
+extern atomic_uint uptime;
 void pit_init(void);
 
 void cmdline_init(const multiboot_info_t*);

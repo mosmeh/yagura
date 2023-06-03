@@ -13,7 +13,7 @@
 #define MODE_SQUARE_WAVE 0x06
 #define BASE_FREQUENCY 1193182
 
-uint32_t uptime;
+atomic_uint uptime;
 
 static void pit_handler(registers* regs) {
     (void)regs;
