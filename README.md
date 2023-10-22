@@ -43,3 +43,11 @@ The following command creates a disk image file called `disk_image`. You can sim
 ```sh
 make disk_image
 ```
+
+## Inspirations and learning resources
+
+- [xv6](https://github.com/mit-pdos/xv6-public)
+- [SerenityOS](https://github.com/SerenityOS/serenity)
+- [ToaruOS](https://github.com/klange/toaruos)
+- [JamesM's kernel development tutorials](http://www.jamesmolloy.co.uk/tutorial_html/)
+- [OSDev Wiki](https://wiki.osdev.org/)
