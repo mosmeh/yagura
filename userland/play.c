@@ -10,6 +10,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+// parses and plays audio files in the Quite OK Audio Format
+// https://github.com/phoboslab/qoa
+
 #define NUM_CHANNELS 2
 
 #define QOA_MIN_FILESIZE 16

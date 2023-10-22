@@ -11,6 +11,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+// parses and displays image files in the Quite OK Image Format
+// https://github.com/phoboslab/qoi
+
 #define QOI_OP_INDEX 0x00
 #define QOI_OP_DIFF 0x40
 #define QOI_OP_LUMA 0x80
