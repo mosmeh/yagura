@@ -4,7 +4,9 @@
 
 A Unix-like operating system for x86
 
-![](screenshot.png)
+![](imgs/screenshot.png)
+
+See [Gallery](gallery.md) for more screenshots.
 
 ## How to run
 
