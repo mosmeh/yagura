@@ -11,7 +11,20 @@ static void drain_output_buffer(void) {
     }
 }
 
-void ps2_init(void) {
+static bool self_test(void) {
+    for (int timeout = 0; timeout < 1024; ++timeout) {
+        out8(PS2_COMMAND, PS2_TEST_CONTROLLER);
+        if (in8(PS2_DATA) == PS2_TEST_PASSED)
+            return true;
+    }
+    return false;
+}
+
+bool ps2_init(void) {
+    drain_output_buffer();
+    if (!self_test())
+        return false;
+
     ps2_write(PS2_COMMAND, PS2_DISABLE_PORT1);
     ps2_write(PS2_COMMAND, PS2_DISABLE_PORT2);
 
@@ -28,4 +41,6 @@ void ps2_init(void) {
 
     drain_output_buffer();
     ps2_mouse_init();
+
+    return true;
 }

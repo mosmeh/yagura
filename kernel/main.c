@@ -82,9 +82,10 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     create_char_device("/dev/random", random_device_create());
     create_char_device("/dev/urandom", urandom_device_create());
 
-    ps2_init();
-    create_char_device("/dev/kbd", ps2_keyboard_device_create());
-    create_char_device("/dev/psaux", ps2_mouse_device_create());
+    if (ps2_init()) {
+        create_char_device("/dev/kbd", ps2_keyboard_device_create());
+        create_char_device("/dev/psaux", ps2_mouse_device_create());
+    }
 
     if (fb_init(mb_info)) {
         create_char_device("/dev/fb0", fb_device_create());

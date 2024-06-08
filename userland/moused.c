@@ -86,6 +86,20 @@ static int broadcast_event(void) {
 }
 
 int main(void) {
+    mouse_fd = open("/dev/psaux", O_RDONLY);
+    if (mouse_fd < 0) {
+        if (errno == ENOENT) {
+            // PS/2 mouse is disabled
+            return 0;
+        }
+        perror("open");
+        goto fail;
+    }
+    if (set_non_blocking(mouse_fd) < 0) {
+        perror("set_non_blocking");
+        goto fail;
+    }
+
     struct fb_info fb_info;
     if (get_fb_info(&fb_info)) {
         width = fb_info.width;
@@ -111,16 +125,6 @@ int main(void) {
     }
     if (listen(sockfd, MAX_NUM_CONNECTIONS) < 0) {
         perror("listen");
-        goto fail;
-    }
-
-    mouse_fd = open("/dev/psaux", O_RDONLY);
-    if (mouse_fd < 0) {
-        perror("open");
-        goto fail;
-    }
-    if (set_non_blocking(mouse_fd) < 0) {
-        perror("set_non_blocking");
         goto fail;
     }
 
