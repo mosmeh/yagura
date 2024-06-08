@@ -57,6 +57,8 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     cmdline_init(mb_info);
 
+    if (!(mb_info->flags & MULTIBOOT_INFO_MODS) || mb_info->mods_count == 0)
+        PANIC("No initrd found. Provide initrd as the first Multiboot module");
     const multiboot_module_t* initrd_mod =
         (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
     uintptr_t initrd_paddr = initrd_mod->mod_start;
