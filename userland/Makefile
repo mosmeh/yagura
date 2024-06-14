@@ -24,6 +24,7 @@ BIN_TARGET_NAMES := \
 	ls \
 	mandelbrot \
 	mkdir \
+	mount \
 	mouse-cursor \
 	moused \
 	mv \
