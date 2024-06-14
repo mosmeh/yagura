@@ -2,6 +2,8 @@
 #include <panic.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mount.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -31,7 +33,19 @@ int main(void) {
     ASSERT(open("/dev/console", O_WRONLY) == STDOUT_FILENO);
     ASSERT(open("/dev/console", O_WRONLY) == STDERR_FILENO);
 
-    chdir("/root");
+    if (mount("tmpfs", "/tmp", "tmpfs", 0, NULL) < 0)
+        perror("mount");
+
+    if (mkdir("/dev/shm", 0) < 0)
+        perror("mkdir");
+    else if (mount("tmpfs", "/dev/shm", "tmpfs", 0, NULL) < 0)
+        perror("mount");
+
+    if (mount("procfs", "/proc", "procfs", 0, NULL) < 0)
+        perror("mount");
+
+    if (chdir("/root") < 0)
+        perror("chdir");
 
     pid_t pid = spawn("/bin/moused");
     if (pid > 0) {

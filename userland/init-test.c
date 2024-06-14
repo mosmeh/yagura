@@ -2,7 +2,9 @@
 #include <panic.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/mount.h>
 #include <sys/reboot.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -28,6 +30,9 @@ int main(void) {
     ASSERT(open("/dev/console", O_RDONLY) == STDIN_FILENO);
     ASSERT(open("/dev/console", O_WRONLY) == STDOUT_FILENO);
     ASSERT(open("/dev/console", O_WRONLY) == STDERR_FILENO);
+
+    ASSERT_OK(mkdir("/dev/shm", 0));
+    ASSERT_OK(mount("tmpfs", "/dev/shm", "tmpfs", 0, NULL));
 
     ASSERT_OK(spawn("/bin/run-tests"));
     ASSERT_OK(spawn("/bin/xv6-usertests"));
