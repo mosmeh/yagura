@@ -25,7 +25,7 @@ uintptr_t syscall(uint32_t num, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3,
     do {                                                                       \
         if (IS_ERR(rc)) {                                                      \
             errno = -(rc);                                                     \
-            return (type)-1;                                                   \
+            return (type)(-1);                                                 \
         }                                                                      \
         return (type)(rc);                                                     \
     } while (0);
@@ -173,16 +173,31 @@ int mknod(const char* pathname, mode_t mode, dev_t dev) {
 
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,
            off_t offset) {
-    mmap_params params;
-    params.addr = addr;
-    params.length = length;
-    params.prot = prot;
-    params.flags = flags;
-    params.fd = fd;
-    params.offset = offset;
+    mmap_params params = {
+        .addr = addr,
+        .length = length,
+        .prot = prot,
+        .flags = flags,
+        .fd = fd,
+        .offset = offset,
+    };
 
     int rc = syscall(SYS_mmap, (uintptr_t)&params, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, void*)
+}
+
+int mount(const char* source, const char* target, const char* filesystemtype,
+          unsigned long mountflags, const void* data) {
+    mount_params params = {
+        .source = source,
+        .target = target,
+        .filesystemtype = filesystemtype,
+        .mountflags = mountflags,
+        .data = data,
+    };
+
+    int rc = syscall(SYS_mount, (uintptr_t)&params, 0, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 int munmap(void* addr, size_t length) {

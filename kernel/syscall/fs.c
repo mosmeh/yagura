@@ -132,6 +132,35 @@ int sys_mknod(const char* user_pathname, mode_t mode, dev_t dev) {
     return 0;
 }
 
+int sys_mount(const mount_params* user_params) {
+    mount_params params;
+    if (!copy_from_user(&params, user_params, sizeof(mount_params)))
+        return -EFAULT;
+
+    char target[PATH_MAX];
+    int rc = copy_pathname_from_user(target, params.target);
+    if (IS_ERR(rc))
+        return rc;
+
+    char fs_type[8];
+    ssize_t fs_type_len =
+        strncpy_from_user(fs_type, params.filesystemtype, sizeof(fs_type));
+    if (IS_ERR(fs_type_len))
+        return fs_type_len;
+    if ((size_t)fs_type_len >= sizeof(fs_type)) {
+        // There is no file system type with such a long name.
+        return -ENODEV;
+    }
+
+    if (!strcmp(fs_type, "tmpfs")) {
+        return vfs_mount(target, tmpfs_create_root());
+    }
+    if (!strcmp(fs_type, "procfs")) {
+        return vfs_mount(target, procfs_create_root());
+    }
+    return -ENODEV;
+}
+
 int sys_link(const char* user_oldpath, const char* user_newpath) {
     char oldpath[PATH_MAX];
     int rc = copy_pathname_from_user(oldpath, user_oldpath);

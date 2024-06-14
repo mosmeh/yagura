@@ -3,6 +3,7 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/kprintf.h>
+#include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
@@ -21,9 +22,15 @@ typedef struct device {
 
 static struct inode* root;
 static mount_point* mount_points;
+static mutex mount_lock;
 static device* devices;
 
 static int mount_at(struct inode* host, struct inode* guest) {
+    if (!S_ISDIR(host->mode)) {
+        inode_unref(host);
+        inode_unref(guest);
+        return -ENOTDIR;
+    }
     mount_point* mp = kmalloc(sizeof(mount_point));
     if (!mp) {
         inode_unref(host);
@@ -32,68 +39,44 @@ static int mount_at(struct inode* host, struct inode* guest) {
     }
     mp->host = host;
     mp->guest = guest;
-    mp->next = NULL;
-    if (mount_points) {
-        mount_point* it = mount_points;
-        while (it->next)
-            it = it->next;
-        it->next = mp;
-    } else {
-        mount_points = mp;
-    }
+    mutex_lock(&mount_lock);
+    mp->next = mount_points;
+    mount_points = mp;
+    mutex_unlock(&mount_lock);
     return 0;
 }
 
-static struct inode* find_mounted_guest(struct inode* host) {
-    mount_point* it = mount_points;
-    while (it) {
-        if (it->host == host) {
-            inode_unref(host);
-            inode_ref(it->guest);
-            return it->guest;
+static struct inode* resolve_mounts(struct inode* host) {
+    struct inode* needle = host;
+    mutex_lock(&mount_lock);
+    for (;;) {
+        mount_point* it = mount_points;
+        while (it) {
+            if (it->host == needle)
+                break;
+            it = it->next;
         }
-        it = it->next;
+        if (!it)
+            break;
+        needle = it->guest;
     }
-    inode_unref(host);
-    return NULL;
-}
-
-static bool is_absolute_path(const char* path) {
-    return path[0] == PATH_SEPARATOR;
+    mutex_unlock(&mount_lock);
+    if (needle != host)
+        inode_ref(needle);
+    return needle;
 }
 
 int vfs_mount(const char* path, struct inode* fs_root) {
-    ASSERT(is_absolute_path(path));
-
     if (path[0] == PATH_SEPARATOR && path[1] == '\0') {
         root = fs_root;
         return 0;
     }
 
-    char* dup_path = kstrdup(path);
-    ASSERT(dup_path);
+    struct inode* inode = vfs_resolve_path(path, NULL, NULL);
+    if (IS_ERR(inode))
+        return PTR_ERR(inode);
 
-    struct inode* parent = vfs_get_root();
-    char* saved_ptr;
-    for (const char* component =
-             strtok_r(dup_path, PATH_SEPARATOR_STR, &saved_ptr);
-         component;
-         component = strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr)) {
-        struct inode* child = inode_lookup_child(parent, component);
-        if (IS_ERR(child)) {
-            kfree(dup_path);
-            return PTR_ERR(child);
-        }
-        parent = child;
-    }
-
-    kfree(dup_path);
-
-    int rc = mount_at(parent, fs_root);
-    if (IS_ERR(rc))
-        return rc;
-
-    return 0;
+    return mount_at(inode, fs_root);
 }
 
 struct inode* vfs_get_root(void) {
@@ -193,6 +176,10 @@ static void list_pop(list_node** list) {
         kfree(it->value);
         kfree(it);
     }
+}
+
+static bool is_absolute_path(const char* path) {
+    return path[0] == PATH_SEPARATOR;
 }
 
 static int create_path_component_list(const char* pathname,
@@ -308,14 +295,7 @@ struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
             return child;
         }
 
-        inode_ref(child);
-        struct inode* guest = find_mounted_guest(child);
-        if (guest) {
-            inode_unref(child);
-            child = guest;
-        }
-
-        parent = child;
+        parent = resolve_mounts(child);
         ++i;
     }
 

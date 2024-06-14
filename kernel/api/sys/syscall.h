@@ -32,6 +32,7 @@
     F(mkdir)                                                                   \
     F(mknod)                                                                   \
     F(mmap)                                                                    \
+    F(mount)                                                                   \
     F(munmap)                                                                  \
     F(open)                                                                    \
     F(pipe)                                                                    \
@@ -66,3 +67,11 @@ typedef struct mmap_params {
     int fd;
     off_t offset;
 } mmap_params;
+
+typedef struct mount_params {
+    const char* source;
+    const char* target;
+    const char* filesystemtype;
+    unsigned long mountflags;
+    const void* data;
+} mount_params;

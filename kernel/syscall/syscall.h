@@ -36,6 +36,7 @@ off_t sys_lseek(int fd, off_t offset, int whence);
 int sys_mkdir(const char* pathname, mode_t mode);
 int sys_mknod(const char* pathname, mode_t mode, dev_t dev);
 void* sys_mmap(const mmap_params* params);
+int sys_mount(const mount_params* params);
 int sys_munmap(void* addr, size_t length);
 int sys_open(const char* pathname, int flags, unsigned mode);
 int sys_pipe(int pipefd[2]);
