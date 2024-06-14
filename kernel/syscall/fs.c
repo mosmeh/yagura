@@ -3,6 +3,7 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/fs/fs.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/safe_string.h>
@@ -44,18 +45,22 @@ int sys_close(int fd) {
     return process_free_file_descriptor(fd);
 }
 
-ssize_t sys_read(int fd, void* buf, size_t count) {
+ssize_t sys_read(int fd, void* user_buf, size_t count) {
+    if (!user_buf || !is_user_range(user_buf, count))
+        return -EFAULT;
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    return file_description_read(desc, buf, count);
+    return file_description_read(desc, user_buf, count);
 }
 
-ssize_t sys_write(int fd, const void* buf, size_t count) {
+ssize_t sys_write(int fd, const void* user_buf, size_t count) {
+    if (!user_buf || !is_user_range(user_buf, count))
+        return -EFAULT;
     file_description* desc = process_get_file_description(fd);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    return file_description_write(desc, buf, count);
+    return file_description_write(desc, user_buf, count);
 }
 
 int sys_ftruncate(int fd, off_t length) {
