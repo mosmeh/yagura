@@ -74,11 +74,11 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     initrd_populate_root_fs(initrd_paddr, initrd_size);
 
     ASSERT_OK(vfs_mount("/dev", tmpfs_create_root()));
-    create_char_device("/dev/null", null_device_create());
-    create_char_device("/dev/zero", zero_device_create());
-    create_char_device("/dev/full", full_device_create());
-    create_char_device("/dev/random", random_device_create());
-    create_char_device("/dev/urandom", urandom_device_create());
+    ASSERT_OK(vfs_register_device(null_device_create()));
+    ASSERT_OK(vfs_register_device(zero_device_create()));
+    ASSERT_OK(vfs_register_device(full_device_create()));
+    ASSERT_OK(vfs_register_device(random_device_create()));
+    ASSERT_OK(vfs_register_device(urandom_device_create()));
 
     if (ps2_init()) {
         create_char_device("/dev/kbd", ps2_keyboard_device_create());
@@ -109,7 +109,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
                            serial_console_device_create(SERIAL_COM4));
 
     system_console_init();
-    create_char_device("/dev/console", system_console_device_create());
+    ASSERT_OK(vfs_register_device(system_console_device_create()));
 
     syscall_init();
     scheduler_init();
