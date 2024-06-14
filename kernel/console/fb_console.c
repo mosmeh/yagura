@@ -610,18 +610,14 @@ static short fb_console_device_poll(file_description* desc, short events) {
     return revents;
 }
 
-struct inode* fb_console_device_create(void) {
-    struct inode* inode = kmalloc(sizeof(struct inode));
-    if (!inode)
-        return ERR_PTR(-ENOMEM);
-
+struct inode* fb_console_device_get(void) {
     static file_ops fops = {.read = fb_console_device_read,
                             .write = fb_console_device_write,
                             .ioctl = fb_console_device_ioctl,
                             .poll = fb_console_device_poll};
-    *inode = (struct inode){.fops = &fops,
-                            .mode = S_IFCHR,
-                            .device_id = makedev(5, 0),
-                            .ref_count = 1};
-    return inode;
+    static struct inode inode = {.fops = &fops,
+                                 .mode = S_IFCHR,
+                                 .device_id = makedev(5, 0),
+                                 .ref_count = 1};
+    return &inode;
 }

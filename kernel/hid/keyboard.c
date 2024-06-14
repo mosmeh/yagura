@@ -377,16 +377,12 @@ static short ps2_keyboard_device_poll(file_description* desc, short events) {
     return revents;
 }
 
-struct inode* ps2_keyboard_device_create(void) {
-    struct inode* inode = kmalloc(sizeof(struct inode));
-    if (!inode)
-        return ERR_PTR(-ENOMEM);
-
+struct inode* ps2_keyboard_device_get(void) {
     static file_ops fops = {.read = ps2_keyboard_device_read,
                             .poll = ps2_keyboard_device_poll};
-    *inode = (struct inode){.fops = &fops,
-                            .mode = S_IFCHR,
-                            .device_id = makedev(11, 0),
-                            .ref_count = 1};
-    return inode;
+    static struct inode inode = {.fops = &fops,
+                                 .mode = S_IFCHR,
+                                 .device_id = makedev(11, 0),
+                                 .ref_count = 1};
+    return &inode;
 }

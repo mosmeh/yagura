@@ -44,11 +44,11 @@ noreturn void reboot(void);
 noreturn void halt(void);
 noreturn void poweroff(void);
 
-struct inode* null_device_create(void);
-struct inode* zero_device_create(void);
-struct inode* full_device_create(void);
-struct inode* random_device_create(void);
-struct inode* urandom_device_create(void);
+struct inode* null_device_get(void);
+struct inode* zero_device_get(void);
+struct inode* full_device_get(void);
+struct inode* random_device_get(void);
+struct inode* urandom_device_get(void);
 
 NODISCARD bool ac97_init(void);
-struct inode* ac97_device_create(void);
+struct inode* ac97_device_get(void);

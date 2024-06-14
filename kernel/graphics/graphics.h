@@ -12,4 +12,4 @@ NODISCARD int fb_set_info(struct fb_info*);
 NODISCARD int fb_mmap(uintptr_t addr, size_t length, off_t offset,
                       uint16_t page_flags);
 
-struct inode* fb_device_create(void);
+struct inode* fb_device_get(void);

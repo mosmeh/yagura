@@ -41,12 +41,8 @@ struct fb* multiboot_fb_init(const multiboot_info_t* mb_info) {
     info.bpp = mb_info->framebuffer_bpp;
     kprintf("Found framebuffer at P0x%x\n", paddr);
 
-    struct fb* fb = kmalloc(sizeof(struct fb));
-    if (!fb)
-        return ERR_PTR(-ENOMEM);
-    *fb = (struct fb){.get_info = multiboot_fb_get_info,
-                      .set_info = multiboot_fb_set_info,
-                      .mmap = multiboot_fb_mmap};
-
-    return fb;
+    static struct fb fb = {.get_info = multiboot_fb_get_info,
+                           .set_info = multiboot_fb_set_info,
+                           .mmap = multiboot_fb_mmap};
+    return &fb;
 }

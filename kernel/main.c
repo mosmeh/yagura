@@ -74,25 +74,25 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     initrd_populate_root_fs(initrd_paddr, initrd_size);
 
     ASSERT_OK(vfs_mount("/dev", tmpfs_create_root()));
-    ASSERT_OK(vfs_register_device(null_device_create()));
-    ASSERT_OK(vfs_register_device(zero_device_create()));
-    ASSERT_OK(vfs_register_device(full_device_create()));
-    ASSERT_OK(vfs_register_device(random_device_create()));
-    ASSERT_OK(vfs_register_device(urandom_device_create()));
+    ASSERT_OK(vfs_register_device(null_device_get()));
+    ASSERT_OK(vfs_register_device(zero_device_get()));
+    ASSERT_OK(vfs_register_device(full_device_get()));
+    ASSERT_OK(vfs_register_device(random_device_get()));
+    ASSERT_OK(vfs_register_device(urandom_device_get()));
 
     if (ps2_init()) {
-        create_char_device("/dev/kbd", ps2_keyboard_device_create());
-        create_char_device("/dev/psaux", ps2_mouse_device_create());
+        create_char_device("/dev/kbd", ps2_keyboard_device_get());
+        create_char_device("/dev/psaux", ps2_mouse_device_get());
     }
 
     if (fb_init(mb_info)) {
-        create_char_device("/dev/fb0", fb_device_create());
+        create_char_device("/dev/fb0", fb_device_get());
         fb_console_init();
-        create_char_device("/dev/tty", fb_console_device_create());
+        create_char_device("/dev/tty", fb_console_device_get());
     }
 
     if (ac97_init())
-        create_char_device("/dev/dsp", ac97_device_create());
+        create_char_device("/dev/dsp", ac97_device_get());
 
     serial_console_init();
     if (serial_enable_port(SERIAL_COM1))
@@ -109,7 +109,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
                            serial_console_device_create(SERIAL_COM4));
 
     system_console_init();
-    ASSERT_OK(vfs_register_device(system_console_device_create()));
+    ASSERT_OK(vfs_register_device(system_console_device_get()));
 
     syscall_init();
     scheduler_init();

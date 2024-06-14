@@ -60,15 +60,11 @@ static int fb_device_ioctl(file_description* desc, int request,
     return 0;
 }
 
-struct inode* fb_device_create(void) {
-    struct inode* inode = kmalloc(sizeof(struct inode));
-    if (!inode)
-        return ERR_PTR(-ENOMEM);
-
+struct inode* fb_device_get(void) {
     static file_ops fops = {.mmap = fb_device_mmap, .ioctl = fb_device_ioctl};
-    *inode = (struct inode){.fops = &fops,
-                            .mode = S_IFBLK,
-                            .device_id = makedev(29, 0),
-                            .ref_count = 1};
-    return inode;
+    static struct inode inode = {.fops = &fops,
+                                 .mode = S_IFBLK,
+                                 .device_id = makedev(29, 0),
+                                 .ref_count = 1};
+    return &inode;
 }

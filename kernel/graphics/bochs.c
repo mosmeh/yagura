@@ -94,12 +94,8 @@ struct fb* bochs_fb_init(void) {
     kprintf("Found framebuffer at P0x%x\n", paddr);
     configure(640, 480, 32);
 
-    struct fb* fb = kmalloc(sizeof(struct fb));
-    if (!fb)
-        return ERR_PTR(-ENOMEM);
-    *fb = (struct fb){.get_info = bochs_fb_get_info,
-                      .set_info = bochs_fb_set_info,
-                      .mmap = bochs_fb_mmap};
-
-    return fb;
+    static struct fb fb = {.get_info = bochs_fb_get_info,
+                           .set_info = bochs_fb_set_info,
+                           .mmap = bochs_fb_mmap};
+    return &fb;
 }

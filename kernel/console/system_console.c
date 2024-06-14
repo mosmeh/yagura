@@ -37,19 +37,15 @@ static int system_console_device_ioctl(file_description* desc, int request,
     return file_description_ioctl(active_console, request, user_argp);
 }
 
-struct inode* system_console_device_create(void) {
-    struct inode* inode = kmalloc(sizeof(struct inode));
-    if (!inode)
-        return ERR_PTR(-ENOMEM);
-
+struct inode* system_console_device_get(void) {
     static file_ops fops = {
         .read = system_console_device_read,
         .write = system_console_device_write,
         .ioctl = system_console_device_ioctl,
     };
-    *inode = (struct inode){.fops = &fops,
-                            .mode = S_IFCHR,
-                            .device_id = makedev(5, 1),
-                            .ref_count = 1};
-    return inode;
+    static struct inode inode = {.fops = &fops,
+                                 .mode = S_IFCHR,
+                                 .device_id = makedev(5, 1),
+                                 .ref_count = 1};
+    return &inode;
 }

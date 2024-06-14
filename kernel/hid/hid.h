@@ -41,5 +41,5 @@ typedef void (*ps2_key_event_handler_fn)(const key_event*);
 
 NODISCARD bool ps2_init(void);
 void ps2_set_key_event_handler(ps2_key_event_handler_fn);
-struct inode* ps2_keyboard_device_create(void);
-struct inode* ps2_mouse_device_create(void);
+struct inode* ps2_keyboard_device_get(void);
+struct inode* ps2_mouse_device_get(void);
