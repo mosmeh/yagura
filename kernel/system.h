@@ -1,13 +1,14 @@
 #pragma once
 
 #include "api/sys/types.h"
-#include "forward.h"
 #include <stdalign.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdnoreturn.h>
+
+typedef struct multiboot_info multiboot_info_t;
 
 typedef struct registers {
     uint32_t ss, gs, fs, es, ds;

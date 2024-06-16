@@ -2,7 +2,8 @@
 
 #include "api/sys/types.h"
 #include <common/extra.h>
-#include <kernel/forward.h>
+
+typedef struct registers registers;
 
 NODISCARD bool safe_memcpy(void* dest, const void* src, size_t n);
 NODISCARD bool safe_memset(void* s, unsigned char c, size_t n);

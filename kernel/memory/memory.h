@@ -2,7 +2,6 @@
 
 #include <common/extra.h>
 #include <kernel/boot_defs.h>
-#include <kernel/forward.h>
 #include <kernel/lock.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -12,6 +11,9 @@
 
 // last 4MiB is for recursive mapping
 #define KERNEL_HEAP_END 0xffc00000
+
+typedef struct page_directory page_directory;
+typedef struct multiboot_info multiboot_info_t;
 
 static inline bool is_user_address(const void* addr) {
     return addr && (uintptr_t)addr < KERNEL_VADDR;

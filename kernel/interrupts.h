@@ -1,10 +1,11 @@
 #pragma once
 
 #include "asm_wrapper.h"
-#include "forward.h"
 #include <stdbool.h>
 
 #define IRQ(i) (0x20 + i)
+
+typedef struct registers registers;
 
 void idt_init(void);
 void irq_init(void);

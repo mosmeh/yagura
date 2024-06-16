@@ -6,7 +6,8 @@
 #include <kernel/api/sys/syscall.h>
 #include <kernel/api/sys/times.h>
 #include <kernel/api/time.h>
-#include <kernel/forward.h>
+
+typedef struct registers registers;
 
 int sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen);
 int sys_bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen);

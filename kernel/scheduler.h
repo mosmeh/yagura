@@ -1,8 +1,9 @@
 #pragma once
 
-#include "forward.h"
 #include <common/extra.h>
 #include <stdbool.h>
+
+struct process;
 
 void scheduler_init(void);
 

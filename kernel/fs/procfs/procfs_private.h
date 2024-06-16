@@ -1,7 +1,9 @@
 #pragma once
 
-#include <kernel/forward.h>
 #include <kernel/fs/fs.h>
+#include <kernel/growable_buf.h>
+
+typedef struct growable_buf growable_buf;
 
 typedef int (*procfs_populate_fn)(file_description*, growable_buf*);
 

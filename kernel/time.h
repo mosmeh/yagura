@@ -1,9 +1,10 @@
 #pragma once
 
-#include "forward.h"
 #include <stdatomic.h>
 
 #define CLK_TCK 250
+
+struct timespec;
 
 extern atomic_uint uptime;
 

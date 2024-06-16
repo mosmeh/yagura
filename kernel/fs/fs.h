@@ -3,7 +3,6 @@
 #include <common/extra.h>
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/types.h>
-#include <kernel/forward.h>
 #include <kernel/lock.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -14,6 +13,10 @@
 #define ROOT_DIR PATH_SEPARATOR_STR
 
 #define OPEN_MAX 1024
+
+typedef struct unix_socket unix_socket;
+typedef struct multiboot_info multiboot_info_t;
+typedef struct multiboot_mod_list multiboot_module_t;
 
 typedef struct file_description {
     mutex offset_lock;
