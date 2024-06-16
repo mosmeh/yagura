@@ -100,13 +100,19 @@ NODISCARD int file_description_getdents(file_description*, getdents_callback_fn,
 NODISCARD int file_description_block(file_description*,
                                      bool (*should_unblock)(file_description*));
 
-NODISCARD int vfs_mount(const char* path, struct inode* fs_root);
+void vfs_init(void);
+void vfs_populate_root_fs(const multiboot_module_t* initrd_mod);
 struct inode* vfs_get_root(void);
+NODISCARD int vfs_mount(const char* path, struct inode* fs_root);
+
 NODISCARD int vfs_register_device(struct inode* device);
+struct inode* vfs_get_device(dev_t);
+
 NODISCARD file_description* vfs_open(const char* pathname, int flags,
                                      mode_t mode);
 NODISCARD int vfs_stat(const char* pathname, struct stat* buf);
 NODISCARD struct inode* vfs_create(const char* pathname, mode_t mode);
+
 char* vfs_canonicalize_path(const char* pathname);
 struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
                                char** out_basename);
@@ -114,8 +120,6 @@ struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
 uint8_t mode_to_dirent_type(mode_t);
 
 struct inode* fifo_create(void);
-
-void initrd_populate_root_fs(uintptr_t physical_addr, size_t size);
 
 struct inode* tmpfs_create_root(void);
 struct inode* procfs_create_root(void);

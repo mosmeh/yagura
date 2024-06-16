@@ -2,7 +2,6 @@
 
 #include "api/sys/types.h"
 #include "forward.h"
-#include <common/extra.h>
 #include <stdalign.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -29,9 +28,6 @@ void gdt_set_kernel_stack(uintptr_t stack_top);
 
 void syscall_init(void);
 
-extern atomic_uint uptime;
-void pit_init(void);
-
 void cmdline_init(const multiboot_info_t*);
 const char* cmdline_get_raw(void);
 const char* cmdline_lookup(const char* key);
@@ -43,12 +39,3 @@ ssize_t random_get(void* buffer, size_t count);
 noreturn void reboot(void);
 noreturn void halt(void);
 noreturn void poweroff(void);
-
-struct inode* null_device_get(void);
-struct inode* zero_device_get(void);
-struct inode* full_device_get(void);
-struct inode* random_device_get(void);
-struct inode* urandom_device_get(void);
-
-NODISCARD bool ac97_init(void);
-struct inode* ac97_device_get(void);

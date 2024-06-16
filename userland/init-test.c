@@ -29,6 +29,8 @@ static int spawn(char* filename) {
 int main(void) {
     ASSERT(getpid() == 1);
 
+    ASSERT_OK(mount("tmpfs", "/dev", "tmpfs", 0, NULL));
+
     ASSERT_OK(mknod("/dev/console", S_IFCHR, makedev(5, 1)));
     ASSERT(open("/dev/console", O_RDONLY) == STDIN_FILENO);
     ASSERT(open("/dev/console", O_WRONLY) == STDOUT_FILENO);

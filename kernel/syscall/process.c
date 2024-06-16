@@ -9,6 +9,7 @@
 #include <kernel/process.h>
 #include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
+#include <kernel/time.h>
 
 void sys_exit(int status) { process_exit(status); }
 

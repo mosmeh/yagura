@@ -5,9 +5,28 @@
 #include <kernel/kprintf.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
+#include <kernel/multiboot.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <string.h>
+
+void initrd_populate_root_fs(uintptr_t paddr, size_t size);
+
+static struct inode* root;
+
+void vfs_init(void) { ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root())); }
+
+void vfs_populate_root_fs(const multiboot_module_t* initrd_mod) {
+    uintptr_t initrd_paddr = initrd_mod->mod_start;
+    uintptr_t initrd_size = initrd_mod->mod_end - initrd_mod->mod_start;
+    initrd_populate_root_fs(initrd_paddr, initrd_size);
+}
+
+struct inode* vfs_get_root(void) {
+    ASSERT(root);
+    inode_ref(root);
+    return root;
+}
 
 typedef struct mount_point {
     struct inode* host;
@@ -15,15 +34,8 @@ typedef struct mount_point {
     struct mount_point* next;
 } mount_point;
 
-typedef struct device {
-    struct inode* inode;
-    struct device* next;
-} device;
-
-static struct inode* root;
 static mount_point* mount_points;
 static mutex mount_lock;
-static device* devices;
 
 static int mount_at(struct inode* host, struct inode* guest) {
     if (!S_ISDIR(host->mode)) {
@@ -79,11 +91,12 @@ int vfs_mount(const char* path, struct inode* fs_root) {
     return mount_at(inode, fs_root);
 }
 
-struct inode* vfs_get_root(void) {
-    ASSERT(root);
-    inode_ref(root);
-    return root;
-}
+typedef struct device {
+    struct inode* inode;
+    struct device* next;
+} device;
+
+static device* devices;
 
 int vfs_register_device(struct inode* inode) {
     device** dest = &devices;
@@ -101,15 +114,17 @@ int vfs_register_device(struct inode* inode) {
         dest = &it->next;
     }
     device* dev = kmalloc(sizeof(device));
-    if (!dev)
+    if (!dev) {
+        inode_unref(inode);
         return -ENOMEM;
+    }
     dev->inode = inode;
     dev->next = NULL;
     *dest = dev;
     return 0;
 }
 
-static struct inode* find_device(dev_t id) {
+struct inode* vfs_get_device(dev_t id) {
     device* it = devices;
     while (it) {
         if (it->inode->device_id == id) {
@@ -386,7 +401,7 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
         return ERR_CAST(inode);
 
     if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
-        struct inode* device = find_device(inode->device_id);
+        struct inode* device = vfs_get_device(inode->device_id);
         inode_unref(inode);
         if (!device)
             return ERR_PTR(-ENODEV);
@@ -402,7 +417,7 @@ int vfs_stat(const char* pathname, struct stat* buf) {
         return PTR_ERR(inode);
 
     if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
-        struct inode* device = find_device(inode->device_id);
+        struct inode* device = vfs_get_device(inode->device_id);
         inode_unref(inode);
         if (!device)
             return -ENODEV;

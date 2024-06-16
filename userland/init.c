@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <panic.h>
 #include <stdio.h>
@@ -28,26 +29,57 @@ static pid_t spawn(char* filename) {
     return pid;
 }
 
+struct device_file {
+    const char* pathname;
+    mode_t mode;
+    dev_t dev;
+};
+
+static void try_mknod(const struct device_file* file) {
+    if (mknod(file->pathname, file->mode, file->dev) < 0) {
+        perror("mknod");
+        return;
+    }
+
+    int rc = open(file->pathname, 0);
+    if (rc >= 0)
+        return;
+    if (errno != ENODEV) {
+        perror("open");
+        return;
+    }
+    if (unlink(file->pathname) < 0)
+        perror("unlink");
+}
+
 int main(void) {
     ASSERT(getpid() == 1);
+
+    ASSERT_OK(mount("tmpfs", "/dev", "tmpfs", 0, NULL));
 
     ASSERT_OK(mknod("/dev/console", S_IFCHR, makedev(5, 1)));
     ASSERT(open("/dev/console", O_RDONLY) == STDIN_FILENO);
     ASSERT(open("/dev/console", O_WRONLY) == STDOUT_FILENO);
     ASSERT(open("/dev/console", O_WRONLY) == STDERR_FILENO);
 
-    struct {
-        const char* pathname;
-        dev_t dev;
-    } dev_files[] = {
-        {"/dev/null", makedev(1, 3)},    {"/dev/zero", makedev(1, 5)},
-        {"/dev/full", makedev(1, 7)},    {"/dev/random", makedev(1, 8)},
-        {"/dev/urandom", makedev(1, 9)},
+    const struct device_file device_files[] = {
+        {"/dev/null", S_IFCHR, makedev(1, 3)},
+        {"/dev/zero", S_IFCHR, makedev(1, 5)},
+        {"/dev/full", S_IFCHR, makedev(1, 7)},
+        {"/dev/random", S_IFCHR, makedev(1, 8)},
+        {"/dev/urandom", S_IFCHR, makedev(1, 9)},
+        {"/dev/ttyS0", S_IFCHR, makedev(4, 64)},
+        {"/dev/ttyS1", S_IFCHR, makedev(4, 65)},
+        {"/dev/ttyS2", S_IFCHR, makedev(4, 66)},
+        {"/dev/ttyS3", S_IFCHR, makedev(4, 67)},
+        {"/dev/tty", S_IFCHR, makedev(5, 0)},
+        {"/dev/psaux", S_IFCHR, makedev(10, 1)},
+        {"/dev/kbd", S_IFCHR, makedev(11, 0)},
+        {"/dev/dsp", S_IFCHR, makedev(14, 3)},
+        {"/dev/fb0", S_IFBLK, makedev(29, 0)},
     };
-    for (size_t i = 0; i < ARRAY_SIZE(dev_files); ++i) {
-        if (mknod(dev_files[i].pathname, S_IFCHR, dev_files[i].dev) < 0)
-            perror("mknod");
-    }
+    for (size_t i = 0; i < ARRAY_SIZE(device_files); ++i)
+        try_mknod(&device_files[i]);
 
     if (mount("tmpfs", "/tmp", "tmpfs", 0, NULL) < 0)
         perror("mount");

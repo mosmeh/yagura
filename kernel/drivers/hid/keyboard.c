@@ -316,11 +316,6 @@ static void irq_handler(registers* reg) {
         event_handler(event);
 }
 
-void ps2_keyboard_init(void) {
-    ps2_write(PS2_COMMAND, PS2_ENABLE_PORT1);
-    idt_set_interrupt_handler(IRQ(1), irq_handler);
-}
-
 void ps2_set_key_event_handler(ps2_key_event_handler_fn handler) {
     event_handler = handler;
 }
@@ -377,7 +372,7 @@ static short ps2_keyboard_device_poll(file_description* desc, short events) {
     return revents;
 }
 
-struct inode* ps2_keyboard_device_get(void) {
+static struct inode* ps2_keyboard_device_get(void) {
     static file_ops fops = {.read = ps2_keyboard_device_read,
                             .poll = ps2_keyboard_device_poll};
     static struct inode inode = {.fops = &fops,
@@ -385,4 +380,11 @@ struct inode* ps2_keyboard_device_get(void) {
                                  .device_id = makedev(11, 0),
                                  .ref_count = 1};
     return &inode;
+}
+
+void ps2_keyboard_init(void) {
+    ps2_write(PS2_COMMAND, PS2_ENABLE_PORT1);
+    idt_set_interrupt_handler(IRQ(1), irq_handler);
+
+    ASSERT_OK(vfs_register_device(ps2_keyboard_device_get()));
 }

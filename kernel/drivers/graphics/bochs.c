@@ -1,10 +1,10 @@
-#include "fb_private.h"
+#include "graphics.h"
 #include <kernel/api/err.h>
 #include <kernel/asm_wrapper.h>
+#include <kernel/drivers/pci.h>
 #include <kernel/kprintf.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
-#include <kernel/pci.h>
 
 #define VBE_DISPI_IOPORT_INDEX 0x01ce
 #define VBE_DISPI_IOPORT_DATA 0x01cf

@@ -1,4 +1,4 @@
-#include "fb_private.h"
+#include "graphics.h"
 #include <kernel/api/err.h>
 #include <kernel/kprintf.h>
 #include <kernel/memory/memory.h>

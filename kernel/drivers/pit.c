@@ -1,10 +1,9 @@
-#include "api/time.h"
-#include "asm_wrapper.h"
-#include "interrupts.h"
-#include "panic.h"
-#include "process.h"
-#include "scheduler.h"
-#include "time.h"
+#include "pit.h"
+#include <kernel/interrupts.h>
+#include <kernel/panic.h>
+#include <kernel/scheduler.h>
+#include <kernel/system.h>
+#include <kernel/time.h>
 
 #define TIMER0_CTL 0x40
 #define PIT_CTL 0x43
@@ -13,14 +12,14 @@
 #define MODE_SQUARE_WAVE 0x06
 #define BASE_FREQUENCY 1193182
 
-atomic_uint uptime;
+static void (*tick_handler)(void);
 
-static void pit_handler(registers* regs) {
+static void irq_handler(registers* regs) {
     (void)regs;
     ASSERT(!interrupts_enabled());
 
-    ++uptime;
-    time_tick();
+    if (tick_handler)
+        tick_handler();
 
     bool in_kernel = (regs->cs & 3) == 0;
     scheduler_tick(in_kernel);
@@ -31,5 +30,7 @@ void pit_init(void) {
     out8(PIT_CTL, TIMER0_SELECT | WRITE_WORD | MODE_SQUARE_WAVE);
     out8(TIMER0_CTL, div & 0xff);
     out8(TIMER0_CTL, div >> 8);
-    idt_set_interrupt_handler(IRQ(0), pit_handler);
+    idt_set_interrupt_handler(IRQ(0), irq_handler);
 }
+
+void pit_set_tick_handler(void (*handler)(void)) { tick_handler = handler; }

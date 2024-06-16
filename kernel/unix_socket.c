@@ -4,7 +4,6 @@
 #include "memory/memory.h"
 #include "panic.h"
 #include "process.h"
-#include "scheduler.h"
 #include "socket.h"
 
 static void unix_socket_destroy_inode(struct inode* inode) {

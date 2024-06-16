@@ -1,7 +1,7 @@
 #include "api/errno.h"
 #include "asm_wrapper.h"
+#include "drivers/rtc.h"
 #include "kprintf.h"
-#include "time.h"
 #include <common/extra.h>
 #include <stdalign.h>
 

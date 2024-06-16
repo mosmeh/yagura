@@ -56,13 +56,6 @@ static void irq_handler(registers* reg) {
     UNREACHABLE();
 }
 
-void ps2_mouse_init(void) {
-    ps2_write(PS2_COMMAND, PS2_ENABLE_PORT2);
-    write_mouse(PS2_MOUSE_SET_DEFAULTS);
-    write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
-    idt_set_interrupt_handler(IRQ(12), irq_handler);
-}
-
 static bool can_read(void) {
     bool int_flag = push_cli();
     bool ret = queue_read_idx != queue_write_idx;
@@ -116,7 +109,7 @@ static short ps2_mouse_device_poll(file_description* desc, short events) {
     return revents;
 }
 
-struct inode* ps2_mouse_device_get(void) {
+static struct inode* ps2_mouse_device_get(void) {
     static file_ops fops = {.read = ps2_mouse_device_read,
                             .poll = ps2_mouse_device_poll};
     static struct inode inode = {.fops = &fops,
@@ -124,4 +117,13 @@ struct inode* ps2_mouse_device_get(void) {
                                  .device_id = makedev(10, 1),
                                  .ref_count = 1};
     return &inode;
+}
+
+void ps2_mouse_init(void) {
+    ps2_write(PS2_COMMAND, PS2_ENABLE_PORT2);
+    write_mouse(PS2_MOUSE_SET_DEFAULTS);
+    write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
+    idt_set_interrupt_handler(IRQ(12), irq_handler);
+
+    ASSERT_OK(vfs_register_device(ps2_mouse_device_get()));
 }

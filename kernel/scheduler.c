@@ -1,7 +1,6 @@
 #include "scheduler.h"
 #include "api/errno.h"
 #include "interrupts.h"
-#include "memory.h"
 #include "memory/memory.h"
 #include "panic.h"
 #include "process.h"

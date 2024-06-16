@@ -2,6 +2,7 @@
 
 // multiboot.h
 typedef struct multiboot_info multiboot_info_t;
+typedef struct multiboot_mod_list multiboot_module_t;
 
 // system.h
 typedef struct registers registers;

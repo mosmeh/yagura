@@ -3,21 +3,16 @@
 #include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/drivers/serial.h>
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/ring_buf.h>
 #include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
-#include <kernel/serial.h>
 
 static ring_buf input_bufs[4];
 static pid_t pgid;
-
-void serial_console_init(void) {
-    for (size_t i = 0; i < 4; ++i)
-        ASSERT_OK(ring_buf_init(input_bufs + i));
-}
 
 static ring_buf* get_input_buf_for_port(uint16_t port) {
     uint8_t com_number = serial_port_to_com_number(port);
@@ -111,7 +106,7 @@ static short serial_console_device_poll(file_description* desc, short events) {
     return revents;
 }
 
-struct inode* serial_console_device_create(uint16_t port) {
+static struct inode* serial_console_device_create(uint16_t port) {
     if (!serial_is_valid_port(port))
         return NULL;
 
@@ -133,4 +128,19 @@ struct inode* serial_console_device_create(uint16_t port) {
     inode->ref_count = 1;
 
     return inode;
+}
+
+void serial_console_init(void) {
+    for (size_t i = 0; i < 4; ++i)
+        ASSERT_OK(ring_buf_init(input_bufs + i));
+
+    const uint16_t ports[] = {SERIAL_COM1, SERIAL_COM2, SERIAL_COM3,
+                              SERIAL_COM4};
+    for (size_t i = 0; i < ARRAY_SIZE(ports); ++i) {
+        if (serial_is_port_enabled(ports[i])) {
+            struct inode* device = serial_console_device_create(ports[i]);
+            ASSERT_OK(device);
+            ASSERT_OK(vfs_register_device(device));
+        }
+    }
 }

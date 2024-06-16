@@ -1,8 +1,9 @@
-#include "api/err.h"
-#include "api/sys/sysmacros.h"
-#include "fs/fs.h"
-#include "memory/memory.h"
-#include "system.h"
+#include <kernel/api/err.h>
+#include <kernel/api/sys/sysmacros.h>
+#include <kernel/fs/fs.h>
+#include <kernel/memory/memory.h>
+#include <kernel/panic.h>
+#include <kernel/system.h>
 #include <string.h>
 
 static ssize_t read_nothing(file_description* desc, void* buffer,
@@ -40,7 +41,7 @@ static ssize_t write_to_full_disk(file_description* desc, const void* buffer,
     return 0;
 }
 
-struct inode* null_device_get(void) {
+static struct inode* null_device_get(void) {
     static file_ops fops = {.read = read_nothing, .write = write_to_bit_bucket};
     static struct inode inode = {.fops = &fops,
                                  .mode = S_IFCHR,
@@ -49,7 +50,7 @@ struct inode* null_device_get(void) {
     return &inode;
 }
 
-struct inode* zero_device_get(void) {
+static struct inode* zero_device_get(void) {
     static file_ops fops = {.read = read_zeros, .write = write_to_bit_bucket};
     static struct inode inode = {.fops = &fops,
                                  .mode = S_IFCHR,
@@ -58,7 +59,7 @@ struct inode* zero_device_get(void) {
     return &inode;
 }
 
-struct inode* full_device_get(void) {
+static struct inode* full_device_get(void) {
     static file_ops fops = {.read = read_zeros, .write = write_to_full_disk};
     static struct inode inode = {.fops = &fops,
                                  .mode = S_IFCHR,
@@ -67,7 +68,7 @@ struct inode* full_device_get(void) {
     return &inode;
 }
 
-struct inode* random_device_get(void) {
+static struct inode* random_device_get(void) {
     static file_ops fops = {.read = read_random, .write = write_to_bit_bucket};
     static struct inode inode = {.fops = &fops,
                                  .mode = S_IFCHR,
@@ -76,11 +77,19 @@ struct inode* random_device_get(void) {
     return &inode;
 }
 
-struct inode* urandom_device_get(void) {
+static struct inode* urandom_device_get(void) {
     static file_ops fops = {.read = read_random, .write = write_to_bit_bucket};
     static struct inode inode = {.fops = &fops,
                                  .mode = S_IFCHR,
                                  .device_id = makedev(1, 9),
                                  .ref_count = 1};
     return &inode;
+}
+
+void pseudo_device_init(void) {
+    ASSERT_OK(vfs_register_device(null_device_get()));
+    ASSERT_OK(vfs_register_device(zero_device_get()));
+    ASSERT_OK(vfs_register_device(full_device_get()));
+    ASSERT_OK(vfs_register_device(random_device_get()));
+    ASSERT_OK(vfs_register_device(urandom_device_get()));
 }

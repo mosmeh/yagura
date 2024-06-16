@@ -3,14 +3,27 @@ CFLAGS += -isystem..
 TARGET := kernel
 
 OBJS := \
-	ac97.o \
 	boot.o \
 	cmdline.o \
+	console/console.o \
 	console/fb_console.o \
 	console/psf.o \
 	console/serial_console.o \
 	console/system_console.o \
 	console/tty.o \
+	drivers/ac97.o \
+	drivers/drivers.o \
+	drivers/graphics/bochs.o \
+	drivers/graphics/fb.o \
+	drivers/graphics/multiboot.o \
+	drivers/hid/keyboard.o \
+	drivers/hid/mouse.o \
+	drivers/hid/ps2.o \
+	drivers/pci.o \
+	drivers/pit.o \
+	drivers/pseudo_device.o \
+	drivers/rtc.o \
+	drivers/serial.o \
 	exec.o \
 	fs/dentry.o \
 	fs/fifo.o \
@@ -22,13 +35,7 @@ OBJS := \
 	fs/tmpfs.o \
 	fs/vfs.o \
 	gdt.o \
-	graphics/bochs.o \
-	graphics/fb.o \
-	graphics/multiboot.o \
 	growable_buf.o \
-	hid/keyboard.o \
-	hid/mouse.o \
-	hid/ps2.o \
 	idt.o \
 	interrupt.o \
 	irq.o \
@@ -39,15 +46,11 @@ OBJS := \
 	memory/page_allocator.o \
 	memory/paging.o \
 	memory/range_allocator.o \
-	pci.o \
-	pit.o \
 	process.o \
-	pseudo_device.o \
 	random.o \
 	ring_buf.o \
 	safe_string.o \
 	scheduler.o \
-	serial.o \
 	syscall/clock.o \
 	syscall/fs.o \
 	syscall/mmap.o \

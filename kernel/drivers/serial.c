@@ -1,7 +1,8 @@
 #include "serial.h"
-#include "console/console.h"
-#include "interrupts.h"
-#include "panic.h"
+#include <kernel/console/console.h>
+#include <kernel/fs/fs.h>
+#include <kernel/interrupts.h>
+#include <kernel/panic.h>
 
 static void init_port(uint16_t port) {
     out8(port + 1, 0x00);
@@ -13,7 +14,7 @@ static void init_port(uint16_t port) {
     out8(port + 4, 0x0b);
 }
 
-void serial_init(void) { init_port(SERIAL_COM1); }
+void serial_early_init(void) { init_port(SERIAL_COM1); }
 
 #define DATA_READY 0x1
 #define TRANSMITTER_HOLDING_REGISTER_EMPTY 0x20
@@ -39,7 +40,9 @@ static void handle_2_and_4(registers* regs) {
         ;
 }
 
-bool serial_enable_port(uint16_t port) {
+static bool is_port_enabled[4];
+
+static bool enable_port(uint16_t port) {
     if (!serial_is_valid_port(port))
         return false;
 
@@ -58,13 +61,28 @@ bool serial_enable_port(uint16_t port) {
     case SERIAL_COM1:
     case SERIAL_COM3:
         idt_set_interrupt_handler(IRQ(4), handle_1_and_3);
-        return true;
+        break;
     case SERIAL_COM2:
     case SERIAL_COM4:
         idt_set_interrupt_handler(IRQ(3), handle_2_and_4);
-        return true;
+        break;
+    default:
+        UNREACHABLE();
     }
-    UNREACHABLE();
+
+    is_port_enabled[serial_port_to_com_number(port) - 1] = true;
+    return true;
+}
+
+bool serial_is_port_enabled(uint16_t port) {
+    return is_port_enabled[serial_port_to_com_number(port) - 1];
+}
+
+void serial_late_init(void) {
+    enable_port(SERIAL_COM1);
+    enable_port(SERIAL_COM2);
+    enable_port(SERIAL_COM3);
+    enable_port(SERIAL_COM4);
 }
 
 static void write_char(uint16_t port, char c) {

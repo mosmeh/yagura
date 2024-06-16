@@ -1,21 +1,18 @@
-#include "api/sys/stat.h"
 #include "boot_defs.h"
 #include "console/console.h"
-#include "graphics/graphics.h"
-#include "hid/hid.h"
+#include "drivers/drivers.h"
+#include "drivers/serial.h"
 #include "interrupts.h"
 #include "kprintf.h"
-#include "memory.h"
 #include "memory/memory.h"
 #include "multiboot.h"
 #include "panic.h"
 #include "process.h"
 #include "scheduler.h"
-#include "serial.h"
-#include "syscall/syscall.h"
+#include "string.h"
 #include "time.h"
 
-static noreturn void init(void) {
+static noreturn void userland_init(void) {
     current->pid = current->pgid = process_generate_next_pid();
 
     const char* init_path = cmdline_lookup("init");
@@ -31,20 +28,11 @@ static noreturn void init(void) {
 extern unsigned char kernel_end[];
 extern unsigned char stack_top[];
 
-static void create_char_device(const char* pathname, struct inode* device) {
-    ASSERT_OK(vfs_register_device(device));
-
-    struct inode* inode = vfs_create(pathname, S_IFCHR);
-    ASSERT_OK(inode);
-    inode->device_id = device->device_id;
-    inode_unref(inode);
-}
-
 void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     gdt_init();
     idt_init();
     irq_init();
-    serial_init();
+    serial_early_init();
     kputs("\x1b[32mBooted\x1b[m\n");
     sti();
 
@@ -54,70 +42,27 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     const multiboot_info_t* mb_info =
         (const multiboot_info_t*)(mb_info_paddr + KERNEL_VADDR);
-
-    cmdline_init(mb_info);
-
     if (!(mb_info->flags & MULTIBOOT_INFO_MODS) || mb_info->mods_count == 0)
         PANIC("No initrd found. Provide initrd as the first Multiboot module");
-    const multiboot_module_t* initrd_mod =
-        (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
-    uintptr_t initrd_paddr = initrd_mod->mod_start;
-    uintptr_t initrd_size = initrd_mod->mod_end - initrd_mod->mod_start;
+    multiboot_module_t initrd_mod;
+    memcpy(&initrd_mod,
+           (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR),
+           sizeof(multiboot_module_t));
 
+    cmdline_init(mb_info);
     paging_init(mb_info);
-
-    ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));
-
+    vfs_init();
     process_init();
-    random_init();
-
-    initrd_populate_root_fs(initrd_paddr, initrd_size);
-
-    ASSERT_OK(vfs_mount("/dev", tmpfs_create_root()));
-    ASSERT_OK(vfs_register_device(null_device_get()));
-    ASSERT_OK(vfs_register_device(zero_device_get()));
-    ASSERT_OK(vfs_register_device(full_device_get()));
-    ASSERT_OK(vfs_register_device(random_device_get()));
-    ASSERT_OK(vfs_register_device(urandom_device_get()));
-
-    if (ps2_init()) {
-        create_char_device("/dev/kbd", ps2_keyboard_device_get());
-        create_char_device("/dev/psaux", ps2_mouse_device_get());
-    }
-
-    if (fb_init(mb_info)) {
-        create_char_device("/dev/fb0", fb_device_get());
-        fb_console_init();
-        create_char_device("/dev/tty", fb_console_device_get());
-    }
-
-    if (ac97_init())
-        create_char_device("/dev/dsp", ac97_device_get());
-
-    serial_console_init();
-    if (serial_enable_port(SERIAL_COM1))
-        create_char_device("/dev/ttyS0",
-                           serial_console_device_create(SERIAL_COM1));
-    if (serial_enable_port(SERIAL_COM2))
-        create_char_device("/dev/ttyS1",
-                           serial_console_device_create(SERIAL_COM2));
-    if (serial_enable_port(SERIAL_COM2))
-        create_char_device("/dev/ttyS2",
-                           serial_console_device_create(SERIAL_COM3));
-    if (serial_enable_port(SERIAL_COM3))
-        create_char_device("/dev/ttyS3",
-                           serial_console_device_create(SERIAL_COM4));
-
-    system_console_init();
-    ASSERT_OK(vfs_register_device(system_console_device_get()));
-
-    syscall_init();
     scheduler_init();
+    drivers_init(mb_info);
+    vfs_populate_root_fs(&initrd_mod);
+    random_init();
+    console_init();
     time_init();
-    pit_init();
+    syscall_init();
     kputs("\x1b[32mInitialization done\x1b[m\n");
 
-    ASSERT_OK(process_spawn_kernel_process("userland_init", init));
+    ASSERT_OK(process_spawn_kernel_process("userland_init", userland_init));
 
     process_exit(0);
 }

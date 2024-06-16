@@ -20,10 +20,10 @@ static bool self_test(void) {
     return false;
 }
 
-bool ps2_init(void) {
+void ps2_init(void) {
     drain_output_buffer();
     if (!self_test())
-        return false;
+        return;
 
     ps2_write(PS2_COMMAND, PS2_DISABLE_PORT1);
     ps2_write(PS2_COMMAND, PS2_DISABLE_PORT2);
@@ -41,6 +41,4 @@ bool ps2_init(void) {
 
     drain_output_buffer();
     ps2_mouse_init();
-
-    return true;
 }

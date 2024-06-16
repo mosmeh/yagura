@@ -1,14 +1,15 @@
-#include "api/err.h"
-#include "api/sound.h"
-#include "api/sys/poll.h"
-#include "api/sys/sysmacros.h"
-#include "boot_defs.h"
-#include "fs/fs.h"
-#include "interrupts.h"
-#include "memory/memory.h"
 #include "pci.h"
-#include "safe_string.h"
-#include "system.h"
+#include <kernel/api/err.h>
+#include <kernel/api/sound.h>
+#include <kernel/api/sys/poll.h>
+#include <kernel/api/sys/sysmacros.h>
+#include <kernel/boot_defs.h>
+#include <kernel/fs/fs.h>
+#include <kernel/interrupts.h>
+#include <kernel/memory/memory.h>
+#include <kernel/panic.h>
+#include <kernel/safe_string.h>
+#include <kernel/system.h>
 #include <string.h>
 
 #define PCI_CLASS_MULTIMEDIA 4
@@ -81,39 +82,6 @@ static void irq_handler(registers* regs) {
         dma_is_running = false;
 
     buffer_descriptor_list_is_full = false;
-}
-
-bool ac97_init(void) {
-    pci_enumerate(pci_enumeration_callback);
-    if (!device_detected)
-        return false;
-
-    pci_set_interrupt_line_enabled(&device_addr, true);
-    pci_set_bus_mastering_enabled(&device_addr, true);
-
-    uint32_t control = in32(bus_base + BUS_GLOBAL_CONTROL);
-    control |= GLOBAL_CONTROL_GLOBAL_INTERRUPT_ENABLE;
-    control |= GLOBAL_CONTROL_COLD_RESET;
-    out32(bus_base + BUS_GLOBAL_CONTROL, control);
-
-    out16(mixer_base + MIXER_RESET_REGISTER, 1);
-
-    out16(mixer_base + MIXER_SAMPLE_RATE, 48000);
-
-    // zero attenuation i.e. full volume
-    out16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME, 0);
-    out16(mixer_base + MIXER_PCM_OUTPUT_VOLUME, 0);
-
-    pcm_out_channel = bus_base + BUS_PCM_OUT;
-    out8(pcm_out_channel + CHANNEL_TRANSFTER_CONTROL, TRANSFER_CONTROL_RESET);
-    while (in8(pcm_out_channel + CHANNEL_TRANSFTER_CONTROL) &
-           TRANSFER_CONTROL_RESET)
-        delay(50);
-
-    uint8_t irq_num = pci_get_interrupt_line(&device_addr);
-    idt_set_interrupt_handler(IRQ(irq_num), irq_handler);
-
-    return true;
 }
 
 #define OUTPUT_BUF_NUM_PAGES 4
@@ -273,7 +241,7 @@ static short ac97_device_poll(file_description* desc, short events) {
     return revents;
 }
 
-struct inode* ac97_device_get(void) {
+static struct inode* ac97_device_get(void) {
     static file_ops fops = {.write = ac97_device_write,
                             .ioctl = ac97_device_ioctl,
                             .poll = ac97_device_poll};
@@ -282,4 +250,37 @@ struct inode* ac97_device_get(void) {
                                  .device_id = makedev(14, 3),
                                  .ref_count = 1};
     return &inode;
+}
+
+void ac97_init(void) {
+    pci_enumerate(pci_enumeration_callback);
+    if (!device_detected)
+        return;
+
+    pci_set_interrupt_line_enabled(&device_addr, true);
+    pci_set_bus_mastering_enabled(&device_addr, true);
+
+    uint32_t control = in32(bus_base + BUS_GLOBAL_CONTROL);
+    control |= GLOBAL_CONTROL_GLOBAL_INTERRUPT_ENABLE;
+    control |= GLOBAL_CONTROL_COLD_RESET;
+    out32(bus_base + BUS_GLOBAL_CONTROL, control);
+
+    out16(mixer_base + MIXER_RESET_REGISTER, 1);
+
+    out16(mixer_base + MIXER_SAMPLE_RATE, 48000);
+
+    // zero attenuation i.e. full volume
+    out16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME, 0);
+    out16(mixer_base + MIXER_PCM_OUTPUT_VOLUME, 0);
+
+    pcm_out_channel = bus_base + BUS_PCM_OUT;
+    out8(pcm_out_channel + CHANNEL_TRANSFTER_CONTROL, TRANSFER_CONTROL_RESET);
+    while (in8(pcm_out_channel + CHANNEL_TRANSFTER_CONTROL) &
+           TRANSFER_CONTROL_RESET)
+        delay(50);
+
+    uint8_t irq_num = pci_get_interrupt_line(&device_addr);
+    idt_set_interrupt_handler(IRQ(irq_num), irq_handler);
+
+    ASSERT_OK(vfs_register_device(ac97_device_get()));
 }

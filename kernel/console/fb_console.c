@@ -11,8 +11,9 @@
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/api/sys/types.h>
-#include <kernel/graphics/graphics.h>
-#include <kernel/hid/hid.h>
+#include <kernel/drivers/graphics/graphics.h>
+#include <kernel/drivers/hid/hid.h>
+#include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
@@ -490,39 +491,6 @@ static void on_key_event(const key_event* event) {
     pop_cli(int_flag);
 }
 
-static bool initialized = false;
-static mutex lock;
-
-void fb_console_init(void) {
-    font = load_psf("/usr/share/fonts/ter-u16n.psf");
-    ASSERT_OK(font);
-
-    ASSERT_OK(fb_get_info(&fb_info));
-    ASSERT(fb_info.bpp == 32);
-
-    num_columns = fb_info.width / font->glyph_width;
-    num_rows = fb_info.height / font->glyph_height;
-
-    cells = kmalloc(num_columns * num_rows * sizeof(struct cell));
-    ASSERT(cells);
-    line_is_dirty = kmalloc(num_rows * sizeof(bool));
-    ASSERT(line_is_dirty);
-
-    size_t fb_size = fb_info.pitch * fb_info.height;
-    fb_addr = range_allocator_alloc(&kernel_vaddr_allocator, fb_size);
-    ASSERT_OK(fb_addr);
-    ASSERT_OK(
-        fb_mmap(fb_addr, fb_size, 0, PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL));
-
-    clear_screen();
-    flush();
-
-    ASSERT_OK(ring_buf_init(&input_buf));
-    ps2_set_key_event_handler(on_key_event);
-
-    initialized = true;
-}
-
 static bool can_read(void) {
     bool int_flag = push_cli();
     bool ret = !ring_buf_is_empty(&input_buf);
@@ -555,6 +523,8 @@ static ssize_t fb_console_device_read(file_description* desc, void* buffer,
         return nread;
     }
 }
+
+static mutex lock;
 
 static ssize_t fb_console_device_write(file_description* desc,
                                        const void* buffer, size_t count) {
@@ -610,7 +580,7 @@ static short fb_console_device_poll(file_description* desc, short events) {
     return revents;
 }
 
-struct inode* fb_console_device_get(void) {
+static struct inode* fb_console_device_get(void) {
     static file_ops fops = {.read = fb_console_device_read,
                             .write = fb_console_device_write,
                             .ioctl = fb_console_device_ioctl,
@@ -620,4 +590,37 @@ struct inode* fb_console_device_get(void) {
                                  .device_id = makedev(5, 0),
                                  .ref_count = 1};
     return &inode;
+}
+
+void fb_console_init(void) {
+    if (!fb_get())
+        return;
+
+    font = load_psf("/usr/share/fonts/ter-u16n.psf");
+    ASSERT_OK(font);
+
+    ASSERT_OK(fb_get()->get_info(&fb_info));
+    ASSERT(fb_info.bpp == 32);
+
+    num_columns = fb_info.width / font->glyph_width;
+    num_rows = fb_info.height / font->glyph_height;
+
+    cells = kmalloc(num_columns * num_rows * sizeof(struct cell));
+    ASSERT(cells);
+    line_is_dirty = kmalloc(num_rows * sizeof(bool));
+    ASSERT(line_is_dirty);
+
+    size_t fb_size = fb_info.pitch * fb_info.height;
+    fb_addr = range_allocator_alloc(&kernel_vaddr_allocator, fb_size);
+    ASSERT_OK(fb_addr);
+    ASSERT_OK(fb_get()->mmap(fb_addr, fb_size, 0,
+                             PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL));
+
+    clear_screen();
+    flush();
+
+    ASSERT_OK(ring_buf_init(&input_buf));
+    ps2_set_key_event_handler(on_key_event);
+
+    ASSERT_OK(vfs_register_device(fb_console_device_get()));
 }

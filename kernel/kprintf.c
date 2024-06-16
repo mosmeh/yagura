@@ -1,5 +1,5 @@
 #include "kprintf.h"
-#include "serial.h"
+#include "drivers/serial.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>

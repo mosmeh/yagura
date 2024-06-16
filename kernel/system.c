@@ -1,7 +1,7 @@
 #include "system.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
-#include "hid/hid.h"
+#include "drivers/hid/hid.h"
 #include "kprintf.h"
 #include "panic.h"
 #include "safe_string.h"

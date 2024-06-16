@@ -1,5 +1,5 @@
 #include "pci.h"
-#include "asm_wrapper.h"
+#include <kernel/asm_wrapper.h>
 
 #define PCI_VENDOR_ID 0x0
 #define PCI_COMMAND 0x4
