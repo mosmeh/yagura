@@ -413,6 +413,31 @@ static struct inode* resolve_special_file(struct inode* inode) {
             return ERR_PTR(-ENODEV);
         return device;
     }
+
+    if (S_ISFIFO(inode->mode)) {
+        if (inode->fifo) {
+            struct inode* fifo = inode->fifo;
+            inode_ref(fifo);
+            inode_unref(inode);
+            return fifo;
+        }
+
+        struct inode* new_fifo = fifo_create();
+        if (IS_ERR(new_fifo))
+            return ERR_CAST(new_fifo);
+        new_fifo->dev = inode->dev; // Signal that this fifo is bound to a file
+        inode_ref(new_fifo);
+
+        struct inode* expected = NULL;
+        if (atomic_compare_exchange_strong(&inode->fifo, &expected, new_fifo)) {
+            inode_unref(inode);
+            return new_fifo;
+        }
+        inode_ref(expected);
+        inode_unref(new_fifo);
+        return expected;
+    }
+
     return inode;
 }
 

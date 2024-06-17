@@ -46,7 +46,7 @@ typedef struct file_ops {
     struct inode* (*create_child)(struct inode*, const char* name, mode_t mode);
     int (*link_child)(struct inode*, const char* name, struct inode* child);
     struct inode* (*unlink_child)(struct inode*, const char* name);
-    int (*open)(file_description*, int flags, mode_t mode);
+    int (*open)(file_description*, mode_t mode);
     int (*stat)(struct inode*, struct stat* buf);
 
     int (*close)(file_description*);
@@ -65,6 +65,7 @@ struct inode {
     file_ops* fops;
     dev_t dev;  // Device number of device containing this inode
     dev_t rdev; // Device number (if this inode is a special file)
+    _Atomic(struct inode*) fifo;
     _Atomic(unix_socket*) bound_socket;
     _Atomic(nlink_t) num_links;
     atomic_size_t ref_count;

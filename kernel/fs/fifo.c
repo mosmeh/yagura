@@ -19,16 +19,33 @@ static void fifo_destroy_inode(struct inode* inode) {
     kfree(fifo);
 }
 
-static int fifo_open(file_description* desc, int flags, mode_t mode) {
+static bool open_should_unblock(file_description* desc) {
+    const struct fifo* fifo = (const struct fifo*)desc->inode;
+    return (desc->flags & O_RDONLY) ? fifo->num_writers > 0
+                                    : fifo->num_readers > 0;
+}
+
+static int fifo_open(file_description* desc, mode_t mode) {
     (void)mode;
-    if ((flags & O_RDONLY) && (flags & O_WRONLY))
+    if ((desc->flags & O_RDONLY) && (desc->flags & O_WRONLY))
         return -EINVAL;
+
     struct fifo* fifo = (struct fifo*)desc->inode;
-    if (flags & O_RDONLY)
+    if (desc->flags & O_RDONLY)
         ++fifo->num_readers;
-    if (flags & O_WRONLY)
+    if (desc->flags & O_WRONLY)
         ++fifo->num_writers;
-    return 0;
+
+    if (desc->inode->dev == 0) {
+        // This is a fifo created by pipe syscall.
+        // We don't need to block here.
+        return 0;
+    }
+
+    int rc = file_description_block(desc, open_should_unblock);
+    if (rc == -EAGAIN && (desc->flags & O_WRONLY))
+        return -ENXIO;
+    return rc;
 }
 
 static int fifo_close(file_description* desc) {

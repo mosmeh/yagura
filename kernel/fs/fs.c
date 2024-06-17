@@ -59,6 +59,8 @@ void inode_unref(struct inode* inode) {
 void inode_destroy(struct inode* inode) {
     ASSERT(inode->ref_count == 0 && inode->num_links == 0);
     ASSERT(inode->fops->destroy_inode);
+    inode_unref(inode->fifo);
+    inode_unref((struct inode*)inode->bound_socket);
     inode->fops->destroy_inode(inode);
 }
 
@@ -124,7 +126,7 @@ file_description* inode_open(struct inode* inode, int flags, mode_t mode) {
     desc->ref_count = 1;
 
     if (inode->fops->open) {
-        int rc = inode->fops->open(desc, flags, mode);
+        int rc = inode->fops->open(desc, mode);
         if (IS_ERR(rc)) {
             inode_unref(inode);
             kfree(desc);

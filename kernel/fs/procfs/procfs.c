@@ -6,8 +6,7 @@
 
 static void procfs_item_destroy_inode(struct inode* inode) { kfree(inode); }
 
-static int procfs_item_open(file_description* desc, int flags, mode_t mode) {
-    (void)flags;
+static int procfs_item_open(file_description* desc, mode_t mode) {
     (void)mode;
 
     growable_buf* buf = kmalloc(sizeof(growable_buf));
