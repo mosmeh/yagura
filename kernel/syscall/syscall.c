@@ -40,6 +40,23 @@ long sys_sysconf(int name) {
     }
 }
 
+int sys_uname(struct utsname* user_buf) {
+    struct utsname buf = {
+        .sysname = "yagura",
+        .nodename = "localhost",
+        .release = "dev",
+#ifdef YAGURA_VERSION
+        .version = YAGURA_VERSION,
+#else
+        .version = "unknown",
+#endif
+        .machine = "i686",
+    };
+    if (!copy_to_user(user_buf, &buf, sizeof(buf)))
+        return -EFAULT;
+    return 0;
+}
+
 int sys_dbgputs(const char* user_str) {
     char copied_str[1024];
     ssize_t str_len =

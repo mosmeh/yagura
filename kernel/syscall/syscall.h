@@ -5,6 +5,7 @@
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/syscall.h>
 #include <kernel/api/sys/times.h>
+#include <kernel/api/sys/utsname.h>
 #include <kernel/api/time.h>
 
 typedef struct registers registers;
@@ -53,6 +54,7 @@ int sys_socket(int domain, int type, int protocol);
 int sys_stat(const char* pathname, struct stat* buf);
 long sys_sysconf(int name);
 clock_t sys_times(struct tms* buf);
+int sys_uname(struct utsname* buf);
 int sys_unlink(const char* pathname);
 pid_t sys_waitpid(pid_t pid, int* wstatus, int options);
 ssize_t sys_write(int fd, const void* buf, size_t count);

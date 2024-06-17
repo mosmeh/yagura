@@ -48,6 +48,7 @@
     F(stat)                                                                    \
     F(sysconf)                                                                 \
     F(times)                                                                   \
+    F(uname)                                                                   \
     F(unlink)                                                                  \
     F(waitpid)                                                                 \
     F(write)

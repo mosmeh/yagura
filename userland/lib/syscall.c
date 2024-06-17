@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/times.h>
+#include <sys/utsname.h>
 #include <syscall.h>
 #include <time.h>
 
@@ -280,6 +281,11 @@ long sysconf(int name) {
 clock_t times(struct tms* buf) {
     int rc = syscall(SYS_times, (uintptr_t)buf, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, clock_t)
+}
+
+int uname(struct utsname* buf) {
+    int rc = syscall(SYS_uname, (uintptr_t)buf, 0, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
 }
 
 int unlink(const char* pathname) {
