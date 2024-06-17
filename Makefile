@@ -1,5 +1,7 @@
-MAKEFLAGS += --jobs=$(shell nproc)
+MAKEFLAGS += --jobs=32
 SUBDIRS := kernel userland
+
+GIT_HASH := $(shell git describe --always --dirty --exclude '*' 2> /dev/null)
 
 export CFLAGS := \
 	-std=c11 \
@@ -9,7 +11,8 @@ export CFLAGS := \
 	-fno-omit-frame-pointer \
 	-U_FORTIFY_SOURCE \
 	-Wall -Wextra -pedantic \
-	-O2 -g
+	-O2 -g \
+	$(if $(GIT_HASH),-DYAGURA_VERSION=\"$(GIT_HASH)\") \
 
 .PHONY: all run clean $(SUBDIRS) base
 

@@ -34,6 +34,9 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     irq_init();
     serial_early_init();
     kputs("\x1b[32mbooted\x1b[m\n");
+#ifdef YAGURA_VERSION
+    kprintf("version: %s\n", YAGURA_VERSION);
+#endif
     sti();
 
     ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
