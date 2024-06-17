@@ -39,6 +39,7 @@ BIN_TARGET_NAMES := \
 	sh \
 	sleep \
 	touch \
+	uname \
 	wc \
 	xv6-usertests
 OUTDIR := ../base/bin
