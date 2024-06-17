@@ -1,4 +1,5 @@
 #include "hid.h"
+#include <kernel/kprintf.h>
 
 void ps2_keyboard_init(void);
 void ps2_mouse_init(void);
@@ -22,8 +23,11 @@ static bool self_test(void) {
 
 void ps2_init(void) {
     drain_output_buffer();
-    if (!self_test())
+    if (!self_test()) {
+        kputs("ps2: PS/2 controller self-test failed. PS/2 controller is "
+              "faulty or not present.\n");
         return;
+    }
 
     ps2_write(PS2_COMMAND, PS2_DISABLE_PORT1);
     ps2_write(PS2_COMMAND, PS2_DISABLE_PORT2);

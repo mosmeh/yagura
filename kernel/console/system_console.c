@@ -1,6 +1,7 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
+#include <kernel/kprintf.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
@@ -14,8 +15,11 @@ static struct inode* get_tty_device(void) {
     };
     for (size_t i = 0; i < ARRAY_SIZE(candidates); ++i) {
         struct inode* device = vfs_get_device(candidates[i]);
-        if (device)
+        if (device) {
+            kprintf("system_console: using device %u,%u\n",
+                    major(candidates[i]), minor(candidates[i]));
             return device;
+        }
     }
     return NULL;
 }

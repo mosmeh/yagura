@@ -273,7 +273,8 @@ range_allocator kernel_vaddr_allocator;
 
 void paging_init(const multiboot_info_t* mb_info) {
     current_pd = kernel_pd;
-    kprintf("Kernel page directory: P0x%x\n", (uintptr_t)kernel_page_directory);
+    kprintf("paging: kernel page directory is at P0x%x\n",
+            (uintptr_t)kernel_page_directory);
 
     page_allocator_init(mb_info);
     ASSERT_OK(range_allocator_init(&kernel_vaddr_allocator, KERNEL_HEAP_START,

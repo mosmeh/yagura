@@ -1,6 +1,7 @@
 #include "rtc.h"
 #include <common/calendar.h>
 #include <kernel/asm_wrapper.h>
+#include <kernel/kprintf.h>
 #include <kernel/panic.h>
 
 static uint8_t cmos_read(uint8_t idx) {
@@ -62,6 +63,12 @@ time_t rtc_now(void) {
         }
 
         year += 2000;
+
+        kprintf("rtc: year=%u month=%u day=%u hour=%u minute=%u second=%u\n",
+                year, month, day, hour, minute, second);
+    } else {
+        kputs("rtc: update did not finish within timeout. Falling back to UNIX "
+              "epoch\n");
     }
 
     time_t days = days_since_epoch(year, month, day);

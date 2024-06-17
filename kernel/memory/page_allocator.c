@@ -88,9 +88,9 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
             uintptr_t entry_start = entry->addr;
             uintptr_t entry_end = entry->addr + entry->len;
 
-            kprintf("Available region: P0x%08x - P0x%08x (%u MiB)\n",
-                    entry_start, entry_end,
-                    (entry_end - entry_start) / 0x100000);
+            kprintf(
+                "page_allocator: available region P0x%08x - P0x%08x (%u MiB)\n",
+                entry_start, entry_end, (entry_end - entry_start) / 0x100000);
 
             if (entry_start < lower_bound)
                 entry_start = lower_bound;
@@ -112,8 +112,9 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
         const multiboot_module_t* mod =
             (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
         for (uint32_t i = 0; i < mb_info->mods_count; ++i) {
-            kprintf("Module: P0x%08x - P0x%08x (%u MiB)\n", mod->mod_start,
-                    mod->mod_end, (mod->mod_end - mod->mod_start) / 0x100000);
+            kprintf("page_allocator: module P0x%08x - P0x%08x (%u MiB)\n",
+                    mod->mod_start, mod->mod_end,
+                    (mod->mod_end - mod->mod_start) / 0x100000);
             for (size_t i = mod->mod_start / PAGE_SIZE;
                  i < div_ceil(mod->mod_end, PAGE_SIZE); ++i)
                 bitmap_clear(i);
@@ -133,7 +134,8 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
         }
     }
     memory_info.total = memory_info.free = num_pages * PAGE_SIZE / 1024;
-    kprintf("#Physical pages: %u (%u KiB)\n", num_pages, memory_info.total);
+    kprintf("page_allocator: #physical pages = %u (%u KiB)\n", num_pages,
+            memory_info.total);
 }
 
 void page_allocator_init(const multiboot_info_t* mb_info) {
@@ -144,7 +146,8 @@ void page_allocator_init(const multiboot_info_t* mb_info) {
     uintptr_t lower_bound;
     uintptr_t upper_bound;
     get_available_physical_addr_bounds(mb_info, &lower_bound, &upper_bound);
-    kprintf("Available physical memory address space: P0x%x - P0x%x\n",
+    kprintf("page_allocator: available physical memory address space P0x%x - "
+            "P0x%x\n",
             lower_bound, upper_bound);
 
     bitmap_init(mb_info, lower_bound, upper_bound);
@@ -156,7 +159,7 @@ uintptr_t page_allocator_alloc(void) {
     ssize_t first_set = bitmap_find_first_set();
     if (IS_ERR(first_set)) {
         mutex_unlock(&lock);
-        kputs("Out of physical pages\n");
+        kputs("page_allocator: out of physical pages\n");
         return first_set;
     }
 

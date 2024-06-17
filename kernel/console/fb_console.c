@@ -15,6 +15,7 @@
 #include <kernel/drivers/hid/hid.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
+#include <kernel/kprintf.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
@@ -604,6 +605,7 @@ void fb_console_init(void) {
 
     num_columns = fb_info.width / font->glyph_width;
     num_rows = fb_info.height / font->glyph_height;
+    kprintf("fb_console: columns=%u rows=%u\n", num_columns, num_rows);
 
     cells = kmalloc(num_columns * num_rows * sizeof(struct cell));
     ASSERT(cells);

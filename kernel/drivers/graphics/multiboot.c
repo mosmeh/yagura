@@ -39,7 +39,7 @@ struct fb* multiboot_fb_init(const multiboot_info_t* mb_info) {
     info.height = mb_info->framebuffer_height;
     info.pitch = mb_info->framebuffer_pitch;
     info.bpp = mb_info->framebuffer_bpp;
-    kprintf("Found framebuffer at P0x%x\n", paddr);
+    kprintf("multiboot_fb: found framebuffer at P0x%x\n", paddr);
 
     static struct fb fb = {.get_info = multiboot_fb_get_info,
                            .set_info = multiboot_fb_set_info,

@@ -2,6 +2,7 @@
 #include <kernel/console/console.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
+#include <kernel/kprintf.h>
 #include <kernel/panic.h>
 
 static void init_port(uint16_t port) {
@@ -45,14 +46,17 @@ static bool is_port_enabled[4];
 static bool enable_port(uint16_t port) {
     if (!serial_is_valid_port(port))
         return false;
+    uint8_t com_number = serial_port_to_com_number(port);
 
     init_port(port);
 
     out8(port + 4, 0x1e);
     out8(port + 0, 0xae);
 
-    if (in8(port + 0) != 0xae)
+    if (in8(port + 0) != 0xae) {
+        kprintf("serial: failed to enable COM%d\n", com_number);
         return false;
+    }
 
     out8(port + 4, 0x0f);
     out8(port + 1, 0x01);
@@ -70,7 +74,8 @@ static bool enable_port(uint16_t port) {
         UNREACHABLE();
     }
 
-    is_port_enabled[serial_port_to_com_number(port) - 1] = true;
+    is_port_enabled[com_number - 1] = true;
+    kprintf("serial: enabled COM%d\n", com_number);
     return true;
 }
 

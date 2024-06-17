@@ -18,6 +18,7 @@ static noreturn void userland_init(void) {
     const char* init_path = cmdline_lookup("init");
     if (!init_path)
         init_path = "/bin/init";
+    kprintf("userland_init: Starting %s\n", init_path);
 
     const char* argv[] = {init_path, NULL};
     static const char* envp[] = {NULL};
@@ -26,19 +27,17 @@ static noreturn void userland_init(void) {
 }
 
 extern unsigned char kernel_end[];
-extern unsigned char stack_top[];
 
 void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     gdt_init();
     idt_init();
     irq_init();
     serial_early_init();
-    kputs("\x1b[32mBooted\x1b[m\n");
+    kputs("\x1b[32mbooted\x1b[m\n");
     sti();
 
     ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
-    kprintf("Kernel stack top: V0x%x\n", (uintptr_t)stack_top);
-    kprintf("Kernel end: V0x%x\n", (uintptr_t)kernel_end);
+    kprintf("kernel end: V0x%x\n", (uintptr_t)kernel_end);
 
     const multiboot_info_t* mb_info =
         (const multiboot_info_t*)(mb_info_paddr + KERNEL_VADDR);
@@ -60,7 +59,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     console_init();
     time_init();
     syscall_init();
-    kputs("\x1b[32mInitialization done\x1b[m\n");
+    kputs("\x1b[32mkernel initialization done\x1b[m\n");
 
     ASSERT_OK(process_spawn_kernel_process("userland_init", userland_init));
 

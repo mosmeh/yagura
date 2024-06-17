@@ -14,12 +14,16 @@ void initrd_populate_root_fs(uintptr_t paddr, size_t size);
 
 static struct inode* root;
 
-void vfs_init(void) { ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root())); }
+void vfs_init(void) {
+    kprintf("vfs: mounting root filesystem\n");
+    ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));
+}
 
 void vfs_populate_root_fs(const multiboot_module_t* initrd_mod) {
-    uintptr_t initrd_paddr = initrd_mod->mod_start;
-    uintptr_t initrd_size = initrd_mod->mod_end - initrd_mod->mod_start;
-    initrd_populate_root_fs(initrd_paddr, initrd_size);
+    kprintf("vfs: populating root fs with initrd at P0x%x - P0x%x\n",
+            initrd_mod->mod_start, initrd_mod->mod_end);
+    initrd_populate_root_fs(initrd_mod->mod_start,
+                            initrd_mod->mod_end - initrd_mod->mod_start);
 }
 
 struct inode* vfs_get_root(void) {
@@ -121,6 +125,8 @@ int vfs_register_device(struct inode* inode) {
     dev->inode = inode;
     dev->next = NULL;
     *dest = dev;
+    kprintf("vfs: registered device %u,%u\n", major(inode->device_id),
+            minor(inode->device_id));
     return 0;
 }
 

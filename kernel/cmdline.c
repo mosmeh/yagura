@@ -15,11 +15,13 @@ static char* keys[MAX_NUM_KEYS];
 static char* values[MAX_NUM_KEYS];
 
 void cmdline_init(const multiboot_info_t* mb_info) {
-    if (!(mb_info->flags & MULTIBOOT_INFO_CMDLINE))
+    if (!(mb_info->flags & MULTIBOOT_INFO_CMDLINE)) {
+        kputs("cmdline: no cmdline provided\n");
         return;
+    }
 
     const char* str = (const char*)(mb_info->cmdline + KERNEL_VADDR);
-    kprintf("Kernel cmdline: \"%s\"\n", str);
+    kprintf("cmdline: \"%s\"\n", str);
     strlcpy(raw, str, MAX_CMDLINE_LEN);
     strlcpy(buf, str, MAX_CMDLINE_LEN);
 

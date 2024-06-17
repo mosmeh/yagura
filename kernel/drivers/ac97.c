@@ -6,6 +6,7 @@
 #include <kernel/boot_defs.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
+#include <kernel/kprintf.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
@@ -256,6 +257,8 @@ void ac97_init(void) {
     pci_enumerate(pci_enumeration_callback);
     if (!device_detected)
         return;
+    kprintf("ac97: detected device %x:%x:%x\n", device_addr.bus,
+            device_addr.slot, device_addr.function);
 
     pci_set_interrupt_line_enabled(&device_addr, true);
     pci_set_bus_mastering_enabled(&device_addr, true);
