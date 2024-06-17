@@ -24,6 +24,7 @@ BIN_TARGET_NAMES := \
 	ls \
 	mandelbrot \
 	mkdir \
+	mkfifo \
 	mount \
 	mouse-cursor \
 	moused \
@@ -63,6 +64,7 @@ LIB_OBJS := \
 	lib/stdio.o \
 	lib/stdlib.o \
 	lib/string.o \
+	lib/sys/stat.o \
 	lib/syscall.o \
 	lib/time.o \
 	lib/unistd.o
