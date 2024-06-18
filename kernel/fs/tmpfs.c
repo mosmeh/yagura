@@ -1,4 +1,5 @@
 #include "dentry.h"
+#include <kernel/api/sys/sysmacros.h>
 #include <kernel/growable_buf.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
@@ -28,9 +29,6 @@ static struct inode* tmpfs_lookup_child(struct inode* inode, const char* name) {
 
 static int tmpfs_stat(struct inode* inode, struct stat* buf) {
     tmpfs_inode* node = (tmpfs_inode*)inode;
-    buf->st_mode = inode->mode;
-    buf->st_nlink = inode->num_links;
-    buf->st_rdev = 0;
     buf->st_size = node->buf.size;
     inode_unref(inode);
     return 0;
@@ -134,7 +132,7 @@ static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
     *child = (tmpfs_inode){0};
 
     struct inode* child_inode = &child->inode;
-    child_inode->fs_root_inode = inode->fs_root_inode;
+    child_inode->dev = inode->dev;
     child_inode->fops = S_ISDIR(mode) ? &dir_fops : &non_dir_fops;
     child_inode->mode = mode;
     child_inode->ref_count = 1;
@@ -156,7 +154,7 @@ struct inode* tmpfs_create_root(void) {
     *root = (tmpfs_inode){0};
 
     struct inode* inode = &root->inode;
-    inode->fs_root_inode = inode;
+    inode->dev = vfs_generate_unnamed_device_number();
     inode->fops = &dir_fops;
     inode->mode = S_IFDIR;
     inode->ref_count = 1;

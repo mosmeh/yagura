@@ -107,7 +107,7 @@ int vfs_register_device(struct inode* inode) {
     if (devices) {
         device* it = devices;
         for (;;) {
-            if (it->inode->device_id == inode->device_id) {
+            if (it->inode->rdev == inode->rdev) {
                 inode_unref(inode);
                 return -EEXIST;
             }
@@ -125,21 +125,27 @@ int vfs_register_device(struct inode* inode) {
     dev->inode = inode;
     dev->next = NULL;
     *dest = dev;
-    kprintf("vfs: registered device %u,%u\n", major(inode->device_id),
-            minor(inode->device_id));
+    kprintf("vfs: registered device %u,%u\n", major(inode->rdev),
+            minor(inode->rdev));
     return 0;
 }
 
 struct inode* vfs_get_device(dev_t id) {
     device* it = devices;
     while (it) {
-        if (it->inode->device_id == id) {
+        if (it->inode->rdev == id) {
             inode_ref(it->inode);
             return it->inode;
         }
         it = it->next;
     }
     return NULL;
+}
+
+dev_t vfs_generate_unnamed_device_number(void) {
+    static int next_id = 1;
+    int id = next_id++;
+    return makedev(0, id);
 }
 
 typedef struct list_node {
@@ -399,6 +405,17 @@ static struct inode* create_inode(const char* pathname, mode_t mode,
     return inode;
 }
 
+static struct inode* resolve_special_file(struct inode* inode) {
+    if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
+        struct inode* device = vfs_get_device(inode->rdev);
+        inode_unref(inode);
+        if (!device)
+            return ERR_PTR(-ENODEV);
+        return device;
+    }
+    return inode;
+}
+
 file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
     struct inode* inode = (flags & O_CREAT)
                               ? create_inode(pathname, mode, flags & O_EXCL)
@@ -406,13 +423,9 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
     if (IS_ERR(inode))
         return ERR_CAST(inode);
 
-    if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
-        struct inode* device = vfs_get_device(inode->device_id);
-        inode_unref(inode);
-        if (!device)
-            return ERR_PTR(-ENODEV);
-        inode = device;
-    }
+    inode = resolve_special_file(inode);
+    if (IS_ERR(inode))
+        return ERR_CAST(inode);
 
     return inode_open(inode, flags, mode);
 }
@@ -421,15 +434,6 @@ int vfs_stat(const char* pathname, struct stat* buf) {
     struct inode* inode = vfs_resolve_path(pathname, NULL, NULL);
     if (IS_ERR(inode))
         return PTR_ERR(inode);
-
-    if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
-        struct inode* device = vfs_get_device(inode->device_id);
-        inode_unref(inode);
-        if (!device)
-            return -ENODEV;
-        inode = device;
-    }
-
     return inode_stat(inode, buf);
 }
 

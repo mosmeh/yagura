@@ -50,10 +50,8 @@ static struct inode* system_console_device_get(void) {
         .write = system_console_device_write,
         .ioctl = system_console_device_ioctl,
     };
-    static struct inode inode = {.fops = &fops,
-                                 .mode = S_IFCHR,
-                                 .device_id = makedev(5, 1),
-                                 .ref_count = 1};
+    static struct inode inode = {
+        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(5, 1), .ref_count = 1};
     return &inode;
 }
 

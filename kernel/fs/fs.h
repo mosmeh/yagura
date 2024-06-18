@@ -62,9 +62,9 @@ typedef struct file_ops {
 } file_ops;
 
 struct inode {
-    struct inode* fs_root_inode;
     file_ops* fops;
-    dev_t device_id;
+    dev_t dev;  // Device number of device containing this inode
+    dev_t rdev; // Device number (if this inode is a special file)
     _Atomic(unix_socket*) bound_socket;
     _Atomic(nlink_t) num_links;
     atomic_size_t ref_count;
@@ -110,6 +110,7 @@ NODISCARD int vfs_mount(const char* path, struct inode* fs_root);
 
 NODISCARD int vfs_register_device(struct inode* device);
 struct inode* vfs_get_device(dev_t);
+dev_t vfs_generate_unnamed_device_number(void);
 
 NODISCARD file_description* vfs_open(const char* pathname, int flags,
                                      mode_t mode);

@@ -586,10 +586,8 @@ static struct inode* fb_console_device_get(void) {
                             .write = fb_console_device_write,
                             .ioctl = fb_console_device_ioctl,
                             .poll = fb_console_device_poll};
-    static struct inode inode = {.fops = &fops,
-                                 .mode = S_IFCHR,
-                                 .device_id = makedev(5, 0),
-                                 .ref_count = 1};
+    static struct inode inode = {
+        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(5, 0), .ref_count = 1};
     return &inode;
 }
 

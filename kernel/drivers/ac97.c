@@ -246,10 +246,8 @@ static struct inode* ac97_device_get(void) {
     static file_ops fops = {.write = ac97_device_write,
                             .ioctl = ac97_device_ioctl,
                             .poll = ac97_device_poll};
-    static struct inode inode = {.fops = &fops,
-                                 .mode = S_IFCHR,
-                                 .device_id = makedev(14, 3),
-                                 .ref_count = 1};
+    static struct inode inode = {
+        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(14, 3), .ref_count = 1};
     return &inode;
 }
 

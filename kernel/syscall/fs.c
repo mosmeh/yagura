@@ -132,7 +132,7 @@ int sys_mknod(const char* user_pathname, mode_t mode, dev_t dev) {
     struct inode* inode = vfs_create(pathname, mode);
     if (IS_ERR(inode))
         return PTR_ERR(inode);
-    inode->device_id = dev;
+    inode->rdev = dev;
     inode_unref(inode);
     return 0;
 }

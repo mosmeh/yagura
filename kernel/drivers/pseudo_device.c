@@ -43,46 +43,36 @@ static ssize_t write_to_full_disk(file_description* desc, const void* buffer,
 
 static struct inode* null_device_get(void) {
     static file_ops fops = {.read = read_nothing, .write = write_to_bit_bucket};
-    static struct inode inode = {.fops = &fops,
-                                 .mode = S_IFCHR,
-                                 .device_id = makedev(1, 3),
-                                 .ref_count = 1};
+    static struct inode inode = {
+        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(1, 3), .ref_count = 1};
     return &inode;
 }
 
 static struct inode* zero_device_get(void) {
     static file_ops fops = {.read = read_zeros, .write = write_to_bit_bucket};
-    static struct inode inode = {.fops = &fops,
-                                 .mode = S_IFCHR,
-                                 .device_id = makedev(1, 5),
-                                 .ref_count = 1};
+    static struct inode inode = {
+        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(1, 5), .ref_count = 1};
     return &inode;
 }
 
 static struct inode* full_device_get(void) {
     static file_ops fops = {.read = read_zeros, .write = write_to_full_disk};
-    static struct inode inode = {.fops = &fops,
-                                 .mode = S_IFCHR,
-                                 .device_id = makedev(1, 7),
-                                 .ref_count = 1};
+    static struct inode inode = {
+        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(1, 7), .ref_count = 1};
     return &inode;
 }
 
 static struct inode* random_device_get(void) {
     static file_ops fops = {.read = read_random, .write = write_to_bit_bucket};
-    static struct inode inode = {.fops = &fops,
-                                 .mode = S_IFCHR,
-                                 .device_id = makedev(1, 8),
-                                 .ref_count = 1};
+    static struct inode inode = {
+        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(1, 8), .ref_count = 1};
     return &inode;
 }
 
 static struct inode* urandom_device_get(void) {
     static file_ops fops = {.read = read_random, .write = write_to_bit_bucket};
-    static struct inode inode = {.fops = &fops,
-                                 .mode = S_IFCHR,
-                                 .device_id = makedev(1, 9),
-                                 .ref_count = 1};
+    static struct inode inode = {
+        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(1, 9), .ref_count = 1};
     return &inode;
 }
 

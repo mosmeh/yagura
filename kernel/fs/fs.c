@@ -87,7 +87,7 @@ int inode_link_child(struct inode* inode, const char* name,
         inode_unref(child);
         return -ENOTDIR;
     }
-    if (inode->fs_root_inode != child->fs_root_inode) {
+    if (inode->dev != child->dev) {
         inode_unref(inode);
         inode_unref(child);
         return -EXDEV;
@@ -135,12 +135,13 @@ file_description* inode_open(struct inode* inode, int flags, mode_t mode) {
 }
 
 int inode_stat(struct inode* inode, struct stat* buf) {
-    if (inode->fops->stat)
-        return inode->fops->stat(inode, buf);
-    buf->st_rdev = inode->device_id;
+    buf->st_dev = inode->dev;
     buf->st_mode = inode->mode;
     buf->st_nlink = inode->num_links;
+    buf->st_rdev = inode->rdev;
     buf->st_size = 0;
+    if (inode->fops->stat)
+        return inode->fops->stat(inode, buf);
     inode_unref(inode);
     return 0;
 }

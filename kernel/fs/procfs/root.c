@@ -1,6 +1,7 @@
 #include "procfs_private.h"
 #include <common/stdlib.h>
 #include <kernel/api/dirent.h>
+#include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/growable_buf.h>
 #include <kernel/interrupts.h>
@@ -95,7 +96,7 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def) {
     node->populate = item_def->populate;
 
     struct inode* inode = &node->inode;
-    inode->fs_root_inode = parent->inode.fs_root_inode;
+    inode->dev = parent->inode.dev;
     inode->fops = &procfs_item_fops;
     inode->mode = S_IFREG;
     inode->ref_count = 1;
@@ -118,7 +119,7 @@ struct inode* procfs_create_root(void) {
     };
 
     struct inode* inode = &root->inode;
-    inode->fs_root_inode = inode;
+    inode->dev = vfs_generate_unnamed_device_number();
     inode->fops = &fops;
     inode->mode = S_IFDIR;
     inode->ref_count = 1;

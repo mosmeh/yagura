@@ -38,7 +38,7 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
     node->item_inode.populate = item_def->populate;
 
     struct inode* inode = &node->item_inode.inode;
-    inode->fs_root_inode = parent->inode.fs_root_inode;
+    inode->dev = parent->inode.dev;
     inode->fops = &procfs_item_fops;
     inode->mode = S_IFREG;
     inode->ref_count = 1;
@@ -65,7 +65,7 @@ struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid) {
                             .lookup_child = procfs_dir_lookup_child,
                             .getdents = procfs_dir_getdents};
     struct inode* inode = &node->inode;
-    inode->fs_root_inode = parent->inode.fs_root_inode;
+    inode->dev = parent->inode.dev;
     inode->fops = &fops;
     inode->mode = S_IFDIR;
     inode->ref_count = 1;

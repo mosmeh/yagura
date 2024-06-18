@@ -375,10 +375,8 @@ static short ps2_keyboard_device_poll(file_description* desc, short events) {
 static struct inode* ps2_keyboard_device_get(void) {
     static file_ops fops = {.read = ps2_keyboard_device_read,
                             .poll = ps2_keyboard_device_poll};
-    static struct inode inode = {.fops = &fops,
-                                 .mode = S_IFCHR,
-                                 .device_id = makedev(11, 0),
-                                 .ref_count = 1};
+    static struct inode inode = {
+        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(11, 0), .ref_count = 1};
     return &inode;
 }
 

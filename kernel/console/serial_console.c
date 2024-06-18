@@ -124,7 +124,7 @@ static struct inode* serial_console_device_create(uint16_t port) {
                             .poll = serial_console_device_poll};
     inode->fops = &fops;
     inode->mode = S_IFCHR;
-    inode->device_id = makedev(4, 63 + (dev_t)serial_port_to_com_number(port));
+    inode->rdev = makedev(4, 63 + (dev_t)serial_port_to_com_number(port));
     inode->ref_count = 1;
 
     return inode;
