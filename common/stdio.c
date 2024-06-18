@@ -68,9 +68,6 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
             continue;
         }
 
-        bool pad0 = false;
-        size_t pad_len = 0;
-
         ch = *format++;
         if (ch == '%') {
             buffer[idx++] = '%';
@@ -79,12 +76,20 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
             continue;
         }
 
+        bool left_justify = false;
+        bool pad0 = false;
+        size_t pad_len = 0;
+
+        if (ch == '-') {
+            left_justify = true;
+            ch = *format++;
+        }
         if (ch == '0') {
             pad0 = true;
             ch = *format++;
         }
-        if ('0' <= ch && ch <= '9') {
-            pad_len = ch - '0';
+        while ('0' <= ch && ch <= '9') {
+            pad_len = pad_len * 10 + ch - '0';
             ch = *format++;
         }
 
@@ -102,7 +107,7 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
             itoa(va_arg(args, int), num_buf, ch == 'x' ? 16 : 10);
 
             size_t len = strlen(num_buf);
-            if (pad_len > len) {
+            if (!left_justify && pad_len > len) {
                 for (size_t i = 0; i < pad_len - len; ++i) {
                     buffer[idx++] = pad0 ? '0' : ' ';
                     if (idx >= size)
@@ -113,6 +118,13 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
                 buffer[idx++] = num_buf[i];
                 if (idx >= size)
                     goto too_long;
+            }
+            if (left_justify && pad_len > len) {
+                for (size_t i = 0; i < pad_len - len; ++i) {
+                    buffer[idx++] = ' ';
+                    if (idx >= size)
+                        goto too_long;
+                }
             }
 
             break;
