@@ -99,3 +99,16 @@ void dump_context(const registers* regs) {
     dump_registers(regs);
     dump_stack_trace(regs->eip, regs->ebp);
 }
+
+void handle_sysrq(char ch) {
+    switch (ch) {
+    case 'b':
+        kputs("sysrq: Resetting\n");
+        reboot();
+        break;
+    case 'c':
+        kputs("sysrq: Trigger a crash\n");
+        PANIC("sysrq triggered crash");
+        break;
+    }
+}

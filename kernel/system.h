@@ -49,3 +49,5 @@ ssize_t random_get(void* buffer, size_t count);
 noreturn void reboot(void);
 noreturn void halt(void);
 noreturn void poweroff(void);
+
+void handle_sysrq(char);

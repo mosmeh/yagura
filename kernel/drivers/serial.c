@@ -4,6 +4,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/kprintf.h>
 #include <kernel/panic.h>
+#include <kernel/system.h>
 
 static void init_port(uint16_t port) {
     out8(port + 1, 0x00);
@@ -20,10 +21,16 @@ void serial_early_init(void) { init_port(SERIAL_COM1); }
 #define DATA_READY 0x1
 #define TRANSMITTER_HOLDING_REGISTER_EMPTY 0x20
 
+static bool sysrq = false;
+
 static bool read_and_report(uint16_t port) {
     uint8_t status = in8(port + 5);
     if (status != 0xff && (status & 1)) {
-        serial_console_on_char(port, in8(port));
+        char ch = in8(port);
+        if (sysrq)
+            handle_sysrq(ch);
+        sysrq = status & 0x10; // Break
+        serial_console_on_char(port, ch);
         return true;
     }
     return false;
