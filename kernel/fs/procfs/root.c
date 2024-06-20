@@ -7,12 +7,24 @@
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+#include <kernel/system.h>
 #include <kernel/time.h>
 #include <stdio.h>
 
 static int populate_cmdline(file_description* desc, growable_buf* buf) {
     (void)desc;
     return growable_buf_printf(buf, "%s\n", cmdline_get_raw());
+}
+
+static int populate_kallsyms(file_description* desc, growable_buf* buf) {
+    (void)desc;
+    const struct symbol* symbol = NULL;
+    while ((symbol = ksyms_next(symbol))) {
+        if (growable_buf_printf(buf, "%08x %c %s\n", symbol->addr, symbol->type,
+                                symbol->name) < 0)
+            return -ENOMEM;
+    }
+    return 0;
 }
 
 static int populate_meminfo(file_description* desc, growable_buf* buf) {
@@ -30,7 +42,9 @@ static int populate_uptime(file_description* desc, growable_buf* buf) {
     (void)desc;
     return growable_buf_printf(buf, "%u\n", uptime / CLK_TCK);
 }
+
 static procfs_item_def root_items[] = {{"cmdline", populate_cmdline},
+                                       {"kallsyms", populate_kallsyms},
                                        {"meminfo", populate_meminfo},
                                        {"uptime", populate_uptime}};
 #define NUM_ITEMS ARRAY_SIZE(root_items)
