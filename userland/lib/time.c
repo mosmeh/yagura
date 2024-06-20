@@ -21,17 +21,6 @@ time_t time(time_t* tloc) {
 
 double difftime(time_t time1, time_t time0) { return (double)(time1 - time0); }
 
-static int32_t divmodi64(int64_t a, int32_t b, int32_t* rem) {
-    int32_t q;
-    int32_t r;
-    __asm__("idivl %[b]"
-            : "=a"(q), "=d"(r)
-            : "d"((int32_t)(a >> 32)),
-              "a"((int32_t)(a & 0xffffffff)), [b] "rm"(b));
-    *rem = r;
-    return q;
-}
-
 struct tm* gmtime_r(const time_t* t, struct tm* tm) {
     static int const seconds_per_day = 60 * 60 * 24;
 

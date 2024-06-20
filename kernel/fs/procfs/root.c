@@ -8,6 +8,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+#include <kernel/scheduler.h>
 #include <kernel/system.h>
 #include <kernel/time.h>
 
@@ -38,9 +39,25 @@ static int populate_meminfo(file_description* desc, growable_buf* buf) {
                                memory_info.total, memory_info.free);
 }
 
+NODISCARD static int sprintf_ticks(growable_buf* buf, int64_t ticks) {
+    int32_t r;
+    int32_t q = divmodi64(ticks, CLK_TCK, &r);
+    r = r * 100 / CLK_TCK; // Map [0, CLK_TCK) to [0, 100)
+    return growable_buf_printf(buf, "%d.%02d", q, r);
+}
+
 static int populate_uptime(file_description* desc, growable_buf* buf) {
     (void)desc;
-    return growable_buf_printf(buf, "%u\n", uptime / CLK_TCK);
+    int rc = sprintf_ticks(buf, uptime);
+    if (IS_ERR(rc))
+        return rc;
+    rc = growable_buf_append(buf, " ", 1);
+    if (IS_ERR(rc))
+        return rc;
+    rc = sprintf_ticks(buf, idle_ticks);
+    if (IS_ERR(rc))
+        return rc;
+    return growable_buf_append(buf, "\n", 1);
 }
 
 static int populate_version(file_description* desc, growable_buf* buf) {

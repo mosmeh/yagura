@@ -1,9 +1,12 @@
 #pragma once
 
 #include <common/extra.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 
 struct process;
+
+extern atomic_uint idle_ticks;
 
 void scheduler_init(void);
 

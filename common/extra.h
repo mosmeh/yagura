@@ -49,6 +49,17 @@ static inline void memcpy32(uint32_t* dest, const uint32_t* src, size_t n) {
     __asm__ volatile("rep movsl" : "+S"(src), "+D"(dest), "+c"(n)::"memory");
 }
 
+static inline int32_t divmodi64(int64_t a, int32_t b, int32_t* rem) {
+    int32_t q;
+    int32_t r;
+    __asm__("idivl %[b]"
+            : "=a"(q), "=d"(r)
+            : "d"((int32_t)(a >> 32)),
+              "a"((int32_t)(a & 0xffffffff)), [b] "rm"(b));
+    *rem = r;
+    return q;
+}
+
 static inline bool str_is_uint(const char* s) {
     while (*s) {
         if (!isdigit(*s))

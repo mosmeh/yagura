@@ -8,6 +8,7 @@
 
 static struct process* ready_queue;
 static struct process* idle;
+atomic_uint idle_ticks;
 
 void scheduler_register(struct process* process) {
     ASSERT(process->state == PROCESS_STATE_RUNNABLE);
@@ -212,6 +213,8 @@ void scheduler_yield(bool requeue_current) {
 }
 
 void scheduler_tick(bool in_kernel) {
+    if (current == idle)
+        ++idle_ticks;
     if (!in_kernel)
         process_die_if_needed();
     process_tick(in_kernel);
