@@ -70,7 +70,11 @@ void dump_stack_trace(const registers* regs) {
             kputs("  ...\n");
             break;
         }
-        kprintf("  0x%08x\n", ip);
+        const struct symbol* symbol = in_userland ? NULL : ksyms_lookup(ip);
+        if (symbol)
+            kprintf("  0x%08x %s+0x%x\n", ip, symbol->name, ip - symbol->addr);
+        else
+            kprintf("  0x%08x\n", ip);
 
         if (!safe_memcpy(&ip, (uintptr_t*)bp + 1, sizeof(uintptr_t)))
             break;
