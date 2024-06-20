@@ -20,6 +20,7 @@ BIN_TARGET_NAMES := \
 	init \
 	init-test \
 	kill \
+	less \
 	ln \
 	ls \
 	mandelbrot \
