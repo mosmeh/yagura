@@ -7,6 +7,20 @@
 #include "safe_string.h"
 #include <string.h>
 
+static struct utsname uts = {
+    .sysname = "yagura",
+    .nodename = "localhost",
+    .release = "dev",
+#ifdef YAGURA_VERSION
+    .version = YAGURA_VERSION,
+#else
+    .version = "unknown",
+#endif
+    .machine = "i686",
+};
+
+const struct utsname* utsname(void) { return &uts; }
+
 noreturn void reboot(void) {
     out8(PS2_COMMAND, 0xfe);
     halt();

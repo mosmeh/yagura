@@ -1,6 +1,7 @@
 #pragma once
 
 #include "api/sys/types.h"
+#include "api/sys/utsname.h"
 #include <stdalign.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -27,6 +28,8 @@ void gdt_init(void);
 void gdt_set_kernel_stack(uintptr_t stack_top);
 
 void syscall_init(void);
+
+const struct utsname* utsname(void);
 
 void cmdline_init(const multiboot_info_t*);
 const char* cmdline_get_raw(void);

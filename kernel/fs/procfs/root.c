@@ -1,4 +1,5 @@
 #include "procfs_private.h"
+#include <common/stdio.h>
 #include <common/stdlib.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/sys/sysmacros.h>
@@ -9,7 +10,6 @@
 #include <kernel/process.h>
 #include <kernel/system.h>
 #include <kernel/time.h>
-#include <stdio.h>
 
 static int populate_cmdline(file_description* desc, growable_buf* buf) {
     (void)desc;
@@ -43,10 +43,17 @@ static int populate_uptime(file_description* desc, growable_buf* buf) {
     return growable_buf_printf(buf, "%u\n", uptime / CLK_TCK);
 }
 
+static int populate_version(file_description* desc, growable_buf* buf) {
+    (void)desc;
+    return growable_buf_printf(buf, "%s version %s %s\n", utsname()->sysname,
+                               utsname()->release, utsname()->version);
+}
+
 static procfs_item_def root_items[] = {{"cmdline", populate_cmdline},
                                        {"kallsyms", populate_kallsyms},
                                        {"meminfo", populate_meminfo},
-                                       {"uptime", populate_uptime}};
+                                       {"uptime", populate_uptime},
+                                       {"version", populate_version}};
 #define NUM_ITEMS ARRAY_SIZE(root_items)
 
 static struct inode* procfs_root_lookup_child(struct inode* inode,

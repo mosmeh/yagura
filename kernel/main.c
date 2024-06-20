@@ -9,7 +9,6 @@
 #include "panic.h"
 #include "process.h"
 #include "scheduler.h"
-#include "string.h"
 #include "time.h"
 
 static noreturn void userland_init(void) {
@@ -28,28 +27,25 @@ static noreturn void userland_init(void) {
 
 extern unsigned char kernel_end[];
 
-void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
+noreturn void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     gdt_init();
     idt_init();
     irq_init();
     serial_early_init();
     kputs("\x1b[32mbooted\x1b[m\n");
-#ifdef YAGURA_VERSION
-    kprintf("version: %s\n", YAGURA_VERSION);
-#endif
     sti();
 
+    kprintf("version: %s\n"
+            "kernel end: V0x%x\n",
+            utsname()->version, (uintptr_t)kernel_end);
     ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
-    kprintf("kernel end: V0x%x\n", (uintptr_t)kernel_end);
 
     const multiboot_info_t* mb_info =
         (const multiboot_info_t*)(mb_info_paddr + KERNEL_VADDR);
     if (!(mb_info->flags & MULTIBOOT_INFO_MODS) || mb_info->mods_count == 0)
         PANIC("No initrd found. Provide initrd as the first Multiboot module");
-    multiboot_module_t initrd_mod;
-    memcpy(&initrd_mod,
-           (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR),
-           sizeof(multiboot_module_t));
+    multiboot_module_t initrd_mod =
+        *(const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
 
     cmdline_init(mb_info);
     paging_init(mb_info);

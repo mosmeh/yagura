@@ -41,18 +41,7 @@ long sys_sysconf(int name) {
 }
 
 int sys_uname(struct utsname* user_buf) {
-    struct utsname buf = {
-        .sysname = "yagura",
-        .nodename = "localhost",
-        .release = "dev",
-#ifdef YAGURA_VERSION
-        .version = YAGURA_VERSION,
-#else
-        .version = "unknown",
-#endif
-        .machine = "i686",
-    };
-    if (!copy_to_user(user_buf, &buf, sizeof(buf)))
+    if (!copy_to_user(user_buf, utsname(), sizeof(struct utsname)))
         return -EFAULT;
     return 0;
 }
