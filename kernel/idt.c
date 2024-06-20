@@ -41,7 +41,7 @@ void isr_handler(registers* regs) {
     }
 
     kprintf("Unhandled interrupt: %u\n", regs->num);
-    dump_registers(regs);
+    dump_context(regs);
     PANIC("Unhandled interrupt");
 }
 
@@ -69,8 +69,7 @@ void idt_set_gate_user_callable(uint8_t idx) {
 void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
 
 static noreturn void crash(registers* regs, int signum) {
-    dump_registers(regs);
-    dump_stack_trace(regs);
+    dump_context(regs);
 
     if ((regs->cs & 3) != 3)
         PANIC("Kernel crashed");
@@ -93,7 +92,7 @@ static noreturn void crash(registers* regs, int signum) {
 #define DEFINE_EXCEPTION(num, msg)                                             \
     static void handle_exception##num(registers* regs) {                       \
         kputs("Exception: " msg "\n");                                         \
-        dump_registers(regs);                                                  \
+        dump_context(regs);                                                    \
         PANIC("Unrecoverable exception");                                      \
     }
 

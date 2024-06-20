@@ -17,8 +17,7 @@ typedef struct registers {
     uint32_t eip, cs, eflags, user_esp, user_ss;
 } __attribute__((packed)) registers;
 
-void dump_registers(const registers*);
-void dump_stack_trace(const registers*);
+void dump_context(const registers*);
 
 struct fpu_state {
     alignas(16) unsigned char buffer[512];

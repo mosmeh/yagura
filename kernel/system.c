@@ -26,18 +26,7 @@ noreturn void poweroff(void) {
     halt();
 }
 
-noreturn void panic(const char* message, const char* file, size_t line) {
-    kprintf("%s at %s:%u\n", message, file, line);
-
-    const char* mode = cmdline_lookup("panic");
-    if (mode) {
-        if (!strcmp(mode, "poweroff"))
-            poweroff();
-    }
-    halt();
-}
-
-void dump_registers(const registers* regs) {
+static void dump_registers(const registers* regs) {
     uint16_t ss;
     uint32_t esp;
     if (regs->cs & 3) {
@@ -60,34 +49,53 @@ void dump_registers(const registers* regs) {
             read_cr0(), read_cr2(), read_cr3(), read_cr4());
 }
 
-void dump_stack_trace(const registers* regs) {
-    uintptr_t ip = regs->eip;
-    uintptr_t bp = regs->ebp;
-    bool in_userland = ip < KERNEL_VADDR;
+static void dump_stack_trace(uintptr_t eip, uintptr_t ebp) {
+    bool in_userland = eip < KERNEL_VADDR;
     kputs("stack trace:\n");
     for (unsigned depth = 0;; ++depth) {
         if (depth >= 20) {
             kputs("  ...\n");
             break;
         }
-        const struct symbol* symbol = in_userland ? NULL : ksyms_lookup(ip);
+        const struct symbol* symbol = in_userland ? NULL : ksyms_lookup(eip);
         if (symbol)
-            kprintf("  0x%08x %s+0x%x\n", ip, symbol->name, ip - symbol->addr);
+            kprintf("  0x%08x %s+0x%x\n", eip, symbol->name,
+                    eip - symbol->addr);
         else
-            kprintf("  0x%08x\n", ip);
+            kprintf("  0x%08x\n", eip);
 
-        if (!safe_memcpy(&ip, (uintptr_t*)bp + 1, sizeof(uintptr_t)))
+        if (!safe_memcpy(&eip, (uintptr_t*)ebp + 1, sizeof(uintptr_t)))
             break;
-        if (!safe_memcpy(&bp, (uintptr_t*)bp, sizeof(uintptr_t)))
-            break;
-
-        if (!ip || !bp)
+        if (!safe_memcpy(&ebp, (uintptr_t*)ebp, sizeof(uintptr_t)))
             break;
 
-        if (in_userland && ip >= KERNEL_VADDR) {
+        if (!eip || !ebp)
+            break;
+
+        if (in_userland && eip >= KERNEL_VADDR) {
             // somehow stack looks like userland function is called from kernel
             break;
         }
-        in_userland |= ip < KERNEL_VADDR;
+        in_userland |= eip < KERNEL_VADDR;
     }
+}
+
+noreturn void panic(const char* message, const char* file, size_t line) {
+    kprintf("%s at %s:%u\n", message, file, line);
+
+    uintptr_t eip = read_eip();
+    uintptr_t ebp = (uintptr_t)__builtin_frame_address(0);
+    dump_stack_trace(eip, ebp);
+
+    const char* mode = cmdline_lookup("panic");
+    if (mode) {
+        if (!strcmp(mode, "poweroff"))
+            poweroff();
+    }
+    halt();
+}
+
+void dump_context(const registers* regs) {
+    dump_registers(regs);
+    dump_stack_trace(regs->eip, regs->ebp);
 }
