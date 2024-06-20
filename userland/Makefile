@@ -26,6 +26,7 @@ BIN_TARGET_NAMES := \
 	mandelbrot \
 	mkdir \
 	mkfifo \
+	mknod \
 	mount \
 	mouse-cursor \
 	moused \
