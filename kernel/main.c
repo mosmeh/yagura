@@ -53,6 +53,7 @@ void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
 
     cmdline_init(mb_info);
     paging_init(mb_info);
+    ksyms_init();
     vfs_init();
     process_init();
     scheduler_init();

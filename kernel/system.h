@@ -34,6 +34,16 @@ const char* cmdline_get_raw(void);
 const char* cmdline_lookup(const char* key);
 bool cmdline_contains(const char* key);
 
+struct symbol {
+    uintptr_t addr;
+    char type;
+    const char* name;
+};
+
+void ksyms_init(void);
+const struct symbol* ksyms_lookup(uintptr_t addr);
+const struct symbol* ksyms_next(const struct symbol* symbol);
+
 void random_init(void);
 ssize_t random_get(void* buffer, size_t count);
 

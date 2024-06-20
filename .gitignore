@@ -1,6 +1,7 @@
 compile_flags.txt
 *.[oad]
 /kernel/kernel
+/kernel/kernel.*
 /base/bin/**
 !/base/**/.gitkeep
 /base/root/src

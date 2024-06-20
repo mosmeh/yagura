@@ -1,6 +1,11 @@
-CFLAGS += -isystem..
+CFLAGS += \
+	-isystem.. \
+	-Wl,--build-id=none \
+	-Wl,-z,noexecstack
 
 TARGET := kernel
+
+LINKER_SCRIPT := linker.ld
 
 OBJS := \
 	boot.o \
@@ -40,6 +45,7 @@ OBJS := \
 	interrupt.o \
 	irq.o \
 	kprintf.o \
+	ksyms.o \
 	lock.o \
 	main.o \
 	memory/kmalloc.o \
@@ -74,9 +80,37 @@ DEPS := $(OBJS:.o=.d)
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS) linker.ld
+STAGES := \
+	$(TARGET).stage0 \
+	$(TARGET).stage1 \
+	$(TARGET).stage2
+
+# stage1 is built with an empty symbol table
+$(TARGET).stage1: $(TARGET).stage0.ksyms.o $(OBJS) $(LINKER_SCRIPT)
 	@echo "[LD] $@"
-	@$(CC) $(CFLAGS) -Wl,-Tlinker.ld -Wl,--build-id=none -Wl,-z,noexecstack -o $@ $(OBJS)
+	@$(CC) $(CFLAGS) -Wl,-T$(LINKER_SCRIPT) -o $@ $(OBJS) $<
+
+# stage2 will have a correct list of symbols, but the addresses will be wrong
+$(TARGET).stage2: $(TARGET).stage1.ksyms.o $(OBJS) $(LINKER_SCRIPT)
+	@echo "[LD] $@"
+	@$(CC) $(CFLAGS) -Wl,-T$(LINKER_SCRIPT) -o $@ $(OBJS) $<
+
+# stage3 will have correct addresses
+$(TARGET): $(TARGET).stage2.ksyms.o $(OBJS) $(LINKER_SCRIPT)
+	@echo "[LD] $@"
+	@$(CC) $(CFLAGS) -Wl,-T$(LINKER_SCRIPT) -o $@ $(OBJS) $<
+
+$(TARGET).stage0.ksyms.o: ksyms.S
+	@echo "[AS] $<"
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+%.ksyms.o: ksyms.S %.ksyms
+	@echo "[AS] $<"
+	@$(CC) $(CFLAGS) -DKSYMS=$*.ksyms -c -o $@ $<
+
+%.ksyms: %
+	@echo "[KSYMS] $<"
+	@nm -n $< > $@
 
 .c.o:
 	@echo "[CC] $<"
@@ -87,6 +121,6 @@ $(TARGET): $(OBJS) linker.ld
 	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 clean:
-	$(RM) $(TARGET) $(OBJS) $(DEPS)
+	$(RM) $(TARGET) $(OBJS) $(KSYM_OBJS) $(DEPS) $(STAGES) $(STAGES:=.ksyms) $(STAGES:=.ksyms.o)
 
 -include $(DEPS)
