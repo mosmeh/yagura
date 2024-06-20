@@ -355,9 +355,11 @@ struct node {
         } pipe;
 
         struct redirect_node {
-            struct node* from;
-            char* to;
-            size_t to_length;
+            struct node* inner;
+            char* pathname;
+            size_t pathname_length;
+            bool is_write;
+            int fd;
         } redirect;
 
         struct background_node {
@@ -379,7 +381,7 @@ static void destroy_node(struct node* node) {
         destroy_node(node->pipe.right);
         break;
     case CMD_REDIRECT:
-        destroy_node(node->redirect.from);
+        destroy_node(node->redirect.inner);
         break;
     case CMD_BACKGROUND:
         destroy_node(node->background.inner);
@@ -432,6 +434,7 @@ static void skip_whitespaces(struct parser* parser) {
 static bool is_valid_pathname_character(char c) {
     switch (c) {
     case '>':
+    case '<':
     case ' ':
     case '|':
     case '&':
@@ -479,34 +482,50 @@ static struct node* parse_execute(struct parser* parser) {
 }
 
 static struct node* parse_redirect(struct parser* parser) {
-    struct node* from = parse_execute(parser);
-    if (!from)
+    struct node* inner = parse_execute(parser);
+    if (!inner)
         return NULL;
     skip_whitespaces(parser);
-    if (!consume_if(parser, '>'))
-        return from;
-    skip_whitespaces(parser);
 
-    char* to = parse_pathname(parser);
-    if (!to) {
-        parser->result = RESULT_SYNTAX_ERROR;
-        destroy_node(from);
-        return NULL;
+    for (;;) {
+        char maybe_fd = peek(parser);
+        int fd = -1;
+        if (isdigit(maybe_fd)) {
+            fd = maybe_fd - '0';
+            consume(parser);
+        }
+
+        bool is_write = consume_if(parser, '>');
+        if (!is_write && !consume_if(parser, '<')) {
+            return inner;
+        }
+        skip_whitespaces(parser);
+
+        char* pathname = parse_pathname(parser);
+        if (!pathname) {
+            parser->result = RESULT_SYNTAX_ERROR;
+            destroy_node(inner);
+            return NULL;
+        }
+
+        struct node* node = malloc(sizeof(struct node));
+        if (!node) {
+            parser->result = RESULT_NOMEM_ERROR;
+            destroy_node(inner);
+            return NULL;
+        }
+        node->type = CMD_REDIRECT;
+
+        struct redirect_node* redirect = &node->redirect;
+        redirect->inner = inner;
+        redirect->pathname = pathname;
+        redirect->pathname_length = parser->cursor - pathname;
+        redirect->is_write = is_write;
+        redirect->fd = fd;
+
+        inner = node;
+        skip_whitespaces(parser);
     }
-
-    struct node* node = malloc(sizeof(struct node));
-    if (!node) {
-        parser->result = RESULT_NOMEM_ERROR;
-        destroy_node(from);
-        return NULL;
-    }
-    node->type = CMD_REDIRECT;
-
-    struct redirect_node* redirect = &node->redirect;
-    redirect->from = from;
-    redirect->to = to;
-    redirect->to_length = parser->cursor - to;
-    return node;
 }
 
 static struct node* parse_pipe(struct parser* parser) {
@@ -602,8 +621,8 @@ static void null_terminate(struct node* node) {
         null_terminate(node->pipe.right);
         return;
     case CMD_REDIRECT:
-        null_terminate(node->redirect.from);
-        (node->redirect.to)[node->redirect.to_length] = 0;
+        null_terminate(node->redirect.inner);
+        (node->redirect.pathname)[node->redirect.pathname_length] = 0;
         return;
     case CMD_BACKGROUND:
         null_terminate(node->background.inner);
@@ -745,17 +764,22 @@ static int run_pipe(const struct pipe_node* node, struct run_context ctx) {
 
 static int run_redirect(const struct redirect_node* node,
                         struct run_context ctx) {
-    int fd = open(node->to, O_WRONLY | O_CREAT, 0);
+    int flags = node->is_write ? (O_WRONLY | O_CREAT) : O_RDONLY;
+    int redirected_fd = node->fd;
+    if (redirected_fd < 0)
+        redirected_fd = node->is_write ? STDOUT_FILENO : STDIN_FILENO;
+
+    int fd = open(node->pathname, flags, 0);
     if (fd < 0)
         return RUN_ERROR;
-    int saved_stdout = dup(STDOUT_FILENO);
-    dup2(fd, STDOUT_FILENO);
+    int saved_fd = dup(redirected_fd);
+    dup2(fd, redirected_fd);
     close(fd);
 
-    int rc = run_command(node->from, ctx);
+    int rc = run_command(node->inner, ctx);
     int saved_errno = errno;
-    dup2(saved_stdout, STDOUT_FILENO);
-    close(saved_stdout);
+    dup2(saved_fd, redirected_fd);
+    close(saved_fd);
     errno = saved_errno;
     return rc;
 }
