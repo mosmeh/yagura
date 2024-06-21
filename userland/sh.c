@@ -14,14 +14,26 @@
 
 #define BUF_SIZE 1024
 
+struct history_entry {
+    char line[BUF_SIZE];
+    struct history_entry* prev;
+    struct history_entry* next;
+};
+
 struct line_editor {
     char input_buf[BUF_SIZE];
     size_t input_len;
     size_t cursor;
+
     enum { STATE_GROUND, STATE_ESC, STATE_CSI, STATE_ACCEPTED } state;
     bool dirty;
+
     char param_buf[BUF_SIZE];
     size_t param_len;
+
+    struct history_entry* history_head;
+    struct history_entry* history_tail;
+    struct history_entry* history_cursor;
 };
 
 static bool starts_with(const char* str, size_t str_len, const char* prefix,
@@ -224,6 +236,28 @@ static void handle_state_csi(struct line_editor* ed, char c) {
     ed->param_buf[ed->param_len] = '\0';
 
     switch (c) {
+    case 'A': // up
+        if (!ed->history_cursor)
+            ed->history_cursor = ed->history_tail;
+        else if (ed->history_cursor->prev)
+            ed->history_cursor = ed->history_cursor->prev;
+        if (ed->history_cursor) {
+            memcpy(ed->input_buf, ed->history_cursor->line, BUF_SIZE);
+            ed->input_len = ed->cursor = strlen(ed->input_buf);
+            ed->dirty = true;
+        }
+        break;
+    case 'B': // down
+        if (ed->history_cursor) {
+            ed->history_cursor = ed->history_cursor->next;
+            if (ed->history_cursor)
+                memcpy(ed->input_buf, ed->history_cursor->line, BUF_SIZE);
+            else
+                memset(ed->input_buf, 0, BUF_SIZE);
+            ed->input_len = ed->cursor = strlen(ed->input_buf);
+            ed->dirty = true;
+        }
+        break;
     case 'C': // right
         if (ed->cursor < ed->input_len) {
             ++ed->cursor;
@@ -305,7 +339,7 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
             }
 
             if (clear_needed)
-                dprintf(STDERR_FILENO, "\x1b[J");
+                dprintf(STDERR_FILENO, "\x1b[J"); // clear from cursor to end
 
             dprintf(STDERR_FILENO,
                     "\x1b[%uG"   // set cursor position
@@ -315,16 +349,33 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
         }
 
         char c;
-        ssize_t nread = read(0, &c, 1);
+        ssize_t nread = read(STDIN_FILENO, &c, 1);
         if (nread < 0)
             return NULL;
         if (nread == 0)
-            continue;
+            break;
         on_char(ed, c);
 
         if (ed->state == STATE_ACCEPTED)
-            return ed->input_buf;
+            break;
     }
+
+    struct history_entry* entry = malloc(sizeof(struct history_entry));
+    if (!entry)
+        return NULL;
+    *entry = (struct history_entry){0};
+    memcpy(entry->line, ed->input_buf, BUF_SIZE);
+
+    if (!ed->history_head) {
+        ed->history_head = ed->history_tail = entry;
+    } else {
+        entry->prev = ed->history_tail;
+        ed->history_tail->next = entry;
+        ed->history_tail = entry;
+    }
+    ed->history_cursor = NULL;
+
+    return ed->input_buf;
 }
 
 #define MAX_ARGC 16
