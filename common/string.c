@@ -204,8 +204,9 @@ char* strtok_r(char* str, const char* sep, char** last) {
 }
 
 char* strstr(const char* str, const char* substr) {
+    size_t len = strlen(substr);
     while (*str) {
-        if (!strcmp(str, substr))
+        if (!strncmp(str, substr, len))
             return (char*)str;
         ++str;
     }
