@@ -18,6 +18,7 @@ BIN_TARGET_NAMES := \
 	fib \
 	grep \
 	halt \
+	hexdump \
 	imgview \
 	init \
 	init-test \
