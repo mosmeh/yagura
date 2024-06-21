@@ -11,6 +11,7 @@ BIN_TARGET_NAMES := \
 	clear \
 	cp \
 	date \
+	dd \
 	echo \
 	env \
 	eyes \
