@@ -15,6 +15,7 @@ BIN_TARGET_NAMES := \
 	env \
 	eyes \
 	fib \
+	grep \
 	halt \
 	imgview \
 	init \
