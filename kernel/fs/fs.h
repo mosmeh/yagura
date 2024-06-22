@@ -100,6 +100,7 @@ NODISCARD int file_description_ioctl(file_description*, int request,
                                      void* user_argp);
 NODISCARD int file_description_getdents(file_description*, getdents_callback_fn,
                                         void* ctx);
+NODISCARD short file_description_poll(file_description*, short events);
 
 NODISCARD int file_description_block(file_description*,
                                      bool (*should_unblock)(file_description*));

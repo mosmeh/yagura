@@ -3,6 +3,7 @@
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/stdio.h>
+#include <kernel/api/sys/poll.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
@@ -265,6 +266,19 @@ int file_description_getdents(file_description* desc,
         return -ENOTDIR;
 
     return inode->fops->getdents(desc, callback, ctx);
+}
+
+NODISCARD short file_description_poll(file_description* desc, short events) {
+    struct inode* inode = desc->inode;
+    if (!inode->fops->poll)
+        return events & (POLLIN | POLLOUT);
+    short revents = inode->fops->poll(desc, events);
+    ASSERT(revents >= 0);
+    if (!(events & POLLIN))
+        ASSERT(!(revents & POLLIN));
+    if (!(events & POLLOUT))
+        ASSERT(!(revents & POLLOUT));
+    return revents;
 }
 
 int file_description_block(file_description* desc,

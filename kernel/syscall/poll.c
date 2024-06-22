@@ -27,18 +27,8 @@ static bool poll_should_unblock(struct poll_blocker* blocker) {
         if (!desc)
             continue;
 
-        file_ops* fops = desc->inode->fops;
         struct pollfd* fd = blocker->fds + i;
-        if (fops->poll) {
-            fd->revents = fops->poll(desc, fd->events);
-            ASSERT(fd->revents >= 0);
-            if (!(fd->events & POLLIN))
-                ASSERT(!(fd->revents & POLLIN));
-            if (!(fd->events & POLLOUT))
-                ASSERT(!(fd->revents & POLLOUT));
-        } else {
-            fd->revents = fd->events & (POLLIN | POLLOUT);
-        }
+        fd->revents = file_description_poll(desc, fd->events);
         if (fd->revents)
             ++blocker->num_events;
     }

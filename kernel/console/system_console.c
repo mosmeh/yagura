@@ -44,11 +44,17 @@ static int system_console_device_ioctl(file_description* desc, int request,
     return file_description_ioctl(active_console, request, user_argp);
 }
 
+static short system_console_device_poll(file_description* desc, short events) {
+    (void)desc;
+    return file_description_poll(active_console, events);
+}
+
 static struct inode* system_console_device_get(void) {
     static file_ops fops = {
         .read = system_console_device_read,
         .write = system_console_device_write,
         .ioctl = system_console_device_ioctl,
+        .poll = system_console_device_poll,
     };
     static struct inode inode = {
         .fops = &fops, .mode = S_IFCHR, .rdev = makedev(5, 1), .ref_count = 1};
