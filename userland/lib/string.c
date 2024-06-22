@@ -1,6 +1,8 @@
 #include "string.h"
 #include "errno.h"
+#include "signal.h"
 #include "signum.h"
+#include "stdio.h"
 #include "stdlib.h"
 
 char* strdup(const char* src) {
@@ -14,50 +16,19 @@ char* strdup(const char* src) {
     return buf;
 }
 
-#define ERRNO_MSG(I, MSG) MSG,
-static const char* errno_msgs[EMAXERRNO] = {ENUMERATE_ERRNO(ERRNO_MSG)};
-#undef ERRNO_MSG
+#define NAME(NAME, MSG) STRINGIFY(NAME),
+#define MSG(NAME, MSG) MSG,
+const char* const sys_errlist[] = {ENUMERATE_ERRNO(MSG)};
+const char* const sys_signame[] = {ENUMERATE_SIGNALS(NAME)};
+const char* const sys_siglist[] = {ENUMERATE_SIGNALS(MSG)};
+#undef NAME
+#undef MSG
 
 char* strerror(int errnum) {
     if (0 <= errnum && errnum < EMAXERRNO)
-        return (char*)errno_msgs[errnum];
+        return (char*)sys_errlist[errnum];
     return "Unknown error";
 }
-
-const char* const sys_siglist[NSIG] = {
-    "Invalid signal",
-    "Hangup",
-    "Interrupt",
-    "Quit",
-    "Illegal instruction",
-    "Trace/breakpoint trap",
-    "Aborted",
-    "Bus error",
-    "Floating point exception",
-    "Killed",
-    "User defined signal 1",
-    "Segmentation violation",
-    "User defined signal 2",
-    "Broken pipe",
-    "Alarm clock",
-    "Terminated",
-    "Stack fault",
-    "Child exited",
-    "Continued",
-    "Stopped (signal)",
-    "Stopped",
-    "Stopped (tty input)",
-    "Stopped (tty output)",
-    "Urgent I/O condition)",
-    "CPU time limit exceeded",
-    "File size limit exceeded",
-    "Virtual timer expired",
-    "Profiling timer expired",
-    "Window changed",
-    "I/O possible",
-    "Power failure",
-    "Bad system call",
-};
 
 char* strsignal(int signum) {
     if (0 <= signum && signum < NSIG)
