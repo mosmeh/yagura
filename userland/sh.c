@@ -134,6 +134,63 @@ static bool complete(struct line_editor* ed) {
     return false;
 }
 
+static void on_left(struct line_editor* ed) {
+    if (ed->cursor > 0) {
+        --ed->cursor;
+        ed->dirty = true;
+    }
+}
+
+static void on_right(struct line_editor* ed) {
+    if (ed->cursor < ed->input_len) {
+        ++ed->cursor;
+        ed->dirty = true;
+    }
+}
+
+static void on_home(struct line_editor* ed) {
+    ed->cursor = 0;
+    ed->dirty = true;
+}
+
+static void on_end(struct line_editor* ed) {
+    ed->cursor = ed->input_len;
+    ed->dirty = true;
+}
+
+static void on_up(struct line_editor* ed) {
+    if (!ed->history_cursor)
+        ed->history_cursor = ed->history_tail;
+    else if (ed->history_cursor->prev)
+        ed->history_cursor = ed->history_cursor->prev;
+    if (ed->history_cursor) {
+        memcpy(ed->input_buf, ed->history_cursor->line, BUF_SIZE);
+        ed->input_len = ed->cursor = strlen(ed->input_buf);
+        ed->dirty = true;
+    }
+}
+
+static void on_down(struct line_editor* ed) {
+    if (ed->history_cursor) {
+        ed->history_cursor = ed->history_cursor->next;
+        if (ed->history_cursor)
+            memcpy(ed->input_buf, ed->history_cursor->line, BUF_SIZE);
+        else
+            memset(ed->input_buf, 0, BUF_SIZE);
+        ed->input_len = ed->cursor = strlen(ed->input_buf);
+        ed->dirty = true;
+    }
+}
+
+static void on_delete(struct line_editor* ed) {
+    if (ed->cursor < ed->input_len) {
+        memmove(ed->input_buf + ed->cursor, ed->input_buf + ed->cursor + 1,
+                ed->input_len - ed->cursor - 1);
+        ed->input_buf[--ed->input_len] = 0;
+        ed->dirty = true;
+    }
+}
+
 static void handle_ground(struct line_editor* ed, char c) {
     if (isprint(c)) {
         memmove(ed->input_buf + ed->cursor + 1, ed->input_buf + ed->cursor,
@@ -151,6 +208,24 @@ static void handle_ground(struct line_editor* ed, char c) {
     case '\n':
         ed->state = STATE_ACCEPTED;
         return;
+    case 'B' - '@': // ^B
+        on_left(ed);
+        return;
+    case 'F' - '@': // ^F
+        on_right(ed);
+        return;
+    case 'A' - '@': // ^A
+        on_home(ed);
+        return;
+    case 'E' - '@': // ^E
+        on_end(ed);
+        return;
+    case 'P' - '@': // ^P
+        on_up(ed);
+        return;
+    case 'N' - '@': // ^N
+        on_down(ed);
+        return;
     case '\b':
     case '\x7f': // ^H
         if (ed->cursor == 0)
@@ -162,8 +237,16 @@ static void handle_ground(struct line_editor* ed, char c) {
         ed->dirty = true;
         return;
     case 'U' - '@': // ^U
-        memset(ed->input_buf, 0, ed->input_len);
-        ed->input_len = ed->cursor = 0;
+        memmove(ed->input_buf, ed->input_buf + ed->cursor,
+                ed->input_len - ed->cursor);
+        memset(ed->input_buf + ed->input_len - ed->cursor, 0, ed->cursor);
+        ed->input_len -= ed->cursor;
+        ed->cursor = 0;
+        ed->dirty = true;
+        return;
+    case 'K' - '@': // ^K
+        memset(ed->input_buf + ed->cursor, 0, ed->input_len - ed->cursor);
+        ed->input_len = ed->cursor;
         ed->dirty = true;
         return;
     case 'D' - '@': // ^D
@@ -171,6 +254,8 @@ static void handle_ground(struct line_editor* ed, char c) {
             strcpy(ed->input_buf, "exit");
             ed->state = STATE_ACCEPTED;
             ed->dirty = true;
+        } else {
+            on_delete(ed);
         }
         return;
     case 'L' - '@': // ^L
@@ -195,16 +280,6 @@ static void handle_state_esc(struct line_editor* ed, char c) {
     handle_ground(ed, c);
 }
 
-static void on_home(struct line_editor* ed) {
-    ed->cursor = 0;
-    ed->dirty = true;
-}
-
-static void on_end(struct line_editor* ed) {
-    ed->cursor = ed->input_len;
-    ed->dirty = true;
-}
-
 static void handle_csi_vt(struct line_editor* ed) {
     int code = atoi(ed->param_buf);
     switch (code) {
@@ -216,13 +291,8 @@ static void handle_csi_vt(struct line_editor* ed) {
     case 8:
         on_end(ed);
         return;
-    case 3: // delete
-        if (ed->cursor < ed->input_len) {
-            memmove(ed->input_buf + ed->cursor, ed->input_buf + ed->cursor + 1,
-                    ed->input_len - ed->cursor - 1);
-            ed->input_buf[--ed->input_len] = 0;
-            ed->dirty = true;
-        }
+    case 3:
+        on_delete(ed);
         return;
     }
 }
@@ -235,39 +305,17 @@ static void handle_state_csi(struct line_editor* ed, char c) {
     ed->param_buf[ed->param_len] = '\0';
 
     switch (c) {
-    case 'A': // up
-        if (!ed->history_cursor)
-            ed->history_cursor = ed->history_tail;
-        else if (ed->history_cursor->prev)
-            ed->history_cursor = ed->history_cursor->prev;
-        if (ed->history_cursor) {
-            memcpy(ed->input_buf, ed->history_cursor->line, BUF_SIZE);
-            ed->input_len = ed->cursor = strlen(ed->input_buf);
-            ed->dirty = true;
-        }
+    case 'A':
+        on_up(ed);
         break;
-    case 'B': // down
-        if (ed->history_cursor) {
-            ed->history_cursor = ed->history_cursor->next;
-            if (ed->history_cursor)
-                memcpy(ed->input_buf, ed->history_cursor->line, BUF_SIZE);
-            else
-                memset(ed->input_buf, 0, BUF_SIZE);
-            ed->input_len = ed->cursor = strlen(ed->input_buf);
-            ed->dirty = true;
-        }
+    case 'B':
+        on_down(ed);
         break;
-    case 'C': // right
-        if (ed->cursor < ed->input_len) {
-            ++ed->cursor;
-            ed->dirty = true;
-        }
+    case 'C':
+        on_right(ed);
         break;
-    case 'D': // left
-        if (ed->cursor > 0) {
-            --ed->cursor;
-            ed->dirty = true;
-        }
+    case 'D':
+        on_left(ed);
         break;
     case 'H':
         on_home(ed);
