@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -471,6 +472,8 @@ struct node {
 };
 
 static void destroy_node(struct node* node) {
+    if (!node)
+        return;
     switch (node->type) {
     case CMD_EXECUTE:
         break;
@@ -497,11 +500,11 @@ static void destroy_node(struct node* node) {
 struct parser {
     char* cursor;
     enum {
-        RESULT_SUCCESS,
-        RESULT_EMPTY,
-        RESULT_NOMEM_ERROR,
-        RESULT_SYNTAX_ERROR,
-        RESULT_TOO_MANY_ARGS_ERROR
+        PARSE_SUCCESS,
+        PARSE_EMPTY,
+        PARSE_NOMEM_ERROR,
+        PARSE_SYNTAX_ERROR,
+        PARSE_TOO_MANY_ARGS_ERROR
     } result;
 };
 
@@ -553,7 +556,7 @@ static char* parse_pathname(struct parser* parser) {
 static struct node* parse_execute(struct parser* parser) {
     struct node* node = malloc(sizeof(struct node));
     if (!node) {
-        parser->result = RESULT_NOMEM_ERROR;
+        parser->result = PARSE_NOMEM_ERROR;
         return NULL;
     }
     node->type = CMD_EXECUTE;
@@ -562,7 +565,7 @@ static struct node* parse_execute(struct parser* parser) {
     size_t i = 0;
     for (;; ++i) {
         if (i >= MAX_ARGC) {
-            parser->result = RESULT_TOO_MANY_ARGS_ERROR;
+            parser->result = PARSE_TOO_MANY_ARGS_ERROR;
             free(node);
             return NULL;
         }
@@ -575,7 +578,7 @@ static struct node* parse_execute(struct parser* parser) {
         execute->lengths[i] = saved_cursor - arg;
     }
     if (i == 0) {
-        parser->result = RESULT_EMPTY;
+        parser->result = PARSE_EMPTY;
         free(node);
         return NULL;
     }
@@ -605,14 +608,14 @@ static struct node* parse_redirect(struct parser* parser) {
 
         char* pathname = parse_pathname(parser);
         if (!pathname) {
-            parser->result = RESULT_SYNTAX_ERROR;
+            parser->result = PARSE_SYNTAX_ERROR;
             destroy_node(inner);
             return NULL;
         }
 
         struct node* node = malloc(sizeof(struct node));
         if (!node) {
-            parser->result = RESULT_NOMEM_ERROR;
+            parser->result = PARSE_NOMEM_ERROR;
             destroy_node(inner);
             return NULL;
         }
@@ -641,15 +644,15 @@ static struct node* parse_pipe(struct parser* parser) {
 
     struct node* right = parse_pipe(parser);
     if (!right) {
-        if (parser->result == RESULT_EMPTY)
-            parser->result = RESULT_SYNTAX_ERROR;
+        if (parser->result == PARSE_EMPTY)
+            parser->result = PARSE_SYNTAX_ERROR;
         destroy_node(left);
         return NULL;
     }
 
     struct node* node = malloc(sizeof(struct node));
     if (!node) {
-        parser->result = RESULT_NOMEM_ERROR;
+        parser->result = PARSE_NOMEM_ERROR;
         destroy_node(right);
         destroy_node(left);
         return NULL;
@@ -671,7 +674,7 @@ static struct node* parse_juxtaposition(struct parser* parser) {
     if (consume_if(parser, '&')) {
         struct node* bg = malloc(sizeof(struct node));
         if (!bg) {
-            parser->result = RESULT_NOMEM_ERROR;
+            parser->result = PARSE_NOMEM_ERROR;
             destroy_node(left);
             return NULL;
         }
@@ -685,14 +688,14 @@ static struct node* parse_juxtaposition(struct parser* parser) {
 
     struct node* right = parse_juxtaposition(parser);
     if (!right) {
-        if (parser->result == RESULT_EMPTY)
-            parser->result = RESULT_SUCCESS;
+        if (parser->result == PARSE_EMPTY)
+            parser->result = PARSE_SUCCESS;
         return left;
     }
 
     struct node* node = malloc(sizeof(struct node));
     if (!node) {
-        parser->result = RESULT_NOMEM_ERROR;
+        parser->result = PARSE_NOMEM_ERROR;
         destroy_node(right);
         destroy_node(left);
         return NULL;
@@ -735,13 +738,13 @@ static void null_terminate(struct node* node) {
 
 static struct node* parse(struct parser* parser, char* line) {
     parser->cursor = line;
-    parser->result = RESULT_SUCCESS;
+    parser->result = PARSE_SUCCESS;
 
     skip_whitespaces(parser);
     struct node* node = parse_juxtaposition(parser);
     skip_whitespaces(parser);
     if (peek(parser) != 0) {
-        parser->result = RESULT_SYNTAX_ERROR;
+        parser->result = PARSE_SYNTAX_ERROR;
         destroy_node(node);
         return NULL;
     }
@@ -758,7 +761,6 @@ enum {
 };
 
 struct run_context {
-    char* const* envp;
     pid_t pgid;
     bool foreground;
 };
@@ -795,7 +797,7 @@ static int run_execute(const struct execute_node* node,
         }
         if (ctx.foreground)
             tcsetpgrp(STDERR_FILENO, ctx.pgid);
-        if (execvpe(node->argv[0], node->argv, ctx.envp) < 0) {
+        if (execvpe(node->argv[0], node->argv, environ) < 0) {
             perror("execvpe");
             abort();
         }
@@ -923,59 +925,132 @@ static int run_command(const struct node* node, struct run_context ctx) {
     UNREACHABLE();
 }
 
-static struct line_editor editor;
 static struct parser parser;
 
-int main(int argc, char* const argv[], char* const envp[]) {
-    (void)argc;
-    (void)argv;
+enum {
+    RESULT_SUCCESS,
+    RESULT_FATAL_ERROR,
+    RESULT_RECOVERABLE_ERROR,
+};
 
+static int parse_and_run(char* line) {
+    struct node* node = parse(&parser, line);
+    switch (parser.result) {
+    case PARSE_SUCCESS:
+        ASSERT(node);
+        break;
+    case PARSE_EMPTY:
+        return RESULT_SUCCESS;
+    case PARSE_NOMEM_ERROR:
+        dprintf(STDERR_FILENO, "Out of memory\n");
+        return RESULT_FATAL_ERROR;
+    case PARSE_SYNTAX_ERROR:
+        dprintf(STDERR_FILENO, "Syntax error\n");
+        return RESULT_RECOVERABLE_ERROR;
+    case PARSE_TOO_MANY_ARGS_ERROR:
+        dprintf(STDERR_FILENO, "Too many arguments\n");
+        return RESULT_RECOVERABLE_ERROR;
+    default:
+        UNREACHABLE();
+    }
+
+    // reap previous background processes
+    while (waitpid(-1, NULL, WNOHANG) >= 0)
+        ;
+
+    struct run_context ctx = {.pgid = 0, .foreground = true};
+    int run_result = run_command(node, ctx);
+    destroy_node(node);
+    if (run_result == RUN_ERROR)
+        return RESULT_FATAL_ERROR;
+
+    return RESULT_SUCCESS;
+}
+
+static int script_main(const char* path) {
+    int fd = open(path, O_RDONLY);
+    if (fd < 0) {
+        perror("open");
+        return EXIT_FAILURE;
+    }
+
+    static char input[BUF_SIZE + 1];
+    input[BUF_SIZE] = 0;
+
+    int ret = EXIT_SUCCESS;
+    ssize_t nread = -1;
+    for (;;) {
+        // Read unless we reached EOF in the previous iteration
+        if (nread != 0) {
+            for (size_t cursor = 0; cursor < BUF_SIZE;) {
+                nread = read(fd, input + cursor, BUF_SIZE - cursor);
+                if (nread < 0) {
+                    perror("read");
+                    return EXIT_FAILURE;
+                }
+                if (nread == 0)
+                    break;
+                cursor += nread;
+            }
+        }
+
+        char* newline = strchr(input, '\n');
+        if (newline)
+            *newline = 0;
+
+        switch (parse_and_run(input)) {
+        case RESULT_SUCCESS:
+            break;
+        case RESULT_FATAL_ERROR:
+            return EXIT_FAILURE;
+        case RESULT_RECOVERABLE_ERROR:
+            ret = EXIT_FAILURE;
+            break;
+        default:
+            UNREACHABLE();
+        }
+
+        if (newline && newline + 1 < input + BUF_SIZE) {
+            // Move the unprompted part to the beginning of the buffer
+            memmove(input, newline + 1, BUF_SIZE - (newline - input) - 1);
+        } else if (nread == 0) {
+            // We have processed the whole buffer and reached EOF
+            return ret;
+        } else {
+            // We have processed the whole buffer but haven't reached EOF
+            memset(input, 0, sizeof(input));
+        }
+    }
+}
+
+static int repl_main(void) {
     if (tcsetpgrp(STDIN_FILENO, getpid()) < 0) {
         perror("tcsetpgrp");
         return EXIT_FAILURE;
     }
 
+    size_t terminal_width = 80;
     struct winsize winsize;
-    if (ioctl(STDERR_FILENO, TIOCGWINSZ, &winsize) < 0) {
-        winsize.ws_col = 80;
-        winsize.ws_row = 25;
-    }
+    if (ioctl(STDERR_FILENO, TIOCGWINSZ, &winsize) >= 0)
+        terminal_width = winsize.ws_col;
 
+    static struct line_editor editor;
     for (;;) {
-        char* input = read_input(&editor, winsize.ws_col);
+        char* input = read_input(&editor, terminal_width);
         if (!input)
             return EXIT_FAILURE;
         dprintf(STDERR_FILENO, "\n");
 
-        struct node* node = parse(&parser, input);
-        switch (parser.result) {
+        switch (parse_and_run(input)) {
         case RESULT_SUCCESS:
-            ASSERT(node);
             break;
-        case RESULT_EMPTY:
-            continue;
-        case RESULT_NOMEM_ERROR:
-            dprintf(STDERR_FILENO, "Out of memory\n");
+        case RESULT_FATAL_ERROR:
             return EXIT_FAILURE;
-        case RESULT_SYNTAX_ERROR:
-            dprintf(STDERR_FILENO, "Syntax error\n");
-            continue;
-        case RESULT_TOO_MANY_ARGS_ERROR:
-            dprintf(STDERR_FILENO, "Too many arguments\n");
+        case RESULT_RECOVERABLE_ERROR:
             continue;
         default:
             UNREACHABLE();
         }
-
-        // reap previous background processes
-        while (waitpid(-1, NULL, WNOHANG) >= 0)
-            ;
-
-        struct run_context ctx = {.envp = envp, .pgid = 0, .foreground = true};
-        int run_result = run_command(node, ctx);
-        destroy_node(node);
-        if (run_result == RUN_ERROR)
-            return EXIT_FAILURE;
 
         if (tcsetpgrp(STDIN_FILENO, getpid()) < 0) {
             perror("tcsetpgrp");
@@ -983,7 +1058,7 @@ int main(int argc, char* const argv[], char* const envp[]) {
         }
 
         // print 1 line worth of spaces so that we always ends up on a new line
-        size_t num_spaces = winsize.ws_col - 1;
+        size_t num_spaces = terminal_width - 1;
         char* spaces = malloc(num_spaces + 1);
         if (!spaces) {
             perror("malloc");
@@ -1000,5 +1075,10 @@ int main(int argc, char* const argv[], char* const envp[]) {
                 spaces);
         free(spaces);
     }
-    return EXIT_SUCCESS;
+}
+
+int main(int argc, char* const argv[]) {
+    if (argc >= 2)
+        return script_main(argv[1]);
+    return repl_main();
 }
