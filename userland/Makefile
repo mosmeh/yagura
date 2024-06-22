@@ -44,6 +44,7 @@ BIN_TARGET_NAMES := \
 	run-tests \
 	sh \
 	sleep \
+	stat \
 	touch \
 	uname \
 	wc \
