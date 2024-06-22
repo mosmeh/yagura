@@ -10,7 +10,8 @@
 
 static struct font* load_psf1(file_description* desc) {
     struct psf1_header header;
-    if (file_description_read(desc, &header, sizeof(struct psf1_header)) !=
+    if (file_description_read_to_end(desc, &header,
+                                     sizeof(struct psf1_header)) !=
         sizeof(struct psf1_header)) {
         return ERR_PTR(-EINVAL);
     }
@@ -31,7 +32,7 @@ static struct font* load_psf1(file_description* desc) {
         kfree(font);
         return ERR_PTR(-ENOMEM);
     }
-    if ((size_t)file_description_read(desc, font->glyphs, buf_size) !=
+    if ((size_t)file_description_read_to_end(desc, font->glyphs, buf_size) !=
         buf_size) {
         kfree(font->glyphs);
         kfree(font);
@@ -43,7 +44,7 @@ static struct font* load_psf1(file_description* desc) {
         for (size_t i = 0; i < num_glyphs; ++i) {
             for (;;) {
                 uint16_t uc;
-                if (file_description_read(desc, &uc, sizeof(uint16_t)) !=
+                if (file_description_read_to_end(desc, &uc, sizeof(uint16_t)) !=
                     sizeof(uint16_t)) {
                     kfree(font->glyphs);
                     kfree(font);
@@ -65,7 +66,8 @@ static struct font* load_psf1(file_description* desc) {
 
 static struct font* load_psf2(file_description* desc) {
     struct psf2_header header;
-    if (file_description_read(desc, &header, sizeof(struct psf2_header)) !=
+    if (file_description_read_to_end(desc, &header,
+                                     sizeof(struct psf2_header)) !=
         sizeof(struct psf2_header))
         return ERR_PTR(-EINVAL);
     if (header.magic != PSF2_MAGIC || header.version != 0 ||
@@ -91,7 +93,7 @@ static struct font* load_psf2(file_description* desc) {
         kfree(font);
         return ERR_PTR(-ENOMEM);
     }
-    if ((size_t)file_description_read(desc, font->glyphs, buf_size) !=
+    if ((size_t)file_description_read_to_end(desc, font->glyphs, buf_size) !=
         buf_size) {
         kfree(font->glyphs);
         kfree(font);
@@ -103,7 +105,7 @@ static struct font* load_psf2(file_description* desc) {
         for (size_t i = 0; i < header.numglyph; ++i) {
             for (;;) {
                 uint8_t uc;
-                if (file_description_read(desc, &uc, sizeof(uint8_t)) !=
+                if (file_description_read_to_end(desc, &uc, sizeof(uint8_t)) !=
                     sizeof(uint8_t)) {
                     kfree(font->glyphs);
                     kfree(font);

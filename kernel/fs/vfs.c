@@ -174,19 +174,11 @@ static struct path* follow_symlink(const struct path* parent,
         return ERR_CAST(desc);
 
     char target[SYMLINK_MAX];
-    size_t target_len = 0;
-    while (target_len < SYMLINK_MAX) {
-        ssize_t nread = file_description_read(desc, target + target_len,
-                                              SYMLINK_MAX - target_len);
-        if (IS_ERR(nread)) {
-            file_description_close(desc);
-            return ERR_PTR(nread);
-        }
-        if (nread == 0)
-            break;
-        target_len += nread;
-    }
+    ssize_t target_len =
+        file_description_read_to_end(desc, target, SYMLINK_MAX);
     file_description_close(desc);
+    if (IS_ERR(target_len))
+        return ERR_PTR(target_len);
 
     char* pathname = kmalloc(target_len + 1 + strlen(rest_pathname) + 1);
     if (!pathname)

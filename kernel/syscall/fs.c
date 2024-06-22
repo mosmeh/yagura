@@ -79,22 +79,14 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
     bufsiz = MIN(bufsiz, SYMLINK_MAX);
 
     char buf[SYMLINK_MAX];
-    size_t buf_len = 0;
-    while (buf_len < bufsiz) {
-        ssize_t nread = file_description_read(desc, buf + buf_len, bufsiz);
-        if (IS_ERR(nread)) {
-            file_description_close(desc);
-            return nread;
-        }
-        if (nread == 0)
-            break;
-        buf_len += nread;
-    }
+    ssize_t nread = file_description_read_to_end(desc, buf, bufsiz);
     file_description_close(desc);
+    if (IS_ERR(nread))
+        return nread;
 
-    if (!copy_to_user(user_buf, buf, buf_len))
+    if (!copy_to_user(user_buf, buf, nread))
         return -EFAULT;
-    return buf_len;
+    return nread;
 }
 
 ssize_t sys_write(int fd, const void* user_buf, size_t count) {
@@ -169,7 +161,7 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
     file_description* desc = inode_open(inode, O_WRONLY, 0);
     if (IS_ERR(desc))
         return PTR_ERR(desc);
-    rc = file_description_write(desc, target, target_len);
+    rc = file_description_write_all(desc, target, target_len);
 
     file_description_close(desc);
     inode_unref(inode);

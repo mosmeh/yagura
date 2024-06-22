@@ -192,7 +192,8 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
         ret = -ENOMEM;
         goto fail_exe;
     }
-    ssize_t nread = file_description_read(desc, exe_buf, stat.st_size);
+
+    ssize_t nread = file_description_read_to_end(desc, exe_buf, stat.st_size);
     file_description_close(desc);
     desc = NULL;
     if (IS_ERR(nread)) {

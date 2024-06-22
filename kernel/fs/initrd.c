@@ -72,12 +72,10 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
             const unsigned char* file_content =
                 (const unsigned char*)(cursor + sizeof(struct cpio_odc_header) +
                                        name_size);
-            for (size_t count = 0; count < file_size;) {
-                ssize_t nwritten = file_description_write(
-                    desc, file_content + count, file_size - count);
-                ASSERT_OK(nwritten);
-                count += nwritten;
-            }
+            ssize_t nwritten =
+                file_description_write_all(desc, file_content, file_size);
+            ASSERT_OK(nwritten);
+            ASSERT((size_t)nwritten == file_size);
 
             ASSERT_OK(file_description_close(desc));
         }

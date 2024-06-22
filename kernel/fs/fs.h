@@ -84,8 +84,12 @@ NODISCARD int inode_stat(struct inode*, struct stat* buf);
 int file_description_close(file_description*);
 NODISCARD ssize_t file_description_read(file_description*, void* buffer,
                                         size_t count);
+NODISCARD ssize_t file_description_read_to_end(file_description*, void* buffer,
+                                               size_t count);
 NODISCARD ssize_t file_description_write(file_description*, const void* buffer,
                                          size_t count);
+NODISCARD ssize_t file_description_write_all(file_description*,
+                                             const void* buffer, size_t count);
 NODISCARD void* file_description_mmap(file_description*, size_t length,
                                       off_t offset, int flags);
 NODISCARD int file_description_truncate(file_description*, off_t length);

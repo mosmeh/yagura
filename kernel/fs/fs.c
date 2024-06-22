@@ -176,6 +176,21 @@ ssize_t file_description_read(file_description* desc, void* buffer,
     return inode->fops->read(desc, buffer, count);
 }
 
+NODISCARD ssize_t file_description_read_to_end(file_description* desc,
+                                               void* buffer, size_t count) {
+    size_t cursor = 0;
+    while (cursor < count) {
+        ssize_t nread = file_description_read(
+            desc, (unsigned char*)buffer + cursor, count - cursor);
+        if (IS_ERR(nread))
+            return nread;
+        if (nread == 0)
+            break;
+        cursor += nread;
+    }
+    return cursor;
+}
+
 ssize_t file_description_write(file_description* desc, const void* buffer,
                                size_t count) {
     struct inode* inode = desc->inode;
@@ -186,6 +201,21 @@ ssize_t file_description_write(file_description* desc, const void* buffer,
     if (!(desc->flags & O_WRONLY))
         return -EBADF;
     return inode->fops->write(desc, buffer, count);
+}
+
+ssize_t file_description_write_all(file_description* desc, const void* buffer,
+                                   size_t count) {
+    size_t cursor = 0;
+    while (cursor < count) {
+        ssize_t nwritten = file_description_write(
+            desc, (unsigned char*)buffer + cursor, count - cursor);
+        if (IS_ERR(nwritten))
+            return nwritten;
+        if (nwritten == 0)
+            break;
+        cursor += nwritten;
+    }
+    return cursor;
 }
 
 void* file_description_mmap(file_description* desc, size_t length, off_t offset,
