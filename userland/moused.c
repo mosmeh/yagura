@@ -27,9 +27,14 @@ static bool get_fb_info(struct fb_info* out_fb_info) {
 
 static int set_non_blocking(int fd) {
     int flags = fcntl(fd, F_GETFL);
-    if (flags < 0)
+    if (flags < 0) {
+        perror("fcntl");
         return flags;
-    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    }
+    flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    if (flags < 0)
+        perror("fcntl");
+    return flags;
 }
 
 #define MAX_NUM_CONNECTIONS 8
@@ -44,8 +49,12 @@ static struct pollfd pollfds[MAX_NUM_CONNECTIONS + 2];
 
 static int handle_new_connection(void) {
     int fd = accept(sockfd, NULL, NULL);
-    if (fd < 0)
-        return errno == EAGAIN ? 0 : -1;
+    if (fd < 0) {
+        if (errno == EAGAIN)
+            return 0;
+        perror("accept");
+        return -1;
+    }
     if (set_non_blocking(fd) < 0) {
         close(fd);
         return -1;
@@ -63,8 +72,12 @@ static int broadcast_event(void) {
     for (;;) {
         mouse_event event;
         ssize_t nread = read(mouse_fd, &event, sizeof(mouse_event));
-        if (nread < 0)
-            return errno == EAGAIN ? 0 : -1;
+        if (nread < 0) {
+            if (errno == EAGAIN)
+                return 0;
+            perror("read");
+            return -1;
+        }
         cursor_x = MAX(0, MIN((int32_t)(width - 1), cursor_x + event.dx));
         cursor_y = MAX(0, MIN((int32_t)(height - 1), cursor_y + event.dy));
         moused_event hidd_event = {
@@ -95,10 +108,8 @@ int main(void) {
         perror("open");
         goto fail;
     }
-    if (set_non_blocking(mouse_fd) < 0) {
-        perror("set_non_blocking");
+    if (set_non_blocking(mouse_fd) < 0)
         goto fail;
-    }
 
     struct fb_info fb_info;
     if (get_fb_info(&fb_info)) {
@@ -113,10 +124,8 @@ int main(void) {
         perror("socket");
         goto fail;
     }
-    if (set_non_blocking(sockfd) < 0) {
-        perror("set_non_blocking");
+    if (set_non_blocking(sockfd) < 0)
         goto fail;
-    }
     struct sockaddr_un addr = {AF_UNIX, "/tmp/moused-socket"};
     if (bind(sockfd, (const struct sockaddr*)&addr,
              sizeof(struct sockaddr_un)) < 0) {
@@ -155,16 +164,12 @@ int main(void) {
                 pollfds[2 + i].fd = -1;
         }
         if (pollfds[0].revents & POLLIN) {
-            if (handle_new_connection() < 0) {
-                perror("handle_new_connection");
+            if (handle_new_connection() < 0)
                 goto fail;
-            }
         }
         if (pollfds[1].revents & POLLIN) {
-            if (broadcast_event() < 0) {
-                perror("broadcast_event");
+            if (broadcast_event() < 0)
                 goto fail;
-            }
         }
     }
 

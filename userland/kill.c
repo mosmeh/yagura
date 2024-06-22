@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
     }
     pid_t pid = atoi(pid_str);
     if (kill(pid, SIGTERM) < 0) {
-        perror("pid");
+        perror("kill");
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;

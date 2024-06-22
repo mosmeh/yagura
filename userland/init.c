@@ -11,8 +11,10 @@
 
 static pid_t spawn(char* filename) {
     pid_t pid = fork();
-    if (pid < 0)
+    if (pid < 0) {
+        perror("fork");
         return -1;
+    }
     if (pid == 0) {
         if (setpgid(0, 0) < 0) {
             perror("setpgid");
@@ -103,10 +105,8 @@ int main(void) {
 
     for (;;) {
         pid = spawn("/bin/sh");
-        if (pid < 0) {
-            perror("spawn");
+        if (pid < 0)
             continue;
-        }
         while (waitpid(-1, NULL, 0) != pid)
             ;
     }

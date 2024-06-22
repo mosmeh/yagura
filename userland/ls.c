@@ -10,8 +10,10 @@
 static int get_format(const struct dirent* dent, const char** out_format,
                       size_t* out_len) {
     struct stat stat_buf;
-    if (stat(dent->d_name, &stat_buf) < 0)
+    if (stat(dent->d_name, &stat_buf) < 0) {
+        perror("stat");
         return -1;
+    }
     switch (stat_buf.st_mode & S_IFMT) {
     case S_IFDIR:
         *out_format = "\x1b[01;34m%s\x1b[m/";
@@ -85,7 +87,6 @@ int main(int argc, char* argv[]) {
         const char* format;
         size_t len;
         if (get_format(dent, &format, &len) < 0) {
-            perror("get_format");
             closedir(dirp);
             return EXIT_FAILURE;
         }

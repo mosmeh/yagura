@@ -1,6 +1,5 @@
 #include <ctype.h>
 #include <dirent.h>
-#include <errno.h>
 #include <extra.h>
 #include <fcntl.h>
 #include <panic.h>
@@ -350,8 +349,10 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
 
         char c;
         ssize_t nread = read(STDIN_FILENO, &c, 1);
-        if (nread < 0)
+        if (nread < 0) {
+            perror("read");
             return NULL;
+        }
         if (nread == 0)
             break;
         on_char(ed, c);
@@ -361,8 +362,10 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
     }
 
     struct history_entry* entry = malloc(sizeof(struct history_entry));
-    if (!entry)
+    if (!entry) {
+        perror("malloc");
         return NULL;
+    }
     *entry = (struct history_entry){0};
     memcpy(entry->line, ed->input_buf, BUF_SIZE);
 
@@ -731,8 +734,10 @@ static int run_execute(const struct execute_node* node,
     }
 
     pid_t pid = fork();
-    if (pid < 0)
+    if (pid < 0) {
+        perror("fork");
         return RUN_ERROR;
+    }
     if (pid == 0) {
         if (!ctx.pgid)
             ctx.pgid = getpid();
@@ -750,8 +755,10 @@ static int run_execute(const struct execute_node* node,
     }
 
     int wstatus = 0;
-    if (waitpid(pid, &wstatus, 0) < 0)
+    if (waitpid(pid, &wstatus, 0) < 0) {
+        perror("waitpid");
         return RUN_ERROR;
+    }
     if (WIFSIGNALED(wstatus))
         return RUN_SIGNALED;
 
@@ -768,12 +775,16 @@ static int run_juxtaposition(const struct juxtaposition_node* node,
 
 static int run_pipe(const struct pipe_node* node, struct run_context ctx) {
     int pipefd[2];
-    if (pipe(pipefd) < 0)
+    if (pipe(pipefd) < 0) {
+        perror("pipe");
         return RUN_ERROR;
+    }
 
     pid_t pid = fork();
-    if (pid < 0)
+    if (pid < 0) {
+        perror("fork");
         return RUN_ERROR;
+    }
     if (pid == 0) {
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[0]);
@@ -781,10 +792,8 @@ static int run_pipe(const struct pipe_node* node, struct run_context ctx) {
 
         if (!ctx.pgid)
             ctx.pgid = getpid();
-        if (run_command(node->left, ctx) == RUN_ERROR) {
-            perror("run_command");
+        if (run_command(node->left, ctx) == RUN_ERROR)
             abort();
-        }
 
         close(STDOUT_FILENO);
         exit(EXIT_SUCCESS);
@@ -800,10 +809,8 @@ static int run_pipe(const struct pipe_node* node, struct run_context ctx) {
 
     int rc = run_command(node->right, ctx);
     if (rc < 0) {
-        int saved_errno = errno;
         dup2(saved_stdin, STDIN_FILENO);
         close(saved_stdin);
-        errno = saved_errno;
         return rc;
     }
 
@@ -821,32 +828,32 @@ static int run_redirect(const struct redirect_node* node,
         redirected_fd = node->is_write ? STDOUT_FILENO : STDIN_FILENO;
 
     int fd = open(node->pathname, flags, 0);
-    if (fd < 0)
+    if (fd < 0) {
+        perror("open");
         return RUN_ERROR;
+    }
     int saved_fd = dup(redirected_fd);
     dup2(fd, redirected_fd);
     close(fd);
 
     int rc = run_command(node->inner, ctx);
-    int saved_errno = errno;
     dup2(saved_fd, redirected_fd);
     close(saved_fd);
-    errno = saved_errno;
     return rc;
 }
 
 static int run_background(const struct background_node* node,
                           struct run_context ctx) {
     pid_t pid = fork();
-    if (pid < 0)
+    if (pid < 0) {
+        perror("fork");
         return RUN_ERROR;
+    }
     if (pid == 0) {
         ctx.pgid = getpid();
         ctx.foreground = false;
-        if (run_command(node->inner, ctx) == RUN_ERROR) {
-            perror("run_command");
+        if (run_command(node->inner, ctx) == RUN_ERROR)
             abort();
-        }
         exit(EXIT_SUCCESS);
     }
     return 0;
@@ -888,10 +895,8 @@ int main(int argc, char* const argv[], char* const envp[]) {
 
     for (;;) {
         char* input = read_input(&editor, winsize.ws_col);
-        if (!input) {
-            perror("read_input");
+        if (!input)
             return EXIT_FAILURE;
-        }
         dprintf(STDERR_FILENO, "\n");
 
         struct node* node = parse(&parser, input);
@@ -921,10 +926,8 @@ int main(int argc, char* const argv[], char* const envp[]) {
         struct run_context ctx = {.envp = envp, .pgid = 0, .foreground = true};
         int run_result = run_command(node, ctx);
         destroy_node(node);
-        if (run_result == RUN_ERROR) {
-            perror("run_command");
+        if (run_result == RUN_ERROR)
             return EXIT_FAILURE;
-        }
 
         if (tcsetpgrp(STDIN_FILENO, getpid()) < 0) {
             perror("tcsetpgrp");

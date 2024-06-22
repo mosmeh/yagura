@@ -1,5 +1,4 @@
 #include <ctype.h>
-#include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -10,9 +9,11 @@
 #define BUF_SIZE 1024
 
 static int process_file(const char* name, const char* filename) {
-    int fd = strcmp(filename, "-") ? open(filename, O_RDONLY) : 0;
-    if (fd < 0)
+    int fd = strcmp(filename, "-") ? open(filename, O_RDONLY) : STDIN_FILENO;
+    if (fd < 0) {
+        perror("open");
         return -1;
+    }
 
     size_t lines = 0;
     size_t words = 0;
@@ -22,11 +23,9 @@ static int process_file(const char* name, const char* filename) {
         static char buf[BUF_SIZE];
         ssize_t nread = read(fd, buf, BUF_SIZE);
         if (nread < 0) {
-            if (fd > 0) {
-                int saved_errno = errno;
+            perror("read");
+            if (fd != STDIN_FILENO)
                 close(fd);
-                errno = saved_errno;
-            }
             return -1;
         }
         if (nread == 0)
@@ -46,24 +45,20 @@ static int process_file(const char* name, const char* filename) {
 
     printf("%7u %7u %7u %s\n", lines, words, bytes, name);
 
-    if (fd > 0)
-        return close(fd);
+    if (fd != STDIN_FILENO)
+        close(fd);
     return 0;
 }
 
 int main(int argc, char* argv[]) {
+    int ret = EXIT_SUCCESS;
     if (argc < 2) {
-        if (process_file("", "-") < 0) {
-            perror("process_file");
-            return EXIT_FAILURE;
-        }
-        return EXIT_SUCCESS;
+        if (process_file("", "-") < 0)
+            ret = EXIT_FAILURE;
     }
     for (int i = 1; i < argc; ++i) {
-        if (process_file(argv[i], argv[i]) < 0) {
-            perror("process_file");
-            return EXIT_FAILURE;
-        }
+        if (process_file(argv[i], argv[i]) < 0)
+            ret = EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
+    return ret;
 }
