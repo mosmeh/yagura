@@ -3,6 +3,7 @@
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/stdio.h>
+#include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
@@ -155,14 +156,12 @@ int file_description_close(file_description* desc) {
     if (--desc->ref_count > 0)
         return 0;
     struct inode* inode = desc->inode;
-    if (inode->fops->close) {
-        int rc = inode->fops->close(desc);
-        if (IS_ERR(rc))
-            return rc;
-    }
+    int rc = 0;
+    if (inode->fops->close)
+        rc = inode->fops->close(desc);
     kfree(desc);
     inode_unref(inode);
-    return 0;
+    return rc;
 }
 
 ssize_t file_description_read(file_description* desc, void* buffer,

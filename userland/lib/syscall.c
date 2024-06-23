@@ -162,6 +162,11 @@ off_t lseek(int fd, off_t offset, int whence) {
     RETURN_WITH_ERRNO(rc, off_t)
 }
 
+int lstat(const char* pathname, struct stat* buf) {
+    int rc = syscall(SYS_lstat, (uintptr_t)pathname, (uintptr_t)buf, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 int mkdir(const char* pathname, mode_t mode) {
     int rc = syscall(SYS_mkdir, (uintptr_t)pathname, mode, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
@@ -233,6 +238,12 @@ ssize_t read(int fd, void* buf, size_t count) {
     RETURN_WITH_ERRNO(rc, ssize_t)
 }
 
+ssize_t readlink(const char* pathname, char* buf, size_t bufsiz) {
+    int rc =
+        syscall(SYS_readlink, (uintptr_t)pathname, (uintptr_t)buf, bufsiz, 0);
+    RETURN_WITH_ERRNO(rc, ssize_t)
+}
+
 int reboot(int howto) {
     int rc = syscall(SYS_reboot, howto, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
@@ -270,6 +281,11 @@ int socket(int domain, int type, int protocol) {
 
 int stat(const char* pathname, struct stat* buf) {
     int rc = syscall(SYS_stat, (uintptr_t)pathname, (uintptr_t)buf, 0, 0);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
+int symlink(const char* target, const char* linkpath) {
+    int rc = syscall(SYS_symlink, (uintptr_t)target, (uintptr_t)linkpath, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
 }
 

@@ -1,5 +1,6 @@
 #include "process.h"
 #include "api/signum.h"
+#include "api/sys/limits.h"
 #include "boot_defs.h"
 #include "fs/path.h"
 #include "interrupts.h"

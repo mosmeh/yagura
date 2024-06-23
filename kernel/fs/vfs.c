@@ -2,6 +2,7 @@
 #include "path.h"
 #include <common/string.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/kprintf.h>
 #include <kernel/lock.h>
@@ -157,12 +158,51 @@ static bool is_absolute_path(const char* path) {
     return path[0] == PATH_SEPARATOR;
 }
 
-struct path* vfs_resolve_path(const char* pathname, int flags) {
-    return vfs_resolve_path_at(current->cwd, pathname, flags);
+static struct path* resolve_path_at(const struct path* base,
+                                    const char* pathname, int flags,
+                                    unsigned symlink_depth);
+
+static struct path* follow_symlink(const struct path* parent,
+                                   struct inode* inode,
+                                   const char* rest_pathname, int flags,
+                                   unsigned depth) {
+    ASSERT(S_ISLNK(inode->mode));
+    ASSERT(depth <= SYMLOOP_MAX);
+
+    file_description* desc = inode_open(inode, O_RDONLY, 0);
+    if (IS_ERR(desc))
+        return ERR_CAST(desc);
+
+    char target[SYMLINK_MAX];
+    size_t target_len = 0;
+    while (target_len < SYMLINK_MAX) {
+        ssize_t nread = file_description_read(desc, target + target_len,
+                                              SYMLINK_MAX - target_len);
+        if (IS_ERR(nread)) {
+            file_description_close(desc);
+            return ERR_PTR(nread);
+        }
+        if (nread == 0)
+            break;
+        target_len += nread;
+    }
+    file_description_close(desc);
+
+    char* pathname = kmalloc(target_len + 1 + strlen(rest_pathname) + 1);
+    if (!pathname)
+        return ERR_PTR(-ENOMEM);
+    memcpy(pathname, target, target_len);
+    pathname[target_len] = PATH_SEPARATOR;
+    strcpy(pathname + target_len + 1, rest_pathname);
+
+    struct path* path = resolve_path_at(parent, pathname, flags, depth + 1);
+    kfree(pathname);
+    return path;
 }
 
-struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
-                                 int flags) {
+static struct path* resolve_path_at(const struct path* base,
+                                    const char* pathname, int flags,
+                                    unsigned symlink_depth) {
     struct path* path =
         is_absolute_path(pathname) ? vfs_get_root() : path_dup(base);
     if (IS_ERR(path))
@@ -197,19 +237,24 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
         inode_ref(path->inode);
         struct inode* inode = inode_lookup_child(path->inode, component);
 
+        bool has_more_components = false;
+        for (char* p = saved_ptr; p && *p; ++p) {
+            if (*p != PATH_SEPARATOR) {
+                has_more_components = true;
+                break;
+            }
+        }
+
         if ((flags & O_ALLOW_NOENT) && PTR_ERR(inode) == -ENOENT) {
-            const char* next_component =
-                strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr);
-            if (next_component) {
-                // This is not the last component.
+            if (has_more_components) {
                 path_destroy_recursive(path);
                 kfree(dup_pathname);
                 return ERR_PTR(-ENOENT);
             }
             struct path* joined = path_join(path, NULL, component);
-            kfree(dup_pathname);
             if (IS_ERR(joined))
                 path_destroy_recursive(path);
+            kfree(dup_pathname);
             return joined;
         }
 
@@ -220,6 +265,33 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
         }
 
         inode = resolve_mounts(inode);
+
+        if (S_ISLNK(inode->mode)) {
+            if (symlink_depth > SYMLOOP_MAX) {
+                inode_unref(inode);
+                path_destroy_recursive(path);
+                kfree(dup_pathname);
+                return ERR_PTR(-ELOOP);
+            }
+
+            if (has_more_components || !(flags & O_NOFOLLOW)) {
+                const char* rest_pathname = strtok_r(NULL, "", &saved_ptr);
+                if (!rest_pathname)
+                    rest_pathname = ".";
+                struct path* dest = follow_symlink(path, inode, rest_pathname,
+                                                   flags, symlink_depth);
+                path_destroy_recursive(path);
+                kfree(dup_pathname);
+                return dest;
+            }
+
+            if (!(flags & O_NOFOLLOW_NOERROR)) {
+                inode_unref(inode);
+                path_destroy_recursive(path);
+                kfree(dup_pathname);
+                return ERR_PTR(-ELOOP);
+            }
+        }
 
         struct path* joined = path_join(path, inode, component);
         if (IS_ERR(joined)) {
@@ -232,6 +304,15 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
 
     kfree(dup_pathname);
     return path;
+}
+
+struct path* vfs_resolve_path(const char* pathname, int flags) {
+    return vfs_resolve_path_at(current->cwd, pathname, flags);
+}
+
+struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
+                                 int flags) {
+    return resolve_path_at(base, pathname, flags, 0);
 }
 
 static struct inode* resolve_special_file(struct inode* inode) {

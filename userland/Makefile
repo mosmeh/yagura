@@ -38,6 +38,7 @@ BIN_TARGET_NAMES := \
 	poweroff \
 	ps \
 	pwd \
+	readlink \
 	reboot \
 	rm \
 	rmdir \

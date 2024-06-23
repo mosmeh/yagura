@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/limits.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <unistd.h>
@@ -30,14 +31,27 @@ int main(int argc, char* argv[]) {
     for (int i = 1; i < argc; ++i) {
         const char* filename = argv[i];
         struct stat buf;
-        if (stat(filename, &buf) < 0) {
-            perror("stat");
+        if (lstat(filename, &buf) < 0) {
+            perror("lstat");
             return EXIT_FAILURE;
         }
-        printf("  File: %s\n"
-               "  Size: %-10d\t%s\n"
+
+        printf("  File: %s", filename);
+
+        if (S_ISLNK(buf.st_mode)) {
+            char target[SYMLINK_MAX + 1] = {0};
+            if (readlink(filename, target, SYMLINK_MAX) < 0) {
+                perror("readlink");
+                return EXIT_FAILURE;
+            }
+            printf(" -> %s\n", target);
+        } else {
+            putchar('\n');
+        }
+
+        printf("  Size: %-10d\t%s\n"
                "Device: %d,%d\tLinks: %-5d",
-               filename, buf.st_size, file_type(&buf), major(buf.st_dev),
+               buf.st_size, file_type(&buf), major(buf.st_dev),
                minor(buf.st_dev), buf.st_nlink);
         if (S_ISCHR(buf.st_mode) || S_ISBLK(buf.st_mode)) {
             printf("\tDevice type: %d,%d", major(buf.st_rdev),

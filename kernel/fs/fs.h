@@ -6,13 +6,10 @@
 #include <kernel/lock.h>
 #include <stdatomic.h>
 #include <stdbool.h>
-#include <stddef.h>
 
 #define PATH_SEPARATOR '/'
 #define PATH_SEPARATOR_STR "/"
 #define ROOT_DIR PATH_SEPARATOR_STR
-
-#define OPEN_MAX 1024
 
 typedef struct unix_socket unix_socket;
 typedef struct multiboot_info multiboot_info_t;
@@ -119,6 +116,10 @@ dev_t vfs_generate_unnamed_device_number(void);
 // Return a path even if the last component of the path does not exist.
 // The last component of the returned path will have NULL inode in this case.
 #define O_ALLOW_NOENT 0x4000
+
+// When combined with O_NOFOLLOW, do not return an error if the last component
+// of the path is a symbolic link, and return the symlink itself.
+#define O_NOFOLLOW_NOERROR 0x2000
 
 NODISCARD file_description* vfs_open(const char* pathname, int flags,
                                      mode_t mode);

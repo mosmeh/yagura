@@ -64,6 +64,7 @@ static char get_file_type_char(mode_t mode) {
 static int list_dir(const char* path, size_t terminal_width, bool long_format) {
     int ret = -1;
     DIR* dirp = NULL;
+    char* full_path = NULL;
 
     dirp = opendir(path);
     if (!dirp) {
@@ -84,7 +85,7 @@ static int list_dir(const char* path, size_t terminal_width, bool long_format) {
         }
 
         size_t name_len = strlen(dent->d_name);
-        char* full_path = malloc(path_len + 1 + name_len + 1);
+        full_path = malloc(path_len + 1 + name_len + 1);
         if (!full_path) {
             perror("malloc");
             goto fail;
@@ -94,10 +95,9 @@ static int list_dir(const char* path, size_t terminal_width, bool long_format) {
         strcpy(full_path + path_len + 1, dent->d_name);
 
         struct stat st;
-        ret = stat(full_path, &st);
-        free(full_path);
+        ret = lstat(full_path, &st);
         if (ret < 0) {
-            perror("stat");
+            perror("lstat");
             goto fail;
         }
 
@@ -109,7 +109,17 @@ static int list_dir(const char* path, size_t terminal_width, bool long_format) {
                 printf(" %4u,%4u ", major(st.st_rdev), minor(st.st_rdev));
             else
                 printf("%10u ", st.st_size);
+
             printf(format, dent->d_name);
+            if (S_ISLNK(st.st_mode)) {
+                char target[SYMLINK_MAX + 1] = {0};
+                if (readlink(full_path, target, SYMLINK_MAX) < 0) {
+                    perror("readlink");
+                    goto fail;
+                }
+                printf(" -> %s", target);
+            }
+
             putchar('\n');
         } else {
             size_t next_pos = round_up(x_pos + len + 1, TAB_STOP);
@@ -122,6 +132,9 @@ static int list_dir(const char* path, size_t terminal_width, bool long_format) {
             printf(format, dent->d_name);
             putchar('\t');
         }
+
+        free(full_path);
+        full_path = NULL;
     }
     if (x_pos > 0)
         putchar('\n');
@@ -129,6 +142,7 @@ static int list_dir(const char* path, size_t terminal_width, bool long_format) {
     ret = 0;
 fail:
     putchar('\n');
+    free(full_path);
     if (dirp)
         closedir(dirp);
     return ret;

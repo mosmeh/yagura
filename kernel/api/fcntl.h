@@ -10,3 +10,4 @@
 #define O_CREAT 0x8
 #define O_EXCL 0x10
 #define O_NONBLOCK 0x100
+#define O_NOFOLLOW 0x400

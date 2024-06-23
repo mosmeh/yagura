@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/reboot.h>
 #include <kernel/api/unistd.h>
 #include <kernel/boot_defs.h>

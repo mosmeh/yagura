@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/limits.h>
@@ -8,7 +9,6 @@
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/safe_string.h>
-#include <string.h>
 
 static int copy_pathname_from_user(char* dest, const char* user_src) {
     ssize_t pathname_len = strncpy_from_user(dest, user_src, PATH_MAX);
@@ -55,6 +55,48 @@ ssize_t sys_read(int fd, void* user_buf, size_t count) {
     return file_description_read(desc, user_buf, count);
 }
 
+ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
+
+    struct path* path =
+        vfs_resolve_path(pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
+    if (IS_ERR(path))
+        return PTR_ERR(path);
+
+    struct inode* inode = path_into_inode(path);
+    if (!S_ISLNK(inode->mode)) {
+        inode_unref(inode);
+        return -EINVAL;
+    }
+
+    file_description* desc = inode_open(inode, O_RDONLY, 0);
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
+
+    bufsiz = MIN(bufsiz, SYMLINK_MAX);
+
+    char buf[SYMLINK_MAX];
+    size_t buf_len = 0;
+    while (buf_len < bufsiz) {
+        ssize_t nread = file_description_read(desc, buf + buf_len, bufsiz);
+        if (IS_ERR(nread)) {
+            file_description_close(desc);
+            return nread;
+        }
+        if (nread == 0)
+            break;
+        buf_len += nread;
+    }
+    file_description_close(desc);
+
+    if (!copy_to_user(user_buf, buf, buf_len))
+        return -EFAULT;
+    return buf_len;
+}
+
 ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
@@ -78,6 +120,20 @@ off_t sys_lseek(int fd, off_t offset, int whence) {
     return file_description_seek(desc, offset, whence);
 }
 
+int sys_lstat(const char* user_pathname, struct stat* user_buf) {
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
+    struct stat buf;
+    rc = vfs_stat(pathname, &buf, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
+    if (IS_ERR(rc))
+        return rc;
+    if (!copy_to_user(user_buf, &buf, sizeof(struct stat)))
+        return -EFAULT;
+    return 0;
+}
+
 int sys_stat(const char* user_pathname, struct stat* user_buf) {
     char pathname[PATH_MAX];
     int rc = copy_pathname_from_user(pathname, user_pathname);
@@ -90,6 +146,34 @@ int sys_stat(const char* user_pathname, struct stat* user_buf) {
     if (!copy_to_user(user_buf, &buf, sizeof(struct stat)))
         return -EFAULT;
     return 0;
+}
+
+int sys_symlink(const char* user_target, const char* user_linkpath) {
+    char target[PATH_MAX];
+    int rc = copy_pathname_from_user(target, user_target);
+    if (IS_ERR(rc))
+        return rc;
+    size_t target_len = strlen(target);
+    if (target_len > SYMLINK_MAX)
+        return -ENAMETOOLONG;
+
+    char linkpath[PATH_MAX];
+    rc = copy_pathname_from_user(linkpath, user_linkpath);
+    if (IS_ERR(rc))
+        return rc;
+
+    struct inode* inode = vfs_create(linkpath, S_IFLNK);
+    if (IS_ERR(inode))
+        return PTR_ERR(inode);
+
+    file_description* desc = inode_open(inode, O_WRONLY, 0);
+    if (IS_ERR(desc))
+        return PTR_ERR(desc);
+    rc = file_description_write(desc, target, target_len);
+
+    file_description_close(desc);
+    inode_unref(inode);
+    return rc;
 }
 
 int sys_ioctl(int fd, int request, void* user_argp) {

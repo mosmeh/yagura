@@ -29,6 +29,7 @@
     F(link)                                                                    \
     F(listen)                                                                  \
     F(lseek)                                                                   \
+    F(lstat)                                                                   \
     F(mkdir)                                                                   \
     F(mknod)                                                                   \
     F(mmap)                                                                    \
@@ -38,6 +39,7 @@
     F(pipe)                                                                    \
     F(poll)                                                                    \
     F(read)                                                                    \
+    F(readlink)                                                                \
     F(reboot)                                                                  \
     F(rename)                                                                  \
     F(rmdir)                                                                   \
@@ -46,6 +48,7 @@
     F(shutdown)                                                                \
     F(socket)                                                                  \
     F(stat)                                                                    \
+    F(symlink)                                                                 \
     F(sysconf)                                                                 \
     F(times)                                                                   \
     F(uname)                                                                   \

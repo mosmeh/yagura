@@ -21,7 +21,9 @@ int ftruncate(int fd, off_t length);
 off_t lseek(int fd, off_t offset, int whence);
 int mknod(const char* pathname, mode_t mode, dev_t dev);
 int link(const char* oldpath, const char* newpath);
+int symlink(const char* target, const char* linkpath);
 int unlink(const char* pathname);
+ssize_t readlink(const char* pathname, char* buf, size_t bufsiz);
 int rename(const char* oldpath, const char* newpath);
 int rmdir(const char* pathname);
 
