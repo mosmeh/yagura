@@ -107,21 +107,34 @@ NODISCARD int file_description_block(file_description*,
 
 void vfs_init(void);
 void vfs_populate_root_fs(const multiboot_module_t* initrd_mod);
-struct inode* vfs_get_root(void);
-NODISCARD int vfs_mount(const char* path, struct inode* fs_root);
+struct path* vfs_get_root(void);
+NODISCARD int vfs_mount(const char* pathname, struct inode* fs_root);
+NODISCARD int vfs_mount_at(const struct path* base, const char* pathname,
+                           struct inode* fs_root);
 
 NODISCARD int vfs_register_device(struct inode* device);
 struct inode* vfs_get_device(dev_t);
 dev_t vfs_generate_unnamed_device_number(void);
 
+// Return a path even if the last component of the path does not exist.
+// The last component of the returned path will have NULL inode in this case.
+#define O_ALLOW_NOENT 0x4000
+
 NODISCARD file_description* vfs_open(const char* pathname, int flags,
                                      mode_t mode);
-NODISCARD int vfs_stat(const char* pathname, struct stat* buf);
+NODISCARD file_description* vfs_open_at(const struct path* base,
+                                        const char* pathname, int flags,
+                                        mode_t mode);
+NODISCARD int vfs_stat(const char* pathname, struct stat* buf, int flags);
+NODISCARD int vfs_stat_at(const struct path* base, const char* pathname,
+                          struct stat* buf, int flags);
 NODISCARD struct inode* vfs_create(const char* pathname, mode_t mode);
+NODISCARD struct inode* vfs_create_at(const struct path* base,
+                                      const char* pathname, mode_t mode);
 
-char* vfs_canonicalize_path(const char* pathname);
-struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
-                               char** out_basename);
+struct path* vfs_resolve_path(const char* pathname, int flags);
+struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
+                                 int flags);
 
 uint8_t mode_to_dirent_type(mode_t);
 

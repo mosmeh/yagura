@@ -4,6 +4,7 @@
 #include <kernel/api/sys/times.h>
 #include <kernel/api/sys/wait.h>
 #include <kernel/boot_defs.h>
+#include <kernel/fs/path.h>
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
@@ -95,8 +96,8 @@ pid_t sys_fork(registers* regs) {
     *child_regs = *regs;
     child_regs->eax = 0; // fork() returns 0 in the child
 
-    process->cwd_path = kstrdup(current->cwd_path);
-    if (!process->cwd_path) {
+    process->cwd = path_dup(current->cwd);
+    if (!process->cwd) {
         kfree(stack);
         kfree(process);
         return -ENOMEM;
@@ -105,7 +106,7 @@ pid_t sys_fork(registers* regs) {
     int rc = file_descriptor_table_clone_from(&process->fd_table,
                                               &current->fd_table);
     if (IS_ERR(rc)) {
-        kfree(process->cwd_path);
+        path_destroy_recursive(process->cwd);
         kfree(stack);
         kfree(process);
         return rc;
@@ -115,14 +116,11 @@ pid_t sys_fork(registers* regs) {
     process->pd = paging_clone_current_page_directory();
     if (IS_ERR(process->pd)) {
         file_descriptor_table_destroy(&process->fd_table);
-        kfree(process->cwd_path);
+        path_destroy_recursive(process->cwd);
         kfree(stack);
         kfree(process);
         return PTR_ERR(process->pd);
     }
-
-    process->cwd_inode = current->cwd_inode;
-    inode_ref(process->cwd_inode);
 
     scheduler_register(process);
     return process->pid;
@@ -242,12 +240,21 @@ char* sys_getcwd(char* user_buf, size_t size) {
     if (!user_buf || size == 0)
         return ERR_PTR(-EINVAL);
 
-    size_t cwd_path_len = strlen(current->cwd_path);
-    if (size < cwd_path_len + 1)
-        return ERR_PTR(-ERANGE);
-    if (!copy_to_user(user_buf, current->cwd_path, size))
-        return ERR_PTR(-EFAULT);
+    char* cwd_str = path_to_string(current->cwd);
+    if (!cwd_str)
+        return ERR_PTR(-ENOMEM);
 
+    size_t len = strlen(cwd_str) + 1;
+    if (size < len) {
+        kfree(cwd_str);
+        return ERR_PTR(-ERANGE);
+    }
+    if (!copy_to_user(user_buf, cwd_str, len)) {
+        kfree(cwd_str);
+        return ERR_PTR(-EFAULT);
+    }
+
+    kfree(cwd_str);
     return user_buf;
 }
 
@@ -259,25 +266,17 @@ int sys_chdir(const char* user_path) {
     if (path_len >= PATH_MAX)
         return -ENAMETOOLONG;
 
-    char* new_cwd_path = vfs_canonicalize_path(path);
-    if (IS_ERR(new_cwd_path))
-        return PTR_ERR(new_cwd_path);
+    struct path* new_cwd = vfs_resolve_path_at(current->cwd, path, 0);
+    if (IS_ERR(new_cwd))
+        return PTR_ERR(new_cwd);
 
-    struct inode* inode = vfs_resolve_path(path, NULL, NULL);
-    if (IS_ERR(inode)) {
-        kfree(new_cwd_path);
-        return PTR_ERR(inode);
-    }
-    if (!S_ISDIR(inode->mode)) {
-        kfree(new_cwd_path);
-        inode_unref(inode);
+    if (!S_ISDIR(new_cwd->inode->mode)) {
+        path_destroy_recursive(new_cwd);
         return -ENOTDIR;
     }
 
-    kfree(current->cwd_path);
-    inode_unref(current->cwd_inode);
-    current->cwd_path = new_cwd_path;
-    current->cwd_inode = inode;
+    path_destroy_recursive(current->cwd);
+    current->cwd = new_cwd;
 
     return 0;
 }

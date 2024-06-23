@@ -3,6 +3,7 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/fs/fs.h>
+#include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
@@ -83,7 +84,7 @@ int sys_stat(const char* user_pathname, struct stat* user_buf) {
     if (IS_ERR(rc))
         return rc;
     struct stat buf;
-    rc = vfs_stat(pathname, &buf);
+    rc = vfs_stat(pathname, &buf, 0);
     if (IS_ERR(rc))
         return rc;
     if (!copy_to_user(user_buf, &buf, sizeof(struct stat)))
@@ -167,49 +168,45 @@ int sys_mount(const mount_params* user_params) {
 }
 
 int sys_link(const char* user_oldpath, const char* user_newpath) {
-    char oldpath[PATH_MAX];
-    int rc = copy_pathname_from_user(oldpath, user_oldpath);
+    char old_pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(old_pathname, user_oldpath);
     if (IS_ERR(rc))
         return rc;
-    char newpath[PATH_MAX];
-    rc = copy_pathname_from_user(newpath, user_newpath);
+    char new_pathname[PATH_MAX];
+    rc = copy_pathname_from_user(new_pathname, user_newpath);
     if (IS_ERR(rc))
         return rc;
 
-    struct inode* old_inode = vfs_resolve_path(oldpath, NULL, NULL);
-    if (IS_ERR(old_inode))
-        return PTR_ERR(old_inode);
-    if (S_ISDIR(old_inode->mode)) {
-        inode_unref(old_inode);
+    struct path* old_path = vfs_resolve_path(old_pathname, 0);
+    if (IS_ERR(old_path))
+        return PTR_ERR(old_path);
+    if (S_ISDIR(old_path->inode->mode)) {
+        path_destroy_recursive(old_path);
         return -EPERM;
     }
 
-    struct inode* new_parent = NULL;
-    char* new_basename = NULL;
-    struct inode* new_inode =
-        vfs_resolve_path(newpath, &new_parent, &new_basename);
-    if (IS_OK(new_inode)) {
-        inode_unref(old_inode);
-        inode_unref(new_parent);
-        inode_unref(new_inode);
-        kfree(new_basename);
-        return -EEXIST;
+    struct path* new_path = vfs_resolve_path(new_pathname, O_ALLOW_NOENT);
+    if (IS_ERR(new_path)) {
+        path_destroy_recursive(old_path);
+        return PTR_ERR(new_path);
     }
-    if (IS_ERR(new_inode) && PTR_ERR(new_inode) != -ENOENT) {
-        inode_unref(old_inode);
-        inode_unref(new_parent);
-        kfree(new_basename);
-        return PTR_ERR(new_inode);
+    if (new_path->inode) {
+        rc = -EEXIST;
+        goto done;
     }
-    if (!new_parent) {
-        inode_unref(old_inode);
-        kfree(new_basename);
-        return -EPERM;
+    if (!new_path->parent) {
+        rc = -EPERM;
+        goto done;
     }
-    ASSERT(new_basename);
 
-    rc = inode_link_child(new_parent, new_basename, old_inode);
-    kfree(new_basename);
+    inode_ref(new_path->parent->inode);
+    inode_ref(old_path->inode);
+    rc = inode_link_child(new_path->parent->inode, new_path->basename,
+                          old_path->inode);
+
+done:
+    path_destroy_recursive(new_path);
+    path_destroy_recursive(old_path);
     return rc;
 }
 
@@ -219,25 +216,17 @@ int sys_unlink(const char* user_pathname) {
     if (IS_ERR(rc))
         return rc;
 
-    struct inode* parent = NULL;
-    char* basename = NULL;
-    struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
-    if (IS_ERR(inode)) {
-        inode_unref(parent);
-        kfree(basename);
-        return PTR_ERR(inode);
-    }
-    if (!parent || S_ISDIR(inode->mode)) {
-        inode_unref(parent);
-        inode_unref(inode);
-        kfree(basename);
+    struct path* path = vfs_resolve_path(pathname, 0);
+    if (IS_ERR(path))
+        return PTR_ERR(path);
+    if (!path->parent || S_ISDIR(path->inode->mode)) {
+        path_destroy_recursive(path);
         return -EPERM;
     }
-    ASSERT(basename);
 
-    inode_unref(inode);
-    rc = inode_unlink_child(parent, basename);
-    kfree(basename);
+    inode_ref(path->parent->inode);
+    rc = inode_unlink_child(path->parent->inode, path->basename);
+    path_destroy_recursive(path);
     return rc;
 }
 
@@ -265,90 +254,67 @@ static int ensure_empty_directory(struct inode* inode) {
 }
 
 int sys_rename(const char* user_oldpath, const char* user_newpath) {
-    char oldpath[PATH_MAX];
-    int rc = copy_pathname_from_user(oldpath, user_oldpath);
+    char old_pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(old_pathname, user_oldpath);
     if (IS_ERR(rc))
         return rc;
-    char newpath[PATH_MAX];
-    rc = copy_pathname_from_user(newpath, user_newpath);
+    char new_pathname[PATH_MAX];
+    rc = copy_pathname_from_user(new_pathname, user_newpath);
     if (IS_ERR(rc))
         return rc;
 
-    struct inode* old_parent = NULL;
-    char* old_basename = NULL;
-    struct inode* old_inode = NULL;
-    struct inode* new_parent = NULL;
-    char* new_basename = NULL;
-    struct inode* new_inode = NULL;
-
-    old_inode = vfs_resolve_path(oldpath, &old_parent, &old_basename);
-    if (IS_ERR(old_inode)) {
-        rc = PTR_ERR(old_inode);
-        old_inode = NULL;
-        goto fail;
+    struct path* old_path = vfs_resolve_path(old_pathname, 0);
+    if (IS_ERR(old_path))
+        return PTR_ERR(old_path);
+    if (!old_path->parent) {
+        path_destroy_recursive(old_path);
+        return -EPERM;
     }
-    if (!old_parent) {
+
+    struct path* new_path = vfs_resolve_path(new_pathname, O_ALLOW_NOENT);
+    if (IS_ERR(new_path)) {
+        path_destroy_recursive(old_path);
+        return PTR_ERR(new_path);
+    }
+    if (!new_path->parent) {
         rc = -EPERM;
-        goto fail;
+        goto done;
     }
-    ASSERT(old_basename);
 
-    new_inode = vfs_resolve_path(newpath, &new_parent, &new_basename);
-    if (IS_OK(new_inode)) {
-        if (new_inode == old_inode) {
-            rc = 0;
-            goto do_nothing;
-        }
-        if (S_ISDIR(new_inode->mode)) {
-            if (!S_ISDIR(old_inode->mode)) {
+    if (new_path->inode) {
+        if (new_path->inode == old_path->inode)
+            goto done;
+
+        if (S_ISDIR(new_path->inode->mode)) {
+            if (!S_ISDIR(old_path->inode->mode)) {
                 rc = -EISDIR;
-                goto fail;
+                goto done;
             }
-            rc = ensure_empty_directory(new_inode);
-            if (IS_ERR(rc)) {
-                new_inode = NULL;
-                goto fail;
-            }
+            inode_ref(new_path->inode);
+            rc = ensure_empty_directory(new_path->inode);
+            if (IS_ERR(rc))
+                goto done;
         }
-        inode_ref(new_parent);
-        rc = inode_unlink_child(new_parent, new_basename);
+
+        inode_ref(new_path->parent->inode);
+        rc = inode_unlink_child(new_path->parent->inode, new_path->basename);
         if (IS_ERR(rc))
-            goto fail;
-    } else {
-        if (PTR_ERR(new_inode) != -ENOENT) {
-            rc = PTR_ERR(new_inode);
-            new_inode = NULL;
-            goto fail;
-        }
-        new_inode = NULL;
-        if (!new_parent) {
-            rc = -EPERM;
-            goto fail;
-        }
+            goto done;
     }
-    ASSERT(new_basename);
 
-    rc = inode_link_child(new_parent, new_basename, old_inode);
-    if (IS_ERR(rc)) {
-        old_inode = NULL;
-        new_parent = NULL;
-        goto fail;
-    }
-    kfree(new_basename);
+    inode_ref(new_path->parent->inode);
+    inode_ref(old_path->inode);
+    rc = inode_link_child(new_path->parent->inode, new_path->basename,
+                          old_path->inode);
+    if (IS_ERR(rc))
+        goto done;
 
-    rc = inode_unlink_child(old_parent, old_basename);
-    kfree(old_basename);
-    return rc;
+    inode_ref(old_path->parent->inode);
+    rc = inode_unlink_child(old_path->parent->inode, old_path->basename);
 
-fail:
-    ASSERT(IS_ERR(rc));
-do_nothing:
-    inode_unref(old_parent);
-    inode_unref(old_inode);
-    kfree(old_basename);
-    inode_unref(new_parent);
-    inode_unref(new_inode);
-    kfree(new_basename);
+done:
+    path_destroy_recursive(new_path);
+    path_destroy_recursive(old_path);
     return rc;
 }
 
@@ -358,34 +324,26 @@ int sys_rmdir(const char* user_pathname) {
     if (IS_ERR(rc))
         return rc;
 
-    struct inode* parent = NULL;
-    char* basename = NULL;
-    struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
-    if (IS_ERR(inode)) {
-        inode_unref(parent);
-        kfree(basename);
-        return PTR_ERR(inode);
-    }
-    if (!parent) {
-        inode_unref(inode);
-        kfree(basename);
+    struct path* path = vfs_resolve_path(pathname, 0);
+    if (IS_ERR(path))
+        return PTR_ERR(path);
+    if (!path->parent) {
+        path_destroy_recursive(path);
         return -EPERM;
     }
-    ASSERT(basename);
-    if (!S_ISDIR(inode->mode)) {
-        inode_unref(parent);
-        inode_unref(inode);
-        kfree(basename);
+    if (!S_ISDIR(path->inode->mode)) {
+        path_destroy_recursive(path);
         return -ENOTDIR;
     }
-    rc = ensure_empty_directory(inode);
+    inode_ref(path->inode);
+    rc = ensure_empty_directory(path->inode);
     if (IS_ERR(rc)) {
-        inode_unref(parent);
-        kfree(basename);
+        path_destroy_recursive(path);
         return rc;
     }
-    rc = inode_unlink_child(parent, basename);
-    kfree(basename);
+    inode_ref(path->parent->inode);
+    rc = inode_unlink_child(path->parent->inode, path->basename);
+    path_destroy_recursive(path);
     return rc;
 }
 

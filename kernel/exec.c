@@ -158,7 +158,7 @@ NODISCARD static int push_ptrs(uintptr_t* sp, uintptr_t stack_base,
 
 static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
     struct stat stat;
-    int rc = vfs_stat(pathname, &stat);
+    int rc = vfs_stat_at(current->cwd, pathname, &stat, 0);
     if (IS_ERR(rc))
         return rc;
     if (!S_ISREG(stat.st_mode))

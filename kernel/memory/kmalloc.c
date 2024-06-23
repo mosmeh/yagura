@@ -88,6 +88,9 @@ void kfree(void* ptr) {
 }
 
 char* kstrdup(const char* src) {
+    if (!src)
+        return NULL;
+
     size_t len = strlen(src);
     char* buf = kmalloc((len + 1) * sizeof(char));
     if (!buf)
@@ -99,6 +102,9 @@ char* kstrdup(const char* src) {
 }
 
 char* kstrndup(const char* src, size_t n) {
+    if (!src)
+        return NULL;
+
     size_t len = strnlen(src, n);
     char* buf = kmalloc((len + 1) * sizeof(char));
     if (!buf)

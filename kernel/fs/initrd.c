@@ -2,6 +2,7 @@
 #include <common/extra.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/boot_defs.h>
+#include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <string.h>
@@ -43,6 +44,9 @@ void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
     ASSERT_OK(
         paging_map_to_physical_range(vaddr, region_start, region_size, 0));
 
+    struct path* root = vfs_get_root();
+    ASSERT_OK(root);
+
     uintptr_t cursor = vaddr + (paddr - region_start);
     for (;;) {
         const struct cpio_odc_header* header =
@@ -59,10 +63,12 @@ void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
         size_t file_size = PARSE(header->c_filesize);
 
         if (S_ISDIR(mode)) {
-            ASSERT_OK(vfs_create(filename, mode));
+            struct inode* inode = vfs_create_at(root, filename, mode);
+            ASSERT_OK(inode);
+            inode_unref(inode);
         } else {
             file_description* desc =
-                vfs_open(filename, O_CREAT | O_EXCL | O_WRONLY, mode);
+                vfs_open_at(root, filename, O_CREAT | O_EXCL | O_WRONLY, mode);
             ASSERT_OK(desc);
 
             desc->inode->rdev = PARSE(header->c_rdev);
@@ -82,6 +88,8 @@ void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
 
         cursor += sizeof(struct cpio_odc_header) + name_size + file_size;
     }
+
+    path_destroy_recursive(root);
 
     paging_kernel_unmap(vaddr, region_size);
     ASSERT_OK(

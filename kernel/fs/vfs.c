@@ -1,4 +1,5 @@
 #include "fs.h"
+#include "path.h"
 #include <common/string.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/sysmacros.h>
@@ -16,7 +17,7 @@ static struct inode* root;
 
 void vfs_init(void) {
     kprintf("vfs: mounting root filesystem\n");
-    ASSERT_OK(vfs_mount(ROOT_DIR, tmpfs_create_root()));
+    root = tmpfs_create_root();
 }
 
 void vfs_populate_root_fs(const multiboot_module_t* initrd_mod) {
@@ -26,10 +27,14 @@ void vfs_populate_root_fs(const multiboot_module_t* initrd_mod) {
                             initrd_mod->mod_end - initrd_mod->mod_start);
 }
 
-struct inode* vfs_get_root(void) {
+struct path* vfs_get_root(void) {
     ASSERT(root);
+    struct path* path = kmalloc(sizeof(struct path));
+    if (!path)
+        return ERR_PTR(-ENOMEM);
+    *path = (struct path){.inode = root};
     inode_ref(root);
-    return root;
+    return path;
 }
 
 typedef struct mount_point {
@@ -82,17 +87,17 @@ static struct inode* resolve_mounts(struct inode* host) {
     return needle;
 }
 
-int vfs_mount(const char* path, struct inode* fs_root) {
-    if (path[0] == PATH_SEPARATOR && path[1] == '\0') {
-        root = fs_root;
-        return 0;
-    }
+int vfs_mount(const char* pathname, struct inode* fs_root) {
+    return vfs_mount_at(current->cwd, pathname, fs_root);
+}
 
-    struct inode* inode = vfs_resolve_path(path, NULL, NULL);
-    if (IS_ERR(inode))
-        return PTR_ERR(inode);
+int vfs_mount_at(const struct path* base, const char* pathname,
+                 struct inode* fs_root) {
+    struct path* path = vfs_resolve_path_at(base, pathname, 0);
+    if (IS_ERR(path))
+        return PTR_ERR(path);
 
-    return mount_at(inode, fs_root);
+    return mount_at(path_into_inode(path), fs_root);
 }
 
 typedef struct device {
@@ -148,261 +153,85 @@ dev_t vfs_generate_unnamed_device_number(void) {
     return makedev(0, id);
 }
 
-typedef struct list_node {
-    char* value;
-    struct list_node* next;
-} list_node;
-
-static void list_destroy(list_node** list) {
-    list_node* it = *list;
-    while (it) {
-        list_node* next = it->next;
-        kfree(it->value);
-        kfree(it);
-        it = next;
-    }
-    *list = NULL;
-}
-
-static int list_push(list_node** list, const char* value) {
-    list_node* node = kmalloc(sizeof(list_node));
-    if (!node)
-        return -ENOMEM;
-    node->value = kstrdup(value);
-    if (!node->value) {
-        kfree(node);
-        return -ENOMEM;
-    }
-
-    node->next = NULL;
-    if (*list) {
-        list_node* it = *list;
-        while (it->next)
-            it = it->next;
-        it->next = node;
-    } else {
-        *list = node;
-    }
-    return 0;
-}
-
-static void list_pop(list_node** list) {
-    list_node* prev = NULL;
-    list_node* it = *list;
-    while (it) {
-        if (!it->next)
-            break;
-        prev = it;
-        it = it->next;
-    }
-    if (prev)
-        prev->next = NULL;
-    else
-        *list = NULL;
-    if (it) {
-        kfree(it->value);
-        kfree(it);
-    }
-}
-
 static bool is_absolute_path(const char* path) {
     return path[0] == PATH_SEPARATOR;
 }
 
-static int create_path_component_list(const char* pathname,
-                                      list_node** out_list,
-                                      size_t* out_num_components) {
-    if (pathname[0] == PATH_SEPARATOR && pathname[1] == '\0') {
-        if (out_list)
-            *out_list = NULL;
-        if (out_num_components)
-            *out_num_components = 0;
-        return 0;
+struct path* vfs_resolve_path(const char* pathname, int flags) {
+    return vfs_resolve_path_at(current->cwd, pathname, flags);
+}
+
+struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
+                                 int flags) {
+    struct path* path =
+        is_absolute_path(pathname) ? vfs_get_root() : path_dup(base);
+    if (IS_ERR(path))
+        return path;
+
+    char* dup_pathname = kstrdup(pathname);
+    if (!dup_pathname) {
+        path_destroy_recursive(path);
+        return ERR_PTR(-ENOMEM);
     }
-
-    list_node* list = NULL;
-    size_t num_components = 0;
-
-    if (!is_absolute_path(pathname)) {
-        char* dup_cwd = kstrdup(current->cwd_path);
-        if (!dup_cwd)
-            return -ENOMEM;
-
-        char* saved_ptr;
-        for (const char* component =
-                 strtok_r(dup_cwd, PATH_SEPARATOR_STR, &saved_ptr);
-             component;
-             component = strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr)) {
-            int rc = list_push(&list, component);
-            if (IS_ERR(rc)) {
-                list_destroy(&list);
-                kfree(dup_cwd);
-                return rc;
-            }
-            ++num_components;
-        }
-
-        kfree(dup_cwd);
-    }
-
-    char* dup_path = kstrdup(pathname);
-    if (!dup_path)
-        return -ENOMEM;
 
     char* saved_ptr;
     for (const char* component =
-             strtok_r(dup_path, PATH_SEPARATOR_STR, &saved_ptr);
+             strtok_r(dup_pathname, PATH_SEPARATOR_STR, &saved_ptr);
          component;
          component = strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr)) {
+        if (component[0] == '\0')
+            continue;
         if (component[0] == '.' && component[1] == '\0')
             continue;
         if (!strcmp(component, "..")) {
-            if (num_components > 0) { // "/.." becomes "/"
-                list_pop(&list);
-                --num_components;
+            if (!path->parent) {
+                // "/.." becomes "/"
+                continue;
             }
+            struct path* parent = path->parent;
+            path_destroy_last(path);
+            path = parent;
             continue;
         }
-        int rc = list_push(&list, component);
-        if (IS_ERR(rc)) {
-            list_destroy(&list);
-            kfree(dup_path);
-            return rc;
-        }
-        ++num_components;
-    }
 
-    kfree(dup_path);
+        inode_ref(path->inode);
+        struct inode* inode = inode_lookup_child(path->inode, component);
 
-    if (out_list)
-        *out_list = list;
-    else
-        list_destroy(&list);
-    if (out_num_components)
-        *out_num_components = num_components;
-
-    return 0;
-}
-
-struct inode* vfs_resolve_path(const char* pathname, struct inode** out_parent,
-                               char** out_basename) {
-    list_node* component_list = NULL;
-    size_t num_components = 0;
-    int rc =
-        create_path_component_list(pathname, &component_list, &num_components);
-    if (IS_ERR(rc))
-        return ERR_PTR(rc);
-
-    if (num_components == 0)
-        return vfs_get_root();
-
-    struct inode* parent = vfs_get_root();
-    size_t i = 0;
-    for (list_node* node = component_list; node; node = node->next) {
-        const char* component = node->value;
-        if (i == num_components - 1) { // last component
-            if (out_basename) {
-                char* dup_basename = kstrdup(component);
-                if (!dup_basename) {
-                    inode_unref(parent);
-                    list_destroy(&component_list);
-                    return ERR_PTR(-ENOMEM);
-                }
-                *out_basename = dup_basename;
+        if ((flags & O_ALLOW_NOENT) && PTR_ERR(inode) == -ENOENT) {
+            const char* next_component =
+                strtok_r(NULL, PATH_SEPARATOR_STR, &saved_ptr);
+            if (next_component) {
+                // This is not the last component.
+                path_destroy_recursive(path);
+                kfree(dup_pathname);
+                return ERR_PTR(-ENOENT);
             }
-            if (out_parent) {
-                inode_ref(parent);
-                *out_parent = parent;
-            }
+            struct path* joined = path_join(path, NULL, component);
+            kfree(dup_pathname);
+            if (IS_ERR(joined))
+                path_destroy_recursive(path);
+            return joined;
         }
 
-        struct inode* child = inode_lookup_child(parent, component);
-        if (IS_ERR(child)) {
-            list_destroy(&component_list);
-            return child;
+        if (IS_ERR(inode)) {
+            path_destroy_recursive(path);
+            kfree(dup_pathname);
+            return ERR_CAST(inode);
         }
 
-        parent = resolve_mounts(child);
-        ++i;
-    }
+        inode = resolve_mounts(inode);
 
-    list_destroy(&component_list);
-    return parent;
-}
-
-char* vfs_canonicalize_path(const char* pathname) {
-    list_node* component_list = NULL;
-    size_t num_components = 0;
-    int rc =
-        create_path_component_list(pathname, &component_list, &num_components);
-    if (IS_ERR(rc))
-        return ERR_PTR(rc);
-
-    if (num_components == 0) {
-        char* canonicalized = kstrdup(ROOT_DIR);
-        if (!canonicalized)
-            return ERR_PTR(-ENOMEM);
-        return canonicalized;
-    }
-
-    size_t len = 0;
-    for (list_node* node = component_list; node; node = node->next)
-        len += strlen(node->value) + 1;
-
-    char* canonicalized = kmalloc(len + 1);
-    if (!canonicalized) {
-        list_destroy(&component_list);
-        return ERR_PTR(-ENOMEM);
-    }
-    size_t idx = 0;
-    for (list_node* node = component_list; node; node = node->next) {
-        canonicalized[idx++] = PATH_SEPARATOR;
-        size_t len = strlen(node->value);
-        strncpy(canonicalized + idx, node->value, len);
-        idx += len;
-    }
-    canonicalized[idx] = '\0';
-
-    list_destroy(&component_list);
-    return canonicalized;
-}
-
-static struct inode* create_inode(const char* pathname, mode_t mode,
-                                  bool exclusive) {
-    struct inode* parent = NULL;
-    char* basename = NULL;
-    struct inode* inode = vfs_resolve_path(pathname, &parent, &basename);
-    if (IS_OK(inode)) {
-        inode_unref(parent);
-        kfree(basename);
-        if (exclusive) {
-            inode_unref(inode);
-            return ERR_PTR(-EEXIST);
+        struct path* joined = path_join(path, inode, component);
+        if (IS_ERR(joined)) {
+            path_destroy_recursive(path);
+            kfree(dup_pathname);
+            return joined;
         }
-        return inode;
-    }
-    if (PTR_ERR(inode) != -ENOENT || !parent) {
-        inode_unref(parent);
-        kfree(basename);
-        return inode;
+        path = joined;
     }
 
-    // retry if another process is modifying the inode at the same time
-    for (;;) {
-        inode_ref(parent);
-        inode = inode_create_child(parent, basename, mode);
-        if (IS_OK(inode) || PTR_ERR(inode) != -EEXIST || exclusive)
-            break;
-
-        inode_ref(parent);
-        inode = inode_lookup_child(parent, basename);
-        if (IS_OK(inode) || PTR_ERR(inode) != -ENOENT)
-            break;
-    }
-
-    inode_unref(parent);
-    kfree(basename);
-    return inode;
+    kfree(dup_pathname);
+    return path;
 }
 
 static struct inode* resolve_special_file(struct inode* inode) {
@@ -441,12 +270,50 @@ static struct inode* resolve_special_file(struct inode* inode) {
     return inode;
 }
 
+static struct path* create_at(const struct path* base, const char* pathname,
+                              mode_t mode, bool exclusive) {
+    struct path* path = vfs_resolve_path_at(base, pathname, O_ALLOW_NOENT);
+    if (IS_ERR(path))
+        return ERR_CAST(path);
+
+    if (exclusive && path->inode) {
+        path_destroy_recursive(path);
+        return ERR_PTR(-EEXIST);
+    }
+
+    struct inode* inode = NULL;
+    for (;;) {
+        inode_ref(path->parent->inode);
+        inode = inode_create_child(path->parent->inode, path->basename, mode);
+        if (IS_OK(inode) || PTR_ERR(inode) != -EEXIST || exclusive)
+            break;
+        // Another process is creating the same file. Look up the created file.
+
+        inode_ref(path->parent->inode);
+        inode = inode_lookup_child(path->parent->inode, path->basename);
+        if (IS_OK(inode) || PTR_ERR(inode) != -ENOENT)
+            break;
+        // The file was removed before we could look it up. Retry creating it.
+    }
+
+    path->inode = inode;
+    return path;
+}
+
 file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
-    struct inode* inode = (flags & O_CREAT)
-                              ? create_inode(pathname, mode, flags & O_EXCL)
-                              : vfs_resolve_path(pathname, NULL, NULL);
-    if (IS_ERR(inode))
-        return ERR_CAST(inode);
+    return vfs_open_at(current->cwd, pathname, flags, mode);
+}
+
+file_description* vfs_open_at(const struct path* base, const char* pathname,
+                              int flags, mode_t mode) {
+    struct path* path = (flags & O_CREAT)
+                            ? create_at(base, pathname, mode, flags & O_EXCL)
+                            : vfs_resolve_path_at(base, pathname, flags);
+    if (IS_ERR(path))
+        return ERR_CAST(path);
+
+    struct inode* inode = path_into_inode(path);
+    ASSERT(inode);
 
     inode = resolve_special_file(inode);
     if (IS_ERR(inode))
@@ -455,13 +322,28 @@ file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
     return inode_open(inode, flags, mode);
 }
 
-int vfs_stat(const char* pathname, struct stat* buf) {
-    struct inode* inode = vfs_resolve_path(pathname, NULL, NULL);
-    if (IS_ERR(inode))
-        return PTR_ERR(inode);
+int vfs_stat(const char* pathname, struct stat* buf, int flags) {
+    return vfs_stat_at(current->cwd, pathname, buf, flags);
+}
+
+int vfs_stat_at(const struct path* base, const char* pathname, struct stat* buf,
+                int flags) {
+    struct path* path = vfs_resolve_path_at(base, pathname, flags);
+    if (IS_ERR(path))
+        return PTR_ERR(path);
+    struct inode* inode = path_into_inode(path);
+    ASSERT(inode);
     return inode_stat(inode, buf);
 }
 
 struct inode* vfs_create(const char* pathname, mode_t mode) {
-    return create_inode(pathname, mode, true);
+    return vfs_create_at(current->cwd, pathname, mode);
+}
+
+struct inode* vfs_create_at(const struct path* base, const char* pathname,
+                            mode_t mode) {
+    struct path* path = create_at(base, pathname, mode, true);
+    if (IS_ERR(path))
+        return ERR_CAST(path);
+    return path_into_inode(path);
 }

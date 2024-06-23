@@ -1,6 +1,7 @@
 #include "process.h"
 #include "api/signum.h"
 #include "boot_defs.h"
+#include "fs/path.h"
 #include "interrupts.h"
 #include "kprintf.h"
 #include "memory/memory.h"
@@ -33,9 +34,8 @@ void process_init(void) {
         (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
     current->stack_top = (uintptr_t)stack_top;
 
-    current->cwd_path = kstrdup(ROOT_DIR);
-    ASSERT(current->cwd_path);
-    current->cwd_inode = vfs_get_root();
+    current->cwd = vfs_get_root();
+    ASSERT_OK(current->cwd);
 
     ASSERT_OK(file_descriptor_table_init(&current->fd_table));
 
@@ -55,16 +55,15 @@ struct process* process_create_kernel_process(const char* comm,
     process->state = PROCESS_STATE_RUNNABLE;
     strlcpy(process->comm, comm, sizeof(process->comm));
 
-    process->cwd_path = kstrdup(ROOT_DIR);
-    if (!process->cwd_path) {
+    process->cwd = vfs_get_root();
+    if (IS_ERR(process->cwd)) {
         kfree(process);
-        return ERR_PTR(-ENOMEM);
+        return ERR_CAST(process->cwd);
     }
-    process->cwd_inode = vfs_get_root();
 
     int rc = file_descriptor_table_init(&process->fd_table);
     if (IS_ERR(rc)) {
-        kfree(process->cwd_path);
+        path_destroy_recursive(process->cwd);
         kfree(process);
         return ERR_PTR(rc);
     }
@@ -72,7 +71,7 @@ struct process* process_create_kernel_process(const char* comm,
     void* stack = kmalloc(STACK_SIZE);
     if (!stack) {
         file_descriptor_table_destroy(&process->fd_table);
-        kfree(process->cwd_path);
+        path_destroy_recursive(process->cwd);
         kfree(process);
         return ERR_PTR(-ENOMEM);
     }
@@ -83,7 +82,7 @@ struct process* process_create_kernel_process(const char* comm,
     if (IS_ERR(process->pd)) {
         kfree(stack);
         file_descriptor_table_destroy(&process->fd_table);
-        kfree(process->cwd_path);
+        path_destroy_recursive(process->cwd);
         kfree(process);
         return ERR_CAST(process->pd);
     }
@@ -131,8 +130,7 @@ static noreturn void die(void) {
     sti();
     paging_destroy_current_page_directory();
     file_descriptor_table_destroy(&current->fd_table);
-    kfree(current->cwd_path);
-    inode_unref(current->cwd_inode);
+    path_destroy_recursive(current->cwd);
 
     cli();
     {

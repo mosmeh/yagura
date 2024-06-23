@@ -34,6 +34,7 @@ OBJS := \
 	fs/fifo.o \
 	fs/fs.o \
 	fs/initrd.o \
+	fs/path.o \
 	fs/procfs/pid.o \
 	fs/procfs/procfs.o \
 	fs/procfs/root.o \
