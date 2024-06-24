@@ -39,6 +39,11 @@ static int populate_meminfo(file_description* desc, growable_buf* buf) {
                                memory_info.total, memory_info.free);
 }
 
+static int populate_self(file_description* desc, growable_buf* buf) {
+    (void)desc;
+    return growable_buf_printf(buf, "%d", current->pid);
+}
+
 NODISCARD static int sprintf_ticks(growable_buf* buf, int64_t ticks) {
     int32_t r;
     int32_t q = divmodi64(ticks, CLK_TCK, &r);
@@ -66,11 +71,12 @@ static int populate_version(file_description* desc, growable_buf* buf) {
                                utsname()->release, utsname()->version);
 }
 
-static procfs_item_def root_items[] = {{"cmdline", populate_cmdline},
-                                       {"kallsyms", populate_kallsyms},
-                                       {"meminfo", populate_meminfo},
-                                       {"uptime", populate_uptime},
-                                       {"version", populate_version}};
+static procfs_item_def root_items[] = {{"cmdline", S_IFREG, populate_cmdline},
+                                       {"kallsyms", S_IFREG, populate_kallsyms},
+                                       {"meminfo", S_IFREG, populate_meminfo},
+                                       {"self", S_IFLNK, populate_self},
+                                       {"uptime", S_IFREG, populate_uptime},
+                                       {"version", S_IFREG, populate_version}};
 #define NUM_ITEMS ARRAY_SIZE(root_items)
 
 static struct inode* procfs_root_lookup_child(struct inode* inode,
@@ -136,7 +142,7 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def) {
     struct inode* inode = &node->inode;
     inode->dev = parent->inode.dev;
     inode->fops = &procfs_item_fops;
-    inode->mode = S_IFREG;
+    inode->mode = item_def->mode;
     inode->ref_count = 1;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);

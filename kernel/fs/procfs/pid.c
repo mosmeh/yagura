@@ -1,6 +1,8 @@
 #include "procfs_private.h"
 #include <common/string.h>
+#include <kernel/api/sys/limits.h>
 #include <kernel/fs/dentry.h>
+#include <kernel/fs/path.h>
 #include <kernel/growable_buf.h>
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
@@ -18,11 +20,22 @@ static int populate_comm(file_description* desc, growable_buf* buf) {
         return -ENOENT;
 
     char comm[sizeof(process->comm)];
-    bool int_flag = push_cli();
     strlcpy(comm, process->comm, sizeof(process->comm));
-    pop_cli(int_flag);
-
     return growable_buf_printf(buf, "%s\n", comm);
+}
+
+static int populate_cwd(file_description* desc, growable_buf* buf) {
+    procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
+    struct process* process = process_find_process_by_pid(node->pid);
+    if (!process)
+        return -ENOENT;
+
+    char* cwd = path_to_string(process->cwd);
+    if (!cwd)
+        return -ENOMEM;
+    int rc = growable_buf_printf(buf, "%s", cwd);
+    kfree(cwd);
+    return rc;
 }
 
 static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
@@ -40,7 +53,7 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
     struct inode* inode = &node->item_inode.inode;
     inode->dev = parent->inode.dev;
     inode->fops = &procfs_item_fops;
-    inode->mode = S_IFREG;
+    inode->mode = item_def->mode;
     inode->ref_count = 1;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);
@@ -48,7 +61,10 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
     return rc;
 }
 
-static procfs_item_def pid_items[] = {{"comm", populate_comm}};
+static procfs_item_def pid_items[] = {
+    {"comm", S_IFREG, populate_comm},
+    {"cwd", S_IFLNK, populate_cwd},
+};
 #define NUM_ITEMS ARRAY_SIZE(pid_items)
 
 struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid) {

@@ -9,6 +9,7 @@ typedef int (*procfs_populate_fn)(file_description*, growable_buf*);
 
 typedef struct procfs_item_def {
     const char* name;
+    mode_t mode;
     procfs_populate_fn populate;
 } procfs_item_def;
 
