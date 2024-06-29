@@ -4,7 +4,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/multiboot.h>
 
-static uintptr_t paddr;
+static uintptr_t phys_addr;
 static struct fb_info info;
 
 static int multiboot_fb_get_info(struct fb_info* out_info) {
@@ -17,15 +17,13 @@ static int multiboot_fb_set_info(struct fb_info* inout_info) {
     return -ENOTSUP;
 }
 
-static int multiboot_fb_mmap(uintptr_t addr, size_t length, off_t offset,
-                             uint16_t page_flags) {
+static void* multiboot_fb_mmap(size_t length, off_t offset, int flags) {
     if (offset != 0)
-        return -ENXIO;
-    if (!(page_flags & PAGE_SHARED))
-        return -ENODEV;
+        return ERR_PTR(-ENXIO);
+    if (!(flags & VM_SHARED))
+        return ERR_PTR(-ENODEV);
 
-    return paging_map_to_physical_range(addr, paddr, length,
-                                        page_flags | PAGE_PAT);
+    return vm_phys_map(phys_addr, length, flags | VM_WC);
 }
 
 struct fb* multiboot_fb_init(const multiboot_info_t* mb_info) {
@@ -34,12 +32,12 @@ struct fb* multiboot_fb_init(const multiboot_info_t* mb_info) {
     if (mb_info->framebuffer_type != MULTIBOOT_FRAMEBUFFER_TYPE_RGB)
         return NULL;
 
-    paddr = mb_info->framebuffer_addr;
+    phys_addr = mb_info->framebuffer_addr;
     info.width = mb_info->framebuffer_width;
     info.height = mb_info->framebuffer_height;
     info.pitch = mb_info->framebuffer_pitch;
     info.bpp = mb_info->framebuffer_bpp;
-    kprintf("multiboot_fb: found framebuffer at P0x%x\n", paddr);
+    kprintf("multiboot_fb: found framebuffer at P0x%x\n", phys_addr);
 
     static struct fb fb = {.get_info = multiboot_fb_get_info,
                            .set_info = multiboot_fb_set_info,

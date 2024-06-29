@@ -31,7 +31,7 @@ _start:
 
   # fill page table
   movl $0x103, %esi # P | RW | G
-  movl $kernel_page_table, %edi
+  movl $kernel_page_table_start, %edi
   movl $1022, %ecx # last two pages are for quickmap
 1:
   movl %esi, (%edi)
@@ -39,17 +39,17 @@ _start:
   addl $4, %edi
   loop 1b
 
-  movl $kernel_page_table, %edx
+  movl $kernel_page_table_start, %edx
   orl $3, %edx # P | RW
-  movl %edx, kernel_page_directory # identity mapping
-  movl %edx, kernel_page_directory + KERNEL_PDE_IDX * 4
+  movl %edx, kernel_page_directory_start # identity mapping
+  movl %edx, kernel_page_directory_start + KERNEL_PDE_IDX * 4
 
   # recursive
-  movl $kernel_page_directory, %edx
+  movl $kernel_page_directory_start, %edx
   orl $3, %edx # P | RW
-  movl %edx, kernel_page_directory + 1023 * 4
+  movl %edx, kernel_page_directory_start + 1023 * 4
 
-  movl $kernel_page_directory, %edx
+  movl $kernel_page_directory_start, %edx
   movl %edx, %cr3
 
   # set PG | WP
@@ -61,19 +61,19 @@ _start:
   jmp *%edx
 
   .section .init_bss, "aw", @nobits
-  .globl kernel_page_directory
-kernel_page_directory:
+  .globl kernel_page_directory_start
+kernel_page_directory_start:
   .align PAGE_SIZE
   .skip PAGE_SIZE
-kernel_page_table:
+kernel_page_table_start:
   .align PAGE_SIZE
   .skip PAGE_SIZE
 
   .text
 paging_enabled:
   # remove identity mapping
-  movl $0, kernel_page_directory + KERNEL_VADDR
-  movl $kernel_page_directory, %edx
+  movl $0, kernel_page_directory_start + KERNEL_VIRT_ADDR
+  movl $kernel_page_directory_start, %edx
   movl %edx, %cr3
 
   movl %cr4, %edx

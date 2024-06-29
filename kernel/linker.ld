@@ -9,7 +9,7 @@ PHDRS {
   bss PT_LOAD;
 }
 
-KERNEL_VADDR = 0xc0000000;
+KERNEL_VIRT_ADDR = 0xc0000000;
 
 SECTIONS {
     . = 0x100000;
@@ -26,21 +26,21 @@ SECTIONS {
         *(.init_bss)
     } :init_bss
 
-    . += KERNEL_VADDR;
+    . += KERNEL_VIRT_ADDR;
 
-    .text ALIGN(4K) : AT(ADDR(.text) - KERNEL_VADDR) {
+    .text ALIGN(4K) : AT(ADDR(.text) - KERNEL_VIRT_ADDR) {
         *(.text)
     } :text
 
-    .rodata ALIGN (4K) : AT(ADDR(.rodata) - KERNEL_VADDR) {
+    .rodata ALIGN (4K) : AT(ADDR(.rodata) - KERNEL_VIRT_ADDR) {
         *(.rodata)
     } :data
 
-    .data ALIGN (4K) : AT(ADDR(.data) - KERNEL_VADDR) {
+    .data ALIGN (4K) : AT(ADDR(.data) - KERNEL_VIRT_ADDR) {
         *(.data)
     } :data
 
-    .bss ALIGN(4K) : AT(ADDR(.bss) - KERNEL_VADDR) {
+    .bss ALIGN(4K) : AT(ADDR(.bss) - KERNEL_VIRT_ADDR) {
         *(COMMON)
         *(.bss)
         *(.stack)

@@ -19,10 +19,10 @@ static struct fb* find_fb(const multiboot_info_t* mb_info) {
 
 struct fb* fb_get(void) { return fb; }
 
-static int fb_device_mmap(file_description* desc, uintptr_t addr, size_t length,
-                          off_t offset, uint16_t page_flags) {
+static void* fb_device_mmap(file_description* desc, size_t length, off_t offset,
+                            int flags) {
     (void)desc;
-    return fb->mmap(addr, length, offset, page_flags);
+    return fb->mmap(length, offset, flags);
 }
 
 static int fb_device_ioctl(file_description* desc, int request,

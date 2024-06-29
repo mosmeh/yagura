@@ -17,7 +17,6 @@ static atomic_int next_pid = 1;
 
 struct process* all_processes;
 
-extern unsigned char kernel_page_directory[];
 extern unsigned char stack_top[];
 
 void process_init(void) {
@@ -31,16 +30,14 @@ void process_init(void) {
     current->fpu_state = initial_fpu_state;
     current->state = PROCESS_STATE_RUNNING;
     strlcpy(current->comm, "kernel_init", sizeof(current->comm));
-    current->pd =
-        (page_directory*)((uintptr_t)kernel_page_directory + KERNEL_VADDR);
+    current->vm = kernel_vm;
     current->stack_top = (uintptr_t)stack_top;
+    gdt_set_kernel_stack(current->stack_top);
 
     current->cwd = vfs_get_root();
     ASSERT_OK(current->cwd);
 
     ASSERT_OK(file_descriptor_table_init(&current->fd_table));
-
-    gdt_set_kernel_stack(current->stack_top);
 }
 
 struct process* process_create_kernel_process(const char* comm,
@@ -56,39 +53,38 @@ struct process* process_create_kernel_process(const char* comm,
     process->state = PROCESS_STATE_RUNNABLE;
     strlcpy(process->comm, comm, sizeof(process->comm));
 
+    int ret = 0;
+    void* stack = NULL;
+
     process->cwd = vfs_get_root();
     if (IS_ERR(process->cwd)) {
-        kfree(process);
-        return ERR_CAST(process->cwd);
+        ret = PTR_ERR(process->cwd);
+        process->cwd = NULL;
+        goto fail;
     }
 
-    int rc = file_descriptor_table_init(&process->fd_table);
-    if (IS_ERR(rc)) {
-        path_destroy_recursive(process->cwd);
-        kfree(process);
-        return ERR_PTR(rc);
-    }
+    ret = file_descriptor_table_init(&process->fd_table);
+    if (IS_ERR(ret))
+        goto fail;
 
-    void* stack = kmalloc(STACK_SIZE);
+    process->vm = kernel_vm;
+
+    stack = kmalloc(STACK_SIZE);
     if (!stack) {
-        file_descriptor_table_destroy(&process->fd_table);
-        path_destroy_recursive(process->cwd);
-        kfree(process);
-        return ERR_PTR(-ENOMEM);
+        ret = -ENOMEM;
+        goto fail;
     }
     process->stack_top = (uintptr_t)stack + STACK_SIZE;
     process->esp = process->ebp = process->stack_top;
 
-    process->pd = paging_create_page_directory();
-    if (IS_ERR(process->pd)) {
-        kfree(stack);
-        file_descriptor_table_destroy(&process->fd_table);
-        path_destroy_recursive(process->cwd);
-        kfree(process);
-        return ERR_CAST(process->pd);
-    }
-
     return process;
+
+fail:
+    kfree(stack);
+    file_descriptor_table_destroy(&process->fd_table);
+    path_destroy_recursive(process->cwd);
+    kfree(process);
+    return ERR_PTR(ret);
 }
 
 pid_t process_spawn_kernel_process(const char* comm,
@@ -129,7 +125,8 @@ static noreturn void die(void) {
         PANIC("init process exited");
 
     sti();
-    paging_destroy_current_page_directory();
+    if (current->vm != kernel_vm)
+        vm_destroy(current->vm);
     file_descriptor_table_destroy(&current->fd_table);
     path_destroy_recursive(current->cwd);
 

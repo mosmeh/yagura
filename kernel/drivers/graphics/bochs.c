@@ -24,7 +24,7 @@
 #define VBE_DISPI_ENABLED 0x01
 #define VBE_DISPI_LFB_ENABLED 0x40
 
-static uintptr_t paddr;
+static uintptr_t phys_addr;
 static struct fb_info info;
 static mutex lock;
 
@@ -32,7 +32,7 @@ static void pci_enumeration_callback(const struct pci_addr* addr,
                                      uint16_t vendor_id, uint16_t device_id) {
     if ((vendor_id == 0x1234 && device_id == 0x1111) ||
         (vendor_id == 0x80ee && device_id == 0xbeef))
-        paddr = pci_get_bar0(addr) & 0xfffffff0;
+        phys_addr = pci_get_bar0(addr) & 0xfffffff0;
 }
 
 static uint16_t read_reg(uint16_t index) {
@@ -76,22 +76,21 @@ static int bochs_fb_set_info(struct fb_info* inout_info) {
     return 0;
 }
 
-static int bochs_fb_mmap(uintptr_t addr, size_t length, off_t offset,
-                         uint16_t page_flags) {
+static void* bochs_fb_mmap(size_t length, off_t offset, int flags) {
     if (offset != 0)
-        return -ENXIO;
-    if (!(page_flags & PAGE_SHARED))
-        return -ENODEV;
+        return ERR_PTR(-ENXIO);
+    if (!(flags & VM_SHARED))
+        return ERR_PTR(-ENODEV);
 
-    return paging_map_to_physical_range(addr, paddr, length, page_flags);
+    return vm_phys_map(phys_addr, length, flags);
 }
 
 struct fb* bochs_fb_init(void) {
     pci_enumerate(pci_enumeration_callback);
-    if (!paddr)
+    if (!phys_addr)
         return NULL;
 
-    kprintf("bochs_fb: found framebuffer at P0x%x\n", paddr);
+    kprintf("bochs_fb: found framebuffer at P0x%x\n", phys_addr);
     configure(640, 480, 32);
 
     static struct fb fb = {.get_info = bochs_fb_get_info,

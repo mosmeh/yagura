@@ -68,6 +68,9 @@ pid_t sys_fork(registers* regs) {
         return -ENOMEM;
     *process = (struct process){0};
 
+    int rc = 0;
+    void* stack = NULL;
+
     process->pid = process_generate_next_pid();
     process->ppid = current->pid;
     process->pgid = current->pgid;
@@ -82,10 +85,10 @@ pid_t sys_fork(registers* regs) {
     process->user_ticks = current->user_ticks;
     process->kernel_ticks = current->kernel_ticks;
 
-    void* stack = kmalloc(STACK_SIZE);
+    stack = kmalloc(STACK_SIZE);
     if (!stack) {
-        kfree(process);
-        return -ENOMEM;
+        rc = -ENOMEM;
+        goto fail;
     }
     process->stack_top = (uintptr_t)stack + STACK_SIZE;
     process->esp = process->ebp = process->stack_top;
@@ -98,32 +101,32 @@ pid_t sys_fork(registers* regs) {
 
     process->cwd = path_dup(current->cwd);
     if (!process->cwd) {
-        kfree(stack);
-        kfree(process);
-        return -ENOMEM;
+        rc = -ENOMEM;
+        goto fail;
     }
 
-    int rc = file_descriptor_table_clone_from(&process->fd_table,
-                                              &current->fd_table);
-    if (IS_ERR(rc)) {
-        path_destroy_recursive(process->cwd);
-        kfree(stack);
-        kfree(process);
-        return rc;
-    }
+    rc = file_descriptor_table_clone_from(&process->fd_table,
+                                          &current->fd_table);
+    if (IS_ERR(rc))
+        goto fail;
 
-    process->vaddr_allocator = current->vaddr_allocator;
-    process->pd = paging_clone_current_page_directory();
-    if (IS_ERR(process->pd)) {
-        file_descriptor_table_destroy(&process->fd_table);
-        path_destroy_recursive(process->cwd);
-        kfree(stack);
-        kfree(process);
-        return PTR_ERR(process->pd);
+    process->vm = vm_clone();
+    if (IS_ERR(process->vm)) {
+        rc = PTR_ERR(process->vm);
+        process->vm = NULL;
+        goto fail;
     }
 
     scheduler_register(process);
     return process->pid;
+
+fail:
+    vm_destroy(process->vm);
+    file_descriptor_table_destroy(&process->fd_table);
+    path_destroy_recursive(process->cwd);
+    kfree(stack);
+    kfree(process);
+    return rc;
 }
 
 int sys_kill(pid_t pid, int sig) {

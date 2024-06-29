@@ -157,14 +157,22 @@ NODISCARD static int push_ptrs(uintptr_t* sp, uintptr_t stack_base,
 }
 
 static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
+    int ret = 0;
+    unsigned char* exe_buf = NULL;
+    file_description* desc = NULL;
+
     struct stat stat;
-    int rc = vfs_stat_at(current->cwd, pathname, &stat, 0);
-    if (IS_ERR(rc))
-        return rc;
-    if (!S_ISREG(stat.st_mode))
-        return -EACCES;
-    if ((size_t)stat.st_size < sizeof(Elf32_Ehdr))
-        return -ENOEXEC;
+    ret = vfs_stat_at(current->cwd, pathname, &stat, 0);
+    if (IS_ERR(ret))
+        goto fail_exe;
+    if (!S_ISREG(stat.st_mode)) {
+        ret = -EACCES;
+        goto fail_exe;
+    }
+    if ((size_t)stat.st_size < sizeof(Elf32_Ehdr)) {
+        ret = -ENOEXEC;
+        goto fail_exe;
+    }
 
     char copied_pathname[PATH_MAX];
     strncpy(copied_pathname, pathname, PATH_MAX);
@@ -172,107 +180,104 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
     char comm[sizeof(current->comm)];
     strlcpy(comm, exe_basename, sizeof(current->comm));
 
-    file_description* desc = vfs_open(pathname, O_RDONLY, 0);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-
-    void* executable_buf = kmalloc(stat.st_size);
-    if (!executable_buf) {
-        file_description_close(desc);
-        return -ENOMEM;
+    desc = vfs_open(pathname, O_RDONLY, 0);
+    if (IS_ERR(desc)) {
+        ret = PTR_ERR(desc);
+        desc = NULL;
+        goto fail_exe;
     }
-    ssize_t nread = file_description_read(desc, executable_buf, stat.st_size);
+
+    exe_buf = kmalloc(stat.st_size);
+    if (!exe_buf) {
+        ret = -ENOMEM;
+        goto fail_exe;
+    }
+    ssize_t nread = file_description_read(desc, exe_buf, stat.st_size);
     file_description_close(desc);
+    desc = NULL;
     if (IS_ERR(nread)) {
-        kfree(executable_buf);
-        return nread;
+        ret = nread;
+        goto fail_exe;
     }
 
-    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)executable_buf;
+    Elf32_Ehdr* ehdr = (Elf32_Ehdr*)exe_buf;
     if (!IS_ELF(*ehdr) || ehdr->e_ident[EI_CLASS] != ELFCLASS32 ||
         ehdr->e_ident[EI_DATA] != ELFDATA2LSB ||
         ehdr->e_ident[EI_VERSION] != EV_CURRENT ||
         ehdr->e_ident[EI_OSABI] != ELFOSABI_SYSV ||
         ehdr->e_ident[EI_ABIVERSION] != 0 || ehdr->e_machine != EM_386 ||
         ehdr->e_type != ET_EXEC || ehdr->e_version != EV_CURRENT) {
-        kfree(executable_buf);
-        return -ENOEXEC;
+        ret = -ENOEXEC;
+        goto fail_exe;
     }
 
-    page_directory* prev_pd = paging_current_page_directory();
+    struct vm* prev_vm = current->vm;
 
-    page_directory* new_pd = paging_create_page_directory();
-    if (IS_ERR(new_pd)) {
-        kfree(executable_buf);
-        string_vec_destroy(argv);
-        string_vec_destroy(envp);
-        return PTR_ERR(new_pd);
+    // Start userland virtual memory range at 1MiB (arbitrary choice)
+    struct vm* vm = vm_create((void*)0x100000, (void*)KERNEL_VIRT_ADDR);
+    if (IS_ERR(vm)) {
+        ret = PTR_ERR(vm);
+        goto fail_exe;
     }
+    vm_enter(vm);
 
-    paging_switch_page_directory(new_pd);
-
-    // after this point, we have to revert to prev_pd if we want to abort.
-
-    int ret = 0;
     ptr_vec envp_ptrs = (ptr_vec){0};
     ptr_vec argv_ptrs = (ptr_vec){0};
 
-    Elf32_Phdr* phdr = (Elf32_Phdr*)((uintptr_t)executable_buf + ehdr->e_phoff);
-    uintptr_t max_segment_addr = 0;
+    Elf32_Phdr* phdr = (Elf32_Phdr*)(exe_buf + ehdr->e_phoff);
     for (size_t i = 0; i < ehdr->e_phnum; ++i, ++phdr) {
         if (phdr->p_type != PT_LOAD)
             continue;
         if (phdr->p_filesz > phdr->p_memsz) {
             ret = -ENOEXEC;
-            goto fail;
+            goto fail_vm;
         }
 
         uintptr_t region_start = round_down(phdr->p_vaddr, PAGE_SIZE);
         uintptr_t region_end =
             round_up(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
-        ret = paging_map_to_free_pages(region_start, region_end - region_start,
-                                       PAGE_USER | PAGE_WRITE);
-        if (IS_ERR(ret))
-            goto fail;
+        size_t region_size = region_end - region_start;
+        void* addr = vm_alloc_at((void*)region_start, region_size,
+                                 VM_READ | VM_WRITE | VM_USER);
+        if (IS_ERR(addr)) {
+            ret = PTR_ERR(addr);
+            goto fail_vm;
+        }
 
         memset((void*)region_start, 0, phdr->p_vaddr - region_start);
-        memcpy((void*)phdr->p_vaddr,
-               (void*)((uintptr_t)executable_buf + phdr->p_offset),
-               phdr->p_filesz);
+        memcpy((void*)phdr->p_vaddr, exe_buf + phdr->p_offset, phdr->p_filesz);
         memset((void*)(phdr->p_vaddr + phdr->p_filesz), 0,
                region_end - phdr->p_vaddr - phdr->p_filesz);
 
-        if (!(phdr->p_flags & PF_W))
-            paging_set_flags(region_start, region_end - region_start,
-                             PAGE_USER);
-
-        if (max_segment_addr < region_end)
-            max_segment_addr = region_end;
+        if (!(phdr->p_flags & PF_W)) {
+            ret = vm_set_flags((void*)region_start, region_size,
+                               VM_READ | VM_USER);
+            if (IS_ERR(ret))
+                goto fail_vm;
+        }
     }
 
     uint32_t entry_point = ehdr->e_entry;
-    kfree(executable_buf);
-    executable_buf = NULL;
+    kfree(exe_buf);
+    exe_buf = NULL;
 
-    range_allocator vaddr_allocator;
-    ret =
-        range_allocator_init(&vaddr_allocator, max_segment_addr, KERNEL_VADDR);
-    if (IS_ERR(ret))
-        goto fail;
-
-    // we keep extra pages before and after stack unmapped to detect stack
-    // overflow and underflow by causing page faults
-    uintptr_t stack_region =
-        range_allocator_alloc(&vaddr_allocator, 2 * PAGE_SIZE + STACK_SIZE);
+    void* stack_region =
+        vm_alloc(2 * PAGE_SIZE + STACK_SIZE, VM_READ | VM_WRITE | VM_USER);
     if (IS_ERR(stack_region)) {
-        ret = stack_region;
-        goto fail;
+        ret = PTR_ERR(stack_region);
+        goto fail_vm;
     }
-    uintptr_t stack_base = stack_region + PAGE_SIZE;
-    ret = paging_map_to_free_pages(stack_base, STACK_SIZE,
-                                   PAGE_WRITE | PAGE_USER);
+
+    uintptr_t stack_base = (uintptr_t)stack_region + PAGE_SIZE;
+
+    // Make pages before and after the stack inaccessible to detect stack
+    // overflow and underflow
+    ret = vm_set_flags(stack_region, PAGE_SIZE, VM_USER);
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
+    ret = vm_set_flags((void*)(stack_base + STACK_SIZE), PAGE_SIZE, VM_USER);
+    if (IS_ERR(ret))
+        goto fail_vm;
 
     uintptr_t sp = stack_base + STACK_SIZE;
     memset((void*)stack_base, 0, STACK_SIZE);
@@ -280,28 +285,28 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
     ret = push_strings(&sp, stack_base, &envp_ptrs, envp);
     string_vec_destroy(envp);
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
 
     ret = push_strings(&sp, stack_base, &argv_ptrs, argv);
     string_vec_destroy(argv);
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
 
     ret = push_value(&sp, stack_base, 0);
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
     ret = push_ptrs(&sp, stack_base, &envp_ptrs);
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
     uintptr_t user_envp = sp;
     ptr_vec_destroy(&envp_ptrs);
 
     ret = push_value(&sp, stack_base, 0);
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
     ret = push_ptrs(&sp, stack_base, &argv_ptrs);
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
     uintptr_t user_argv = sp;
     ptr_vec_destroy(&argv_ptrs);
 
@@ -309,24 +314,22 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
 
     ret = push_value(&sp, stack_base, user_envp);
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
     ret = push_value(&sp, stack_base, user_argv);
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
     ret = push_value(&sp, stack_base, argv->count);
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
     ret = push_value(&sp, stack_base, 0); // fake return address
     if (IS_ERR(ret))
-        goto fail;
+        goto fail_vm;
 
-    paging_switch_page_directory(prev_pd);
-    paging_destroy_current_page_directory();
-    paging_switch_page_directory(new_pd);
+    if (prev_vm != kernel_vm)
+        vm_destroy(prev_vm);
 
     cli();
 
-    current->vaddr_allocator = vaddr_allocator;
     current->eip = entry_point;
     current->esp = current->ebp = current->stack_top;
     current->ebx = current->esi = current->edi = 0;
@@ -354,17 +357,18 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
                      : "eax");
     UNREACHABLE();
 
-fail:
-    ASSERT(IS_ERR(ret));
-
-    kfree(executable_buf);
-    string_vec_destroy(envp);
-    string_vec_destroy(argv);
+fail_vm:
     ptr_vec_destroy(&envp_ptrs);
     ptr_vec_destroy(&argv_ptrs);
+    vm_destroy(vm);
+    vm_enter(prev_vm);
 
-    paging_destroy_current_page_directory();
-    paging_switch_page_directory(prev_pd);
+fail_exe:
+    kfree(exe_buf);
+    if (desc)
+        file_description_close(desc);
+    string_vec_destroy(envp);
+    string_vec_destroy(argv);
 
     return ret;
 }

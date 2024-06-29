@@ -20,7 +20,7 @@ void cmdline_init(const multiboot_info_t* mb_info) {
         return;
     }
 
-    const char* str = (const char*)(mb_info->cmdline + KERNEL_VADDR);
+    const char* str = (const char*)(mb_info->cmdline + KERNEL_VIRT_ADDR);
     kprintf("cmdline: \"%s\"\n", str);
     strlcpy(raw, str, MAX_CMDLINE_LEN);
     strlcpy(buf, str, MAX_CMDLINE_LEN);

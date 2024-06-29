@@ -11,6 +11,8 @@
 
 typedef struct multiboot_info multiboot_info_t;
 
+extern unsigned char kernel_end[];
+
 typedef struct registers {
     uint32_t ss, gs, fs, es, ds;
     uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;

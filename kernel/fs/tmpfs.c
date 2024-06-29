@@ -60,13 +60,13 @@ static ssize_t tmpfs_write(file_description* desc, const void* buffer,
     return nwritten;
 }
 
-static int tmpfs_mmap(file_description* desc, uintptr_t addr, size_t length,
-                      off_t offset, uint16_t page_flags) {
+static void* tmpfs_mmap(file_description* desc, size_t length, off_t offset,
+                        int flags) {
     tmpfs_inode* node = (tmpfs_inode*)desc->inode;
     mutex_lock(&node->buf.lock);
-    int rc = growable_buf_mmap(&node->buf, addr, length, offset, page_flags);
+    void* ret = growable_buf_mmap(&node->buf, length, offset, flags);
     mutex_unlock(&node->buf.lock);
-    return rc;
+    return ret;
 }
 
 static int tmpfs_truncate(file_description* desc, off_t length) {

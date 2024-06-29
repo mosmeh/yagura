@@ -7,7 +7,7 @@
 
 typedef struct growable_buf {
     mutex lock;
-    uintptr_t addr;
+    unsigned char* addr;
     atomic_size_t capacity, size;
 } growable_buf;
 
@@ -22,8 +22,8 @@ NODISCARD ssize_t growable_buf_append(growable_buf*, const void* bytes,
 
 NODISCARD int growable_buf_truncate(growable_buf*, off_t length);
 
-NODISCARD int growable_buf_mmap(growable_buf*, uintptr_t addr, size_t length,
-                                off_t offset, uint16_t page_flags);
+NODISCARD void* growable_buf_mmap(growable_buf*, size_t length, off_t offset,
+                                  int flags);
 
 int growable_buf_printf(growable_buf*, const char* format, ...)
     PRINTF_LIKE(2, 3);

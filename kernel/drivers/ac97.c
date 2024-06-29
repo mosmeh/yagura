@@ -94,7 +94,7 @@ static uint8_t output_buf_page_idx = 0;
 #define BUFFER_DESCRIPTOR_LIST_MAX_NUM_ENTRIES 32
 
 struct buffer_descriptor_list_entry {
-    uint32_t paddr;
+    uint32_t phys_addr;
     uint16_t num_samples;
     uint16_t control;
 } __attribute__((packed));
@@ -154,12 +154,12 @@ static int write_single_buffer(file_description* desc, const void* buffer,
 
     struct buffer_descriptor_list_entry* entry =
         buffer_descriptor_list + buffer_descriptor_list_idx;
-    entry->paddr = paging_virtual_to_physical_addr((uintptr_t)dest);
+    entry->phys_addr = virt_to_phys(dest);
     entry->num_samples = count / sizeof(uint16_t);
     entry->control = BUFFER_DESCRIPTOR_LIST_INTERRUPT_ON_COMPLETION;
 
     out32(pcm_out_channel + CHANNEL_BUFFER_DESCRIPTOR_LIST_PHYSICAL_ADDR,
-          paging_virtual_to_physical_addr((uintptr_t)buffer_descriptor_list));
+          virt_to_phys(buffer_descriptor_list));
     out8(pcm_out_channel + CHANNEL_LAST_VALID_INDEX,
          buffer_descriptor_list_idx);
 

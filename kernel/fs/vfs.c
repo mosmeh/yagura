@@ -12,7 +12,7 @@
 #include <kernel/process.h>
 #include <string.h>
 
-void initrd_populate_root_fs(uintptr_t paddr, size_t size);
+void initrd_populate_root_fs(uintptr_t phys_addr, size_t size);
 
 static struct inode* root;
 

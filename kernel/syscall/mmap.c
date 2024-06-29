@@ -20,29 +20,25 @@ void* sys_mmap(const mmap_params* user_params) {
         !((params.flags & MAP_PRIVATE) ^ (params.flags & MAP_SHARED)))
         return ERR_PTR(-EINVAL);
 
-    if ((params.flags & MAP_FIXED) || !(params.prot & PROT_READ))
+    if (params.flags & MAP_FIXED)
         return ERR_PTR(-ENOTSUP);
     if ((params.flags & MAP_ANONYMOUS) && (params.offset != 0))
         return ERR_PTR(-ENOTSUP);
 
-    uint16_t page_flags = PAGE_USER;
+    int flags = VM_USER;
+    if (params.prot & PROT_READ)
+        flags |= VM_READ;
     if (params.prot & PROT_WRITE)
-        page_flags |= PAGE_WRITE;
+        flags |= VM_WRITE;
     if (params.flags & MAP_SHARED)
-        page_flags |= PAGE_SHARED;
+        flags |= VM_SHARED;
 
     if (params.flags & MAP_ANONYMOUS) {
-        uintptr_t addr =
-            range_allocator_alloc(&current->vaddr_allocator, params.length);
+        void* addr = vm_alloc(params.length, flags);
         if (IS_ERR(addr))
-            return ERR_PTR(addr);
-
-        int rc = paging_map_to_free_pages(addr, params.length, page_flags);
-        if (IS_ERR(rc))
-            return ERR_PTR(rc);
-
-        memset((void*)addr, 0, params.length);
-        return (void*)addr;
+            return addr;
+        memset(addr, 0, params.length);
+        return addr;
     }
 
     file_description* desc = process_get_file_description(params.fd);
@@ -51,24 +47,14 @@ void* sys_mmap(const mmap_params* user_params) {
     if (S_ISDIR(desc->inode->mode))
         return ERR_PTR(-ENODEV);
 
-    uintptr_t addr =
-        range_allocator_alloc(&current->vaddr_allocator, params.length);
-    if (IS_ERR(addr))
-        return ERR_PTR(addr);
-
-    int rc = file_description_mmap(desc, addr, params.length, params.offset,
-                                   page_flags);
-    if (IS_ERR(rc))
-        return ERR_PTR(rc);
-    return (void*)addr;
+    return file_description_mmap(desc, params.length, params.offset, flags);
 }
 
 int sys_munmap(void* addr, size_t length) {
     if ((uintptr_t)addr % PAGE_SIZE || length == 0)
         return -EINVAL;
-    paging_user_unmap((uintptr_t)addr, length);
-    int rc = range_allocator_free(&current->vaddr_allocator, (uintptr_t)addr,
-                                  length);
-    (void)rc;
-    return 0;
+    int rc = vm_unmap(addr, length);
+    if (rc == -ENOENT)
+        return 0;
+    return rc;
 }

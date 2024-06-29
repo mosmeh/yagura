@@ -3,101 +3,116 @@
 #include <common/extra.h>
 #include <kernel/boot_defs.h>
 #include <kernel/lock.h>
-#include <stddef.h>
-#include <stdint.h>
 
-// kernel heap starts right after the quickmap page
-#define KERNEL_HEAP_START (KERNEL_VADDR + 1024 * PAGE_SIZE)
+extern struct page_directory* kernel_page_directory;
 
-// last 4MiB is for recursive mapping
-#define KERNEL_HEAP_END 0xffc00000
-
-typedef struct page_directory page_directory;
 typedef struct multiboot_info multiboot_info_t;
 
 static inline bool is_user_address(const void* addr) {
-    return addr && (uintptr_t)addr < KERNEL_VADDR;
+    return addr && (uintptr_t)addr < KERNEL_VIRT_ADDR;
 }
 
 static inline bool is_user_range(const void* addr, size_t size) {
     if (!is_user_address(addr))
         return false;
     uintptr_t end = (uintptr_t)addr + size;
-    return (uintptr_t)addr <= end && end <= KERNEL_VADDR;
+    return (uintptr_t)addr <= end && end <= KERNEL_VIRT_ADDR;
 }
 
 static inline bool is_kernel_address(const void* addr) {
-    return addr && (uintptr_t)addr >= KERNEL_VADDR;
+    return addr && (uintptr_t)addr >= KERNEL_VIRT_ADDR;
 }
 
 static inline bool is_kernel_range(const void* addr, size_t size) {
     return is_kernel_address(addr) && (uintptr_t)addr <= (uintptr_t)addr + size;
 }
 
-typedef struct range_allocator {
-    uintptr_t start;
-    uintptr_t end;
-    struct range* ranges;
-    mutex lock;
-} range_allocator;
+void memory_init(const multiboot_info_t*);
 
-NODISCARD int range_allocator_init(range_allocator* allocator, uintptr_t start,
-                                   uintptr_t end);
-uintptr_t range_allocator_alloc(range_allocator* allocator, size_t size);
-NODISCARD int range_allocator_free(range_allocator* allocator, uintptr_t addr,
-                                   size_t size);
-
-extern range_allocator kernel_vaddr_allocator;
-
-#define PAGE_WRITE 0x2
-#define PAGE_USER 0x4
-#define PAGE_PAT 0x80
-#define PAGE_GLOBAL 0x100
-
-// we use an unused bit in page table entries to indicate the page should be
-// linked, not copied, when cloning a page directory
-#define PAGE_SHARED 0x200
-
-void paging_init(const multiboot_info_t*);
-
-uintptr_t paging_virtual_to_physical_addr(uintptr_t virtual_addr);
-
-page_directory* paging_current_page_directory(void);
-page_directory* paging_create_page_directory(void);
-page_directory* paging_clone_current_page_directory(void);
-void paging_destroy_current_page_directory(void);
-void paging_switch_page_directory(page_directory* pd);
-
-NODISCARD int paging_map_to_free_pages(uintptr_t virtual_addr, uintptr_t size,
-                                       uint16_t flags);
-NODISCARD int paging_map_to_physical_range(uintptr_t virtual_addr,
-                                           uintptr_t physical_addr,
-                                           uintptr_t size, uint16_t flags);
-NODISCARD int paging_shallow_copy(uintptr_t to_virtual_addr,
-                                  uintptr_t from_virtual_addr, uintptr_t size,
-                                  uint16_t new_flags);
-NODISCARD int paging_deep_copy(uintptr_t to_virtual_addr,
-                               uintptr_t from_virtual_addr, uintptr_t size,
-                               uint16_t new_flags);
-void paging_kernel_unmap(uintptr_t virtual_addr, uintptr_t size);
-void paging_user_unmap(uintptr_t virtual_addr, uintptr_t size);
-void paging_set_flags(uintptr_t virtual_addr, uintptr_t size, uint16_t flags);
-
-void* kmalloc(size_t size);
-void* kaligned_alloc(size_t alignment, size_t size);
-void* krealloc(void* ptr, size_t new_size);
-void kfree(void* ptr);
-
-char* kstrdup(const char*);
-char* kstrndup(const char*, size_t n);
-
-struct physical_memory_info {
+struct memory_stats {
     size_t total;
     size_t free;
 };
 
-void page_allocator_init(const multiboot_info_t* mb_info);
-uintptr_t page_allocator_alloc(void);
-void page_allocator_ref_page(uintptr_t physical_addr);
-void page_allocator_unref_page(uintptr_t physical_addr);
-void page_allocator_get_info(struct physical_memory_info* out_memory_info);
+void memory_get_stats(struct memory_stats* out_stats);
+
+void* kmalloc(size_t);
+void* kaligned_alloc(size_t alignment, size_t);
+void* krealloc(void*, size_t new_size);
+void kfree(void*);
+
+char* kstrdup(const char*);
+char* kstrndup(const char*, size_t n);
+
+uintptr_t virt_to_phys(void*);
+
+// Region may be read
+#define VM_READ 0x1
+
+// Region may be written
+#define VM_WRITE 0x2
+
+// Region may be accessed from userland
+#define VM_USER 0x4
+
+// Region is shared between multiple processes
+#define VM_SHARED 0x8
+
+// Write-combining is enabled for the region
+#define VM_WC 0x10
+
+struct vm {
+    uintptr_t start;
+    uintptr_t end;
+    struct page_directory* page_directory;
+    mutex lock;
+    struct vm_region* regions;
+};
+
+struct vm_region {
+    uintptr_t start;
+    uintptr_t end;
+    int flags;
+    struct vm_region* prev;
+    struct vm_region* next;
+};
+
+extern struct vm* kernel_vm;
+
+struct vm* vm_create(void* start, void* end);
+void vm_destroy(struct vm*);
+
+// Switches to the virtual memory space.
+void vm_enter(struct vm*);
+
+// Clones the current virtual memory space.
+struct vm* vm_clone(void);
+
+// Allocates a virtual memory region mapped to free physical pages.
+void* vm_alloc(size_t, int flags);
+
+// Allocates a virtual memory region at a specific virtual address range.
+NODISCARD void* vm_alloc_at(void*, size_t, int flags);
+
+// Allocates a virtual memory region mapped to a specific physical address
+// range.
+void* vm_phys_map(uintptr_t phys_addr, size_t, int flags);
+
+// Allocates a virtual memory region that has the same mapping as the specified
+// virtual memory range.
+void* vm_virt_map(void*, size_t, int flags);
+
+// Resizes a virtual memory region.
+NODISCARD void* vm_resize(void*, size_t new_size);
+
+// Changes the flags of a virtual memory region.
+NODISCARD int vm_set_flags(void*, size_t, int flags);
+
+// Unmaps a virtual memory region.
+// If only a part of the region is unmapped, the region is shrunk or split.
+NODISCARD int vm_unmap(void*, size_t);
+
+// Frees a region of memory in the virtual memory space.
+// Equivalent to vm_unmap with the start address and size of the region.
+// Fails if the address is not the start of a region.
+NODISCARD int vm_free(void*);

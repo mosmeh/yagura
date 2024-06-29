@@ -30,13 +30,13 @@ static int populate_kallsyms(file_description* desc, growable_buf* buf) {
 
 static int populate_meminfo(file_description* desc, growable_buf* buf) {
     (void)desc;
-    struct physical_memory_info memory_info;
-    page_allocator_get_info(&memory_info);
+    struct memory_stats stats;
+    memory_get_stats(&stats);
 
     return growable_buf_printf(buf,
                                "MemTotal: %8u kB\n"
                                "MemFree:  %8u kB\n",
-                               memory_info.total, memory_info.free);
+                               stats.total, stats.free);
 }
 
 static int populate_self(file_description* desc, growable_buf* buf) {

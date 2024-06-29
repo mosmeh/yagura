@@ -127,7 +127,7 @@ static noreturn void switch_to_next_process(void) {
     ASSERT(current);
     ASSERT(current->state != PROCESS_STATE_DEAD);
 
-    paging_switch_page_directory(current->pd);
+    vm_enter(current->vm);
     gdt_set_kernel_stack(current->stack_top);
 
     process_handle_pending_signals();

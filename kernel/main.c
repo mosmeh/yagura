@@ -25,9 +25,7 @@ static noreturn void userland_init(void) {
     PANIC("Failed to start init process");
 }
 
-extern unsigned char kernel_end[];
-
-noreturn void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
+noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     gdt_init();
     idt_init();
     irq_init();
@@ -41,14 +39,14 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_paddr) {
     ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
 
     const multiboot_info_t* mb_info =
-        (const multiboot_info_t*)(mb_info_paddr + KERNEL_VADDR);
+        (const multiboot_info_t*)(mb_info_phys_addr + KERNEL_VIRT_ADDR);
     if (!(mb_info->flags & MULTIBOOT_INFO_MODS) || mb_info->mods_count == 0)
         PANIC("No initrd found. Provide initrd as the first Multiboot module");
     multiboot_module_t initrd_mod =
-        *(const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VADDR);
+        *(const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VIRT_ADDR);
 
     cmdline_init(mb_info);
-    paging_init(mb_info);
+    memory_init(mb_info);
     ksyms_init();
     vfs_init();
     process_init();

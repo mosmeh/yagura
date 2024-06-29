@@ -42,7 +42,7 @@ struct cell {
 };
 
 static struct font* font;
-static uintptr_t fb_addr;
+static unsigned char* fb;
 static struct fb_info fb_info;
 static size_t num_columns;
 static size_t num_rows;
@@ -106,10 +106,10 @@ static void flush_cell_at(size_t x, size_t y, struct cell* cell) {
     const unsigned char* glyph =
         font->glyphs +
         font->ascii_to_glyph[(size_t)cell->ch] * font->bytes_per_glyph;
-    uintptr_t row_addr = fb_addr + x * font->glyph_width * sizeof(uint32_t) +
+    unsigned char* row = fb + x * font->glyph_width * sizeof(uint32_t) +
                          y * font->glyph_height * fb_info.pitch;
     for (size_t py = 0; py < font->glyph_height; ++py) {
-        uint32_t* pixel = (uint32_t*)row_addr;
+        uint32_t* pixel = (uint32_t*)row;
         for (size_t px = 0; px < font->glyph_width; ++px) {
             uint32_t val = *(const uint32_t*)glyph;
             uint32_t swapped = ((val >> 24) & 0xff) | ((val << 8) & 0xff0000) |
@@ -118,13 +118,13 @@ static void flush_cell_at(size_t x, size_t y, struct cell* cell) {
             *pixel++ = swapped & (1 << (32 - px - 1)) ? fg : bg;
         }
         glyph += font->bytes_per_glyph / font->glyph_height;
-        row_addr += fb_info.pitch;
+        row += fb_info.pitch;
     }
 }
 
 static void flush(void) {
     if (whole_screen_should_be_cleared) {
-        memset32((uint32_t*)fb_addr, palette[bg_color],
+        memset32((uint32_t*)fb, palette[bg_color],
                  fb_info.pitch * fb_info.height / sizeof(uint32_t));
         whole_screen_should_be_cleared = false;
     }
@@ -506,8 +506,6 @@ static bool read_should_unblock(file_description* desc) {
 
 static ssize_t fb_console_device_read(file_description* desc, void* buffer,
                                       size_t count) {
-    (void)desc;
-
     for (;;) {
         int rc = file_description_block(desc, read_should_unblock);
         if (IS_ERR(rc))
@@ -611,10 +609,8 @@ void fb_console_init(void) {
     ASSERT(line_is_dirty);
 
     size_t fb_size = fb_info.pitch * fb_info.height;
-    fb_addr = range_allocator_alloc(&kernel_vaddr_allocator, fb_size);
-    ASSERT_OK(fb_addr);
-    ASSERT_OK(fb_get()->mmap(fb_addr, fb_size, 0,
-                             PAGE_WRITE | PAGE_SHARED | PAGE_GLOBAL));
+    fb = fb_get()->mmap(fb_size, 0, VM_READ | VM_WRITE | VM_SHARED);
+    ASSERT_OK(fb);
 
     clear_screen();
     flush();

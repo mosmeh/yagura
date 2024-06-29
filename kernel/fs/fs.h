@@ -49,8 +49,7 @@ typedef struct file_ops {
     int (*close)(file_description*);
     ssize_t (*read)(file_description*, void* buffer, size_t count);
     ssize_t (*write)(file_description*, const void* buffer, size_t count);
-    int (*mmap)(file_description*, uintptr_t addr, size_t length, off_t offset,
-                uint16_t page_flags);
+    void* (*mmap)(file_description*, size_t length, off_t offset, int flags);
     int (*truncate)(file_description*, off_t length);
     int (*ioctl)(file_description*, int request, void* user_argp);
     int (*getdents)(file_description*, getdents_callback_fn callback,
@@ -87,9 +86,8 @@ NODISCARD ssize_t file_description_read(file_description*, void* buffer,
                                         size_t count);
 NODISCARD ssize_t file_description_write(file_description*, const void* buffer,
                                          size_t count);
-NODISCARD int file_description_mmap(file_description*, uintptr_t addr,
-                                    size_t length, off_t offset,
-                                    uint16_t page_flags);
+NODISCARD void* file_description_mmap(file_description*, size_t length,
+                                      off_t offset, int flags);
 NODISCARD int file_description_truncate(file_description*, off_t length);
 NODISCARD off_t file_description_seek(file_description*, off_t offset,
                                       int whence);

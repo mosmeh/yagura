@@ -188,17 +188,17 @@ ssize_t file_description_write(file_description* desc, const void* buffer,
     return inode->fops->write(desc, buffer, count);
 }
 
-int file_description_mmap(file_description* desc, uintptr_t addr, size_t length,
-                          off_t offset, uint16_t page_flags) {
+void* file_description_mmap(file_description* desc, size_t length, off_t offset,
+                            int flags) {
     struct inode* inode = desc->inode;
     if (!inode->fops->mmap)
-        return -ENODEV;
+        return ERR_PTR(-ENODEV);
     if (!(desc->flags & O_RDONLY))
-        return -EACCES;
-    if ((page_flags & PAGE_SHARED) && (page_flags & PAGE_WRITE) &&
+        return ERR_PTR(-EACCES);
+    if ((flags & VM_SHARED) && (flags & VM_WRITE) &&
         ((desc->flags & O_RDWR) != O_RDWR))
-        return -EACCES;
-    return inode->fops->mmap(desc, addr, length, offset, page_flags);
+        return ERR_PTR(-EACCES);
+    return inode->fops->mmap(desc, length, offset, flags);
 }
 
 int file_description_truncate(file_description* desc, off_t length) {

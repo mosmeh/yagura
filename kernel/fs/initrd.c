@@ -33,21 +33,17 @@ static size_t parse_octal(const char* s, size_t len) {
 
 #define PARSE(field) parse_octal(field, sizeof(field))
 
-void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
-    uintptr_t region_start = round_down(paddr, PAGE_SIZE);
-    uintptr_t region_end = paddr + size;
-    size_t region_size = region_end - region_start;
-
-    uintptr_t vaddr =
-        range_allocator_alloc(&kernel_vaddr_allocator, region_size);
-    ASSERT_OK(vaddr);
-    ASSERT_OK(
-        paging_map_to_physical_range(vaddr, region_start, region_size, 0));
+void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
+    uintptr_t map_start = round_down(phys_addr, PAGE_SIZE);
+    size_t map_size = phys_addr + size - map_start;
+    void* map =
+        vm_phys_map(map_start, map_size, VM_READ | VM_WRITE | VM_SHARED);
+    ASSERT_OK(map);
 
     struct path* root = vfs_get_root();
     ASSERT_OK(root);
 
-    uintptr_t cursor = vaddr + (paddr - region_start);
+    uintptr_t cursor = (uintptr_t)map + phys_addr - map_start;
     for (;;) {
         const struct cpio_odc_header* header =
             (const struct cpio_odc_header*)cursor;
@@ -90,8 +86,5 @@ void initrd_populate_root_fs(uintptr_t paddr, size_t size) {
     }
 
     path_destroy_recursive(root);
-
-    paging_kernel_unmap(vaddr, region_size);
-    ASSERT_OK(
-        range_allocator_free(&kernel_vaddr_allocator, vaddr, region_size));
+    kfree(map);
 }

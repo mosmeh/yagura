@@ -22,9 +22,8 @@ struct process {
 
     char comm[16];
 
-    page_directory* pd;
+    struct vm* vm;
     uintptr_t stack_top;
-    range_allocator vaddr_allocator;
 
     struct path* cwd;
     file_descriptor_table fd_table;

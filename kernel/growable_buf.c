@@ -6,10 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-void growable_buf_destroy(growable_buf* buf) {
-    if (buf->addr)
-        paging_kernel_unmap(buf->addr, buf->capacity);
-}
+void growable_buf_destroy(growable_buf* buf) { kfree(buf->addr); }
 
 ssize_t growable_buf_pread(growable_buf* buf, void* bytes, size_t count,
                            off_t offset) {
@@ -18,7 +15,7 @@ ssize_t growable_buf_pread(growable_buf* buf, void* bytes, size_t count,
     if (offset + count >= buf->size)
         count = buf->size - offset;
 
-    memcpy(bytes, (void*)(buf->addr + offset), count);
+    memcpy(bytes, buf->addr + offset, count);
     return count;
 }
 
@@ -34,38 +31,11 @@ NODISCARD static int grow_buf(growable_buf* buf, size_t requested_size) {
         return -EOVERFLOW;
     ASSERT(new_capacity > buf->capacity);
 
-    uintptr_t new_addr =
-        range_allocator_alloc(&kernel_vaddr_allocator, new_capacity);
-    if (IS_ERR(new_addr))
-        return new_addr;
+    unsigned char* new_addr = krealloc(buf->addr, new_capacity);
+    if (!new_addr)
+        return -ENOMEM;
 
-    if (buf->addr) {
-        ASSERT(buf->capacity > 0);
-        int rc = paging_shallow_copy(new_addr, buf->addr, buf->capacity,
-                                     PAGE_WRITE | PAGE_GLOBAL);
-        if (IS_ERR(rc))
-            return rc;
-    } else {
-        ASSERT(buf->capacity == 0);
-    }
-
-    int rc = paging_map_to_free_pages(new_addr + buf->capacity,
-                                      new_capacity - buf->capacity,
-                                      PAGE_WRITE | PAGE_GLOBAL);
-    if (IS_ERR(rc))
-        return rc;
-
-    if (buf->addr)
-        memcpy((void*)new_addr, (void*)buf->addr, buf->size);
-    memset((void*)(new_addr + buf->size), 0, new_capacity - buf->size);
-
-    if (buf->addr) {
-        paging_kernel_unmap(buf->addr, buf->capacity);
-        int rc = range_allocator_free(&kernel_vaddr_allocator, buf->addr,
-                                      buf->capacity);
-        if (IS_ERR(rc))
-            return rc;
-    }
+    memset(new_addr + buf->size, 0, new_capacity - buf->size);
 
     buf->addr = new_addr;
     buf->capacity = new_capacity;
@@ -81,7 +51,7 @@ ssize_t growable_buf_pwrite(growable_buf* buf, const void* bytes, size_t count,
             return rc;
     }
 
-    memcpy((void*)(buf->addr + offset), bytes, count);
+    memcpy(buf->addr + offset, bytes, count);
     if (buf->size < end)
         buf->size = end;
 
@@ -95,9 +65,9 @@ ssize_t growable_buf_append(growable_buf* buf, const void* bytes,
 
 int growable_buf_truncate(growable_buf* buf, off_t length) {
     if ((size_t)length <= buf->size) {
-        memset((void*)(buf->addr + length), 0, buf->size - length);
+        memset(buf->addr + length, 0, buf->size - length);
     } else if ((size_t)length <= buf->capacity) {
-        memset((void*)(buf->addr + buf->size), 0, length - buf->size);
+        memset(buf->addr + buf->size, 0, length - buf->size);
     } else {
         // length > capacity
         int rc = grow_buf(buf, length);
@@ -109,16 +79,13 @@ int growable_buf_truncate(growable_buf* buf, off_t length) {
     return 0;
 }
 
-int growable_buf_mmap(growable_buf* buf, uintptr_t addr, size_t length,
-                      off_t offset, uint16_t page_flags) {
+void* growable_buf_mmap(growable_buf* buf, size_t length, off_t offset,
+                        int flags) {
     if (offset != 0)
-        return -ENOTSUP;
+        return ERR_PTR(-ENOTSUP);
     if (length > buf->size)
-        return -EINVAL;
-
-    if (page_flags & PAGE_SHARED)
-        return paging_shallow_copy(addr, buf->addr, length, page_flags);
-    return paging_deep_copy(addr, buf->addr, length, page_flags);
+        return ERR_PTR(-EINVAL);
+    return vm_virt_map(buf->addr, length, flags);
 }
 
 int growable_buf_printf(growable_buf* buf, const char* format, ...) {

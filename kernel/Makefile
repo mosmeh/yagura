@@ -50,9 +50,11 @@ OBJS := \
 	lock.o \
 	main.o \
 	memory/kmalloc.o \
-	memory/page_allocator.o \
-	memory/paging.o \
-	memory/range_allocator.o \
+	memory/memory.o \
+	memory/page_table.o \
+	memory/page.o \
+	memory/slab.o \
+	memory/vm.o \
 	process.o \
 	random.o \
 	ring_buf.o \

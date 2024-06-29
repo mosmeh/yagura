@@ -64,7 +64,7 @@ static void dump_registers(const registers* regs) {
 }
 
 static void dump_stack_trace(uintptr_t eip, uintptr_t ebp) {
-    bool in_userland = eip < KERNEL_VADDR;
+    bool in_userland = eip < KERNEL_VIRT_ADDR;
     kputs("stack trace:\n");
     for (unsigned depth = 0;; ++depth) {
         if (depth >= 20) {
@@ -86,11 +86,11 @@ static void dump_stack_trace(uintptr_t eip, uintptr_t ebp) {
         if (!eip || !ebp)
             break;
 
-        if (in_userland && eip >= KERNEL_VADDR) {
+        if (in_userland && eip >= KERNEL_VIRT_ADDR) {
             // somehow stack looks like userland function is called from kernel
             break;
         }
-        in_userland |= eip < KERNEL_VADDR;
+        in_userland |= eip < KERNEL_VIRT_ADDR;
     }
 }
 
