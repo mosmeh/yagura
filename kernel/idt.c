@@ -144,10 +144,10 @@ static void handle_exception14(registers* regs) {
     uint32_t write = regs->err_code & 0x2;
     uint32_t user = regs->err_code & 0x4;
 
-    kprintf("Page fault (%s%s%s) at 0x%x\n",
+    kprintf("Page fault (%s%s%s) at %p\n",
             present ? "page-protection " : "non-present ",
             write ? "write " : "read ", user ? "user-mode" : "kernel-mode",
-            read_cr2());
+            (void*)read_cr2());
     crash(regs, SIGSEGV);
 }
 

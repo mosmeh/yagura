@@ -59,34 +59,44 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
         return 0;
 
     size_t idx = 0;
+
+#define PUT(c)                                                                 \
+    do {                                                                       \
+        buffer[idx++] = (c);                                                   \
+        if (idx >= size)                                                       \
+            goto too_long;                                                     \
+    } while (0)
+
     char ch;
     while ((ch = *format++) != 0) {
         if (ch != '%') {
-            buffer[idx++] = ch;
-            if (idx >= size)
-                goto too_long;
+            PUT(ch);
             continue;
         }
 
         ch = *format++;
         if (ch == '%') {
-            buffer[idx++] = '%';
-            if (idx >= size)
-                goto too_long;
+            PUT('%');
             continue;
         }
 
+        bool alternative_form = false;
         bool left_justify = false;
         bool pad0 = false;
         size_t pad_len = 0;
-
-        if (ch == '-') {
-            left_justify = true;
-            ch = *format++;
-        }
-        if (ch == '0') {
-            pad0 = true;
-            ch = *format++;
+        for (;;) {
+            if (!alternative_form && ch == '#') {
+                alternative_form = true;
+                ch = *format++;
+            } else if (!left_justify && ch == '-') {
+                left_justify = true;
+                ch = *format++;
+            } else if (!pad0 && ch == '0') {
+                pad0 = true;
+                ch = *format++;
+            } else {
+                break;
+            }
         }
         while ('0' <= ch && ch <= '9') {
             pad_len = pad_len * 10 + ch - '0';
@@ -95,36 +105,36 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
 
         switch (ch) {
         case 'c':
-            buffer[idx++] = (char)va_arg(args, int);
-            if (idx >= size)
-                goto too_long;
+            PUT((char)va_arg(args, int));
             break;
+        case 'p':
+        case 'x':
+            if (alternative_form || ch == 'p') {
+                PUT('0');
+                if (pad_len > 0)
+                    --pad_len;
+                PUT('x');
+                if (pad_len > 0)
+                    --pad_len;
+            }
+            // falls through
         case 'd':
         case 'i':
-        case 'u':
-        case 'x': {
+        case 'u': {
             char num_buf[20];
-            itoa(va_arg(args, int), num_buf, ch == 'x' ? 16 : 10);
+            int radix = (ch == 'x' || ch == 'p') ? 16 : 10;
+            itoa(va_arg(args, int), num_buf, radix);
 
             size_t len = strlen(num_buf);
             if (!left_justify && pad_len > len) {
-                for (size_t i = 0; i < pad_len - len; ++i) {
-                    buffer[idx++] = pad0 ? '0' : ' ';
-                    if (idx >= size)
-                        goto too_long;
-                }
+                for (size_t i = 0; i < pad_len - len; ++i)
+                    PUT(pad0 ? '0' : ' ');
             }
-            for (size_t i = 0; i < len; ++i) {
-                buffer[idx++] = num_buf[i];
-                if (idx >= size)
-                    goto too_long;
-            }
+            for (size_t i = 0; i < len; ++i)
+                PUT(num_buf[i]);
             if (left_justify && pad_len > len) {
-                for (size_t i = 0; i < pad_len - len; ++i) {
-                    buffer[idx++] = ' ';
-                    if (idx >= size)
-                        goto too_long;
-                }
+                for (size_t i = 0; i < pad_len - len; ++i)
+                    PUT(' ');
             }
 
             break;
@@ -133,17 +143,12 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
             const char* str = va_arg(args, const char*);
             if (!str)
                 str = "(null)";
-            while (*str) {
-                buffer[idx++] = *str++;
-                if (idx >= size)
-                    goto too_long;
-            }
+            while (*str)
+                PUT(*str++);
             break;
         }
         default:
-            buffer[idx++] = '?';
-            if (idx >= size)
-                goto too_long;
+            PUT('?');
             break;
         }
     }

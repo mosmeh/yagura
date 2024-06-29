@@ -22,7 +22,7 @@ void vfs_init(void) {
 }
 
 void vfs_populate_root_fs(const multiboot_module_t* initrd_mod) {
-    kprintf("vfs: populating root fs with initrd at P0x%x - P0x%x\n",
+    kprintf("vfs: populating root fs with initrd at P%#x - P%#x\n",
             initrd_mod->mod_start, initrd_mod->mod_end);
     initrd_populate_root_fs(initrd_mod->mod_start,
                             initrd_mod->mod_end - initrd_mod->mod_start);

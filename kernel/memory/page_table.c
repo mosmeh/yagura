@@ -269,7 +269,7 @@ void page_directory_switch(struct page_directory* to) {
 }
 
 void page_table_init(void) {
-    kprintf("page_table: kernel page directory is at P0x%x\n",
+    kprintf("page_table: kernel page directory is at P%#x\n",
             (uintptr_t)kernel_page_directory_start);
 
     // Populate page directory entries for kernel space so that all processes

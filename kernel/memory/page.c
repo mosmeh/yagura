@@ -145,7 +145,7 @@ void page_init(const multiboot_info_t* mb_info) {
     uintptr_t lower_bound;
     uintptr_t upper_bound;
     get_available_physical_addr_bounds(mb_info, &lower_bound, &upper_bound);
-    kprintf("page: available physical memory address space P0x%x - P0x%x\n",
+    kprintf("page: available physical memory address space P%#x - P%#x\n",
             lower_bound, upper_bound);
 
     bitmap_init(mb_info, lower_bound, upper_bound);

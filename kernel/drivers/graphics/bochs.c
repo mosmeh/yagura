@@ -90,7 +90,7 @@ struct fb* bochs_fb_init(void) {
     if (!phys_addr)
         return NULL;
 
-    kprintf("bochs_fb: found framebuffer at P0x%x\n", phys_addr);
+    kprintf("bochs_fb: found framebuffer at P%#x\n", phys_addr);
     configure(640, 480, 32);
 
     static struct fb fb = {.get_info = bochs_fb_get_info,
