@@ -245,7 +245,7 @@ int sys_mount(const mount_params* user_params) {
     if (!strcmp(fs_type, "tmpfs")) {
         return vfs_mount(target, tmpfs_create_root());
     }
-    if (!strcmp(fs_type, "procfs")) {
+    if (!strcmp(fs_type, "proc")) {
         return vfs_mount(target, procfs_create_root());
     }
     return -ENODEV;

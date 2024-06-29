@@ -91,7 +91,7 @@ int main(void) {
     else if (mount("tmpfs", "/dev/shm", "tmpfs", 0, NULL) < 0)
         perror("mount");
 
-    if (mount("procfs", "/proc", "procfs", 0, NULL) < 0)
+    if (mount("proc", "/proc", "proc", 0, NULL) < 0)
         perror("mount");
 
     if (chdir("/root") < 0)
