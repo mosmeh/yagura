@@ -23,7 +23,7 @@ initrd: base
 
 base: $@/* userland
 	$(RM) -r $@/root/src
-	-git clone . $@/root/src
+	-git -c advice.detachedHead=false clone . $@/root/src
 	$(RM) -r $@/root/src/.git
 
 $(SUBDIRS):
