@@ -593,8 +593,15 @@ void fb_console_init(void) {
     if (!fb_get())
         return;
 
-    font = load_psf("/usr/share/fonts/ter-u16n.psf");
-    ASSERT_OK(font);
+    const char* font_pathname = cmdline_lookup("font");
+    if (!font_pathname)
+        font_pathname = "/usr/share/fonts/default.psf";
+
+    font = load_psf(font_pathname);
+    if (IS_ERR(font)) {
+        kprintf("fb_console: failed to load font file %s\n", font_pathname);
+        return;
+    }
 
     ASSERT_OK(fb_get()->get_info(&fb_info));
     ASSERT(fb_info.bpp == 32);
