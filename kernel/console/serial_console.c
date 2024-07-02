@@ -1,4 +1,5 @@
-#include "console.h"
+#include "console_private.h"
+#include <common/stdio.h>
 #include <kernel/api/signum.h>
 #include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/poll.h>

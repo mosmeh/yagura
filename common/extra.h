@@ -37,6 +37,14 @@ static inline size_t next_power_of_two(size_t x) {
 }
 
 // NOLINTNEXTLINE(readability-non-const-parameter)
+static inline void memset16(uint16_t* dest, uint16_t c, size_t n) {
+    __asm__ volatile("rep stosw"
+                     : "=D"(dest), "=c"(n)
+                     : "D"(dest), "c"(n), "a"(c)
+                     : "memory");
+}
+
+// NOLINTNEXTLINE(readability-non-const-parameter)
 static inline void memset32(uint32_t* dest, uint32_t c, size_t n) {
     __asm__ volatile("rep stosl"
                      : "=D"(dest), "=c"(n)

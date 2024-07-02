@@ -9,11 +9,15 @@ OBJS := \
 	boot.o \
 	cmdline.o \
 	console/console.o \
-	console/fb_console.o \
-	console/psf.o \
+	console/screen/fb.o \
+	console/screen/psf.o \
+	console/screen/screen.o \
+	console/screen/vga_text.o \
 	console/serial_console.o \
 	console/system_console.o \
 	console/tty.o \
+	console/virtual_console.o \
+	console/vt.o \
 	drivers/ac97.o \
 	drivers/drivers.o \
 	drivers/graphics/bochs.o \
