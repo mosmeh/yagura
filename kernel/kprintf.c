@@ -9,11 +9,16 @@ int kputs(const char* str) {
 }
 
 int kprintf(const char* format, ...) {
-    char buf[1024];
     va_list args;
     va_start(args, format);
-    int ret = vsnprintf(buf, 1024, format, args);
+    int ret = kvprintf(format, args);
     va_end(args);
+    return ret;
+}
+
+int kvprintf(const char* format, va_list args) {
+    char buf[1024];
+    int ret = vsnprintf(buf, sizeof(buf), format, args);
     kputs(buf);
     return ret;
 }
