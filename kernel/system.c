@@ -5,6 +5,7 @@
 #include "kprintf.h"
 #include "panic.h"
 #include "safe_string.h"
+#include <stdarg.h>
 #include <string.h>
 
 static struct utsname uts = {
@@ -94,8 +95,15 @@ static void dump_stack_trace(uintptr_t eip, uintptr_t ebp) {
     }
 }
 
-noreturn void panic(const char* message, const char* file, size_t line) {
-    kprintf("%s at %s:%u\n", message, file, line);
+noreturn void panic(const char* file, size_t line, const char* format, ...) {
+    cli();
+
+    kputs("PANIC: ");
+    va_list args;
+    va_start(args, format);
+    kvprintf(format, args);
+    va_end(args);
+    kprintf(" at %s:%u\n", file, line);
 
     uintptr_t eip = read_eip();
     uintptr_t ebp = (uintptr_t)__builtin_frame_address(0);
