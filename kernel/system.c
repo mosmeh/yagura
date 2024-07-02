@@ -5,6 +5,7 @@
 #include "kprintf.h"
 #include "panic.h"
 #include "safe_string.h"
+#include <common/stdlib.h>
 #include <stdarg.h>
 #include <string.h>
 
@@ -113,6 +114,13 @@ noreturn void panic(const char* file, size_t line, const char* format, ...) {
     if (mode) {
         if (!strcmp(mode, "poweroff"))
             poweroff();
+        int n = atoi(mode);
+        if (n > 0) {
+            kprintf("Rebooting in %d seconds..\n", n);
+            delay(n * 1000000);
+        }
+        if (n != 0)
+            reboot();
     }
     halt();
 }
