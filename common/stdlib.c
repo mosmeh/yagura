@@ -6,6 +6,8 @@ int atoi(const char* str) {
         return 0;
     while (*str && isspace(*str))
         ++str;
+    if (*str == '-')
+        return -atoi(str + 1);
     int res = 0;
     while ('0' <= *str && *str <= '9') {
         res *= 10;
