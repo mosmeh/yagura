@@ -14,15 +14,34 @@
 static noreturn void userland_init(void) {
     current->pid = current->pgid = process_generate_next_pid();
 
-    const char* init_path = cmdline_lookup("init");
-    if (!init_path)
-        init_path = "/bin/init";
-    kprintf("userland_init: Starting %s\n", init_path);
-
-    const char* argv[] = {init_path, NULL};
     static const char* envp[] = {NULL};
-    process_kernel_execve(init_path, argv, envp);
-    PANIC("Failed to start init process");
+
+    const char* init_path = cmdline_lookup("init");
+    if (init_path) {
+        const char* argv[] = {init_path, NULL};
+        kprintf("userland_init: run %s as init process\n", init_path);
+        int rc = process_kernel_execve(init_path, argv, envp);
+        if (IS_ERR(rc)) {
+            kprintf("userland_init: requested init %s failed (error %d)\n",
+                    init_path, rc);
+        }
+    }
+
+    static const char* default_init_paths[] = {"/sbin/init", "/etc/init",
+                                               "/bin/init", "/bin/sh"};
+    for (size_t i = 0; i < ARRAY_SIZE(default_init_paths); ++i) {
+        const char* argv[] = {default_init_paths[i], NULL};
+        kprintf("userland_init: run %s as init process\n",
+                default_init_paths[i]);
+        int rc = process_kernel_execve(default_init_paths[i], argv, envp);
+        if (rc != -ENOENT) {
+            kprintf(
+                "userland_init: %s exists but couldn't execute it (error %d)\n",
+                default_init_paths[i], rc);
+        }
+    }
+
+    PANIC("No working init found");
 }
 
 noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
