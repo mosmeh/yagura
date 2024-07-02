@@ -283,5 +283,5 @@ void ac97_init(void) {
     uint8_t irq_num = pci_get_interrupt_line(&device_addr);
     idt_set_interrupt_handler(IRQ(irq_num), irq_handler);
 
-    ASSERT_OK(vfs_register_device(ac97_device_get()));
+    ASSERT_OK(vfs_register_device("dsp", ac97_device_get()));
 }

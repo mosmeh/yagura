@@ -77,9 +77,9 @@ static struct inode* urandom_device_get(void) {
 }
 
 void pseudo_device_init(void) {
-    ASSERT_OK(vfs_register_device(null_device_get()));
-    ASSERT_OK(vfs_register_device(zero_device_get()));
-    ASSERT_OK(vfs_register_device(full_device_get()));
-    ASSERT_OK(vfs_register_device(random_device_get()));
-    ASSERT_OK(vfs_register_device(urandom_device_get()));
+    ASSERT_OK(vfs_register_device("null", null_device_get()));
+    ASSERT_OK(vfs_register_device("zero", zero_device_get()));
+    ASSERT_OK(vfs_register_device("full", full_device_get()));
+    ASSERT_OK(vfs_register_device("random", random_device_get()));
+    ASSERT_OK(vfs_register_device("urandom", urandom_device_get()));
 }

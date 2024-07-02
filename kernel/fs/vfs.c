@@ -102,18 +102,19 @@ int vfs_mount_at(const struct path* base, const char* pathname,
 }
 
 typedef struct device {
+    char name[16];
     struct inode* inode;
     struct device* next;
 } device;
 
 static device* devices;
 
-int vfs_register_device(struct inode* inode) {
+int vfs_register_device(const char* name, struct inode* inode) {
     device** dest = &devices;
     if (devices) {
         device* it = devices;
         for (;;) {
-            if (it->inode->rdev == inode->rdev) {
+            if (it->inode->rdev == inode->rdev || !strcmp(it->name, name)) {
                 inode_unref(inode);
                 return -EEXIST;
             }
@@ -128,18 +129,31 @@ int vfs_register_device(struct inode* inode) {
         inode_unref(inode);
         return -ENOMEM;
     }
+    strlcpy(dev->name, name, sizeof(dev->name));
     dev->inode = inode;
     dev->next = NULL;
     *dest = dev;
-    kprintf("vfs: registered device %u,%u\n", major(inode->rdev),
+    kprintf("vfs: registered device %s %u,%u\n", dev->name, major(inode->rdev),
             minor(inode->rdev));
     return 0;
 }
 
-struct inode* vfs_get_device(dev_t id) {
+struct inode* vfs_get_device_by_id(dev_t id) {
     device* it = devices;
     while (it) {
         if (it->inode->rdev == id) {
+            inode_ref(it->inode);
+            return it->inode;
+        }
+        it = it->next;
+    }
+    return NULL;
+}
+
+struct inode* vfs_get_device_by_name(const char* name) {
+    device* it = devices;
+    while (it) {
+        if (!strcmp(it->name, name)) {
             inode_ref(it->inode);
             return it->inode;
         }
@@ -309,7 +323,7 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
 
 static struct inode* resolve_special_file(struct inode* inode) {
     if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
-        struct inode* device = vfs_get_device(inode->rdev);
+        struct inode* device = vfs_get_device_by_id(inode->rdev);
         inode_unref(inode);
         if (!device)
             return ERR_PTR(-ENODEV);

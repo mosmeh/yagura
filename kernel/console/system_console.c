@@ -14,7 +14,7 @@ static struct inode* get_tty_device(void) {
         makedev(4, 67), // /dev/ttyS3
     };
     for (size_t i = 0; i < ARRAY_SIZE(candidates); ++i) {
-        struct inode* device = vfs_get_device(candidates[i]);
+        struct inode* device = vfs_get_device_by_id(candidates[i]);
         if (device) {
             kprintf("system_console: using device %u,%u\n",
                     major(candidates[i]), minor(candidates[i]));
@@ -67,5 +67,5 @@ void system_console_init(void) {
     active_console = inode_open(device, O_RDWR, 0);
     ASSERT_OK(active_console);
 
-    ASSERT_OK(vfs_register_device(system_console_device_get()));
+    ASSERT_OK(vfs_register_device("console", system_console_device_get()));
 }

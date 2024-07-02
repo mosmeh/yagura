@@ -123,5 +123,5 @@ void ps2_mouse_init(void) {
     write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
     idt_set_interrupt_handler(IRQ(12), irq_handler);
 
-    ASSERT_OK(vfs_register_device(ps2_mouse_device_get()));
+    ASSERT_OK(vfs_register_device("psaux", ps2_mouse_device_get()));
 }

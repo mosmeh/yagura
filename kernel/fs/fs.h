@@ -111,8 +111,9 @@ NODISCARD int vfs_mount(const char* pathname, struct inode* fs_root);
 NODISCARD int vfs_mount_at(const struct path* base, const char* pathname,
                            struct inode* fs_root);
 
-NODISCARD int vfs_register_device(struct inode* device);
-struct inode* vfs_get_device(dev_t);
+NODISCARD int vfs_register_device(const char* name, struct inode* device);
+struct inode* vfs_get_device_by_id(dev_t);
+struct inode* vfs_get_device_by_name(const char* name);
 dev_t vfs_generate_unnamed_device_number(void);
 
 // Return a path even if the last component of the path does not exist.
