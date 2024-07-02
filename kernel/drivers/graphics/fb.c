@@ -65,5 +65,5 @@ void fb_init(const multiboot_info_t* mb_info) {
     fb = find_fb(mb_info);
     if (!fb)
         return;
-    ASSERT_OK(vfs_register_device(fb_device_get()));
+    ASSERT_OK(vfs_register_device("fb0", fb_device_get()));
 }

@@ -625,5 +625,5 @@ void fb_console_init(void) {
     ASSERT_OK(ring_buf_init(&input_buf));
     ps2_set_key_event_handler(on_key_event);
 
-    ASSERT_OK(vfs_register_device(fb_console_device_get()));
+    ASSERT_OK(vfs_register_device("tty", fb_console_device_get()));
 }

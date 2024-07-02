@@ -384,5 +384,5 @@ void ps2_keyboard_init(void) {
     ps2_write(PS2_COMMAND, PS2_ENABLE_PORT1);
     idt_set_interrupt_handler(IRQ(1), irq_handler);
 
-    ASSERT_OK(vfs_register_device(ps2_keyboard_device_get()));
+    ASSERT_OK(vfs_register_device("kbd", ps2_keyboard_device_get()));
 }

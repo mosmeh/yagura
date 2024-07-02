@@ -144,7 +144,10 @@ void serial_console_init(void) {
                 serial_console_device_create(ports[i]);
             ASSERT_OK(device);
             devices[i] = device;
-            ASSERT_OK(vfs_register_device(&device->inode));
+
+            char name[8];
+            (void)snprintf(name, sizeof(name), "ttyS%u", i);
+            ASSERT_OK(vfs_register_device(name, &device->inode));
         }
     }
 }

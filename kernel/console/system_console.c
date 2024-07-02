@@ -67,5 +67,5 @@ void system_console_init(void) {
     active_console = inode_open(device, O_RDWR, 0);
     ASSERT_OK(active_console);
 
-    ASSERT_OK(vfs_register_device(system_console_device_get()));
+    ASSERT_OK(vfs_register_device("console", system_console_device_get()));
 }
