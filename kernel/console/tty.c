@@ -1,3 +1,4 @@
+#include "console_private.h"
 #include <kernel/api/signum.h>
 #include <kernel/process.h>
 
