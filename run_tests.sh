@@ -5,7 +5,7 @@ set -e
 ! qemu-system-i386 \
     -kernel kernel/kernel \
     -initrd initrd \
-    -append 'panic=poweroff init=/bin/init-test' \
+    -append 'panic=poweroff init=/bin/init-test console=ttyS0' \
     -d guest_errors \
     -no-reboot \
     -serial stdio \
