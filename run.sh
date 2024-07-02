@@ -4,11 +4,22 @@ set -eo pipefail
 
 KERNEL='kernel/kernel'
 INITRD='initrd'
+CMDLINE=()
 
-QEMU_DISPLAY_ARGS=(-display "sdl,gl=off,show-cursor=off")
-if [ "$1" = "shell" ]; then
-    QEMU_DISPLAY_ARGS=(-display none -vga none)
-fi
+case "$1" in
+    shell) # Serial console
+        QEMU_DISPLAY_ARGS=(-display none -vga none)
+        CMDLINE+=(console=ttyS0)
+        ;;
+    text) # Text console
+        QEMU_DISPLAY_ARGS=(-display "sdl,gl=off" -vga cirrus)
+        CMDLINE+=(console=tty)
+        ;;
+    *) # Framebuffer console
+        QEMU_DISPLAY_ARGS=(-display "sdl,gl=off,show-cursor=off")
+        CMDLINE+=(console=tty)
+        ;;
+esac
 
 QEMU_BINARY_PREFIX=''
 QEMU_BINARY_SUFFIX=''
@@ -33,6 +44,7 @@ QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
 "${QEMU_BIN}" \
     -kernel "${KERNEL}" \
     -initrd "${INITRD}" \
+    -append "${CMDLINE[*]}" \
     -d guest_errors \
     "${QEMU_DISPLAY_ARGS[@]}" \
     -device ac97 \

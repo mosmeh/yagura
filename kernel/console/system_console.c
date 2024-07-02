@@ -5,27 +5,9 @@
 #include <kernel/kprintf.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
+#include <kernel/system.h>
 
-static struct inode* get_tty_device(void) {
-    const dev_t candidates[] = {
-        makedev(5, 0),  // /dev/tty
-        makedev(4, 64), // /dev/ttyS0
-        makedev(4, 65), // /dev/ttyS1
-        makedev(4, 66), // /dev/ttyS2
-        makedev(4, 67), // /dev/ttyS3
-    };
-    for (size_t i = 0; i < ARRAY_SIZE(candidates); ++i) {
-        struct inode* device = vfs_get_device_by_id(candidates[i]);
-        if (device) {
-            kprintf("system_console: using device %u,%u\n",
-                    major(candidates[i]), minor(candidates[i]));
-            return device;
-        }
-    }
-    return NULL;
-}
-
-static file_description* active_console = NULL;
+static file_description* active_console;
 
 static ssize_t system_console_device_read(file_description* desc, void* buffer,
                                           size_t count) {
@@ -63,10 +45,23 @@ static struct inode* system_console_device_get(void) {
 }
 
 void system_console_init(void) {
-    struct inode* device = get_tty_device();
-    ASSERT_OK(device);
+    const char* console = cmdline_lookup("console");
+    if (!console)
+        console = "tty";
+
+    struct inode* device = vfs_get_device_by_name(console);
+    if (!device) {
+        kprintf("system_console: device %s not found\n", console);
+        return;
+    }
+
     active_console = inode_open(device, O_RDWR, 0);
-    ASSERT_OK(active_console);
+    if (!active_console) {
+        kprintf("system_console: failed to open device %s\n", console);
+        return;
+    }
+
+    kprintf("system_console: using %s\n", console);
 
     ASSERT_OK(vfs_register_device("console", system_console_device_get()));
 }
