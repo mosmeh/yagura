@@ -17,6 +17,7 @@ static int procfs_item_open(file_description* desc, mode_t mode) {
     procfs_item_inode* node = (procfs_item_inode*)desc->inode;
     int rc = node->populate(desc, vec);
     if (IS_ERR(rc)) {
+        vec_destroy(vec);
         kfree(vec);
         return rc;
     }
@@ -41,10 +42,12 @@ static ssize_t procfs_item_read(file_description* desc, void* buffer,
     return nread;
 }
 
-file_ops procfs_item_fops = {.destroy_inode = procfs_item_destroy_inode,
-                             .open = procfs_item_open,
-                             .close = procfs_item_close,
-                             .read = procfs_item_read};
+file_ops procfs_item_fops = {
+    .destroy_inode = procfs_item_destroy_inode,
+    .open = procfs_item_open,
+    .close = procfs_item_close,
+    .read = procfs_item_read,
+};
 
 void procfs_dir_destroy_inode(struct inode* inode) {
     procfs_dir_inode* node = (procfs_dir_inode*)inode;

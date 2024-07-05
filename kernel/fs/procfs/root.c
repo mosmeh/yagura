@@ -3,6 +3,7 @@
 #include <common/stdlib.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/cpu.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
@@ -16,6 +17,58 @@
 static int populate_cmdline(file_description* desc, struct vec* vec) {
     (void)desc;
     return vec_printf(vec, "%s\n", cmdline_get_raw());
+}
+
+static int print_flag(struct vec* vec, int feature, const char* name) {
+    if (!name[0]) {
+        // Skip empty names
+        return 0;
+    }
+    if (!cpu_has_feature(feature))
+        return 0;
+    return vec_printf(vec, "%s ", name);
+}
+
+static int populate_cpuinfo(file_description* desc, struct vec* vec) {
+    (void)desc;
+    struct cpu* cpu = cpu_get();
+
+    int ret =
+        vec_printf(vec,
+                   "vendor_id       : %s\n"
+                   "cpu family      : %u\n"
+                   "model           : %u\n"
+                   "model name      : %s\n",
+                   cpu->vendor_id, cpu->family, cpu->model, cpu->model_name);
+    if (IS_ERR(ret))
+        return ret;
+
+    if (cpu->stepping) {
+        ret = vec_printf(vec, "stepping        : %u\n", cpu->stepping);
+        if (IS_ERR(ret))
+            return ret;
+    }
+
+    const char* fpu = cpu_has_feature(X86_FEATURE_FPU) ? "yes" : "no";
+    ret = vec_printf(vec,
+                     "fpu             : %s\n"
+                     "fpu_exception   : %s\n"
+                     "wp              : yes\n"
+                     "flags           : ",
+                     fpu, fpu);
+    if (IS_ERR(ret))
+        return ret;
+
+#define F(variant, name)                                                       \
+    ret = print_flag(vec, X86_FEATURE_##variant, #name);                       \
+    if (IS_ERR(ret))                                                           \
+        return ret;
+    ENUMERATE_X86_FEATURES(F)
+#undef F
+
+    return vec_printf(vec,
+                      "\naddress sizes   : %u bits physical, %u bits virtual\n",
+                      cpu->phys_addr_bits, cpu->virt_addr_bits);
 }
 
 static int populate_kallsyms(file_description* desc, struct vec* vec) {
@@ -72,12 +125,15 @@ static int populate_version(file_description* desc, struct vec* vec) {
                       utsname()->release, utsname()->version);
 }
 
-static procfs_item_def root_items[] = {{"cmdline", S_IFREG, populate_cmdline},
-                                       {"kallsyms", S_IFREG, populate_kallsyms},
-                                       {"meminfo", S_IFREG, populate_meminfo},
-                                       {"self", S_IFLNK, populate_self},
-                                       {"uptime", S_IFREG, populate_uptime},
-                                       {"version", S_IFREG, populate_version}};
+static procfs_item_def root_items[] = {
+    {"cpuinfo", S_IFREG, populate_cpuinfo},
+    {"cmdline", S_IFREG, populate_cmdline},
+    {"kallsyms", S_IFREG, populate_kallsyms},
+    {"meminfo", S_IFREG, populate_meminfo},
+    {"self", S_IFLNK, populate_self},
+    {"uptime", S_IFREG, populate_uptime},
+    {"version", S_IFREG, populate_version},
+};
 #define NUM_ITEMS ARRAY_SIZE(root_items)
 
 static struct inode* procfs_root_lookup_child(struct inode* inode,
