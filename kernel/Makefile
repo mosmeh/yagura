@@ -43,7 +43,6 @@ OBJS := \
 	fs/tmpfs.o \
 	fs/vfs.o \
 	gdt.o \
-	growable_buf.o \
 	idt.o \
 	interrupt.o \
 	irq.o \
@@ -72,6 +71,7 @@ OBJS := \
 	system.o \
 	time.o \
 	unix_socket.o \
+	vec.o \
 	../common/libgen.o \
 	../common/math.o \
 	../common/string.o \

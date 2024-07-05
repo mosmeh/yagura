@@ -1,32 +1,32 @@
 #include "procfs_private.h"
 #include <kernel/fs/dentry.h>
-#include <kernel/growable_buf.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
+#include <kernel/vec.h>
 
 static void procfs_item_destroy_inode(struct inode* inode) { kfree(inode); }
 
 static int procfs_item_open(file_description* desc, mode_t mode) {
     (void)mode;
 
-    growable_buf* buf = kmalloc(sizeof(growable_buf));
-    if (!buf)
+    struct vec* vec = kmalloc(sizeof(struct vec));
+    if (!vec)
         return -ENOMEM;
-    *buf = (growable_buf){0};
+    *vec = (struct vec){0};
 
     procfs_item_inode* node = (procfs_item_inode*)desc->inode;
-    int rc = node->populate(desc, buf);
+    int rc = node->populate(desc, vec);
     if (IS_ERR(rc)) {
-        kfree(buf);
+        kfree(vec);
         return rc;
     }
 
-    desc->private_data = buf;
+    desc->private_data = vec;
     return 0;
 }
 
 static int procfs_item_close(file_description* desc) {
-    growable_buf_destroy(desc->private_data);
+    vec_destroy(desc->private_data);
     kfree(desc->private_data);
     return 0;
 }
@@ -34,8 +34,7 @@ static int procfs_item_close(file_description* desc) {
 static ssize_t procfs_item_read(file_description* desc, void* buffer,
                                 size_t count) {
     mutex_lock(&desc->offset_lock);
-    ssize_t nread =
-        growable_buf_pread(desc->private_data, buffer, count, desc->offset);
+    ssize_t nread = vec_pread(desc->private_data, buffer, count, desc->offset);
     if (IS_OK(nread))
         desc->offset += nread;
     mutex_unlock(&desc->offset_lock);

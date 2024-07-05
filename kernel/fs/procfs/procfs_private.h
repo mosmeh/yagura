@@ -1,11 +1,11 @@
 #pragma once
 
 #include <kernel/fs/fs.h>
-#include <kernel/growable_buf.h>
+#include <kernel/vec.h>
 
-typedef struct growable_buf growable_buf;
+struct vec;
 
-typedef int (*procfs_populate_fn)(file_description*, growable_buf*);
+typedef int (*procfs_populate_fn)(file_description*, struct vec*);
 
 typedef struct procfs_item_def {
     const char* name;

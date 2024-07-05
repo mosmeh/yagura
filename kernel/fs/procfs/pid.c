@@ -3,17 +3,18 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/fs/path.h>
-#include <kernel/growable_buf.h>
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+#include <kernel/safe_string.h>
+#include <kernel/vec.h>
 
 typedef struct procfs_pid_item_inode {
     procfs_item_inode item_inode;
     pid_t pid;
 } procfs_pid_item_inode;
 
-static int populate_comm(file_description* desc, growable_buf* buf) {
+static int populate_comm(file_description* desc, struct vec* vec) {
     procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
     struct process* process = process_find_process_by_pid(node->pid);
     if (!process)
@@ -21,10 +22,10 @@ static int populate_comm(file_description* desc, growable_buf* buf) {
 
     char comm[sizeof(process->comm)];
     strlcpy(comm, process->comm, sizeof(process->comm));
-    return growable_buf_printf(buf, "%s\n", comm);
+    return vec_printf(vec, "%s\n", comm);
 }
 
-static int populate_cwd(file_description* desc, growable_buf* buf) {
+static int populate_cwd(file_description* desc, struct vec* vec) {
     procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
     struct process* process = process_find_process_by_pid(node->pid);
     if (!process)
@@ -33,7 +34,7 @@ static int populate_cwd(file_description* desc, growable_buf* buf) {
     char* cwd = path_to_string(process->cwd);
     if (!cwd)
         return -ENOMEM;
-    int rc = growable_buf_printf(buf, "%s", cwd);
+    int rc = vec_printf(vec, "%s", cwd);
     kfree(cwd);
     return rc;
 }

@@ -4,71 +4,71 @@
 #include <kernel/api/dirent.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/dentry.h>
-#include <kernel/growable_buf.h>
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/scheduler.h>
 #include <kernel/system.h>
 #include <kernel/time.h>
+#include <kernel/vec.h>
 
-static int populate_cmdline(file_description* desc, growable_buf* buf) {
+static int populate_cmdline(file_description* desc, struct vec* vec) {
     (void)desc;
-    return growable_buf_printf(buf, "%s\n", cmdline_get_raw());
+    return vec_printf(vec, "%s\n", cmdline_get_raw());
 }
 
-static int populate_kallsyms(file_description* desc, growable_buf* buf) {
+static int populate_kallsyms(file_description* desc, struct vec* vec) {
     (void)desc;
     const struct symbol* symbol = NULL;
     while ((symbol = ksyms_next(symbol))) {
-        if (growable_buf_printf(buf, "%08x %c %s\n", symbol->addr, symbol->type,
-                                symbol->name) < 0)
+        if (vec_printf(vec, "%08x %c %s\n", symbol->addr, symbol->type,
+                       symbol->name) < 0)
             return -ENOMEM;
     }
     return 0;
 }
 
-static int populate_meminfo(file_description* desc, growable_buf* buf) {
+static int populate_meminfo(file_description* desc, struct vec* vec) {
     (void)desc;
     struct memory_stats stats;
     memory_get_stats(&stats);
 
-    return growable_buf_printf(buf,
-                               "MemTotal: %8u kB\n"
-                               "MemFree:  %8u kB\n",
-                               stats.total, stats.free);
+    return vec_printf(vec,
+                      "MemTotal: %8u kB\n"
+                      "MemFree:  %8u kB\n",
+                      stats.total, stats.free);
 }
 
-static int populate_self(file_description* desc, growable_buf* buf) {
+static int populate_self(file_description* desc, struct vec* vec) {
     (void)desc;
-    return growable_buf_printf(buf, "%d", current->pid);
+    return vec_printf(vec, "%d", current->pid);
 }
 
-NODISCARD static int sprintf_ticks(growable_buf* buf, int64_t ticks) {
+NODISCARD static int sprintf_ticks(struct vec* vec, int64_t ticks) {
     int32_t r;
     int32_t q = divmodi64(ticks, CLK_TCK, &r);
     r = r * 100 / CLK_TCK; // Map [0, CLK_TCK) to [0, 100)
-    return growable_buf_printf(buf, "%d.%02d", q, r);
+    return vec_printf(vec, "%d.%02d", q, r);
 }
 
-static int populate_uptime(file_description* desc, growable_buf* buf) {
+static int populate_uptime(file_description* desc, struct vec* vec) {
     (void)desc;
-    int rc = sprintf_ticks(buf, uptime);
+    int rc = sprintf_ticks(vec, uptime);
     if (IS_ERR(rc))
         return rc;
-    rc = growable_buf_append(buf, " ", 1);
+    rc = vec_append(vec, " ", 1);
     if (IS_ERR(rc))
         return rc;
-    rc = sprintf_ticks(buf, idle_ticks);
+    rc = sprintf_ticks(vec, idle_ticks);
     if (IS_ERR(rc))
         return rc;
-    return growable_buf_append(buf, "\n", 1);
+    return vec_append(vec, "\n", 1);
 }
 
-static int populate_version(file_description* desc, growable_buf* buf) {
+static int populate_version(file_description* desc, struct vec* vec) {
     (void)desc;
-    return growable_buf_printf(buf, "%s version %s %s\n", utsname()->sysname,
-                               utsname()->release, utsname()->version);
+    return vec_printf(vec, "%s version %s %s\n", utsname()->sysname,
+                      utsname()->release, utsname()->version);
 }
 
 static procfs_item_def root_items[] = {{"cmdline", S_IFREG, populate_cmdline},
