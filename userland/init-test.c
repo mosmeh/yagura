@@ -32,9 +32,10 @@ int main(void) {
     ASSERT_OK(mount("tmpfs", "/dev", "tmpfs", 0, NULL));
 
     ASSERT_OK(mknod("/dev/console", S_IFCHR, makedev(5, 1)));
-    ASSERT(open("/dev/console", O_RDONLY) == STDIN_FILENO);
-    ASSERT(open("/dev/console", O_WRONLY) == STDOUT_FILENO);
-    ASSERT(open("/dev/console", O_WRONLY) == STDERR_FILENO);
+    int fd = open("/dev/console", O_RDWR);
+    ASSERT(fd == STDIN_FILENO);
+    ASSERT_OK(dup2(fd, STDOUT_FILENO));
+    ASSERT_OK(dup2(fd, STDERR_FILENO));
 
     ASSERT_OK(mkdir("/dev/shm", 0));
     ASSERT_OK(mount("tmpfs", "/dev/shm", "tmpfs", 0, NULL));
