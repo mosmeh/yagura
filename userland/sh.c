@@ -796,7 +796,7 @@ static int run_execute(const struct execute_node* node,
             abort();
         }
         if (ctx.foreground)
-            tcsetpgrp(STDERR_FILENO, ctx.pgid);
+            tcsetpgrp(STDIN_FILENO, ctx.pgid);
         if (execvpe(node->argv[0], node->argv, environ) < 0) {
             perror("execvpe");
             abort();
@@ -1024,11 +1024,6 @@ static int script_main(const char* path) {
 }
 
 static int repl_main(void) {
-    if (tcsetpgrp(STDIN_FILENO, getpid()) < 0) {
-        perror("tcsetpgrp");
-        return EXIT_FAILURE;
-    }
-
     size_t terminal_width = 80;
     struct winsize winsize;
     if (ioctl(STDERR_FILENO, TIOCGWINSZ, &winsize) >= 0)
@@ -1052,11 +1047,6 @@ static int repl_main(void) {
             UNREACHABLE();
         }
 
-        if (tcsetpgrp(STDIN_FILENO, getpid()) < 0) {
-            perror("tcsetpgrp");
-            return EXIT_FAILURE;
-        }
-
         // print 1 line worth of spaces so that we always ends up on a new line
         size_t num_spaces = terminal_width - 1;
         char* spaces = malloc(num_spaces + 1);
@@ -1078,6 +1068,11 @@ static int repl_main(void) {
 }
 
 int main(int argc, char* const argv[]) {
+    if (tcsetpgrp(STDIN_FILENO, getpid()) < 0) {
+        perror("tcsetpgrp");
+        return EXIT_FAILURE;
+    }
+
     if (argc >= 2)
         return script_main(argv[1]);
     return repl_main();
