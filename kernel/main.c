@@ -35,7 +35,7 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
 
     kprintf("version: %s\n"
             "kernel end: V%p\n",
-            utsname()->version, kernel_end);
+            utsname()->version, (void*)kernel_end);
     ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
 
     const multiboot_info_t* mb_info =
