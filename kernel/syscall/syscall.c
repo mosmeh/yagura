@@ -4,7 +4,7 @@
 #include <kernel/api/unistd.h>
 #include <kernel/boot_defs.h>
 #include <kernel/interrupts.h>
-#include <kernel/kprintf.h>
+#include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/safe_string.h>

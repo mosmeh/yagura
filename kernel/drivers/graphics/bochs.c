@@ -2,7 +2,7 @@
 #include <kernel/api/err.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/drivers/pci.h>
-#include <kernel/kprintf.h>
+#include <kernel/kmsg.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 

@@ -46,7 +46,7 @@ OBJS := \
 	idt.o \
 	interrupt.o \
 	irq.o \
-	kprintf.o \
+	kmsg.o \
 	ksyms.o \
 	lock.o \
 	main.o \

@@ -2,7 +2,7 @@
 #include "asm_wrapper.h"
 #include "interrupts.h"
 #include "isr_stubs.h"
-#include "kprintf.h"
+#include "kmsg.h"
 #include "panic.h"
 #include "process.h"
 #include "safe_string.h"

@@ -2,7 +2,7 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
-#include <kernel/kprintf.h>
+#include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
@@ -40,7 +40,11 @@ static struct inode* system_console_device_get(void) {
         .poll = system_console_device_poll,
     };
     static struct inode inode = {
-        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(5, 1), .ref_count = 1};
+        .fops = &fops,
+        .mode = S_IFCHR,
+        .rdev = makedev(5, 1),
+        .ref_count = 1,
+    };
     return &inode;
 }
 

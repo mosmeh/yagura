@@ -1,7 +1,7 @@
 #include "psf.h"
 #include "screen.h"
 #include <kernel/drivers/graphics/graphics.h>
-#include <kernel/kprintf.h>
+#include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 

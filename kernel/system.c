@@ -2,7 +2,7 @@
 #include "asm_wrapper.h"
 #include "boot_defs.h"
 #include "drivers/hid/hid.h"
-#include "kprintf.h"
+#include "kmsg.h"
 #include "panic.h"
 #include "safe_string.h"
 #include <common/stdlib.h>

@@ -3,7 +3,7 @@
 #include "drivers/drivers.h"
 #include "drivers/serial.h"
 #include "interrupts.h"
-#include "kprintf.h"
+#include "kmsg.h"
 #include "memory/memory.h"
 #include "multiboot.h"
 #include "panic.h"

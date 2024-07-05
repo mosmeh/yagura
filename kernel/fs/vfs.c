@@ -4,7 +4,7 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/sysmacros.h>
-#include <kernel/kprintf.h>
+#include <kernel/kmsg.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/multiboot.h>

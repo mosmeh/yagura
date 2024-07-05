@@ -1,7 +1,7 @@
 #include "rtc.h"
 #include <common/calendar.h>
 #include <kernel/asm_wrapper.h>
-#include <kernel/kprintf.h>
+#include <kernel/kmsg.h>
 #include <kernel/panic.h>
 
 static uint8_t cmos_read(uint8_t idx) {

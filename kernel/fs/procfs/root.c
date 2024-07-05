@@ -5,6 +5,7 @@
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/interrupts.h>
+#include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/scheduler.h>

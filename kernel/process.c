@@ -4,7 +4,7 @@
 #include "boot_defs.h"
 #include "fs/path.h"
 #include "interrupts.h"
-#include "kprintf.h"
+#include "kmsg.h"
 #include "memory/memory.h"
 #include "panic.h"
 #include "scheduler.h"

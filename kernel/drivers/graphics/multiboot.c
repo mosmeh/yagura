@@ -1,6 +1,6 @@
 #include "graphics.h"
 #include <kernel/api/err.h>
-#include <kernel/kprintf.h>
+#include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/multiboot.h>
 
@@ -39,8 +39,10 @@ struct fb* multiboot_fb_init(const multiboot_info_t* mb_info) {
     info.bpp = mb_info->framebuffer_bpp;
     kprintf("multiboot_fb: found framebuffer at P%#x\n", phys_addr);
 
-    static struct fb fb = {.get_info = multiboot_fb_get_info,
-                           .set_info = multiboot_fb_set_info,
-                           .mmap = multiboot_fb_mmap};
+    static struct fb fb = {
+        .get_info = multiboot_fb_get_info,
+        .set_info = multiboot_fb_set_info,
+        .mmap = multiboot_fb_mmap,
+    };
     return &fb;
 }

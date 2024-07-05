@@ -6,7 +6,7 @@
 #include <kernel/boot_defs.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
-#include <kernel/kprintf.h>
+#include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>

@@ -1,7 +1,7 @@
 #include "memory_private.h"
 #include <common/string.h>
 #include <kernel/interrupts.h>
-#include <kernel/kprintf.h>
+#include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 

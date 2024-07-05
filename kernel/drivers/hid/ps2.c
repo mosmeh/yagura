@@ -1,5 +1,5 @@
 #include "hid.h"
-#include <kernel/kprintf.h>
+#include <kernel/kmsg.h>
 
 void ps2_keyboard_init(void);
 void ps2_mouse_init(void);
