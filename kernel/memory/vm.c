@@ -170,7 +170,7 @@ struct vm_region* vm_find_gap(struct vm* vm, size_t size,
         return prev;
     }
 
-    kputs("vm: out of virtual memory\n");
+    kprint("vm: out of virtual memory\n");
     return ERR_PTR(-ENOMEM);
 }
 

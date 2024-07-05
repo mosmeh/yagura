@@ -73,8 +73,8 @@ int connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
     RETURN_WITH_ERRNO(rc, int)
 }
 
-int dbgputs(const char* str) {
-    int rc = syscall(SYS_dbgputs, (uintptr_t)str, 0, 0, 0);
+int dbgprint(const char* str) {
+    int rc = syscall(SYS_dbgprint, (uintptr_t)str, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
 }
 

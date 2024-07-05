@@ -19,7 +19,7 @@ int sys_clock_nanosleep(clockid_t clockid, int flags,
                         struct timespec* remain);
 int sys_close(int fd);
 int sys_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
-int sys_dbgputs(const char* str);
+int sys_dbgprint(const char* str);
 int sys_dup2(int oldfd, int newfd);
 int sys_execve(const char* pathname, char* const argv[], char* const envp[]);
 void sys_exit(int status);

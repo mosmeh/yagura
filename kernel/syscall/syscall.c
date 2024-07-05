@@ -13,13 +13,13 @@
 int sys_reboot(int howto) {
     switch (howto) {
     case RB_AUTOBOOT:
-        kputs("Restarting system.\n");
+        kprint("Restarting system.\n");
         reboot();
     case RB_HALT:
-        kputs("System halted.\n");
+        kprint("System halted.\n");
         halt();
     case RB_POWEROFF:
-        kputs("Power down.\n");
+        kprint("Power down.\n");
         poweroff();
     default:
         return -1;
@@ -47,15 +47,14 @@ int sys_uname(struct utsname* user_buf) {
     return 0;
 }
 
-int sys_dbgputs(const char* user_str) {
-    char copied_str[1024];
-    ssize_t str_len =
-        strncpy_from_user(copied_str, user_str, sizeof(copied_str));
+int sys_dbgprint(const char* user_str) {
+    char str[1024];
+    ssize_t str_len = strncpy_from_user(str, user_str, sizeof(str));
     if (IS_ERR(str_len))
         return str_len;
-    if ((size_t)str_len >= sizeof(copied_str))
+    if ((size_t)str_len >= sizeof(str))
         return -E2BIG;
-    return kputs(user_str);
+    return kprint(user_str);
 }
 
 typedef uintptr_t (*syscall_handler_fn)(uintptr_t arg1, uintptr_t arg2,

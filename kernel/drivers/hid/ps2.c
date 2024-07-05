@@ -24,8 +24,8 @@ static bool self_test(void) {
 void ps2_init(void) {
     drain_output_buffer();
     if (!self_test()) {
-        kputs("ps2: PS/2 controller self-test failed. PS/2 controller is "
-              "faulty or not present.\n");
+        kprint("ps2: PS/2 controller self-test failed. PS/2 controller is "
+               "faulty or not present.\n");
         return;
     }
 

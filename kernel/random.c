@@ -99,7 +99,7 @@ void random_init(void) {
         use_rdrand = true;
         return;
     }
-    kputs(
+    kprint(
         "random: RDRAND is unavailable or unreliable. Falling back to PRNG.\n");
 
     uint64_t seed = rtc_now();

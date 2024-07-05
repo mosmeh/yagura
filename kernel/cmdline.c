@@ -16,7 +16,7 @@ static char* values[MAX_NUM_KEYS];
 
 void cmdline_init(const multiboot_info_t* mb_info) {
     if (!(mb_info->flags & MULTIBOOT_INFO_CMDLINE)) {
-        kputs("cmdline: no cmdline provided\n");
+        kprint("cmdline: no cmdline provided\n");
         return;
     }
 

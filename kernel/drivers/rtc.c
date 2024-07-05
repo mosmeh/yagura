@@ -67,8 +67,8 @@ time_t rtc_now(void) {
         kprintf("rtc: year=%u month=%u day=%u hour=%u minute=%u second=%u\n",
                 year, month, day, hour, minute, second);
     } else {
-        kputs("rtc: update did not finish within timeout. Falling back to UNIX "
-              "epoch\n");
+        kprint("rtc: update did not finish within timeout. Falling back to "
+               "UNIX epoch\n");
     }
 
     time_t days = days_since_epoch(year, month, day);

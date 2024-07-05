@@ -13,7 +13,7 @@
     F(clock_nanosleep)                                                         \
     F(close)                                                                   \
     F(connect)                                                                 \
-    F(dbgputs)                                                                 \
+    F(dbgprint)                                                                \
     F(dup2)                                                                    \
     F(execve)                                                                  \
     F(exit)                                                                    \

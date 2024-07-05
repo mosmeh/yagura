@@ -157,7 +157,7 @@ uintptr_t page_alloc(void) {
     ssize_t first_set = bitmap_find_first_set();
     if (IS_ERR(first_set)) {
         mutex_unlock(&lock);
-        kputs("page: out of physical pages\n");
+        kprint("page: out of physical pages\n");
         return first_set;
     }
 

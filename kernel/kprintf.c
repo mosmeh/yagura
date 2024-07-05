@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-int kputs(const char* str) {
+int kprint(const char* str) {
     return serial_write(SERIAL_COM1, str, strlen(str));
 }
 
@@ -19,6 +19,6 @@ int kprintf(const char* format, ...) {
 int kvprintf(const char* format, va_list args) {
     char buf[1024];
     int ret = vsnprintf(buf, sizeof(buf), format, args);
-    kputs(buf);
+    kprint(buf);
     return ret;
 }

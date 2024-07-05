@@ -91,7 +91,7 @@ static noreturn void crash(registers* regs, int signum) {
 
 #define DEFINE_EXCEPTION(num, msg)                                             \
     static void handle_exception##num(registers* regs) {                       \
-        kputs("Exception: " msg "\n");                                         \
+        kprint("Exception: " msg "\n");                                        \
         dump_context(regs);                                                    \
         PANIC("Unrecoverable exception");                                      \
     }
@@ -106,7 +106,7 @@ static noreturn void crash(registers* regs, int signum) {
 
 DEFINE_ISR_WITHOUT_ERROR_CODE(0)
 static void handle_exception0(registers* regs) {
-    kputs("Divide-by-zero error\n");
+    kprint("Divide-by-zero error\n");
     crash(regs, SIGFPE);
 }
 
@@ -118,7 +118,7 @@ DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(5, "Bound range exceeded")
 
 DEFINE_ISR_WITHOUT_ERROR_CODE(6)
 static void handle_exception6(registers* regs) {
-    kputs("Invalid opcode\n");
+    kprint("Invalid opcode\n");
     crash(regs, SIGILL);
 }
 
@@ -131,7 +131,7 @@ DEFINE_EXCEPTION_WITH_ERROR_CODE(12, "Stack-segment fault")
 
 DEFINE_ISR_WITH_ERROR_CODE(13)
 static void handle_exception13(registers* regs) {
-    kputs("General protection fault\n");
+    kprint("General protection fault\n");
     crash(regs, SIGSEGV);
 }
 

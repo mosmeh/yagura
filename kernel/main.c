@@ -49,7 +49,7 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     idt_init();
     irq_init();
     serial_early_init();
-    kputs("\x1b[32mbooted\x1b[m\n");
+    kprint("\x1b[32mbooted\x1b[m\n");
     sti();
 
     kprintf("version: %s\n"
@@ -76,7 +76,7 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     console_init();
     time_init();
     syscall_init();
-    kputs("\x1b[32mkernel initialization done\x1b[m\n");
+    kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
     ASSERT_OK(process_spawn_kernel_process("userland_init", userland_init));
 

@@ -67,10 +67,10 @@ static void dump_registers(const registers* regs) {
 
 static void dump_stack_trace(uintptr_t eip, uintptr_t ebp) {
     bool in_userland = eip < KERNEL_VIRT_ADDR;
-    kputs("stack trace:\n");
+    kprint("stack trace:\n");
     for (unsigned depth = 0;; ++depth) {
         if (depth >= 20) {
-            kputs("  ...\n");
+            kprint("  ...\n");
             break;
         }
         const struct symbol* symbol = in_userland ? NULL : ksyms_lookup(eip);
@@ -99,7 +99,7 @@ static void dump_stack_trace(uintptr_t eip, uintptr_t ebp) {
 noreturn void panic(const char* file, size_t line, const char* format, ...) {
     cli();
 
-    kputs("PANIC: ");
+    kprint("PANIC: ");
     va_list args;
     va_start(args, format);
     kvprintf(format, args);
@@ -133,11 +133,11 @@ void dump_context(const registers* regs) {
 void handle_sysrq(char ch) {
     switch (ch) {
     case 'b':
-        kputs("sysrq: Resetting\n");
+        kprint("sysrq: Resetting\n");
         reboot();
         break;
     case 'c':
-        kputs("sysrq: Trigger a crash\n");
+        kprint("sysrq: Trigger a crash\n");
         PANIC("sysrq triggered crash");
         break;
     }
