@@ -76,19 +76,9 @@ paging_enabled:
   movl $kernel_page_directory_start, %edx
   movl %edx, %cr3
 
-  movl %cr4, %edx
-  orl $0x80, %edx # PGE
-  movl %edx, %cr4
-
   movl $stack_top, %esp
   pushl %ebx # Multiboot info struct
   pushl %eax # Multiboot magic
-
-  movl $0x277, %ecx # IA32_PAT
-  rdmsr
-  andl $~0x7, %edx
-  orl $1, %edx # PAT4 = WC
-  wrmsr
 
   call start
 

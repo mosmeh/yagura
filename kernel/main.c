@@ -1,5 +1,6 @@
 #include "boot_defs.h"
 #include "console/console.h"
+#include "cpu.h"
 #include "drivers/drivers.h"
 #include "drivers/serial.h"
 #include "interrupts.h"
@@ -45,6 +46,7 @@ static noreturn void userland_init(void) {
 }
 
 noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
+    cpu_init();
     gdt_init();
     idt_init();
     irq_init();

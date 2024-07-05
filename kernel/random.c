@@ -1,5 +1,5 @@
 #include "api/errno.h"
-#include "asm_wrapper.h"
+#include "cpu.h"
 #include "drivers/rtc.h"
 #include "kmsg.h"
 #include <common/extra.h>
@@ -36,16 +36,7 @@ static inline bool rdrand(uint32_t* v) {
 // based on
 // https://github.com/rust-random/getrandom/blob/666b2d4c8352a188da7dbb4a4d6754a6ba2ac3f8/src/rdrand.rs#L46-L101
 NODISCARD static bool rdrand_init(void) {
-    // is RDRAND available?
-    uint32_t eax;
-    uint32_t ebx;
-    uint32_t ecx;
-    uint32_t edx;
-    cpuid(0, &eax, &ebx, &ecx, &edx);
-    if (eax < 1)
-        return false;
-    cpuid(1, &eax, &ebx, &ecx, &edx);
-    if (!(ecx & (1 << 30)))
+    if (!cpu_has_feature(X86_FEATURE_RDRAND))
         return false;
 
     // is RDRAND reliable?

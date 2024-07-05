@@ -1,5 +1,6 @@
 #include "scheduler.h"
 #include "api/errno.h"
+#include "cpu.h"
 #include "interrupts.h"
 #include "memory/memory.h"
 #include "panic.h"
@@ -132,7 +133,10 @@ static noreturn void switch_to_next_process(void) {
 
     process_handle_pending_signals();
 
-    __asm__ volatile("fxrstor %0" ::"m"(current->fpu_state));
+    if (cpu_has_feature(X86_FEATURE_FXSR))
+        __asm__ volatile("fxrstor %0" ::"m"(current->fpu_state));
+    else
+        __asm__ volatile("frstor %0" ::"m"(current->fpu_state));
 
     if (current->state == PROCESS_STATE_RUNNABLE) {
         current->state = PROCESS_STATE_RUNNING;
@@ -203,7 +207,10 @@ void scheduler_yield(bool requeue_current) {
     current->esi = esi;
     current->edi = edi;
 
-    __asm__ volatile("fxsave %0" : "=m"(current->fpu_state));
+    if (cpu_has_feature(X86_FEATURE_FXSR))
+        __asm__ volatile("fxsave %0" : "=m"(current->fpu_state));
+    else
+        __asm__ volatile("fnsave %0" : "=m"(current->fpu_state));
 
     if (requeue_current)
         scheduler_enqueue(current);

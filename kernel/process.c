@@ -2,6 +2,7 @@
 #include "api/signum.h"
 #include "api/sys/limits.h"
 #include "boot_defs.h"
+#include "cpu.h"
 #include "fs/path.h"
 #include "interrupts.h"
 #include "kmsg.h"
@@ -21,7 +22,10 @@ extern unsigned char stack_top[];
 
 void process_init(void) {
     __asm__ volatile("fninit");
-    __asm__ volatile("fxsave %0" : "=m"(initial_fpu_state));
+    if (cpu_has_feature(X86_FEATURE_FXSR))
+        __asm__ volatile("fxsave %0" : "=m"(initial_fpu_state));
+    else
+        __asm__ volatile("fnsave %0" : "=m"(initial_fpu_state));
 
     current = kaligned_alloc(alignof(struct process), sizeof(struct process));
     ASSERT(current);

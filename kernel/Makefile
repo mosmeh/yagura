@@ -18,6 +18,7 @@ OBJS := \
 	console/tty.o \
 	console/virtual_console.o \
 	console/vt.o \
+	cpu.o \
 	drivers/ac97.o \
 	drivers/drivers.o \
 	drivers/graphics/bochs.o \
