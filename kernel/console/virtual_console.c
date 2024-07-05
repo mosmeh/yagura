@@ -136,10 +136,12 @@ static int virtual_console_device_ioctl(file_description* desc, int request,
         size_t num_columns;
         size_t num_rows;
         screen->get_size(screen, &num_columns, &num_rows);
-        struct winsize winsize = {.ws_col = num_columns,
-                                  .ws_row = num_rows,
-                                  .ws_xpixel = 0,
-                                  .ws_ypixel = 0};
+        struct winsize winsize = {
+            .ws_col = num_columns,
+            .ws_row = num_rows,
+            .ws_xpixel = 0,
+            .ws_ypixel = 0,
+        };
         if (!copy_to_user(user_argp, &winsize, sizeof(struct winsize)))
             return -EFAULT;
         return 0;
@@ -159,12 +161,18 @@ static short virtual_console_device_poll(file_description* desc, short events) {
 }
 
 static struct inode* virtual_console_device_get(void) {
-    static file_ops fops = {.read = virtual_console_device_read,
-                            .write = virtual_console_device_write,
-                            .ioctl = virtual_console_device_ioctl,
-                            .poll = virtual_console_device_poll};
+    static file_ops fops = {
+        .read = virtual_console_device_read,
+        .write = virtual_console_device_write,
+        .ioctl = virtual_console_device_ioctl,
+        .poll = virtual_console_device_poll,
+    };
     static struct inode inode = {
-        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(5, 0), .ref_count = 1};
+        .fops = &fops,
+        .mode = S_IFCHR,
+        .rdev = makedev(5, 0),
+        .ref_count = 1,
+    };
     return &inode;
 }
 
@@ -173,7 +181,7 @@ void virtual_console_init(struct screen* s) {
     vt = vt_create(screen);
     ASSERT(vt);
 
-    ASSERT_OK(ring_buf_init(&input_buf));
+    ASSERT_OK(ring_buf_init(&input_buf, PAGE_SIZE));
     ps2_set_key_event_handler(on_key_event);
 
     ASSERT_OK(vfs_register_device("tty", virtual_console_device_get()));

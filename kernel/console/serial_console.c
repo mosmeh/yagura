@@ -11,7 +11,6 @@
 #include <kernel/ring_buf.h>
 #include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
-#include <common/stdio.h>
 
 typedef struct serial_console_device {
     struct inode inode;
@@ -118,17 +117,19 @@ static serial_console_device* serial_console_device_create(uint16_t port) {
     *dev = (serial_console_device){0};
 
     dev->port = port;
-    int rc = ring_buf_init(&dev->input_buf);
+    int rc = ring_buf_init(&dev->input_buf, PAGE_SIZE);
     if (IS_ERR(rc)) {
         kfree(dev);
         return ERR_PTR(rc);
     }
 
     struct inode* inode = (struct inode*)dev;
-    static file_ops fops = {.read = serial_console_device_read,
-                            .write = serial_console_device_write,
-                            .ioctl = serial_console_device_ioctl,
-                            .poll = serial_console_device_poll};
+    static file_ops fops = {
+        .read = serial_console_device_read,
+        .write = serial_console_device_write,
+        .ioctl = serial_console_device_ioctl,
+        .poll = serial_console_device_poll,
+    };
     inode->fops = &fops;
     inode->mode = S_IFCHR;
     inode->rdev = makedev(4, 63 + (dev_t)serial_port_to_com_number(port));
@@ -138,8 +139,12 @@ static serial_console_device* serial_console_device_create(uint16_t port) {
 }
 
 void serial_console_init(void) {
-    const uint16_t ports[] = {SERIAL_COM1, SERIAL_COM2, SERIAL_COM3,
-                              SERIAL_COM4};
+    const uint16_t ports[] = {
+        SERIAL_COM1,
+        SERIAL_COM2,
+        SERIAL_COM3,
+        SERIAL_COM4,
+    };
     for (size_t i = 0; i < ARRAY_SIZE(ports); ++i) {
         if (serial_is_port_enabled(ports[i])) {
             serial_console_device* device =

@@ -5,3 +5,4 @@
 #define OPEN_MAX 1024
 #define SYMLINK_MAX 255
 #define SYMLOOP_MAX 8
+#define PIPE_BUF 4096

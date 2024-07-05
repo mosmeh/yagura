@@ -62,13 +62,13 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
         if (IS_ERR(rc))
             return rc;
 
-        mutex_lock(&buf->lock);
+        mutex_lock(&socket->lock);
         if (!ring_buf_is_empty(buf)) {
             ssize_t nread = ring_buf_read(buf, buffer, count);
-            mutex_unlock(&buf->lock);
+            mutex_unlock(&socket->lock);
             return nread;
         }
-        mutex_unlock(&buf->lock);
+        mutex_unlock(&socket->lock);
 
         if (!is_open_for_reading(desc))
             return 0;
@@ -106,13 +106,13 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
             return -EPIPE;
         }
 
-        mutex_lock(&buf->lock);
+        mutex_lock(&socket->lock);
         if (!ring_buf_is_full(buf)) {
             ssize_t nwritten = ring_buf_write(buf, buffer, count);
-            mutex_unlock(&buf->lock);
+            mutex_unlock(&socket->lock);
             return nwritten;
         }
-        mutex_unlock(&buf->lock);
+        mutex_unlock(&socket->lock);
     }
 }
 
@@ -143,11 +143,13 @@ unix_socket* unix_socket_create(void) {
     *socket = (unix_socket){0};
 
     struct inode* inode = &socket->inode;
-    static file_ops fops = {.destroy_inode = unix_socket_destroy_inode,
-                            .close = unix_socket_close,
-                            .read = unix_socket_read,
-                            .write = unix_socket_write,
-                            .poll = unix_socket_poll};
+    static file_ops fops = {
+        .destroy_inode = unix_socket_destroy_inode,
+        .close = unix_socket_close,
+        .read = unix_socket_read,
+        .write = unix_socket_write,
+        .poll = unix_socket_poll,
+    };
     inode->fops = &fops;
     inode->mode = S_IFSOCK;
     inode->ref_count = 1;
@@ -156,12 +158,12 @@ unix_socket* unix_socket_create(void) {
     socket->is_open_for_writing_to_connector = true;
     socket->is_open_for_writing_to_acceptor = true;
 
-    int rc = ring_buf_init(&socket->to_acceptor_buf);
+    int rc = ring_buf_init(&socket->to_acceptor_buf, PAGE_SIZE);
     if (IS_ERR(rc)) {
         kfree(socket);
         return ERR_PTR(rc);
     }
-    rc = ring_buf_init(&socket->to_connector_buf);
+    rc = ring_buf_init(&socket->to_connector_buf, PAGE_SIZE);
     if (IS_ERR(rc)) {
         ring_buf_destroy(&socket->to_acceptor_buf);
         kfree(socket);

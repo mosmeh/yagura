@@ -1,6 +1,7 @@
 #include "fs.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/api/signum.h>
+#include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
@@ -9,6 +10,7 @@
 struct fifo {
     struct inode inode;
     ring_buf buf;
+    mutex lock;
     atomic_size_t num_readers;
     atomic_size_t num_writers;
 };
@@ -72,15 +74,15 @@ static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
         if (IS_ERR(rc))
             return rc;
 
-        mutex_lock(&buf->lock);
+        mutex_lock(&fifo->lock);
         if (!ring_buf_is_empty(buf)) {
             ssize_t nread = ring_buf_read(buf, buffer, count);
-            mutex_unlock(&buf->lock);
+            mutex_unlock(&fifo->lock);
             return nread;
         }
 
         bool no_writer = fifo->num_writers == 0;
-        mutex_unlock(&buf->lock);
+        mutex_unlock(&fifo->lock);
         if (no_writer)
             return 0;
     }
@@ -101,9 +103,9 @@ static ssize_t fifo_write(file_description* desc, const void* buffer,
         if (IS_ERR(rc))
             return rc;
 
-        mutex_lock(&buf->lock);
+        mutex_lock(&fifo->lock);
         if (fifo->num_readers == 0) {
-            mutex_unlock(&buf->lock);
+            mutex_unlock(&fifo->lock);
             int rc = process_send_signal_to_one(current->pid, SIGPIPE);
             if (IS_ERR(rc))
                 return rc;
@@ -111,12 +113,12 @@ static ssize_t fifo_write(file_description* desc, const void* buffer,
         }
 
         if (ring_buf_is_full(buf)) {
-            mutex_unlock(&buf->lock);
+            mutex_unlock(&fifo->lock);
             continue;
         }
 
         ssize_t nwritten = ring_buf_write(buf, buffer, count);
-        mutex_unlock(&buf->lock);
+        mutex_unlock(&fifo->lock);
         return nwritten;
     }
 }
@@ -141,19 +143,21 @@ struct inode* fifo_create(void) {
         return ERR_PTR(-ENOMEM);
     *fifo = (struct fifo){0};
 
-    int rc = ring_buf_init(&fifo->buf);
+    int rc = ring_buf_init(&fifo->buf, PIPE_BUF);
     if (IS_ERR(rc)) {
         kfree(fifo);
         return ERR_PTR(rc);
     }
 
     struct inode* inode = &fifo->inode;
-    static file_ops fops = {.destroy_inode = fifo_destroy_inode,
-                            .open = fifo_open,
-                            .close = fifo_close,
-                            .read = fifo_read,
-                            .write = fifo_write,
-                            .poll = fifo_poll};
+    static file_ops fops = {
+        .destroy_inode = fifo_destroy_inode,
+        .open = fifo_open,
+        .close = fifo_close,
+        .read = fifo_read,
+        .write = fifo_write,
+        .poll = fifo_poll,
+    };
     inode->fops = &fops;
     inode->mode = S_IFIFO;
     inode->ref_count = 1;

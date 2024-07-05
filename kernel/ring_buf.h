@@ -1,17 +1,17 @@
 #include "api/sys/types.h"
-#include "lock.h"
 #include <common/extra.h>
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 
 typedef struct ring_buf {
-    mutex lock;
-    void* inner_buf;
-    atomic_size_t write_idx;
-    atomic_size_t read_idx;
+    size_t capacity;
+    atomic_size_t write_index;
+    atomic_size_t read_index;
+    unsigned char* ring;
 } ring_buf;
 
-NODISCARD int ring_buf_init(ring_buf*);
+NODISCARD int ring_buf_init(ring_buf*, size_t capacity);
 void ring_buf_destroy(ring_buf*);
 bool ring_buf_is_empty(const ring_buf*);
 bool ring_buf_is_full(const ring_buf*);
