@@ -47,21 +47,20 @@
 
 #define BUFFER_DESCRIPTOR_LIST_INTERRUPT_ON_COMPLETION 0x8000
 
-static bool device_detected = false;
 static struct pci_addr device_addr;
 static uint16_t mixer_base;
 static uint16_t bus_base;
 static uint16_t pcm_out_channel;
 
-static void pci_enumeration_callback(const struct pci_addr* addr,
-                                     uint16_t vendor_id, uint16_t device_id) {
+static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,
+                                uint16_t device_id, bool* detected) {
     (void)vendor_id;
     (void)device_id;
     if (pci_get_type(addr) == PCI_TYPE_MULTIMEDIA_AUDIO_CONTROLLER) {
-        device_detected = true;
+        *detected = true;
         device_addr = *addr;
-        mixer_base = pci_get_bar0(addr) & ~1;
-        bus_base = pci_get_bar1(addr) & ~1;
+        mixer_base = pci_get_bar(addr, 0) & ~PCI_BAR_SPACE;
+        bus_base = pci_get_bar(addr, 1) & ~PCI_BAR_SPACE;
     }
 }
 
@@ -243,17 +242,25 @@ static short ac97_device_poll(file_description* desc, short events) {
 }
 
 static struct inode* ac97_device_get(void) {
-    static file_ops fops = {.write = ac97_device_write,
-                            .ioctl = ac97_device_ioctl,
-                            .poll = ac97_device_poll};
+    static file_ops fops = {
+        .write = ac97_device_write,
+        .ioctl = ac97_device_ioctl,
+        .poll = ac97_device_poll,
+    };
     static struct inode inode = {
-        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(14, 3), .ref_count = 1};
+        .fops = &fops,
+        .mode = S_IFCHR,
+        .rdev = makedev(14, 3),
+        .ref_count = 1,
+    };
     return &inode;
 }
 
 void ac97_init(void) {
-    pci_enumerate(pci_enumeration_callback);
-    if (!device_detected)
+    bool detected = false;
+    pci_enumerate_devices((pci_device_callback_fn)pci_device_callback,
+                          &detected);
+    if (!detected)
         return;
     kprintf("ac97: detected device %x:%x:%x\n", device_addr.bus,
             device_addr.slot, device_addr.function);
