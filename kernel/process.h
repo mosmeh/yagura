@@ -24,6 +24,7 @@ struct process {
 
     struct vm* vm;
     uintptr_t stack_top;
+    uintptr_t arg_start, arg_end, env_start, env_end;
 
     struct path* cwd;
     file_descriptor_table fd_table;

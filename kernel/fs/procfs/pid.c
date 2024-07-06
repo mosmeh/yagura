@@ -9,10 +9,52 @@
 #include <kernel/safe_string.h>
 #include <kernel/vec.h>
 
+static bool copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
+                                size_t size) {
+    struct vm* current_vm = current->vm;
+    vm_enter(vm);
+    bool ok = copy_from_user(dst, user_src, size);
+    vm_enter(current_vm);
+    return ok;
+}
+
 typedef struct procfs_pid_item_inode {
     procfs_item_inode item_inode;
     pid_t pid;
 } procfs_pid_item_inode;
+
+static int populate_cmdline(file_description* desc, struct vec* vec) {
+    procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
+    struct process* process = process_find_process_by_pid(node->pid);
+    if (!process)
+        return -ENOENT;
+
+    int ret = 0;
+    char* buf = NULL;
+
+    size_t len = process->arg_end - process->arg_start;
+    if (!len)
+        goto done;
+
+    buf = kmalloc(len);
+    if (!buf) {
+        ret = -ENOMEM;
+        goto done;
+    }
+
+    if (!copy_from_remote_vm(process->vm, buf, (void*)process->arg_start,
+                             len)) {
+        ret = -EFAULT;
+        goto done;
+    }
+
+    ret = vec_append(vec, buf, len);
+
+done:
+    kfree(buf);
+    process_unref(process);
+    return ret;
+}
 
 static int populate_comm(file_description* desc, struct vec* vec) {
     procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
@@ -46,6 +88,39 @@ static int populate_cwd(file_description* desc, struct vec* vec) {
     return rc;
 }
 
+static int populate_environ(file_description* desc, struct vec* vec) {
+    procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
+    struct process* process = process_find_process_by_pid(node->pid);
+    if (!process)
+        return -ENOENT;
+
+    int ret = 0;
+    char* buf = NULL;
+
+    size_t len = process->env_end - process->env_start;
+    if (!len)
+        goto done;
+
+    buf = kmalloc(len);
+    if (!buf) {
+        ret = -ENOMEM;
+        goto done;
+    }
+
+    if (!copy_from_remote_vm(process->vm, buf, (void*)process->env_start,
+                             len)) {
+        ret = -EFAULT;
+        goto done;
+    }
+
+    ret = vec_append(vec, buf, len);
+
+done:
+    kfree(buf);
+    process_unref(process);
+    return ret;
+}
+
 static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
                     pid_t pid) {
     procfs_pid_item_inode* node = kmalloc(sizeof(procfs_pid_item_inode));
@@ -70,8 +145,10 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
 }
 
 static procfs_item_def pid_items[] = {
+    {"cmdline", S_IFREG, populate_cmdline},
     {"comm", S_IFREG, populate_comm},
     {"cwd", S_IFLNK, populate_cwd},
+    {"environ", S_IFREG, populate_environ},
 };
 #define NUM_ITEMS ARRAY_SIZE(pid_items)
 
@@ -86,9 +163,11 @@ struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid) {
         return ERR_PTR(-ENOMEM);
     *node = (procfs_dir_inode){0};
 
-    static file_ops fops = {.destroy_inode = procfs_dir_destroy_inode,
-                            .lookup_child = procfs_dir_lookup_child,
-                            .getdents = procfs_dir_getdents};
+    static file_ops fops = {
+        .destroy_inode = procfs_dir_destroy_inode,
+        .lookup_child = procfs_dir_lookup_child,
+        .getdents = procfs_dir_getdents,
+    };
     struct inode* inode = &node->inode;
     inode->dev = parent->inode.dev;
     inode->fops = &fops;

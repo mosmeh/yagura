@@ -129,7 +129,7 @@ NODISCARD static int push_strings(uintptr_t* sp, uintptr_t stack_base,
     if (!ptrs->elements)
         return -ENOMEM;
 
-    for (size_t i = 0; i < strings->count; ++i) {
+    for (ssize_t i = strings->count - 1; i >= 0; --i) {
         const char* str = strings->is_owned ? strings->owned.elements[i]
                                             : strings->borrowed.elements[i];
         size_t size = strlen(str) + 1;
@@ -283,15 +283,19 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
     uintptr_t sp = stack_base + STACK_SIZE;
     memset((void*)stack_base, 0, STACK_SIZE);
 
+    uintptr_t env_end = sp;
     ret = push_strings(&sp, stack_base, &envp_ptrs, envp);
     string_vec_destroy(envp);
     if (IS_ERR(ret))
         goto fail_vm;
+    uintptr_t env_start = sp;
 
+    uintptr_t arg_end = sp;
     ret = push_strings(&sp, stack_base, &argv_ptrs, argv);
     string_vec_destroy(argv);
     if (IS_ERR(ret))
         goto fail_vm;
+    uintptr_t arg_start = sp;
 
     ret = push_value(&sp, stack_base, 0);
     if (IS_ERR(ret))
@@ -337,6 +341,10 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
     current->fpu_state = initial_fpu_state;
 
     strlcpy(current->comm, comm, sizeof(current->comm));
+    current->arg_start = arg_start;
+    current->arg_end = arg_end;
+    current->env_start = env_start;
+    current->env_end = env_end;
 
     // enter userland
     __asm__ volatile("movw $0x23, %%ax\n"

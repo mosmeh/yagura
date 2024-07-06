@@ -101,6 +101,11 @@ pid_t sys_fork(registers* regs) {
     *child_regs = *regs;
     child_regs->eax = 0; // fork() returns 0 in the child
 
+    process->arg_start = current->arg_start;
+    process->arg_end = current->arg_end;
+    process->env_start = current->env_start;
+    process->env_end = current->env_end;
+
     process->cwd = path_dup(current->cwd);
     if (!process->cwd) {
         rc = -ENOMEM;
