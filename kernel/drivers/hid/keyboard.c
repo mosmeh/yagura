@@ -10,7 +10,7 @@
 
 #define QUEUE_SIZE 128
 
-// en-US
+// Scan code set 1 to en-US
 static const char scancode_to_key[256] = {
     0,   '\x1b', '1',  '2', '3',  '4', '5', '6', '7', '8', '9', '0', '-',
     '=', '\b',   '\t', 'q', 'w',  'e', 'r', 't', 'y', 'u', 'i', 'o', 'p',
@@ -29,7 +29,6 @@ static const char scancode_to_shifted_key[256] = {
     '+', '1',    '2',  '3', '0', '.', 0,   0,   '|'};
 
 static const uint8_t scancode_to_keycode[256] = {
-
     KEYCODE_NONE,
     KEYCODE_ESCAPE,
     KEYCODE_1,
@@ -123,10 +122,10 @@ static const uint8_t scancode_to_keycode[256] = {
     KEYCODE_NONE,
     KEYCODE_SUPER,
     KEYCODE_NONE,
-    KEYCODE_MENU};
+    KEYCODE_MENU,
+};
 
 static const uint8_t scancode_to_shifted_keycode[256] = {
-
     KEYCODE_NONE,
     KEYCODE_ESCAPE,
     KEYCODE_EXCLAIM,
@@ -334,8 +333,6 @@ static bool unblock_read(file_description* desc) {
 
 static ssize_t ps2_keyboard_device_read(file_description* desc, void* buffer,
                                         size_t count) {
-    (void)desc;
-
     for (;;) {
         int rc = file_description_block(desc, unblock_read, 0);
         if (IS_ERR(rc))
@@ -373,10 +370,16 @@ static short ps2_keyboard_device_poll(file_description* desc, short events) {
 }
 
 static struct inode* ps2_keyboard_device_get(void) {
-    static file_ops fops = {.read = ps2_keyboard_device_read,
-                            .poll = ps2_keyboard_device_poll};
+    static file_ops fops = {
+        .read = ps2_keyboard_device_read,
+        .poll = ps2_keyboard_device_poll,
+    };
     static struct inode inode = {
-        .fops = &fops, .mode = S_IFCHR, .rdev = makedev(11, 0), .ref_count = 1};
+        .fops = &fops,
+        .mode = S_IFCHR,
+        .rdev = makedev(11, 0),
+        .ref_count = 1,
+    };
     return &inode;
 }
 
