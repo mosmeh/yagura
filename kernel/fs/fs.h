@@ -125,6 +125,7 @@ NODISCARD int vfs_register_device(const char* name, struct inode* device);
 struct inode* vfs_get_device_by_id(dev_t);
 struct inode* vfs_get_device_by_name(const char* name);
 dev_t vfs_generate_unnamed_device_number(void);
+int vfs_generate_major_device_number(void);
 
 // Return a path even if the last component of the path does not exist.
 // The last component of the returned path will have NULL inode in this case.

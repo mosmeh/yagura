@@ -85,6 +85,22 @@ int main(void) {
     for (size_t i = 0; i < ARRAY_SIZE(device_files); ++i)
         try_mknod(&device_files[i]);
 
+    for (size_t i = 0; i < 256; ++i) {
+        char pathname[16] = "/dev/vd";
+        if (i < 26) {
+            pathname[7] = 'a' + i;
+        } else {
+            pathname[7] = 'a' + i / 26 - 1;
+            pathname[8] = 'a' + i % 26;
+        }
+        struct device_file file = {
+            .pathname = pathname,
+            .mode = S_IFBLK,
+            .dev = makedev(254, i),
+        };
+        try_mknod(&file);
+    }
+
     if (mount("tmpfs", "/tmp", "tmpfs", 0, NULL) < 0)
         perror("mount");
 

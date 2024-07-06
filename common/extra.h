@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ctype.h"
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -75,4 +76,9 @@ static inline bool str_is_uint(const char* s) {
         ++s;
     }
     return true;
+}
+
+static inline void full_memory_barrier(void) {
+    atomic_signal_fence(memory_order_acq_rel);
+    atomic_thread_fence(memory_order_acq_rel);
 }

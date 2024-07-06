@@ -168,6 +168,12 @@ dev_t vfs_generate_unnamed_device_number(void) {
     return makedev(0, id);
 }
 
+int vfs_generate_major_device_number(void) {
+    static int next_major = 254;
+    ASSERT(next_major >= 234);
+    return next_major--;
+}
+
 static bool is_absolute_path(const char* path) {
     return path[0] == PATH_SEPARATOR;
 }

@@ -32,6 +32,8 @@ OBJS := \
 	drivers/pseudo_devices.o \
 	drivers/rtc.o \
 	drivers/serial.o \
+	drivers/virtio/virtio_blk.o \
+	drivers/virtio/virtio.o \
 	exec.o \
 	fs/dentry.o \
 	fs/fifo.o \
