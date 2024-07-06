@@ -12,13 +12,15 @@ int main(void) {
     struct tm tm;
     gmtime_r(&now, &tm);
 
-    static const char* month_names[] = {"Jan", "Feb", "Mar", "Apr",
-                                        "May", "Jun", "Jul", "Aug",
-                                        "Sep", "Oct", "Nov", "Dec"};
+    static const char* month_names[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    };
     printf("      %s %d\nSu Mo Tu We Th Fr Sa\n", month_names[tm.tm_mon],
            tm.tm_year + 1900);
 
-    int wday_of_first_day_of_this_month = tm.tm_wday - (tm.tm_mday - 1) % 7;
+    int wday_of_first_day_of_this_month =
+        (tm.tm_wday - tm.tm_mday + 7 * 5 + 1) % 7;
     for (int i = 0; i < wday_of_first_day_of_this_month; ++i)
         printf("   ");
 
@@ -33,7 +35,7 @@ int main(void) {
         }
     }
     if (wday > 0)
-        puts("");
+        putchar('\n');
 
     return EXIT_SUCCESS;
 }
