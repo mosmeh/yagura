@@ -121,6 +121,30 @@ done:
     return ret;
 }
 
+static int populate_maps(file_description* desc, struct vec* vec) {
+    procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
+    struct process* process = process_find_process_by_pid(node->pid);
+    if (!process)
+        return -ENOENT;
+
+    int ret = 0;
+    struct vm* vm = process->vm;
+    mutex_lock(&vm->lock);
+    struct vm_region* region = vm->regions;
+    while (region) {
+        ret = vec_printf(vec, "%08x-%08x %c%c%c\n", region->start, region->end,
+                         region->flags & VM_READ ? 'r' : '-',
+                         region->flags & VM_WRITE ? 'w' : '-',
+                         region->flags & VM_SHARED ? 's' : 'p');
+        if (IS_ERR(ret))
+            break;
+        region = region->next;
+    }
+    mutex_unlock(&vm->lock);
+    process_unref(process);
+    return ret;
+}
+
 static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
                     pid_t pid) {
     procfs_pid_item_inode* node = kmalloc(sizeof(procfs_pid_item_inode));
@@ -149,6 +173,7 @@ static procfs_item_def pid_items[] = {
     {"comm", S_IFREG, populate_comm},
     {"cwd", S_IFLNK, populate_cwd},
     {"environ", S_IFREG, populate_environ},
+    {"maps", S_IFREG, populate_maps},
 };
 #define NUM_ITEMS ARRAY_SIZE(pid_items)
 
