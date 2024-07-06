@@ -379,13 +379,13 @@ static void test_socket(void) {
     ASSERT_OK(pid1);
     if (pid1 == 0)
         socket_receiver(false);
+    int peer_fd1 = accept(sockfd, NULL, NULL);
+    ASSERT_OK(peer_fd1);
+
     pid_t pid2 = fork();
     ASSERT_OK(pid2);
     if (pid2 == 0)
         socket_receiver(true);
-
-    int peer_fd1 = accept(sockfd, NULL, NULL);
-    ASSERT_OK(peer_fd1);
     int peer_fd2 = accept(sockfd, NULL, NULL);
     ASSERT_OK(peer_fd2);
 
