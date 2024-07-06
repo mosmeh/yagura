@@ -336,7 +336,7 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
     cli();
 
     current->eip = entry_point;
-    current->esp = current->ebp = current->stack_top;
+    current->esp = current->ebp = current->kernel_stack_top;
     current->ebx = current->esi = current->edi = 0;
     current->fpu_state = initial_fpu_state;
 

@@ -80,7 +80,7 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     syscall_init();
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
-    ASSERT_OK(process_spawn_kernel_process("userland_init", userland_init));
+    ASSERT_OK(process_spawn("userland_init", userland_init));
 
     process_exit(0);
 }

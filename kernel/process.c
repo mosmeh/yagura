@@ -18,7 +18,8 @@ static atomic_int next_pid = 1;
 
 struct process* all_processes;
 
-extern unsigned char stack_top[];
+extern unsigned char initial_kernel_stack_base[];
+extern unsigned char initial_kernel_stack_top[];
 
 void process_init(void) {
     __asm__ volatile("fninit");
@@ -35,8 +36,9 @@ void process_init(void) {
     current->state = PROCESS_STATE_RUNNING;
     strlcpy(current->comm, "kernel_init", sizeof(current->comm));
     current->vm = kernel_vm;
-    current->stack_top = (uintptr_t)stack_top;
-    gdt_set_kernel_stack(current->stack_top);
+    current->kernel_stack_base = (uintptr_t)initial_kernel_stack_base;
+    current->kernel_stack_top = (uintptr_t)initial_kernel_stack_top;
+    gdt_set_kernel_stack(current->kernel_stack_top);
 
     current->cwd = vfs_get_root();
     ASSERT_OK(current->cwd);
@@ -44,8 +46,7 @@ void process_init(void) {
     ASSERT_OK(file_descriptor_table_init(&current->fd_table));
 }
 
-struct process* process_create_kernel_process(const char* comm,
-                                              void (*entry_point)(void)) {
+struct process* process_create(const char* comm, void (*entry_point)(void)) {
     struct process* process =
         kaligned_alloc(alignof(struct process), sizeof(struct process));
     if (!process)
@@ -78,8 +79,9 @@ struct process* process_create_kernel_process(const char* comm,
         ret = -ENOMEM;
         goto fail;
     }
-    process->stack_top = (uintptr_t)stack + STACK_SIZE;
-    process->esp = process->ebp = process->stack_top;
+    process->kernel_stack_base = (uintptr_t)stack;
+    process->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
+    process->esp = process->ebp = process->kernel_stack_top;
 
     return process;
 
@@ -91,9 +93,8 @@ fail:
     return ERR_PTR(ret);
 }
 
-pid_t process_spawn_kernel_process(const char* comm,
-                                   void (*entry_point)(void)) {
-    struct process* process = process_create_kernel_process(comm, entry_point);
+pid_t process_spawn(const char* comm, void (*entry_point)(void)) {
+    struct process* process = process_create(comm, entry_point);
     if (IS_ERR(process))
         return PTR_ERR(process);
     pid_t pid = process->pid;
@@ -125,13 +126,13 @@ void process_unref(struct process* process) {
         vm_destroy(process->vm);
     file_descriptor_table_destroy(&process->fd_table);
     path_destroy_recursive(process->cwd);
-    kfree((void*)(process->stack_top - STACK_SIZE));
+    kfree((void*)process->kernel_stack_base);
     kfree(process);
 }
 
 pid_t process_generate_next_pid(void) { return atomic_fetch_add(&next_pid, 1); }
 
-struct process* process_find_process_by_pid(pid_t pid) {
+struct process* process_find_by_pid(pid_t pid) {
     bool int_flag = push_cli();
     struct process* it = all_processes;
     for (; it; it = it->next_in_all_processes) {
@@ -144,7 +145,7 @@ struct process* process_find_process_by_pid(pid_t pid) {
     return it;
 }
 
-struct process* process_find_process_by_ppid(pid_t ppid) {
+struct process* process_find_by_ppid(pid_t ppid) {
     bool int_flag = push_cli();
     struct process* it = all_processes;
     for (; it; it = it->next_in_all_processes) {
@@ -336,7 +337,7 @@ done:
 }
 
 int process_send_signal_to_one(pid_t pid, int signum) {
-    struct process* process = process_find_process_by_pid(pid);
+    struct process* process = process_find_by_pid(pid);
     if (!process)
         return -ESRCH;
     return send_signal(process, signum);

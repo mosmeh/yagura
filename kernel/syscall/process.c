@@ -21,7 +21,7 @@ int sys_setpgid(pid_t pid, pid_t pgid) {
         return -EINVAL;
 
     pid_t target_pid = pid ? pid : current->pid;
-    struct process* target = process_find_process_by_pid(target_pid);
+    struct process* target = process_find_by_pid(target_pid);
     if (!target)
         return -ESRCH;
 
@@ -33,7 +33,7 @@ int sys_setpgid(pid_t pid, pid_t pgid) {
 pid_t sys_getpgid(pid_t pid) {
     if (pid == 0)
         return current->pgid;
-    struct process* process = process_find_process_by_pid(pid);
+    struct process* process = process_find_by_pid(pid);
     if (!process)
         return -ESRCH;
     pid_t pgid = process->pgid;
@@ -69,22 +69,27 @@ pid_t sys_fork(registers* regs) {
         kaligned_alloc(alignof(struct process), sizeof(struct process));
     if (!process)
         return -ENOMEM;
-    *process = (struct process){.ref_count = 1};
+    *process = (struct process){
+        .ppid = current->pid,
+        .pgid = current->pgid,
+        .eip = (uintptr_t)return_to_userland,
+        .ebx = current->ebx,
+        .esi = current->esi,
+        .edi = current->edi,
+        .fpu_state = current->fpu_state,
+        .state = PROCESS_STATE_RUNNABLE,
+        .arg_start = current->arg_start,
+        .arg_end = current->arg_end,
+        .env_start = current->env_start,
+        .env_end = current->env_end,
+        .user_ticks = current->user_ticks,
+        .kernel_ticks = current->kernel_ticks,
+        .ref_count = 1,
+    };
 
     pid_t pid = process_generate_next_pid();
     process->pid = pid;
-    process->ppid = current->pid;
-    process->pgid = current->pgid;
-    process->eip = (uintptr_t)return_to_userland;
-    process->ebx = current->ebx;
-    process->esi = current->esi;
-    process->edi = current->edi;
-    process->fpu_state = current->fpu_state;
-    process->state = PROCESS_STATE_RUNNABLE;
     strlcpy(process->comm, current->comm, sizeof(process->comm));
-
-    process->user_ticks = current->user_ticks;
-    process->kernel_ticks = current->kernel_ticks;
 
     int rc = 0;
     void* stack = kmalloc(STACK_SIZE);
@@ -92,19 +97,15 @@ pid_t sys_fork(registers* regs) {
         rc = -ENOMEM;
         goto fail;
     }
-    process->stack_top = (uintptr_t)stack + STACK_SIZE;
-    process->esp = process->ebp = process->stack_top;
+    process->kernel_stack_base = (uintptr_t)stack;
+    process->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
+    process->esp = process->ebp = process->kernel_stack_top;
 
     // push the argument of return_to_userland()
     process->esp -= sizeof(registers);
     registers* child_regs = (registers*)process->esp;
     *child_regs = *regs;
     child_regs->eax = 0; // fork() returns 0 in the child
-
-    process->arg_start = current->arg_start;
-    process->arg_end = current->arg_end;
-    process->env_start = current->env_start;
-    process->env_end = current->env_end;
 
     process->cwd = path_dup(current->cwd);
     if (!process->cwd) {

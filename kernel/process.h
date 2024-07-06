@@ -23,7 +23,7 @@ struct process {
     char comm[16];
 
     struct vm* vm;
-    uintptr_t stack_top;
+    uintptr_t kernel_stack_base, kernel_stack_top;
     uintptr_t arg_start, arg_end, env_start, env_end;
 
     struct path* cwd;
@@ -50,16 +50,15 @@ extern struct fpu_state initial_fpu_state;
 
 void process_init(void);
 
-struct process* process_create_kernel_process(const char* comm,
-                                              void (*entry_point)(void));
-pid_t process_spawn_kernel_process(const char* comm, void (*entry_point)(void));
+struct process* process_create(const char* comm, void (*entry_point)(void));
+pid_t process_spawn(const char* comm, void (*entry_point)(void));
 
 void process_ref(struct process*);
 void process_unref(struct process*);
 
 pid_t process_generate_next_pid(void);
-struct process* process_find_process_by_pid(pid_t);
-struct process* process_find_process_by_ppid(pid_t ppid);
+struct process* process_find_by_pid(pid_t);
+struct process* process_find_by_ppid(pid_t ppid);
 
 int process_user_execve(const char* pathname, const char* const* user_argv,
                         const char* const* user_envp);

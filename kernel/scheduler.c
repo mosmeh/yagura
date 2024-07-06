@@ -99,7 +99,7 @@ static noreturn void do_idle(void) {
 }
 
 void scheduler_init(void) {
-    idle = process_create_kernel_process("idle", do_idle);
+    idle = process_create("idle", do_idle);
     ASSERT_OK(idle);
 }
 
@@ -112,7 +112,7 @@ static noreturn void switch_to_next_process(void) {
     ASSERT(current->state != PROCESS_STATE_DEAD);
 
     vm_enter(current->vm);
-    gdt_set_kernel_stack(current->stack_top);
+    gdt_set_kernel_stack(current->kernel_stack_top);
 
     process_handle_pending_signals();
 

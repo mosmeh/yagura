@@ -76,7 +76,7 @@ paging_enabled:
   movl $kernel_page_directory_start, %edx
   movl %edx, %cr3
 
-  movl $stack_top, %esp
+  movl $initial_kernel_stack_top, %esp
   pushl %ebx # Multiboot info struct
   pushl %eax # Multiboot magic
 
@@ -92,7 +92,8 @@ read_eip:
   popl %eax
   jmp *%eax
 
+  .globl initial_kernel_stack_base, initial_kernel_stack_top
+initial_kernel_stack_base:
   .section .stack, "aw", @nobits
   .skip STACK_SIZE
-  .globl stack_top
-stack_top:
+initial_kernel_stack_top:

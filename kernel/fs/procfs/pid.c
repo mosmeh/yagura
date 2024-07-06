@@ -25,7 +25,7 @@ typedef struct procfs_pid_item_inode {
 
 static int populate_cmdline(file_description* desc, struct vec* vec) {
     procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
-    struct process* process = process_find_process_by_pid(node->pid);
+    struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
 
@@ -58,7 +58,7 @@ done:
 
 static int populate_comm(file_description* desc, struct vec* vec) {
     procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
-    struct process* process = process_find_process_by_pid(node->pid);
+    struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
 
@@ -72,7 +72,7 @@ static int populate_comm(file_description* desc, struct vec* vec) {
 
 static int populate_cwd(file_description* desc, struct vec* vec) {
     procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
-    struct process* process = process_find_process_by_pid(node->pid);
+    struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
 
@@ -90,7 +90,7 @@ static int populate_cwd(file_description* desc, struct vec* vec) {
 
 static int populate_environ(file_description* desc, struct vec* vec) {
     procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
-    struct process* process = process_find_process_by_pid(node->pid);
+    struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
 
@@ -123,7 +123,7 @@ done:
 
 static int populate_maps(file_description* desc, struct vec* vec) {
     procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
-    struct process* process = process_find_process_by_pid(node->pid);
+    struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
 
@@ -178,7 +178,7 @@ static procfs_item_def pid_items[] = {
 #define NUM_ITEMS ARRAY_SIZE(pid_items)
 
 struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid) {
-    struct process* process = process_find_process_by_pid(pid);
+    struct process* process = process_find_by_pid(pid);
     if (!process)
         return ERR_PTR(-ENOENT);
     process_unref(process);
