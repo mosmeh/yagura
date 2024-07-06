@@ -42,12 +42,12 @@ BIN_TARGET_NAMES := \
 	reboot \
 	rm \
 	rmdir \
-	run-tests \
 	sh \
 	sleep \
 	stat \
 	touch \
 	uname \
+	usertests \
 	wc \
 	xv6-usertests
 OUTDIR := ../base/bin

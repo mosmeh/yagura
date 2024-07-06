@@ -40,7 +40,7 @@ int main(void) {
     ASSERT_OK(mkdir("/dev/shm", 0));
     ASSERT_OK(mount("tmpfs", "/dev/shm", "tmpfs", 0, NULL));
 
-    ASSERT_OK(spawn("/bin/run-tests"));
+    ASSERT_OK(spawn("/bin/usertests"));
     ASSERT_OK(spawn("/bin/xv6-usertests"));
 
     reboot(RB_POWEROFF);
