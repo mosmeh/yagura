@@ -22,6 +22,9 @@ static int populate_comm(file_description* desc, struct vec* vec) {
 
     char comm[sizeof(process->comm)];
     strlcpy(comm, process->comm, sizeof(process->comm));
+
+    process_unref(process);
+
     return vec_printf(vec, "%s\n", comm);
 }
 
@@ -32,10 +35,14 @@ static int populate_cwd(file_description* desc, struct vec* vec) {
         return -ENOENT;
 
     char* cwd = path_to_string(process->cwd);
-    if (!cwd)
+    if (!cwd) {
+        process_unref(process);
         return -ENOMEM;
+    }
+
     int rc = vec_printf(vec, "%s", cwd);
     kfree(cwd);
+    process_unref(process);
     return rc;
 }
 
@@ -72,6 +79,7 @@ struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid) {
     struct process* process = process_find_process_by_pid(pid);
     if (!process)
         return ERR_PTR(-ENOENT);
+    process_unref(process);
 
     procfs_dir_inode* node = kmalloc(sizeof(procfs_dir_inode));
     if (!node)

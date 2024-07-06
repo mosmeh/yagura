@@ -26,6 +26,7 @@ int sys_setpgid(pid_t pid, pid_t pgid) {
         return -ESRCH;
 
     target->pgid = pgid ? pgid : target_pid;
+    process_unref(target);
     return 0;
 }
 
@@ -35,7 +36,9 @@ pid_t sys_getpgid(pid_t pid) {
     struct process* process = process_find_process_by_pid(pid);
     if (!process)
         return -ESRCH;
-    return process->pgid;
+    pid_t pgid = process->pgid;
+    process_unref(process);
+    return pgid;
 }
 
 int sys_sched_yield(void) {
@@ -66,12 +69,10 @@ pid_t sys_fork(registers* regs) {
         kaligned_alloc(alignof(struct process), sizeof(struct process));
     if (!process)
         return -ENOMEM;
-    *process = (struct process){0};
+    *process = (struct process){.ref_count = 1};
 
-    int rc = 0;
-    void* stack = NULL;
-
-    process->pid = process_generate_next_pid();
+    pid_t pid = process_generate_next_pid();
+    process->pid = pid;
     process->ppid = current->pid;
     process->pgid = current->pgid;
     process->eip = (uintptr_t)return_to_userland;
@@ -85,7 +86,8 @@ pid_t sys_fork(registers* regs) {
     process->user_ticks = current->user_ticks;
     process->kernel_ticks = current->kernel_ticks;
 
-    stack = kmalloc(STACK_SIZE);
+    int rc = 0;
+    void* stack = kmalloc(STACK_SIZE);
     if (!stack) {
         rc = -ENOMEM;
         goto fail;
@@ -118,7 +120,7 @@ pid_t sys_fork(registers* regs) {
     }
 
     scheduler_register(process);
-    return process->pid;
+    return pid;
 
 fail:
     vm_destroy(process->vm);
@@ -197,13 +199,20 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
     if (options & ~WNOHANG)
         return -ENOTSUP;
 
-    struct waitpid_blocker blocker = {.param_pid = pid,
-                                      .current_pid = current->pid,
-                                      .current_pgid = current->pgid,
-                                      .waited_process = NULL};
+    struct waitpid_blocker blocker = {
+        .param_pid = pid,
+        .current_pid = current->pid,
+        .current_pgid = current->pgid,
+        .waited_process = NULL,
+    };
     if (options & WNOHANG) {
-        if (!waitpid_should_unblock(&blocker))
-            return blocker.waited_process ? 0 : -ECHILD;
+        if (!waitpid_should_unblock(&blocker)) {
+            if (blocker.waited_process) {
+                process_unref(blocker.waited_process);
+                return 0;
+            }
+            return -ECHILD;
+        }
     } else {
         int rc = scheduler_block((should_unblock_fn)waitpid_should_unblock,
                                  &blocker);
@@ -215,13 +224,9 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
     if (!waited_process)
         return -ECHILD;
 
-    scheduler_unregister(waited_process);
-
     pid_t result = waited_process->pid;
     int wstatus = waited_process->exit_status;
-
-    kfree((void*)(waited_process->stack_top - STACK_SIZE));
-    kfree(waited_process);
+    process_unref(waited_process);
 
     if (user_wstatus) {
         if (!copy_to_user(user_wstatus, &wstatus, sizeof(int)))

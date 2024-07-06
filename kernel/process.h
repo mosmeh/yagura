@@ -39,6 +39,8 @@ struct process {
 
     struct process* next_in_all_processes;
     struct process* next_in_ready_queue;
+
+    atomic_size_t ref_count;
 };
 
 extern struct process* current;
@@ -50,6 +52,9 @@ void process_init(void);
 struct process* process_create_kernel_process(const char* comm,
                                               void (*entry_point)(void));
 pid_t process_spawn_kernel_process(const char* comm, void (*entry_point)(void));
+
+void process_ref(struct process*);
+void process_unref(struct process*);
 
 pid_t process_generate_next_pid(void);
 struct process* process_find_process_by_pid(pid_t);

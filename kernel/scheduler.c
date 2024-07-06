@@ -13,6 +13,7 @@ atomic_uint idle_ticks;
 
 void scheduler_register(struct process* process) {
     ASSERT(process->state == PROCESS_STATE_RUNNABLE);
+    process_ref(process);
 
     bool int_flag = push_cli();
     struct process* prev = NULL;
@@ -31,25 +32,6 @@ void scheduler_register(struct process* process) {
     pop_cli(int_flag);
 
     scheduler_enqueue(process);
-}
-
-void scheduler_unregister(struct process* process) {
-    bool int_flag = push_cli();
-
-    struct process* prev = NULL;
-    for (struct process* it = all_processes; it;) {
-        if (it != process) {
-            prev = it;
-            it = it->next_in_all_processes;
-            continue;
-        }
-        if (prev)
-            prev->next_in_all_processes = it->next_in_all_processes;
-        else
-            all_processes = it->next_in_all_processes;
-    }
-
-    pop_cli(int_flag);
 }
 
 void scheduler_enqueue(struct process* process) {
@@ -101,6 +83,7 @@ static void unblock_processes(void) {
             it->blocker_data = NULL;
             it->blocker_was_interrupted = it->pending_signals != 0;
             it->state = PROCESS_STATE_RUNNING;
+            process_ref(it);
             scheduler_enqueue(it);
         }
     }
@@ -214,6 +197,8 @@ void scheduler_yield(bool requeue_current) {
 
     if (requeue_current)
         scheduler_enqueue(current);
+    else
+        process_unref(current);
 
     switch_to_next_process();
     UNREACHABLE();

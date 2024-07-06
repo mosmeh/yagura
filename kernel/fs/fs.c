@@ -22,12 +22,20 @@ int file_descriptor_table_init(file_descriptor_table* table) {
 }
 
 void file_descriptor_table_destroy(file_descriptor_table* table) {
+    if (!table || !table->entries)
+        return;
+    file_descriptor_table_clear(table);
+    kfree(table->entries);
+}
+
+void file_descriptor_table_clear(file_descriptor_table* table) {
     file_description** it = table->entries;
     for (int i = 0; i < OPEN_MAX; ++i, ++it) {
-        if (*it)
+        if (*it) {
             file_description_close(*it);
+            *it = NULL;
+        }
     }
-    kfree(table->entries);
 }
 
 int file_descriptor_table_clone_from(file_descriptor_table* to,

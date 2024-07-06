@@ -28,8 +28,17 @@ typedef struct file_descriptor_table {
     file_description** entries;
 } file_descriptor_table;
 
+// Initializes the file descriptor table in place.
 NODISCARD int file_descriptor_table_init(file_descriptor_table*);
+
+// Destroys the file descriptor table by closing all file descriptions and
+// freeing memory.
 void file_descriptor_table_destroy(file_descriptor_table*);
+
+// Clears the file descriptor table by closing all file descriptions.
+void file_descriptor_table_clear(file_descriptor_table*);
+
+// Clones the file descriptor table from another table.
 NODISCARD int
 file_descriptor_table_clone_from(file_descriptor_table* to,
                                  const file_descriptor_table* from);

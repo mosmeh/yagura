@@ -29,7 +29,7 @@ void process_init(void) {
 
     current = kaligned_alloc(alignof(struct process), sizeof(struct process));
     ASSERT(current);
-    *current = (struct process){0};
+    *current = (struct process){.ref_count = 1};
 
     current->fpu_state = initial_fpu_state;
     current->state = PROCESS_STATE_RUNNING;
@@ -50,7 +50,7 @@ struct process* process_create_kernel_process(const char* comm,
         kaligned_alloc(alignof(struct process), sizeof(struct process));
     if (!process)
         return ERR_PTR(-ENOMEM);
-    *process = (struct process){0};
+    *process = (struct process){.ref_count = 1};
 
     process->eip = (uintptr_t)entry_point;
     process->fpu_state = initial_fpu_state;
@@ -96,8 +96,37 @@ pid_t process_spawn_kernel_process(const char* comm,
     struct process* process = process_create_kernel_process(comm, entry_point);
     if (IS_ERR(process))
         return PTR_ERR(process);
+    pid_t pid = process->pid;
     scheduler_register(process);
-    return process->pid;
+    return pid;
+}
+
+void process_ref(struct process* process) {
+    ASSERT(process);
+    ++process->ref_count;
+}
+
+void process_unref(struct process* process) {
+    if (!process)
+        return;
+    ASSERT(process->ref_count > 0);
+    if (--process->ref_count > 0)
+        return;
+
+    if (process->pid == 0) {
+        // struct process is usually freed in a context of its parent process,
+        // but the initial process is not a child of any process. Just leak it.
+        return;
+    }
+
+    ASSERT(process != current);
+
+    if (process->vm != kernel_vm)
+        vm_destroy(process->vm);
+    file_descriptor_table_destroy(&process->fd_table);
+    path_destroy_recursive(process->cwd);
+    kfree((void*)(process->stack_top - STACK_SIZE));
+    kfree(process);
 }
 
 pid_t process_generate_next_pid(void) { return atomic_fetch_add(&next_pid, 1); }
@@ -109,6 +138,8 @@ struct process* process_find_process_by_pid(pid_t pid) {
         if (it->pid == pid)
             break;
     }
+    if (it)
+        process_ref(it);
     pop_cli(int_flag);
     return it;
 }
@@ -120,6 +151,8 @@ struct process* process_find_process_by_ppid(pid_t ppid) {
         if (it->ppid == ppid)
             break;
     }
+    if (it)
+        process_ref(it);
     pop_cli(int_flag);
     return it;
 }
@@ -129,24 +162,17 @@ static noreturn void die(void) {
         PANIC("init process exited");
 
     sti();
-    if (current->vm != kernel_vm)
-        vm_destroy(current->vm);
-    file_descriptor_table_destroy(&current->fd_table);
-    path_destroy_recursive(current->cwd);
+    file_descriptor_table_clear(&current->fd_table);
 
     cli();
-    {
-        struct process* it = all_processes;
-        while (it) {
-            // Orphaned child process is adopted by init process.
-            if (it->ppid == current->pid)
-                it->ppid = 1;
-            it = it->next_in_all_processes;
-        }
+    struct process* it = all_processes;
+    while (it) {
+        // Orphaned child process is adopted by init process.
+        if (it->ppid == current->pid)
+            it->ppid = 1;
+        it = it->next_in_all_processes;
     }
-
     current->state = PROCESS_STATE_DEAD;
-
     scheduler_yield(false);
     UNREACHABLE();
 }
@@ -281,8 +307,11 @@ static int get_default_disposition_for_signal(int signum) {
 }
 
 static int send_signal(struct process* process, int signum) {
-    if (signum < 0 || NSIG <= signum)
-        return -EINVAL;
+    int ret = 0;
+    if (signum < 0 || NSIG <= signum) {
+        ret = -EINVAL;
+        goto done;
+    }
 
     int disp = get_default_disposition_for_signal(signum);
     switch (disp) {
@@ -290,7 +319,7 @@ static int send_signal(struct process* process, int signum) {
     case DISP_CORE:
         break;
     case DISP_IGN:
-        return 0;
+        goto done;
     case DISP_STOP:
     case DISP_CONT:
         UNIMPLEMENTED();
@@ -300,7 +329,10 @@ static int send_signal(struct process* process, int signum) {
 
     if (process == current)
         process_handle_pending_signals();
-    return 0;
+
+done:
+    process_unref(process);
+    return ret;
 }
 
 int process_send_signal_to_one(pid_t pid, int signum) {
@@ -316,6 +348,7 @@ int process_send_signal_to_group(pid_t pgid, int signum) {
          it = it->next_in_all_processes) {
         if (it->pgid != pgid)
             continue;
+        process_ref(it);
         int rc = send_signal(it, signum);
         if (IS_ERR(rc)) {
             pop_cli(int_flag);
@@ -332,6 +365,7 @@ int process_send_signal_to_all(int signum) {
          it = it->next_in_all_processes) {
         if (it->pid <= 1)
             continue;
+        process_ref(it);
         int rc = send_signal(it, signum);
         if (IS_ERR(rc)) {
             pop_cli(int_flag);
