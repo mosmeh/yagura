@@ -125,6 +125,10 @@ static void handle_ground(struct vt* vt, char c) {
         break;
     case '\n':
         set_cursor(vt, 0, vt->cursor_y + 1);
+        if (vt->cursor_y >= vt->num_rows) {
+            scroll_up(vt);
+            set_cursor(vt, vt->cursor_x, vt->num_rows - 1);
+        }
         break;
     case '\b':
         if (vt->cursor_x > 0)
