@@ -28,7 +28,7 @@ OBJS := \
 	drivers/hid/ps2.o \
 	drivers/pci.o \
 	drivers/pit.o \
-	drivers/pseudo_device.o \
+	drivers/pseudo_devices.o \
 	drivers/rtc.o \
 	drivers/serial.o \
 	exec.o \

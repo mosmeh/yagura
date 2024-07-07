@@ -71,6 +71,7 @@ int main(void) {
         {"/dev/full", S_IFCHR, makedev(1, 7)},
         {"/dev/random", S_IFCHR, makedev(1, 8)},
         {"/dev/urandom", S_IFCHR, makedev(1, 9)},
+        {"/dev/kmsg", S_IFCHR, makedev(1, 11)},
         {"/dev/ttyS0", S_IFCHR, makedev(4, 64)},
         {"/dev/ttyS1", S_IFCHR, makedev(4, 65)},
         {"/dev/ttyS2", S_IFCHR, makedev(4, 66)},
