@@ -16,6 +16,7 @@ BIN_TARGET_NAMES := \
 	env \
 	eyes \
 	fib \
+	getty \
 	grep \
 	halt \
 	hexdump \

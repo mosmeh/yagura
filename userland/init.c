@@ -9,7 +9,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static pid_t spawn(char* filename) {
+static pid_t do_spawn(char* filename, char* const argv[]) {
     pid_t pid = fork();
     if (pid < 0) {
         perror("fork");
@@ -21,7 +21,6 @@ static pid_t spawn(char* filename) {
             abort();
         }
 
-        char* argv[] = {filename, NULL};
         static char* envp[] = {"PATH=/bin", "HOME=/root", NULL};
         if (execve(filename, argv, envp) < 0) {
             perror("execve");
@@ -31,27 +30,39 @@ static pid_t spawn(char* filename) {
     return pid;
 }
 
+static pid_t spawn(char* filename) {
+    return do_spawn(filename, (char*[]){filename, NULL});
+}
+
+static pid_t spawn_getty(char* tty) {
+    static char* filename = "/bin/getty";
+    return do_spawn(filename, (char*[]){filename, tty, NULL});
+}
+
 struct device_file {
-    const char* pathname;
+    char* pathname;
     mode_t mode;
     dev_t dev;
 };
 
-static void try_mknod(const struct device_file* file) {
+static bool try_mknod(const struct device_file* file) {
     if (mknod(file->pathname, file->mode, file->dev) < 0) {
         perror("mknod");
-        return;
+        return false;
     }
 
-    int rc = open(file->pathname, 0);
-    if (rc >= 0)
-        return;
+    int fd = open(file->pathname, 0);
+    if (fd >= 0) {
+        close(fd);
+        return true;
+    }
     if (errno != ENODEV) {
         perror("open");
-        return;
+        return false;
     }
     if (unlink(file->pathname) < 0)
         perror("unlink");
+    return false;
 }
 
 int main(void) {
@@ -65,18 +76,16 @@ int main(void) {
     ASSERT_OK(dup2(fd, STDOUT_FILENO));
     ASSERT_OK(dup2(fd, STDERR_FILENO));
 
-    const struct device_file device_files[] = {
+    if (chdir("/root") < 0)
+        perror("chdir");
+
+    static const struct device_file device_files[] = {
         {"/dev/null", S_IFCHR, makedev(1, 3)},
         {"/dev/zero", S_IFCHR, makedev(1, 5)},
         {"/dev/full", S_IFCHR, makedev(1, 7)},
         {"/dev/random", S_IFCHR, makedev(1, 8)},
         {"/dev/urandom", S_IFCHR, makedev(1, 9)},
         {"/dev/kmsg", S_IFCHR, makedev(1, 11)},
-        {"/dev/ttyS0", S_IFCHR, makedev(4, 64)},
-        {"/dev/ttyS1", S_IFCHR, makedev(4, 65)},
-        {"/dev/ttyS2", S_IFCHR, makedev(4, 66)},
-        {"/dev/ttyS3", S_IFCHR, makedev(4, 67)},
-        {"/dev/tty", S_IFCHR, makedev(5, 0)},
         {"/dev/psaux", S_IFCHR, makedev(10, 1)},
         {"/dev/kbd", S_IFCHR, makedev(11, 0)},
         {"/dev/dsp", S_IFCHR, makedev(14, 3)},
@@ -84,6 +93,30 @@ int main(void) {
     };
     for (size_t i = 0; i < ARRAY_SIZE(device_files); ++i)
         try_mknod(&device_files[i]);
+
+    for (size_t i = 0; i < 64; ++i) {
+        char pathname[16];
+        (void)sprintf(pathname, "/dev/tty%u", i);
+        struct device_file file = {
+            .pathname = pathname,
+            .mode = S_IFCHR,
+            .dev = makedev(4, i),
+        };
+        if (try_mknod(&file))
+            spawn_getty(pathname);
+    }
+
+    for (size_t i = 0; i < 4; ++i) {
+        char pathname[16] = "/dev/ttyS";
+        pathname[9] = '0' + i;
+        struct device_file file = {
+            .pathname = pathname,
+            .mode = S_IFCHR,
+            .dev = makedev(4, 64 + i),
+        };
+        if (try_mknod(&file))
+            spawn_getty(pathname);
+    }
 
     for (size_t i = 0; i < 256; ++i) {
         char pathname[16] = "/dev/vd";
@@ -112,22 +145,14 @@ int main(void) {
     if (mount("proc", "/proc", "proc", 0, NULL) < 0)
         perror("mount");
 
-    if (chdir("/root") < 0)
-        perror("chdir");
-
     pid_t pid = spawn("/bin/moused");
     if (pid > 0) {
         waitpid(pid, NULL, 0);
         spawn("/bin/mouse-cursor");
     }
 
-    for (;;) {
-        pid = spawn("/bin/sh");
-        if (pid < 0)
-            continue;
-        while (waitpid(-1, NULL, 0) != pid)
-            ;
-    }
+    for (;;)
+        waitpid(-1, NULL, 0); // Reap zombies
 
     UNREACHABLE();
 }
