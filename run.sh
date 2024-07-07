@@ -13,11 +13,11 @@ case "$1" in
         ;;
     text) # Text console
         QEMU_DISPLAY_ARGS=(-display "sdl,gl=off" -vga cirrus)
-        CMDLINE+=(console=tty)
+        CMDLINE+=(console=tty1)
         ;;
     *) # Framebuffer console
         QEMU_DISPLAY_ARGS=(-display "sdl,gl=off,show-cursor=off")
-        CMDLINE+=(console=tty)
+        CMDLINE+=(console=tty1)
         ;;
 esac
 

@@ -12,5 +12,12 @@ void system_console_init(void);
 void tty_maybe_send_signal(pid_t pgid, char ch);
 
 struct vt* vt_create(struct screen*);
-void vt_on_char(struct vt*, char);
+
+// Inputs into the vt.
+void vt_write(struct vt*, const char* buf, size_t count);
+
+// Invalidates the entire screen, forcing a redraw on the next flush.
+void vt_invalidate_all(struct vt*);
+
+// Flushes the updates to the screen.
 void vt_flush(struct vt*);

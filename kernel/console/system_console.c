@@ -51,7 +51,7 @@ static struct inode* system_console_device_get(void) {
 void system_console_init(void) {
     const char* console = cmdline_lookup("console");
     if (!console)
-        console = "tty";
+        console = "tty1";
 
     struct inode* device = vfs_get_device_by_name(console);
     if (!device) {

@@ -47,6 +47,7 @@ struct vt {
 
     struct cell* cells;
     bool* line_is_dirty;
+    bool cursor_is_dirty;
     bool clear_on_flush;
 };
 
@@ -56,7 +57,7 @@ static void set_cursor(struct vt* vt, size_t x, size_t y) {
     vt->line_is_dirty[y] = true;
     vt->cursor_x = x;
     vt->cursor_y = y;
-    vt->screen->set_cursor(vt->screen, x, y, vt->is_cursor_visible);
+    vt->cursor_is_dirty = true;
 }
 
 static void clear_line_at(struct vt* vt, size_t x, size_t y, size_t length) {
@@ -98,6 +99,12 @@ void vt_flush(struct vt* vt) {
         vt->clear_on_flush = false;
     }
 
+    if (vt->cursor_is_dirty) {
+        vt->screen->set_cursor(vt->screen, vt->cursor_x, vt->cursor_y,
+                               vt->is_cursor_visible);
+        vt->cursor_is_dirty = false;
+    }
+
     struct cell* row_cells = vt->cells;
     bool* dirty = vt->line_is_dirty;
     for (size_t y = 0; y < vt->num_rows; ++y) {
@@ -113,6 +120,13 @@ void vt_flush(struct vt* vt) {
         row_cells += vt->num_columns;
         ++dirty;
     }
+}
+
+void vt_invalidate_all(struct vt* vt) {
+    for (size_t y = 0; y < vt->num_rows; ++y)
+        vt->line_is_dirty[y] = true;
+    vt->cursor_is_dirty = true;
+    vt->clear_on_flush = true;
 }
 
 static void handle_ground(struct vt* vt, char c) {
@@ -351,8 +365,7 @@ static void handle_csi_dectcem(struct vt* vt, char c) {
         return;
     }
     vt->line_is_dirty[vt->cursor_y] = true;
-    vt->screen->set_cursor(vt->screen, vt->cursor_x, vt->cursor_y,
-                           vt->is_cursor_visible);
+    vt->cursor_is_dirty = true;
 }
 
 static void handle_state_csi(struct vt* vt, char c) {
@@ -399,7 +412,7 @@ static void handle_state_csi(struct vt* vt, char c) {
     vt->state = STATE_GROUND;
 }
 
-void vt_on_char(struct vt* vt, char c) {
+static void on_char(struct vt* vt, char c) {
     switch (vt->state) {
     case STATE_GROUND:
         handle_ground(vt, c);
@@ -412,6 +425,11 @@ void vt_on_char(struct vt* vt, char c) {
         return;
     }
     UNREACHABLE();
+}
+
+void vt_write(struct vt* vt, const char* buf, size_t count) {
+    for (size_t i = 0; i < count; ++i)
+        on_char(vt, buf[i]);
 }
 
 struct vt* vt_create(struct screen* screen) {
