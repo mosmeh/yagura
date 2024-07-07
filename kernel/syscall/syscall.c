@@ -28,14 +28,18 @@ int sys_reboot(int howto) {
 
 long sys_sysconf(int name) {
     switch (name) {
+    case _SC_ARG_MAX:
+        return ARG_MAX;
+    case _SC_CLK_TCK:
+        return CLK_TCK;
     case _SC_MONOTONIC_CLOCK:
         return 1;
     case _SC_OPEN_MAX:
         return OPEN_MAX;
     case _SC_PAGESIZE:
         return PAGE_SIZE;
-    case _SC_CLK_TCK:
-        return CLK_TCK;
+    case _SC_SYMLOOP_MAX:
+        return SYMLOOP_MAX;
     default:
         return -EINVAL;
     }
