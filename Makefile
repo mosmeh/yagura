@@ -31,7 +31,7 @@ $(SUBDIRS):
 
 disk_image: kernel initrd
 	cp kernel/kernel initrd disk/boot
-	grub-mkrescue -o '$@' disk
+	grub-mkrescue -o '$@' disk -d /usr/lib/grub/i386-pc
 
 clean:
 	for dir in $(SUBDIRS); do $(MAKE) -C $$dir $@; done
