@@ -104,7 +104,7 @@ static uint8_t buffer_descriptor_list_idx = 0;
 
 static bool can_write(void) { return !buffer_descriptor_list_is_full; }
 
-static bool write_should_unblock(file_description* desc) {
+static bool unblock_write(file_description* desc) {
     (void)desc;
     return can_write();
 }
@@ -140,7 +140,7 @@ static int write_single_buffer(file_description* desc, const void* buffer,
             break;
 
         buffer_descriptor_list_is_full = true;
-        int rc = file_description_block(desc, write_should_unblock);
+        int rc = file_description_block(desc, unblock_write, 0);
         if (IS_ERR(rc)) {
             pop_cli(int_flag);
             return rc;

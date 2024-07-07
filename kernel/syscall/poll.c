@@ -14,7 +14,7 @@ struct poll_blocker {
     size_t num_events;
 };
 
-static bool poll_should_unblock(struct poll_blocker* blocker) {
+static bool unblock_poll(struct poll_blocker* blocker) {
     if (blocker->has_timeout) {
         struct timespec now;
         time_now(&now);
@@ -87,7 +87,7 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
         blocker.deadline = deadline;
     }
 
-    ret = scheduler_block((should_unblock_fn)poll_should_unblock, &blocker);
+    ret = scheduler_block((unblock_fn)unblock_poll, &blocker, 0);
     if (IS_ERR(ret))
         goto exit;
 

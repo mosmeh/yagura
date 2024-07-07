@@ -15,5 +15,11 @@ void scheduler_register(struct process*);
 void scheduler_enqueue(struct process*);
 void scheduler_tick(bool in_kernel);
 
-typedef bool (*should_unblock_fn)(void*);
-NODISCARD int scheduler_block(should_unblock_fn should_unblock, void* data);
+#define BLOCK_UNINTERRUPTIBLE 1
+
+// Returns true if the process should be unblocked.
+typedef bool (*unblock_fn)(void*);
+
+// Blocks the current process until the unblock function returns true.
+// Returns -EINTR if the process was interrupted.
+NODISCARD int scheduler_block(unblock_fn, void* data, int flags);

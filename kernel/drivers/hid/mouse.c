@@ -63,17 +63,15 @@ static bool can_read(void) {
     return ret;
 }
 
-static bool read_should_unblock(file_description* desc) {
+static bool unblock_read(file_description* desc) {
     (void)desc;
     return can_read();
 }
 
 static ssize_t ps2_mouse_device_read(file_description* desc, void* buffer,
                                      size_t count) {
-    (void)desc;
-
     for (;;) {
-        int rc = file_description_block(desc, read_should_unblock);
+        int rc = file_description_block(desc, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 

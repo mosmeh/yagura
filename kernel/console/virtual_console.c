@@ -73,7 +73,7 @@ static bool can_read(void) {
     return ret;
 }
 
-static bool read_should_unblock(file_description* desc) {
+static bool unblock_read(file_description* desc) {
     (void)desc;
     return can_read();
 }
@@ -81,7 +81,7 @@ static bool read_should_unblock(file_description* desc) {
 static ssize_t virtual_console_device_read(file_description* desc, void* buffer,
                                            size_t count) {
     for (;;) {
-        int rc = file_description_block(desc, read_should_unblock);
+        int rc = file_description_block(desc, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 

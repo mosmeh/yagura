@@ -111,7 +111,8 @@ NODISCARD int file_description_getdents(file_description*, getdents_callback_fn,
 NODISCARD short file_description_poll(file_description*, short events);
 
 NODISCARD int file_description_block(file_description*,
-                                     bool (*should_unblock)(file_description*));
+                                     bool (*unblock)(file_description*),
+                                     int flags);
 
 void vfs_init(void);
 void vfs_populate_root_fs(const multiboot_module_t* initrd_mod);

@@ -53,7 +53,7 @@ static ssize_t serial_console_device_read(file_description* desc, void* buffer,
     serial_console_device* dev = (serial_console_device*)desc->inode;
 
     for (;;) {
-        int rc = file_description_block(desc, can_read);
+        int rc = file_description_block(desc, can_read, 0);
         if (IS_ERR(rc))
             return rc;
 

@@ -319,10 +319,10 @@ NODISCARD short file_description_poll(file_description* desc, short events) {
 }
 
 int file_description_block(file_description* desc,
-                           bool (*should_unblock)(file_description*)) {
-    if ((desc->flags & O_NONBLOCK) && !should_unblock(desc))
+                           bool (*unblock)(file_description*), int flags) {
+    if ((desc->flags & O_NONBLOCK) && !unblock(desc))
         return -EAGAIN;
-    return scheduler_block((should_unblock_fn)should_unblock, desc);
+    return scheduler_block((unblock_fn)unblock, desc, flags);
 }
 
 uint8_t mode_to_dirent_type(mode_t mode) {

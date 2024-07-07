@@ -21,7 +21,7 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec* user_tp) {
     }
 }
 
-static bool sleep_should_unblock(const struct timespec* deadline) {
+static bool unblock_sleep(const struct timespec* deadline) {
     struct timespec now;
     time_now(&now);
     return timespec_compare(&now, deadline) >= 0;
@@ -56,8 +56,7 @@ int sys_clock_nanosleep(clockid_t clockid, int flags,
         return -EINVAL;
     }
 
-    int rc =
-        scheduler_block((should_unblock_fn)sleep_should_unblock, &deadline);
+    int rc = scheduler_block((unblock_fn)unblock_sleep, &deadline, 0);
     if (IS_ERR(rc))
         return rc;
     if (user_remain && flags != TIMER_ABSTIME) {

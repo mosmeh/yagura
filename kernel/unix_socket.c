@@ -43,7 +43,7 @@ static ring_buf* buf_to_write(file_description* desc) {
                               : &socket->to_connector_buf;
 }
 
-static bool read_should_unblock(file_description* desc) {
+static bool is_readable(file_description* desc) {
     if (!is_open_for_reading(desc))
         return true;
     ring_buf* buf = buf_to_read(desc);
@@ -58,7 +58,7 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
 
     ring_buf* buf = buf_to_read(desc);
     for (;;) {
-        int rc = file_description_block(desc, read_should_unblock);
+        int rc = file_description_block(desc, is_readable, 0);
         if (IS_ERR(rc))
             return rc;
 
@@ -75,7 +75,7 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
     }
 }
 
-static bool write_should_unblock(file_description* desc) {
+static bool is_writable(file_description* desc) {
     unix_socket* socket = (unix_socket*)desc->inode;
     if (is_connector(desc)) {
         if (!socket->is_open_for_writing_to_acceptor)
@@ -95,7 +95,7 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
 
     ring_buf* buf = buf_to_write(desc);
     for (;;) {
-        int rc = file_description_block(desc, write_should_unblock);
+        int rc = file_description_block(desc, is_writable, 0);
         if (IS_ERR(rc))
             return rc;
 
@@ -120,13 +120,13 @@ static short unix_socket_poll(file_description* desc, short events) {
     unix_socket* socket = (unix_socket*)desc->inode;
     short revents = 0;
     if (events & POLLIN) {
-        bool can_read = socket->is_connected ? read_should_unblock(desc)
-                                             : socket->num_pending > 0;
+        bool can_read =
+            socket->is_connected ? is_readable(desc) : socket->num_pending > 0;
         if (can_read)
             revents |= POLLIN;
     }
     if (events & POLLOUT) {
-        bool can_write = socket->is_connected && write_should_unblock(desc);
+        bool can_write = socket->is_connected && is_writable(desc);
         if (can_write)
             revents |= POLLOUT;
     }
@@ -206,7 +206,7 @@ int unix_socket_listen(unix_socket* socket, int backlog) {
     return 0;
 }
 
-static bool accept_should_unblock(file_description* desc) {
+static bool is_acceptable(file_description* desc) {
     unix_socket* socket = (unix_socket*)desc->inode;
     return socket->num_pending > 0;
 }
@@ -224,7 +224,7 @@ unix_socket* unix_socket_accept(file_description* desc) {
         return ERR_PTR(-EINVAL);
 
     for (;;) {
-        int rc = file_description_block(desc, accept_should_unblock);
+        int rc = file_description_block(desc, is_acceptable, 0);
         if (IS_ERR(rc))
             return ERR_PTR(rc);
 
@@ -250,7 +250,7 @@ unix_socket* unix_socket_accept(file_description* desc) {
     }
 }
 
-static bool connect_should_unblock(file_description* desc) {
+static bool is_connectable(file_description* desc) {
     unix_socket* connector = (unix_socket*)desc->inode;
     return connector->is_connected;
 }
@@ -307,7 +307,7 @@ int unix_socket_connect(file_description* desc, struct inode* addr_inode) {
     mutex_unlock(&listener->lock);
     mutex_unlock(&connector->lock);
 
-    return file_description_block(desc, connect_should_unblock);
+    return file_description_block(desc, is_connectable, 0);
 }
 
 int unix_socket_shutdown(file_description* desc, int how) {

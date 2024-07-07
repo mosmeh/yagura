@@ -2,6 +2,7 @@
 
 #include "fs/fs.h"
 #include "memory/memory.h"
+#include "scheduler.h"
 #include "system.h"
 #include <common/extra.h>
 #include <stdnoreturn.h>
@@ -29,9 +30,10 @@ struct process {
     struct path* cwd;
     file_descriptor_table fd_table;
 
-    bool (*should_unblock)(void*);
-    void* blocker_data;
-    bool blocker_was_interrupted;
+    unblock_fn unblock;
+    void* block_data;
+    int block_flags;
+    bool block_was_interrupted;
 
     size_t user_ticks;
     size_t kernel_ticks;

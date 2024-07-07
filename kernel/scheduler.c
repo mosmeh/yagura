@@ -77,11 +77,14 @@ static void unblock_processes(void) {
         if (it->state != PROCESS_STATE_BLOCKED)
             continue;
 
-        ASSERT(it->should_unblock);
-        if (it->pending_signals || it->should_unblock(it->blocker_data)) {
-            it->should_unblock = NULL;
-            it->blocker_data = NULL;
-            it->blocker_was_interrupted = it->pending_signals != 0;
+        ASSERT(it->unblock);
+        bool interrupted =
+            it->pending_signals && !(it->block_flags & BLOCK_UNINTERRUPTIBLE);
+        if (interrupted || it->unblock(it->block_data)) {
+            it->unblock = NULL;
+            it->block_data = NULL;
+            it->block_flags = 0;
+            it->block_was_interrupted = interrupted;
             it->state = PROCESS_STATE_RUNNING;
             process_ref(it);
             scheduler_enqueue(it);
@@ -213,23 +216,25 @@ void scheduler_tick(bool in_kernel) {
     scheduler_yield(true);
 }
 
-int scheduler_block(bool (*should_unblock)(void*), void* data) {
-    ASSERT(!current->should_unblock);
-    ASSERT(!current->blocker_data);
+int scheduler_block(unblock_fn unblock, void* data, int flags) {
+    ASSERT(!current->unblock);
+    ASSERT(!current->block_data);
+    current->block_flags = 0;
+    current->block_was_interrupted = false;
 
-    if (should_unblock(data))
+    if (unblock(data))
         return 0;
 
     bool int_flag = push_cli();
 
     current->state = PROCESS_STATE_BLOCKED;
-    current->should_unblock = should_unblock;
-    current->blocker_data = data;
-    current->blocker_was_interrupted = false;
+    current->unblock = unblock;
+    current->block_data = data;
+    current->block_flags = flags;
 
     scheduler_yield(false);
 
     pop_cli(int_flag);
 
-    return current->blocker_was_interrupted ? -EINTR : 0;
+    return current->block_was_interrupted ? -EINTR : 0;
 }

@@ -153,7 +153,7 @@ struct waitpid_blocker {
     struct process* waited_process;
 };
 
-static bool waitpid_should_unblock(struct waitpid_blocker* blocker) {
+static bool unblock_waitpid(struct waitpid_blocker* blocker) {
     bool int_flag = push_cli();
 
     struct process* prev = NULL;
@@ -212,7 +212,7 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
         .waited_process = NULL,
     };
     if (options & WNOHANG) {
-        if (!waitpid_should_unblock(&blocker)) {
+        if (!unblock_waitpid(&blocker)) {
             if (blocker.waited_process) {
                 process_unref(blocker.waited_process);
                 return 0;
@@ -220,8 +220,7 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
             return -ECHILD;
         }
     } else {
-        int rc = scheduler_block((should_unblock_fn)waitpid_should_unblock,
-                                 &blocker);
+        int rc = scheduler_block((unblock_fn)unblock_waitpid, &blocker, 0);
         if (IS_ERR(rc))
             return rc;
     }

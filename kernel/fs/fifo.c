@@ -21,7 +21,7 @@ static void fifo_destroy_inode(struct inode* inode) {
     kfree(fifo);
 }
 
-static bool open_should_unblock(file_description* desc) {
+static bool unblock_open(file_description* desc) {
     const struct fifo* fifo = (const struct fifo*)desc->inode;
     return (desc->flags & O_RDONLY) ? fifo->num_writers > 0
                                     : fifo->num_readers > 0;
@@ -44,7 +44,7 @@ static int fifo_open(file_description* desc, mode_t mode) {
         return 0;
     }
 
-    int rc = file_description_block(desc, open_should_unblock);
+    int rc = file_description_block(desc, unblock_open, 0);
     if (rc == -EAGAIN && (desc->flags & O_WRONLY))
         return -ENXIO;
     return rc;
@@ -60,7 +60,7 @@ static int fifo_close(file_description* desc) {
     return 0;
 }
 
-static bool read_should_unblock(file_description* desc) {
+static bool unblock_read(file_description* desc) {
     const struct fifo* fifo = (const struct fifo*)desc->inode;
     return fifo->num_writers == 0 || !ring_buf_is_empty(&fifo->buf);
 }
@@ -70,7 +70,7 @@ static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
     ring_buf* buf = &fifo->buf;
 
     for (;;) {
-        int rc = file_description_block(desc, read_should_unblock);
+        int rc = file_description_block(desc, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 
@@ -88,7 +88,7 @@ static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
     }
 }
 
-static bool write_should_unblock(file_description* desc) {
+static bool unblock_write(file_description* desc) {
     const struct fifo* fifo = (const struct fifo*)desc->inode;
     return fifo->num_readers == 0 || !ring_buf_is_full(&fifo->buf);
 }
@@ -99,7 +99,7 @@ static ssize_t fifo_write(file_description* desc, const void* buffer,
     ring_buf* buf = &fifo->buf;
 
     for (;;) {
-        int rc = file_description_block(desc, write_should_unblock);
+        int rc = file_description_block(desc, unblock_write, 0);
         if (IS_ERR(rc))
             return rc;
 
