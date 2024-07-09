@@ -1,4 +1,5 @@
 #include "console_private.h"
+#include "screen/screen.h"
 #include <common/stdlib.h>
 #include <common/string.h>
 #include <kernel/memory/memory.h>
@@ -439,7 +440,7 @@ struct vt* vt_create(struct screen* screen) {
 
     struct vt* vt = kmalloc(sizeof(struct vt));
     if (!vt)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
 
     *vt = (struct vt){
         .screen = screen,
@@ -467,5 +468,5 @@ fail:
     kfree(vt->line_is_dirty);
     kfree(vt->cells);
     kfree(vt);
-    return NULL;
+    return ERR_PTR(-ENOMEM);
 }

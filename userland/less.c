@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <termios.h>
 #include <unistd.h>
 
 static void print_one_page(const char* buf, struct winsize winsize,
@@ -114,6 +115,18 @@ int main(int argc, char* argv[]) {
         ++column;
     }
 
+    struct termios default_termios;
+    if (tcgetattr(STDIN_FILENO, &default_termios) < 0) {
+        perror("tcgetattr");
+        goto fail;
+    }
+    struct termios termios = default_termios;
+    termios.c_lflag &= ~(ICANON | ECHO);
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &termios) < 0) {
+        perror("tcsetattr");
+        goto fail;
+    }
+
     printf("\x1b[2J"); // Clear screen
 
     size_t page_height = winsize.ws_row - 1;
@@ -182,6 +195,8 @@ int main(int argc, char* argv[]) {
 done:
     ret = EXIT_SUCCESS;
 fail:
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &default_termios) < 0)
+        perror("tcsetattr");
     free(buf);
     if (fd >= 0)
         close(fd);

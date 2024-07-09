@@ -61,3 +61,5 @@ ssize_t ring_buf_write_evicting_oldest(ring_buf* b, const void* bytes,
     }
     return nwritten;
 }
+
+void ring_buf_clear(ring_buf* b) { b->write_index = b->read_index = 0; }

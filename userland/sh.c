@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <termios.h>
 #include <unistd.h>
 
 #define BUF_SIZE 1024
@@ -21,6 +22,8 @@ struct history_entry {
 };
 
 struct line_editor {
+    struct termios default_termios;
+
     char input_buf[BUF_SIZE];
     size_t input_len;
     size_t cursor;
@@ -227,8 +230,8 @@ static void handle_ground(struct line_editor* ed, char c) {
     case 'N' - '@': // ^N
         on_down(ed);
         return;
-    case '\b':
-    case '\x7f': // ^H
+    case '\b': // ^H
+    case '\x7f':
         if (ed->cursor == 0)
             return;
         memmove(ed->input_buf + ed->cursor - 1, ed->input_buf + ed->cursor,
@@ -360,6 +363,13 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
 
     size_t prompt_len = strlen(cwd_buf) + 3;
 
+    struct termios termios = ed->default_termios;
+    termios.c_lflag &= ~(ICANON | ECHO);
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &termios) < 0) {
+        perror("tcsetattr");
+        return NULL;
+    }
+
     for (;;) {
         if (ed->dirty) {
             dprintf(STDERR_FILENO,
@@ -409,6 +419,9 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
         if (ed->state == STATE_ACCEPTED)
             break;
     }
+
+    if (tcsetattr(STDIN_FILENO, TCSANOW, &ed->default_termios) < 0)
+        perror("tcsetattr");
 
     struct history_entry* entry = malloc(sizeof(struct history_entry));
     if (!entry) {
@@ -1030,6 +1043,11 @@ static int repl_main(void) {
         terminal_width = winsize.ws_col;
 
     static struct line_editor editor;
+    if (tcgetattr(STDIN_FILENO, &editor.default_termios) < 0) {
+        perror("tcgetattr");
+        return EXIT_FAILURE;
+    }
+
     for (;;) {
         char* input = read_input(&editor, terminal_width);
         if (!input)

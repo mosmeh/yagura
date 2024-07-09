@@ -74,6 +74,7 @@ LIB_OBJS := \
 	lib/string.o \
 	lib/sys/stat.o \
 	lib/syscall.o \
+	lib/termios.o \
 	lib/time.o \
 	lib/unistd.o
 
