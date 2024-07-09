@@ -212,23 +212,23 @@ void process_tick(bool in_kernel) {
         ++current->user_ticks;
 }
 
-int process_alloc_file_descriptor(int fd, file_description* desc) {
+int process_alloc_file_descriptor(int fd, struct file* file) {
     if (fd >= OPEN_MAX)
         return -EBADF;
 
     if (fd >= 0) {
-        file_description** entry = current->fd_table.entries + fd;
+        struct file** entry = current->fd_table.entries + fd;
         if (*entry)
             return -EEXIST;
-        *entry = desc;
+        *entry = file;
         return fd;
     }
 
-    file_description** it = current->fd_table.entries;
+    struct file** it = current->fd_table.entries;
     for (int i = 0; i < OPEN_MAX; ++i, ++it) {
         if (*it)
             continue;
-        *it = desc;
+        *it = file;
         return i;
     }
     return -EMFILE;
@@ -238,22 +238,22 @@ int process_free_file_descriptor(int fd) {
     if (fd < 0 || OPEN_MAX <= fd)
         return -EBADF;
 
-    file_description** desc = current->fd_table.entries + fd;
-    if (!*desc)
+    struct file** file = current->fd_table.entries + fd;
+    if (!*file)
         return -EBADF;
-    *desc = NULL;
+    *file = NULL;
     return 0;
 }
 
-file_description* process_get_file_description(int fd) {
+struct file* process_get_file(int fd) {
     if (fd < 0 || OPEN_MAX <= fd)
         return ERR_PTR(-EBADF);
 
-    file_description* desc = current->fd_table.entries[fd];
-    if (!desc)
+    struct file* file = current->fd_table.entries[fd];
+    if (!file)
         return ERR_PTR(-EBADF);
 
-    return desc;
+    return file;
 }
 
 enum {

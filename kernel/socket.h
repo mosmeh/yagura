@@ -20,7 +20,7 @@ typedef struct unix_socket {
     struct unix_socket* next; // pending queue
 
     atomic_bool is_connected;
-    file_description* connector_fd;
+    struct file* connector_file;
 
     ring_buf to_connector_buf;
     ring_buf to_acceptor_buf;
@@ -32,6 +32,6 @@ typedef struct unix_socket {
 unix_socket* unix_socket_create(void);
 NODISCARD int unix_socket_bind(unix_socket*, struct inode* addr_inode);
 NODISCARD int unix_socket_listen(unix_socket*, int backlog);
-NODISCARD unix_socket* unix_socket_accept(file_description*);
-NODISCARD int unix_socket_connect(file_description*, struct inode* addr_inode);
-NODISCARD int unix_socket_shutdown(file_description*, int how);
+NODISCARD unix_socket* unix_socket_accept(struct file*);
+NODISCARD int unix_socket_connect(struct file*, struct inode* addr_inode);
+NODISCARD int unix_socket_shutdown(struct file*, int how);

@@ -326,15 +326,15 @@ static bool can_read(void) {
     return ret;
 }
 
-static bool unblock_read(file_description* desc) {
-    (void)desc;
+static bool unblock_read(struct file* file) {
+    (void)file;
     return can_read();
 }
 
-static ssize_t ps2_keyboard_device_read(file_description* desc, void* buffer,
+static ssize_t ps2_keyboard_device_read(struct file* file, void* buffer,
                                         size_t count) {
     for (;;) {
-        int rc = file_description_block(desc, unblock_read, 0);
+        int rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 
@@ -359,8 +359,8 @@ static ssize_t ps2_keyboard_device_read(file_description* desc, void* buffer,
     }
 }
 
-static short ps2_keyboard_device_poll(file_description* desc, short events) {
-    (void)desc;
+static short ps2_keyboard_device_poll(struct file* file, short events) {
+    (void)file;
     short revents = 0;
     if ((events & POLLIN) && can_read())
         revents |= POLLIN;

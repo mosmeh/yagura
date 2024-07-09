@@ -159,7 +159,7 @@ NODISCARD static int push_ptrs(uintptr_t* sp, uintptr_t stack_base,
 static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
     int ret = 0;
     unsigned char* exe_buf = NULL;
-    file_description* desc = NULL;
+    struct file* file = NULL;
 
     struct stat stat;
     ret = vfs_stat_at(current->cwd, pathname, &stat, 0);
@@ -180,10 +180,10 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
     char comm[sizeof(current->comm)];
     strlcpy(comm, exe_basename, sizeof(current->comm));
 
-    desc = vfs_open(pathname, O_RDONLY, 0);
-    if (IS_ERR(desc)) {
-        ret = PTR_ERR(desc);
-        desc = NULL;
+    file = vfs_open(pathname, O_RDONLY, 0);
+    if (IS_ERR(file)) {
+        ret = PTR_ERR(file);
+        file = NULL;
         goto fail_exe;
     }
 
@@ -193,9 +193,9 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
         goto fail_exe;
     }
 
-    ssize_t nread = file_description_read_to_end(desc, exe_buf, stat.st_size);
-    file_description_close(desc);
-    desc = NULL;
+    ssize_t nread = file_read_to_end(file, exe_buf, stat.st_size);
+    file_close(file);
+    file = NULL;
     if (IS_ERR(nread)) {
         ret = nread;
         goto fail_exe;
@@ -374,8 +374,8 @@ fail_vm:
 
 fail_exe:
     kfree(exe_buf);
-    if (desc)
-        file_description_close(desc);
+    if (file)
+        file_close(file);
     string_vec_destroy(envp);
     string_vec_destroy(argv);
 

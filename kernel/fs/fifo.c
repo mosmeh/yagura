@@ -21,56 +21,56 @@ static void fifo_destroy_inode(struct inode* inode) {
     kfree(fifo);
 }
 
-static bool unblock_open(file_description* desc) {
-    const struct fifo* fifo = (const struct fifo*)desc->inode;
-    return (desc->flags & O_RDONLY) ? fifo->num_writers > 0
+static bool unblock_open(struct file* file) {
+    const struct fifo* fifo = (const struct fifo*)file->inode;
+    return (file->flags & O_RDONLY) ? fifo->num_writers > 0
                                     : fifo->num_readers > 0;
 }
 
-static int fifo_open(file_description* desc, mode_t mode) {
+static int fifo_open(struct file* file, mode_t mode) {
     (void)mode;
-    if ((desc->flags & O_RDONLY) && (desc->flags & O_WRONLY))
+    if ((file->flags & O_RDONLY) && (file->flags & O_WRONLY))
         return -EINVAL;
 
-    struct fifo* fifo = (struct fifo*)desc->inode;
-    if (desc->flags & O_RDONLY)
+    struct fifo* fifo = (struct fifo*)file->inode;
+    if (file->flags & O_RDONLY)
         ++fifo->num_readers;
-    if (desc->flags & O_WRONLY)
+    if (file->flags & O_WRONLY)
         ++fifo->num_writers;
 
-    if (desc->inode->dev == 0) {
+    if (file->inode->dev == 0) {
         // This is a fifo created by pipe syscall.
         // We don't need to block here.
         return 0;
     }
 
-    int rc = file_description_block(desc, unblock_open, 0);
-    if (rc == -EAGAIN && (desc->flags & O_WRONLY))
+    int rc = file_block(file, unblock_open, 0);
+    if (rc == -EAGAIN && (file->flags & O_WRONLY))
         return -ENXIO;
     return rc;
 }
 
-static int fifo_close(file_description* desc) {
-    ASSERT(!((desc->flags & O_RDONLY) && (desc->flags & O_WRONLY)));
-    struct fifo* fifo = (struct fifo*)desc->inode;
-    if (desc->flags & O_RDONLY)
+static int fifo_close(struct file* file) {
+    ASSERT(!((file->flags & O_RDONLY) && (file->flags & O_WRONLY)));
+    struct fifo* fifo = (struct fifo*)file->inode;
+    if (file->flags & O_RDONLY)
         --fifo->num_readers;
-    if (desc->flags & O_WRONLY)
+    if (file->flags & O_WRONLY)
         --fifo->num_writers;
     return 0;
 }
 
-static bool unblock_read(file_description* desc) {
-    const struct fifo* fifo = (const struct fifo*)desc->inode;
+static bool unblock_read(struct file* file) {
+    const struct fifo* fifo = (const struct fifo*)file->inode;
     return fifo->num_writers == 0 || !ring_buf_is_empty(&fifo->buf);
 }
 
-static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
-    struct fifo* fifo = (struct fifo*)desc->inode;
+static ssize_t fifo_read(struct file* file, void* buffer, size_t count) {
+    struct fifo* fifo = (struct fifo*)file->inode;
     ring_buf* buf = &fifo->buf;
 
     for (;;) {
-        int rc = file_description_block(desc, unblock_read, 0);
+        int rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 
@@ -88,18 +88,17 @@ static ssize_t fifo_read(file_description* desc, void* buffer, size_t count) {
     }
 }
 
-static bool unblock_write(file_description* desc) {
-    const struct fifo* fifo = (const struct fifo*)desc->inode;
+static bool unblock_write(struct file* file) {
+    const struct fifo* fifo = (const struct fifo*)file->inode;
     return fifo->num_readers == 0 || !ring_buf_is_full(&fifo->buf);
 }
 
-static ssize_t fifo_write(file_description* desc, const void* buffer,
-                          size_t count) {
-    struct fifo* fifo = (struct fifo*)desc->inode;
+static ssize_t fifo_write(struct file* file, const void* buffer, size_t count) {
+    struct fifo* fifo = (struct fifo*)file->inode;
     ring_buf* buf = &fifo->buf;
 
     for (;;) {
-        int rc = file_description_block(desc, unblock_write, 0);
+        int rc = file_block(file, unblock_write, 0);
         if (IS_ERR(rc))
             return rc;
 
@@ -123,16 +122,16 @@ static ssize_t fifo_write(file_description* desc, const void* buffer,
     }
 }
 
-static short fifo_poll(file_description* desc, short events) {
+static short fifo_poll(struct file* file, short events) {
     short revents = 0;
-    const struct fifo* fifo = (const struct fifo*)desc->inode;
+    const struct fifo* fifo = (const struct fifo*)file->inode;
     if ((events & POLLIN) && !ring_buf_is_empty(&fifo->buf))
         revents |= POLLIN;
     if ((events & POLLOUT) && !ring_buf_is_full(&fifo->buf))
         revents |= POLLOUT;
-    if ((desc->flags & O_RDONLY) && (fifo->num_writers == 0))
+    if ((file->flags & O_RDONLY) && (fifo->num_writers == 0))
         revents |= POLLHUP;
-    if ((desc->flags & O_WRONLY) && (fifo->num_readers == 0))
+    if ((file->flags & O_WRONLY) && (fifo->num_readers == 0))
         revents |= POLLERR;
     return revents;
 }

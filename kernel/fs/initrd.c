@@ -63,21 +63,20 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
             ASSERT_OK(inode);
             inode_unref(inode);
         } else {
-            file_description* desc =
+            struct file* file =
                 vfs_open_at(root, filename, O_CREAT | O_EXCL | O_WRONLY, mode);
-            ASSERT_OK(desc);
+            ASSERT_OK(file);
 
-            desc->inode->rdev = PARSE(header->c_rdev);
+            file->inode->rdev = PARSE(header->c_rdev);
 
             const unsigned char* file_content =
                 (const unsigned char*)(cursor + sizeof(struct cpio_odc_header) +
                                        name_size);
-            ssize_t nwritten =
-                file_description_write_all(desc, file_content, file_size);
+            ssize_t nwritten = file_write_all(file, file_content, file_size);
             ASSERT_OK(nwritten);
             ASSERT((size_t)nwritten == file_size);
 
-            ASSERT_OK(file_description_close(desc));
+            ASSERT_OK(file_close(file));
         }
 
         cursor += sizeof(struct cpio_odc_header) + name_size + file_size;

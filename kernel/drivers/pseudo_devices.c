@@ -8,30 +8,29 @@
 #include <kernel/vec.h>
 #include <string.h>
 
-static ssize_t read_nothing(file_description* desc, void* buffer,
-                            size_t count) {
-    (void)desc;
+static ssize_t read_nothing(struct file* file, void* buffer, size_t count) {
+    (void)file;
     (void)buffer;
     (void)count;
     return 0;
 }
 
-static ssize_t read_zeros(file_description* desc, void* buffer, size_t count) {
-    (void)desc;
+static ssize_t read_zeros(struct file* file, void* buffer, size_t count) {
+    (void)file;
     memset(buffer, 0, count);
     return count;
 }
 
-static ssize_t write_to_bit_bucket(file_description* desc, const void* buffer,
+static ssize_t write_to_bit_bucket(struct file* file, const void* buffer,
                                    size_t count) {
-    (void)desc;
+    (void)file;
     (void)buffer;
     return count;
 }
 
-static ssize_t write_to_full_disk(file_description* desc, const void* buffer,
+static ssize_t write_to_full_disk(struct file* file, const void* buffer,
                                   size_t count) {
-    (void)desc;
+    (void)file;
     (void)buffer;
     if (count > 0)
         return -ENOSPC;
@@ -80,9 +79,9 @@ static struct inode* full_device_get(void) {
     return &inode;
 }
 
-static ssize_t random_device_read(file_description* desc, void* buffer,
+static ssize_t random_device_read(struct file* file, void* buffer,
                                   size_t count) {
-    (void)desc;
+    (void)file;
     return random_get(buffer, count);
 }
 
@@ -114,45 +113,44 @@ static struct inode* urandom_device_get(void) {
     return &inode;
 }
 
-static int kmsg_device_close(file_description* desc) {
-    kfree(desc->private_data);
+static int kmsg_device_close(struct file* file) {
+    kfree(file->private_data);
     return 0;
 }
 
-static ssize_t kmsg_device_read(file_description* desc, void* buffer,
-                                size_t count) {
+static ssize_t kmsg_device_read(struct file* file, void* buffer, size_t count) {
     struct kmsg {
         char data[KMSG_BUF_SIZE];
         size_t size;
     };
 
-    struct kmsg* kmsg = desc->private_data;
-    if (!desc->private_data) {
+    struct kmsg* kmsg = file->private_data;
+    if (!file->private_data) {
         kmsg = kmalloc(sizeof(struct kmsg));
         if (!kmsg)
             return -ENOMEM;
         kmsg->size = kmsg_read(kmsg->data, KMSG_BUF_SIZE);
-        desc->private_data = kmsg;
+        file->private_data = kmsg;
     }
 
-    mutex_lock(&desc->offset_lock);
-    if ((size_t)desc->offset >= kmsg->size) {
+    mutex_lock(&file->offset_lock);
+    if ((size_t)file->offset >= kmsg->size) {
         count = 0;
         goto done;
     }
-    if (desc->offset + count >= kmsg->size)
-        count = kmsg->size - desc->offset;
-    memcpy(buffer, kmsg->data + desc->offset, count);
-    desc->offset += count;
+    if (file->offset + count >= kmsg->size)
+        count = kmsg->size - file->offset;
+    memcpy(buffer, kmsg->data + file->offset, count);
+    file->offset += count;
 done:
-    mutex_unlock(&desc->offset_lock);
+    mutex_unlock(&file->offset_lock);
 
     return count;
 }
 
-static ssize_t kmsg_device_write(file_description* desc, const void* buffer,
+static ssize_t kmsg_device_write(struct file* file, const void* buffer,
                                  size_t count) {
-    (void)desc;
+    (void)file;
     return kmsg_write(buffer, count);
 }
 

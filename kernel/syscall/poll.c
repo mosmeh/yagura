@@ -8,7 +8,7 @@
 struct poll_blocker {
     nfds_t nfds;
     struct pollfd* fds;
-    file_description** descs;
+    struct file** files;
     bool has_timeout;
     struct timespec deadline;
     size_t num_events;
@@ -23,12 +23,12 @@ static bool unblock_poll(struct poll_blocker* blocker) {
     }
 
     for (nfds_t i = 0; i < blocker->nfds; ++i) {
-        file_description* desc = blocker->descs[i];
-        if (!desc)
+        struct file* file = blocker->files[i];
+        if (!file)
             continue;
 
         struct pollfd* fd = blocker->fds + i;
-        fd->revents = file_description_poll(desc, fd->events);
+        fd->revents = file_poll(file, fd->events);
         if (fd->revents)
             ++blocker->num_events;
     }
@@ -55,8 +55,8 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
             goto exit;
         }
 
-        blocker.descs = kmalloc(sizeof(file_description*) * nfds);
-        if (!blocker.descs) {
+        blocker.files = kmalloc(sizeof(struct file*) * nfds);
+        if (!blocker.files) {
             ret = -ENOMEM;
             goto exit;
         }
@@ -64,16 +64,16 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
         for (nfds_t i = 0; i < nfds; ++i) {
             struct pollfd* fd = blocker.fds + i;
             fd->revents = 0;
-            blocker.descs[i] = NULL;
+            blocker.files[i] = NULL;
             if (fd->fd < 0)
                 continue;
-            file_description* desc = process_get_file_description(fd->fd);
-            if (IS_ERR(desc)) {
+            struct file* file = process_get_file(fd->fd);
+            if (IS_ERR(file)) {
                 fd->revents = POLLNVAL;
                 ++blocker.num_events;
                 continue;
             }
-            blocker.descs[i] = desc;
+            blocker.files[i] = file;
         }
     }
 
@@ -102,7 +102,7 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
     ret = blocker.num_events;
 
 exit:
-    kfree(blocker.descs);
+    kfree(blocker.files);
     kfree(blocker.fds);
     return ret;
 }

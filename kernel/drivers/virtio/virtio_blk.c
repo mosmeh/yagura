@@ -23,15 +23,15 @@ static void virtio_blk_destroy_inode(struct inode* inode) {
     kfree(node);
 }
 
-static bool unblock_request(file_description* desc) {
-    virtio_blk_device* node = (virtio_blk_device*)desc->inode;
+static bool unblock_request(struct file* file) {
+    virtio_blk_device* node = (virtio_blk_device*)file->inode;
     return node->virtio->virtqs[0]->num_free_descs >= 3;
 }
 
-static int submit_request(file_description* desc, void* buffer, size_t count,
+static int submit_request(struct file* file, void* buffer, size_t count,
                           uint64_t sector, uint32_t type,
                           bool device_writable) {
-    virtio_blk_device* node = (virtio_blk_device*)desc->inode;
+    virtio_blk_device* node = (virtio_blk_device*)file->inode;
     struct virtq* virtq = node->virtio->virtqs[0];
     struct virtio_blk_req_header header = {
         .type = type,
@@ -41,7 +41,7 @@ static int submit_request(file_description* desc, void* buffer, size_t count,
 
     int rc;
 retry:
-    rc = file_description_block(desc, unblock_request, 0);
+    rc = file_block(file, unblock_request, 0);
     if (IS_ERR(rc))
         return rc;
 
@@ -69,47 +69,45 @@ retry:
     }
 }
 
-static ssize_t virtio_blk_do_io(file_description* desc, void* buffer,
-                                size_t count, uint32_t type,
-                                bool device_writable) {
+static ssize_t virtio_blk_do_io(struct file* file, void* buffer, size_t count,
+                                uint32_t type, bool device_writable) {
     if (count % SECTOR_SIZE != 0)
         return -EINVAL;
 
-    mutex_lock(&desc->offset_lock);
+    mutex_lock(&file->offset_lock);
 
-    if (desc->offset % SECTOR_SIZE != 0) {
-        mutex_unlock(&desc->offset_lock);
+    if (file->offset % SECTOR_SIZE != 0) {
+        mutex_unlock(&file->offset_lock);
         return -EINVAL;
     }
-    uint64_t sector = desc->offset / SECTOR_SIZE;
+    uint64_t sector = file->offset / SECTOR_SIZE;
 
-    virtio_blk_device* node = (virtio_blk_device*)desc->inode;
+    virtio_blk_device* node = (virtio_blk_device*)file->inode;
     if (sector >= node->capacity) {
-        mutex_unlock(&desc->offset_lock);
+        mutex_unlock(&file->offset_lock);
         return 0;
     }
     count = MIN(count, (node->capacity - sector) * SECTOR_SIZE);
 
-    int rc = submit_request(desc, buffer, count, sector, type, device_writable);
+    int rc = submit_request(file, buffer, count, sector, type, device_writable);
     if (IS_ERR(rc)) {
-        mutex_unlock(&desc->offset_lock);
+        mutex_unlock(&file->offset_lock);
         return rc;
     }
 
-    desc->offset += count;
-    mutex_unlock(&desc->offset_lock);
+    file->offset += count;
+    mutex_unlock(&file->offset_lock);
 
     return count;
 }
 
-static ssize_t virtio_blk_read(file_description* desc, void* buffer,
-                               size_t count) {
-    return virtio_blk_do_io(desc, buffer, count, VIRTIO_BLK_T_IN, true);
+static ssize_t virtio_blk_read(struct file* file, void* buffer, size_t count) {
+    return virtio_blk_do_io(file, buffer, count, VIRTIO_BLK_T_IN, true);
 }
 
-static ssize_t virtio_blk_write(file_description* desc, const void* buffer,
+static ssize_t virtio_blk_write(struct file* file, const void* buffer,
                                 size_t count) {
-    return virtio_blk_do_io(desc, (void*)buffer, count, VIRTIO_BLK_T_OUT,
+    return virtio_blk_do_io(file, (void*)buffer, count, VIRTIO_BLK_T_OUT,
                             false);
 }
 

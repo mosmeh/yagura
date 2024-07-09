@@ -12,7 +12,7 @@
 #include <kernel/scheduler.h>
 
 int file_descriptor_table_init(file_descriptor_table* table) {
-    table->entries = kmalloc(OPEN_MAX * sizeof(file_description*));
+    table->entries = kmalloc(OPEN_MAX * sizeof(struct file*));
     if (!table->entries)
         return -ENOMEM;
 
@@ -29,10 +29,10 @@ void file_descriptor_table_destroy(file_descriptor_table* table) {
 }
 
 void file_descriptor_table_clear(file_descriptor_table* table) {
-    file_description** it = table->entries;
+    struct file** it = table->entries;
     for (int i = 0; i < OPEN_MAX; ++i, ++it) {
         if (*it) {
-            file_description_close(*it);
+            file_close(*it);
             *it = NULL;
         }
     }
@@ -40,11 +40,11 @@ void file_descriptor_table_clear(file_descriptor_table* table) {
 
 int file_descriptor_table_clone_from(file_descriptor_table* to,
                                      const file_descriptor_table* from) {
-    to->entries = kmalloc(OPEN_MAX * sizeof(file_description*));
+    to->entries = kmalloc(OPEN_MAX * sizeof(struct file*));
     if (!to->entries)
         return -ENOMEM;
 
-    memcpy(to->entries, from->entries, OPEN_MAX * sizeof(file_description*));
+    memcpy(to->entries, from->entries, OPEN_MAX * sizeof(struct file*));
 
     for (size_t i = 0; i < OPEN_MAX; ++i) {
         if (from->entries[i])
@@ -119,31 +119,31 @@ int inode_unlink_child(struct inode* inode, const char* name) {
     return 0;
 }
 
-file_description* inode_open(struct inode* inode, int flags, mode_t mode) {
+struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
     if (S_ISDIR(inode->mode) && (flags & O_WRONLY)) {
         inode_unref(inode);
         return ERR_PTR(-EISDIR);
     }
 
-    file_description* desc = kmalloc(sizeof(file_description));
-    if (!desc) {
+    struct file* file = kmalloc(sizeof(struct file));
+    if (!file) {
         inode_unref(inode);
         return ERR_PTR(-ENOMEM);
     }
-    *desc = (file_description){0};
-    desc->inode = inode;
-    desc->flags = flags;
-    desc->ref_count = 1;
+    *file = (struct file){0};
+    file->inode = inode;
+    file->flags = flags;
+    file->ref_count = 1;
 
     if (inode->fops->open) {
-        int rc = inode->fops->open(desc, mode);
+        int rc = inode->fops->open(file, mode);
         if (IS_ERR(rc)) {
             inode_unref(inode);
-            kfree(desc);
+            kfree(file);
             return ERR_PTR(rc);
         }
     }
-    return desc;
+    return file;
 }
 
 int inode_stat(struct inode* inode, struct stat* buf) {
@@ -158,38 +158,36 @@ int inode_stat(struct inode* inode, struct stat* buf) {
     return 0;
 }
 
-int file_description_close(file_description* desc) {
-    ASSERT(desc);
-    ASSERT(desc->ref_count > 0);
-    if (--desc->ref_count > 0)
+int file_close(struct file* file) {
+    ASSERT(file);
+    ASSERT(file->ref_count > 0);
+    if (--file->ref_count > 0)
         return 0;
-    struct inode* inode = desc->inode;
+    struct inode* inode = file->inode;
     int rc = 0;
     if (inode->fops->close)
-        rc = inode->fops->close(desc);
-    kfree(desc);
+        rc = inode->fops->close(file);
+    kfree(file);
     inode_unref(inode);
     return rc;
 }
 
-ssize_t file_description_read(file_description* desc, void* buffer,
-                              size_t count) {
-    struct inode* inode = desc->inode;
+ssize_t file_read(struct file* file, void* buffer, size_t count) {
+    struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
     if (!inode->fops->read)
         return -EINVAL;
-    if (!(desc->flags & O_RDONLY))
+    if (!(file->flags & O_RDONLY))
         return -EBADF;
-    return inode->fops->read(desc, buffer, count);
+    return inode->fops->read(file, buffer, count);
 }
 
-NODISCARD ssize_t file_description_read_to_end(file_description* desc,
-                                               void* buffer, size_t count) {
+ssize_t file_read_to_end(struct file* file, void* buffer, size_t count) {
     size_t cursor = 0;
     while (cursor < count) {
-        ssize_t nread = file_description_read(
-            desc, (unsigned char*)buffer + cursor, count - cursor);
+        ssize_t nread =
+            file_read(file, (unsigned char*)buffer + cursor, count - cursor);
         if (IS_ERR(nread))
             return nread;
         if (nread == 0)
@@ -199,24 +197,22 @@ NODISCARD ssize_t file_description_read_to_end(file_description* desc,
     return cursor;
 }
 
-ssize_t file_description_write(file_description* desc, const void* buffer,
-                               size_t count) {
-    struct inode* inode = desc->inode;
+ssize_t file_write(struct file* file, const void* buffer, size_t count) {
+    struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
     if (!inode->fops->write)
         return -EINVAL;
-    if (!(desc->flags & O_WRONLY))
+    if (!(file->flags & O_WRONLY))
         return -EBADF;
-    return inode->fops->write(desc, buffer, count);
+    return inode->fops->write(file, buffer, count);
 }
 
-ssize_t file_description_write_all(file_description* desc, const void* buffer,
-                                   size_t count) {
+ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
     size_t cursor = 0;
     while (cursor < count) {
-        ssize_t nwritten = file_description_write(
-            desc, (unsigned char*)buffer + cursor, count - cursor);
+        ssize_t nwritten =
+            file_write(file, (unsigned char*)buffer + cursor, count - cursor);
         if (IS_ERR(nwritten))
             return nwritten;
         if (nwritten == 0)
@@ -226,61 +222,60 @@ ssize_t file_description_write_all(file_description* desc, const void* buffer,
     return cursor;
 }
 
-void* file_description_mmap(file_description* desc, size_t length, off_t offset,
-                            int flags) {
-    struct inode* inode = desc->inode;
+void* file_mmap(struct file* file, size_t length, off_t offset, int flags) {
+    struct inode* inode = file->inode;
     if (!inode->fops->mmap)
         return ERR_PTR(-ENODEV);
-    if (!(desc->flags & O_RDONLY))
+    if (!(file->flags & O_RDONLY))
         return ERR_PTR(-EACCES);
     if ((flags & VM_SHARED) && (flags & VM_WRITE) &&
-        ((desc->flags & O_RDWR) != O_RDWR))
+        ((file->flags & O_RDWR) != O_RDWR))
         return ERR_PTR(-EACCES);
-    return inode->fops->mmap(desc, length, offset, flags);
+    return inode->fops->mmap(file, length, offset, flags);
 }
 
-int file_description_truncate(file_description* desc, off_t length) {
-    struct inode* inode = desc->inode;
+int file_truncate(struct file* file, off_t length) {
+    struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
     if (!inode->fops->truncate)
         return -EROFS;
-    if (!(desc->flags & O_WRONLY))
+    if (!(file->flags & O_WRONLY))
         return -EBADF;
-    return inode->fops->truncate(desc, length);
+    return inode->fops->truncate(file, length);
 }
 
-off_t file_description_seek(file_description* desc, off_t offset, int whence) {
+off_t file_seek(struct file* file, off_t offset, int whence) {
     switch (whence) {
     case SEEK_SET:
         if (offset < 0)
             return -EINVAL;
-        mutex_lock(&desc->offset_lock);
-        desc->offset = offset;
-        mutex_unlock(&desc->offset_lock);
+        mutex_lock(&file->offset_lock);
+        file->offset = offset;
+        mutex_unlock(&file->offset_lock);
         return offset;
     case SEEK_CUR:
-        mutex_lock(&desc->offset_lock);
-        off_t new_offset = desc->offset + offset;
+        mutex_lock(&file->offset_lock);
+        off_t new_offset = file->offset + offset;
         if (new_offset < 0) {
-            mutex_unlock(&desc->offset_lock);
+            mutex_unlock(&file->offset_lock);
             return -EINVAL;
         }
-        desc->offset = new_offset;
-        mutex_unlock(&desc->offset_lock);
+        file->offset = new_offset;
+        mutex_unlock(&file->offset_lock);
         return new_offset;
     case SEEK_END: {
         struct stat stat;
-        inode_ref(desc->inode);
-        int rc = inode_stat(desc->inode, &stat);
+        inode_ref(file->inode);
+        int rc = inode_stat(file->inode, &stat);
         if (IS_ERR(rc))
             return rc;
         off_t new_offset = stat.st_size + offset;
         if (new_offset < 0)
             return -EINVAL;
-        mutex_lock(&desc->offset_lock);
-        desc->offset = new_offset;
-        mutex_unlock(&desc->offset_lock);
+        mutex_lock(&file->offset_lock);
+        file->offset = new_offset;
+        mutex_unlock(&file->offset_lock);
         return new_offset;
     }
     default:
@@ -288,28 +283,26 @@ off_t file_description_seek(file_description* desc, off_t offset, int whence) {
     }
 }
 
-int file_description_ioctl(file_description* desc, int request,
-                           void* user_argp) {
-    struct inode* inode = desc->inode;
+int file_ioctl(struct file* file, int request, void* user_argp) {
+    struct inode* inode = file->inode;
     if (!inode->fops->ioctl)
         return -ENOTTY;
-    return inode->fops->ioctl(desc, request, user_argp);
+    return inode->fops->ioctl(file, request, user_argp);
 }
 
-int file_description_getdents(file_description* desc,
-                              getdents_callback_fn callback, void* ctx) {
-    struct inode* inode = desc->inode;
+int file_getdents(struct file* file, getdents_callback_fn callback, void* ctx) {
+    struct inode* inode = file->inode;
     if (!inode->fops->getdents || !S_ISDIR(inode->mode))
         return -ENOTDIR;
 
-    return inode->fops->getdents(desc, callback, ctx);
+    return inode->fops->getdents(file, callback, ctx);
 }
 
-NODISCARD short file_description_poll(file_description* desc, short events) {
-    struct inode* inode = desc->inode;
+short file_poll(struct file* file, short events) {
+    struct inode* inode = file->inode;
     if (!inode->fops->poll)
         return events & (POLLIN | POLLOUT);
-    short revents = inode->fops->poll(desc, events);
+    short revents = inode->fops->poll(file, events);
     ASSERT(revents >= 0);
     if (!(events & POLLIN))
         ASSERT(!(revents & POLLIN));
@@ -318,11 +311,10 @@ NODISCARD short file_description_poll(file_description* desc, short events) {
     return revents;
 }
 
-int file_description_block(file_description* desc,
-                           bool (*unblock)(file_description*), int flags) {
-    if ((desc->flags & O_NONBLOCK) && !unblock(desc))
+int file_block(struct file* file, bool (*unblock)(struct file*), int flags) {
+    if ((file->flags & O_NONBLOCK) && !unblock(file))
         return -EAGAIN;
-    return scheduler_block((unblock_fn)unblock, desc, flags);
+    return scheduler_block((unblock_fn)unblock, file, flags);
 }
 
 uint8_t mode_to_dirent_type(mode_t mode) {

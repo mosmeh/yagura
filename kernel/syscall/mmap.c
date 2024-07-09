@@ -41,13 +41,13 @@ void* sys_mmap(const mmap_params* user_params) {
         return addr;
     }
 
-    file_description* desc = process_get_file_description(params.fd);
-    if (IS_ERR(desc))
-        return desc;
-    if (S_ISDIR(desc->inode->mode))
+    struct file* file = process_get_file(params.fd);
+    if (IS_ERR(file))
+        return file;
+    if (S_ISDIR(file->inode->mode))
         return ERR_PTR(-ENODEV);
 
-    return file_description_mmap(desc, params.length, params.offset, flags);
+    return file_mmap(file, params.length, params.offset, flags);
 }
 
 int sys_munmap(void* addr, size_t length) {

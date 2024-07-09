@@ -5,7 +5,7 @@
 
 struct vec;
 
-typedef int (*procfs_populate_fn)(file_description*, struct vec*);
+typedef int (*procfs_populate_fn)(struct file*, struct vec*);
 
 typedef struct procfs_item_def {
     const char* name;
@@ -27,7 +27,6 @@ typedef struct procfs_dir_inode {
 
 void procfs_dir_destroy_inode(struct inode* inode);
 struct inode* procfs_dir_lookup_child(struct inode* inode, const char* name);
-int procfs_dir_getdents(file_description* desc, getdents_callback_fn callback,
-                        void* ctx);
+int procfs_dir_getdents(struct file*, getdents_callback_fn callback, void* ctx);
 
 struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid);

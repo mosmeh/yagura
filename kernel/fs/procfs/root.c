@@ -14,8 +14,8 @@
 #include <kernel/time.h>
 #include <kernel/vec.h>
 
-static int populate_cmdline(file_description* desc, struct vec* vec) {
-    (void)desc;
+static int populate_cmdline(struct file* file, struct vec* vec) {
+    (void)file;
     return vec_printf(vec, "%s\n", cmdline_get_raw());
 }
 
@@ -29,8 +29,8 @@ static int print_flag(struct vec* vec, int feature, const char* name) {
     return vec_printf(vec, "%s ", name);
 }
 
-static int populate_cpuinfo(file_description* desc, struct vec* vec) {
-    (void)desc;
+static int populate_cpuinfo(struct file* file, struct vec* vec) {
+    (void)file;
     struct cpu* cpu = cpu_get();
 
     int ret =
@@ -71,8 +71,8 @@ static int populate_cpuinfo(file_description* desc, struct vec* vec) {
                       cpu->phys_addr_bits, cpu->virt_addr_bits);
 }
 
-static int populate_kallsyms(file_description* desc, struct vec* vec) {
-    (void)desc;
+static int populate_kallsyms(struct file* file, struct vec* vec) {
+    (void)file;
     const struct symbol* symbol = NULL;
     while ((symbol = ksyms_next(symbol))) {
         if (vec_printf(vec, "%08x %c %s\n", symbol->addr, symbol->type,
@@ -82,8 +82,8 @@ static int populate_kallsyms(file_description* desc, struct vec* vec) {
     return 0;
 }
 
-static int populate_meminfo(file_description* desc, struct vec* vec) {
-    (void)desc;
+static int populate_meminfo(struct file* file, struct vec* vec) {
+    (void)file;
     struct memory_stats stats;
     memory_get_stats(&stats);
 
@@ -93,8 +93,8 @@ static int populate_meminfo(file_description* desc, struct vec* vec) {
                       stats.total, stats.free);
 }
 
-static int populate_self(file_description* desc, struct vec* vec) {
-    (void)desc;
+static int populate_self(struct file* file, struct vec* vec) {
+    (void)file;
     return vec_printf(vec, "%d", current->pid);
 }
 
@@ -105,8 +105,8 @@ NODISCARD static int sprintf_ticks(struct vec* vec, int64_t ticks) {
     return vec_printf(vec, "%d.%02d", q, r);
 }
 
-static int populate_uptime(file_description* desc, struct vec* vec) {
-    (void)desc;
+static int populate_uptime(struct file* file, struct vec* vec) {
+    (void)file;
     int rc = sprintf_ticks(vec, uptime);
     if (IS_ERR(rc))
         return rc;
@@ -119,8 +119,8 @@ static int populate_uptime(file_description* desc, struct vec* vec) {
     return vec_append(vec, "\n", 1);
 }
 
-static int populate_version(file_description* desc, struct vec* vec) {
-    (void)desc;
+static int populate_version(struct file* file, struct vec* vec) {
+    (void)file;
     return vec_printf(vec, "%s version %s %s\n", utsname()->sysname,
                       utsname()->release, utsname()->version);
 }
@@ -145,26 +145,26 @@ static struct inode* procfs_root_lookup_child(struct inode* inode,
     return procfs_dir_lookup_child(inode, name);
 }
 
-static int procfs_root_getdents(file_description* desc,
+static int procfs_root_getdents(struct file* file,
                                 getdents_callback_fn callback, void* ctx) {
-    procfs_dir_inode* node = (procfs_dir_inode*)desc->inode;
+    procfs_dir_inode* node = (procfs_dir_inode*)file->inode;
 
-    mutex_lock(&desc->offset_lock);
-    if ((size_t)desc->offset < NUM_ITEMS) {
-        int rc = dentry_getdents(desc, node->children, callback, ctx);
+    mutex_lock(&file->offset_lock);
+    if ((size_t)file->offset < NUM_ITEMS) {
+        int rc = dentry_getdents(file, node->children, callback, ctx);
         if (IS_ERR(rc)) {
-            mutex_unlock(&desc->offset_lock);
+            mutex_unlock(&file->offset_lock);
             return rc;
         }
     }
-    if ((size_t)desc->offset < NUM_ITEMS) {
-        mutex_unlock(&desc->offset_lock);
+    if ((size_t)file->offset < NUM_ITEMS) {
+        mutex_unlock(&file->offset_lock);
         return 0;
     }
 
     bool int_flag = push_cli();
 
-    pid_t offset_pid = (pid_t)(desc->offset - NUM_ITEMS);
+    pid_t offset_pid = (pid_t)(file->offset - NUM_ITEMS);
     struct process* it = all_processes;
     while (it->pid <= offset_pid) {
         it = it->next_in_all_processes;
@@ -177,12 +177,12 @@ static int procfs_root_getdents(file_description* desc,
         (void)snprintf(name, sizeof(name), "%d", it->pid);
         if (!callback(name, DT_DIR, ctx))
             break;
-        desc->offset = it->pid + NUM_ITEMS;
+        file->offset = it->pid + NUM_ITEMS;
         it = it->next_in_all_processes;
     }
 
     pop_cli(int_flag);
-    mutex_unlock(&desc->offset_lock);
+    mutex_unlock(&file->offset_lock);
     return 0;
 }
 

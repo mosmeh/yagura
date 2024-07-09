@@ -6,7 +6,7 @@
 
 static void procfs_item_destroy_inode(struct inode* inode) { kfree(inode); }
 
-static int procfs_item_open(file_description* desc, mode_t mode) {
+static int procfs_item_open(struct file* file, mode_t mode) {
     (void)mode;
 
     struct vec* vec = kmalloc(sizeof(struct vec));
@@ -14,31 +14,30 @@ static int procfs_item_open(file_description* desc, mode_t mode) {
         return -ENOMEM;
     *vec = (struct vec){0};
 
-    procfs_item_inode* node = (procfs_item_inode*)desc->inode;
-    int rc = node->populate(desc, vec);
+    procfs_item_inode* node = (procfs_item_inode*)file->inode;
+    int rc = node->populate(file, vec);
     if (IS_ERR(rc)) {
         vec_destroy(vec);
         kfree(vec);
         return rc;
     }
 
-    desc->private_data = vec;
+    file->private_data = vec;
     return 0;
 }
 
-static int procfs_item_close(file_description* desc) {
-    vec_destroy(desc->private_data);
-    kfree(desc->private_data);
+static int procfs_item_close(struct file* file) {
+    vec_destroy(file->private_data);
+    kfree(file->private_data);
     return 0;
 }
 
-static ssize_t procfs_item_read(file_description* desc, void* buffer,
-                                size_t count) {
-    mutex_lock(&desc->offset_lock);
-    ssize_t nread = vec_pread(desc->private_data, buffer, count, desc->offset);
+static ssize_t procfs_item_read(struct file* file, void* buffer, size_t count) {
+    mutex_lock(&file->offset_lock);
+    ssize_t nread = vec_pread(file->private_data, buffer, count, file->offset);
     if (IS_OK(nread))
-        desc->offset += nread;
-    mutex_unlock(&desc->offset_lock);
+        file->offset += nread;
+    mutex_unlock(&file->offset_lock);
     return nread;
 }
 
@@ -62,11 +61,11 @@ struct inode* procfs_dir_lookup_child(struct inode* inode, const char* name) {
     return child;
 }
 
-int procfs_dir_getdents(file_description* desc, getdents_callback_fn callback,
+int procfs_dir_getdents(struct file* file, getdents_callback_fn callback,
                         void* ctx) {
-    procfs_dir_inode* node = (procfs_dir_inode*)desc->inode;
-    mutex_lock(&desc->offset_lock);
-    int rc = dentry_getdents(desc, node->children, callback, ctx);
-    mutex_unlock(&desc->offset_lock);
+    procfs_dir_inode* node = (procfs_dir_inode*)file->inode;
+    mutex_lock(&file->offset_lock);
+    int rc = dentry_getdents(file, node->children, callback, ctx);
+    mutex_unlock(&file->offset_lock);
     return rc;
 }

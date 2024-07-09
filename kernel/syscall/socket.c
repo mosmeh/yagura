@@ -16,22 +16,22 @@ int sys_socket(int domain, int type, int protocol) {
     unix_socket* socket = unix_socket_create();
     if (IS_ERR(socket))
         return PTR_ERR(socket);
-    file_description* desc = inode_open((struct inode*)socket, O_RDWR, 0);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    int fd = process_alloc_file_descriptor(-1, desc);
+    struct file* file = inode_open((struct inode*)socket, O_RDWR, 0);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    int fd = process_alloc_file_descriptor(-1, file);
     if (IS_ERR(fd))
-        file_description_close(desc);
+        file_close(file);
     return fd;
 }
 
 int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
-    file_description* desc = process_get_file_description(sockfd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    if (!S_ISSOCK(desc->inode->mode))
+    struct file* file = process_get_file(sockfd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
-    unix_socket* socket = (unix_socket*)desc->inode;
+    unix_socket* socket = (unix_socket*)file->inode;
 
     if (addrlen <= sizeof(sa_family_t) || sizeof(struct sockaddr_un) < addrlen)
         return -EINVAL;
@@ -46,16 +46,16 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
     char path[UNIX_PATH_MAX + 1];
     strncpy(path, addr_un.sun_path, sizeof(path));
 
-    file_description* addr_desc = vfs_open(path, O_CREAT | O_EXCL, S_IFSOCK);
-    if (IS_ERR(addr_desc)) {
-        if (PTR_ERR(addr_desc) == -EEXIST)
+    struct file* addr_file = vfs_open(path, O_CREAT | O_EXCL, S_IFSOCK);
+    if (IS_ERR(addr_file)) {
+        if (PTR_ERR(addr_file) == -EEXIST)
             return -EADDRINUSE;
-        return PTR_ERR(addr_desc);
+        return PTR_ERR(addr_file);
     }
 
-    int rc = unix_socket_bind(socket, addr_desc->inode);
+    int rc = unix_socket_bind(socket, addr_file->inode);
     if (IS_ERR(rc)) {
-        file_description_close(addr_desc);
+        file_close(addr_file);
         return rc;
     }
 
@@ -63,21 +63,21 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
 }
 
 int sys_listen(int sockfd, int backlog) {
-    file_description* desc = process_get_file_description(sockfd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    if (!S_ISSOCK(desc->inode->mode))
+    struct file* file = process_get_file(sockfd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
 
-    unix_socket* socket = (unix_socket*)desc->inode;
+    unix_socket* socket = (unix_socket*)file->inode;
     return unix_socket_listen(socket, backlog);
 }
 
 int sys_accept(int sockfd, struct sockaddr* user_addr,
                socklen_t* user_addrlen) {
-    file_description* desc = process_get_file_description(sockfd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
+    struct file* file = process_get_file(sockfd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
 
     if (user_addr) {
         if (!user_addrlen)
@@ -97,17 +97,17 @@ int sys_accept(int sockfd, struct sockaddr* user_addr,
             return -EFAULT;
     }
 
-    unix_socket* connector = unix_socket_accept(desc);
+    unix_socket* connector = unix_socket_accept(file);
     if (IS_ERR(connector))
         return PTR_ERR(connector);
-    file_description* connector_desc =
+    struct file* connector_file =
         inode_open((struct inode*)connector, O_RDWR, 0);
-    if (IS_ERR(connector_desc))
-        return PTR_ERR(connector_desc);
+    if (IS_ERR(connector_file))
+        return PTR_ERR(connector_file);
 
-    int fd = process_alloc_file_descriptor(-1, connector_desc);
+    int fd = process_alloc_file_descriptor(-1, connector_file);
     if (IS_ERR(fd)) {
-        file_description_close(connector_desc);
+        file_close(connector_file);
         return fd;
     }
 
@@ -116,9 +116,9 @@ int sys_accept(int sockfd, struct sockaddr* user_addr,
 
 int sys_connect(int sockfd, const struct sockaddr* user_addr,
                 socklen_t addrlen) {
-    file_description* desc = process_get_file_description(sockfd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
+    struct file* file = process_get_file(sockfd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
 
     if (addrlen <= sizeof(sa_family_t) || sizeof(struct sockaddr_un) < addrlen)
         return -EINVAL;
@@ -133,16 +133,16 @@ int sys_connect(int sockfd, const struct sockaddr* user_addr,
     char path[UNIX_PATH_MAX + 1];
     strncpy(path, addr_un.sun_path, sizeof(path));
 
-    file_description* addr_desc = vfs_open(path, 0, 0);
-    if (IS_ERR(addr_desc))
-        return PTR_ERR(addr_desc);
+    struct file* addr_file = vfs_open(path, 0, 0);
+    if (IS_ERR(addr_file))
+        return PTR_ERR(addr_file);
 
-    return unix_socket_connect(desc, addr_desc->inode);
+    return unix_socket_connect(file, addr_file->inode);
 }
 
 int sys_shutdown(int sockfd, int how) {
-    file_description* desc = process_get_file_description(sockfd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    return unix_socket_shutdown(desc, how);
+    struct file* file = process_get_file(sockfd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return unix_socket_shutdown(file, how);
 }

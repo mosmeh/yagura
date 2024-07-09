@@ -15,27 +15,28 @@ typedef struct unix_socket unix_socket;
 typedef struct multiboot_info multiboot_info_t;
 typedef struct multiboot_mod_list multiboot_module_t;
 
-typedef struct file_description {
+// Open file description
+struct file {
     mutex offset_lock;
     struct inode* inode;
     atomic_int flags;
     off_t offset;
     void* private_data;
     atomic_size_t ref_count;
-} file_description;
+};
 
 typedef struct file_descriptor_table {
-    file_description** entries;
+    struct file** entries;
 } file_descriptor_table;
 
 // Initializes the file descriptor table in place.
 NODISCARD int file_descriptor_table_init(file_descriptor_table*);
 
-// Destroys the file descriptor table by closing all file descriptions and
+// Destroys the file descriptor table by closing all open file descriptions and
 // freeing memory.
 void file_descriptor_table_destroy(file_descriptor_table*);
 
-// Clears the file descriptor table by closing all file descriptions.
+// Clears the file descriptor table by closing all open file descriptions.
 void file_descriptor_table_clear(file_descriptor_table*);
 
 // Clones the file descriptor table from another table.
@@ -52,18 +53,17 @@ typedef struct file_ops {
     struct inode* (*create_child)(struct inode*, const char* name, mode_t mode);
     int (*link_child)(struct inode*, const char* name, struct inode* child);
     struct inode* (*unlink_child)(struct inode*, const char* name);
-    int (*open)(file_description*, mode_t mode);
+    int (*open)(struct file*, mode_t mode);
     int (*stat)(struct inode*, struct stat* buf);
 
-    int (*close)(file_description*);
-    ssize_t (*read)(file_description*, void* buffer, size_t count);
-    ssize_t (*write)(file_description*, const void* buffer, size_t count);
-    void* (*mmap)(file_description*, size_t length, off_t offset, int flags);
-    int (*truncate)(file_description*, off_t length);
-    int (*ioctl)(file_description*, int request, void* user_argp);
-    int (*getdents)(file_description*, getdents_callback_fn callback,
-                    void* ctx);
-    short (*poll)(file_description*, short events);
+    int (*close)(struct file*);
+    ssize_t (*read)(struct file*, void* buffer, size_t count);
+    ssize_t (*write)(struct file*, const void* buffer, size_t count);
+    void* (*mmap)(struct file*, size_t length, off_t offset, int flags);
+    int (*truncate)(struct file*, off_t length);
+    int (*ioctl)(struct file*, int request, void* user_argp);
+    int (*getdents)(struct file*, getdents_callback_fn callback, void* ctx);
+    short (*poll)(struct file*, short events);
 } file_ops;
 
 struct inode {
@@ -87,32 +87,24 @@ NODISCARD struct inode* inode_create_child(struct inode*, const char* name,
 NODISCARD int inode_link_child(struct inode*, const char* name,
                                struct inode* child);
 NODISCARD int inode_unlink_child(struct inode*, const char* name);
-NODISCARD file_description* inode_open(struct inode*, int flags, mode_t mode);
+NODISCARD struct file* inode_open(struct inode*, int flags, mode_t mode);
 NODISCARD int inode_stat(struct inode*, struct stat* buf);
 
-int file_description_close(file_description*);
-NODISCARD ssize_t file_description_read(file_description*, void* buffer,
-                                        size_t count);
-NODISCARD ssize_t file_description_read_to_end(file_description*, void* buffer,
-                                               size_t count);
-NODISCARD ssize_t file_description_write(file_description*, const void* buffer,
-                                         size_t count);
-NODISCARD ssize_t file_description_write_all(file_description*,
-                                             const void* buffer, size_t count);
-NODISCARD void* file_description_mmap(file_description*, size_t length,
-                                      off_t offset, int flags);
-NODISCARD int file_description_truncate(file_description*, off_t length);
-NODISCARD off_t file_description_seek(file_description*, off_t offset,
-                                      int whence);
-NODISCARD int file_description_ioctl(file_description*, int request,
-                                     void* user_argp);
-NODISCARD int file_description_getdents(file_description*, getdents_callback_fn,
-                                        void* ctx);
-NODISCARD short file_description_poll(file_description*, short events);
+int file_close(struct file*);
+NODISCARD ssize_t file_read(struct file*, void* buffer, size_t count);
+NODISCARD ssize_t file_read_to_end(struct file*, void* buffer, size_t count);
+NODISCARD ssize_t file_write(struct file*, const void* buffer, size_t count);
+NODISCARD ssize_t file_write_all(struct file*, const void* buffer,
+                                 size_t count);
+NODISCARD void* file_mmap(struct file*, size_t length, off_t offset, int flags);
+NODISCARD int file_truncate(struct file*, off_t length);
+NODISCARD off_t file_seek(struct file*, off_t offset, int whence);
+NODISCARD int file_ioctl(struct file*, int request, void* user_argp);
+NODISCARD int file_getdents(struct file*, getdents_callback_fn, void* ctx);
+NODISCARD short file_poll(struct file*, short events);
 
-NODISCARD int file_description_block(file_description*,
-                                     bool (*unblock)(file_description*),
-                                     int flags);
+NODISCARD int file_block(struct file*, bool (*unblock)(struct file*),
+                         int flags);
 
 void vfs_init(void);
 void vfs_populate_root_fs(const multiboot_module_t* initrd_mod);
@@ -135,11 +127,10 @@ int vfs_generate_major_device_number(void);
 // of the path is a symbolic link, and return the symlink itself.
 #define O_NOFOLLOW_NOERROR 0x2000
 
-NODISCARD file_description* vfs_open(const char* pathname, int flags,
-                                     mode_t mode);
-NODISCARD file_description* vfs_open_at(const struct path* base,
-                                        const char* pathname, int flags,
-                                        mode_t mode);
+NODISCARD struct file* vfs_open(const char* pathname, int flags, mode_t mode);
+NODISCARD struct file* vfs_open_at(const struct path* base,
+                                   const char* pathname, int flags,
+                                   mode_t mode);
 NODISCARD int vfs_stat(const char* pathname, struct stat* buf, int flags);
 NODISCARD int vfs_stat_at(const struct path* base, const char* pathname,
                           struct stat* buf, int flags);

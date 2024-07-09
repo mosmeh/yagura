@@ -23,8 +23,8 @@ typedef struct procfs_pid_item_inode {
     pid_t pid;
 } procfs_pid_item_inode;
 
-static int populate_cmdline(file_description* desc, struct vec* vec) {
-    procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
+static int populate_cmdline(struct file* file, struct vec* vec) {
+    procfs_pid_item_inode* node = (procfs_pid_item_inode*)file->inode;
     struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
@@ -56,8 +56,8 @@ done:
     return ret;
 }
 
-static int populate_comm(file_description* desc, struct vec* vec) {
-    procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
+static int populate_comm(struct file* file, struct vec* vec) {
+    procfs_pid_item_inode* node = (procfs_pid_item_inode*)file->inode;
     struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
@@ -70,8 +70,8 @@ static int populate_comm(file_description* desc, struct vec* vec) {
     return vec_printf(vec, "%s\n", comm);
 }
 
-static int populate_cwd(file_description* desc, struct vec* vec) {
-    procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
+static int populate_cwd(struct file* file, struct vec* vec) {
+    procfs_pid_item_inode* node = (procfs_pid_item_inode*)file->inode;
     struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
@@ -88,8 +88,8 @@ static int populate_cwd(file_description* desc, struct vec* vec) {
     return rc;
 }
 
-static int populate_environ(file_description* desc, struct vec* vec) {
-    procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
+static int populate_environ(struct file* file, struct vec* vec) {
+    procfs_pid_item_inode* node = (procfs_pid_item_inode*)file->inode;
     struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
@@ -121,8 +121,8 @@ done:
     return ret;
 }
 
-static int populate_maps(file_description* desc, struct vec* vec) {
-    procfs_pid_item_inode* node = (procfs_pid_item_inode*)desc->inode;
+static int populate_maps(struct file* file, struct vec* vec) {
+    procfs_pid_item_inode* node = (procfs_pid_item_inode*)file->inode;
     struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;

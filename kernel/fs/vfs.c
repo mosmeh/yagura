@@ -189,14 +189,13 @@ static struct path* follow_symlink(const struct path* parent,
     ASSERT(S_ISLNK(inode->mode));
     ASSERT(depth <= SYMLOOP_MAX);
 
-    file_description* desc = inode_open(inode, O_RDONLY, 0);
-    if (IS_ERR(desc))
-        return ERR_CAST(desc);
+    struct file* file = inode_open(inode, O_RDONLY, 0);
+    if (IS_ERR(file))
+        return ERR_CAST(file);
 
     char target[SYMLINK_MAX];
-    ssize_t target_len =
-        file_description_read_to_end(desc, target, SYMLINK_MAX);
-    file_description_close(desc);
+    ssize_t target_len = file_read_to_end(file, target, SYMLINK_MAX);
+    file_close(file);
     if (IS_ERR(target_len))
         return ERR_PTR(target_len);
 
@@ -393,12 +392,12 @@ static struct path* create_at(const struct path* base, const char* pathname,
     return path;
 }
 
-file_description* vfs_open(const char* pathname, int flags, mode_t mode) {
+struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
     return vfs_open_at(current->cwd, pathname, flags, mode);
 }
 
-file_description* vfs_open_at(const struct path* base, const char* pathname,
-                              int flags, mode_t mode) {
+struct file* vfs_open_at(const struct path* base, const char* pathname,
+                         int flags, mode_t mode) {
     struct path* path = (flags & O_CREAT)
                             ? create_at(base, pathname, mode, flags & O_EXCL)
                             : vfs_resolve_path_at(base, pathname, flags);

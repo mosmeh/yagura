@@ -17,13 +17,13 @@ struct inode* dentry_find(const struct dentry* head, const char* name) {
     return ERR_PTR(-ENOENT);
 }
 
-int dentry_getdents(file_description* desc, const struct dentry* head,
+int dentry_getdents(struct file* file, const struct dentry* head,
                     getdents_callback_fn callback, void* ctx) {
     const struct dentry* dentry = head;
     if (!dentry)
         return 0;
 
-    for (off_t i = 0; i < desc->offset; ++i) {
+    for (off_t i = 0; i < file->offset; ++i) {
         dentry = dentry->next;
         if (!dentry)
             return 0;
@@ -33,7 +33,7 @@ int dentry_getdents(file_description* desc, const struct dentry* head,
         uint8_t type = mode_to_dirent_type(dentry->inode->mode);
         if (!callback(dentry->name, type, ctx))
             break;
-        ++desc->offset;
+        ++file->offset;
     }
     return 0;
 }

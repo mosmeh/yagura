@@ -34,55 +34,55 @@ static int tmpfs_stat(struct inode* inode, struct stat* buf) {
     return 0;
 }
 
-static ssize_t tmpfs_read(file_description* desc, void* buffer, size_t count) {
-    tmpfs_inode* node = (tmpfs_inode*)desc->inode;
-    mutex_lock(&desc->offset_lock);
+static ssize_t tmpfs_read(struct file* file, void* buffer, size_t count) {
+    tmpfs_inode* node = (tmpfs_inode*)file->inode;
+    mutex_lock(&file->offset_lock);
     mutex_lock(&node->lock);
-    ssize_t nread = vec_pread(&node->content, buffer, count, desc->offset);
+    ssize_t nread = vec_pread(&node->content, buffer, count, file->offset);
     mutex_unlock(&node->lock);
     if (IS_OK(nread))
-        desc->offset += nread;
-    mutex_unlock(&desc->offset_lock);
+        file->offset += nread;
+    mutex_unlock(&file->offset_lock);
     return nread;
 }
 
-static ssize_t tmpfs_write(file_description* desc, const void* buffer,
+static ssize_t tmpfs_write(struct file* file, const void* buffer,
                            size_t count) {
-    tmpfs_inode* node = (tmpfs_inode*)desc->inode;
-    mutex_lock(&desc->offset_lock);
+    tmpfs_inode* node = (tmpfs_inode*)file->inode;
+    mutex_lock(&file->offset_lock);
     mutex_lock(&node->lock);
-    ssize_t nwritten = vec_pwrite(&node->content, buffer, count, desc->offset);
+    ssize_t nwritten = vec_pwrite(&node->content, buffer, count, file->offset);
     mutex_unlock(&node->lock);
     if (IS_OK(nwritten))
-        desc->offset += nwritten;
-    mutex_unlock(&desc->offset_lock);
+        file->offset += nwritten;
+    mutex_unlock(&file->offset_lock);
     return nwritten;
 }
 
-static void* tmpfs_mmap(file_description* desc, size_t length, off_t offset,
+static void* tmpfs_mmap(struct file* file, size_t length, off_t offset,
                         int flags) {
-    tmpfs_inode* node = (tmpfs_inode*)desc->inode;
+    tmpfs_inode* node = (tmpfs_inode*)file->inode;
     mutex_lock(&node->lock);
     void* ret = vec_mmap(&node->content, length, offset, flags);
     mutex_unlock(&node->lock);
     return ret;
 }
 
-static int tmpfs_truncate(file_description* desc, off_t length) {
-    tmpfs_inode* node = (tmpfs_inode*)desc->inode;
+static int tmpfs_truncate(struct file* file, off_t length) {
+    tmpfs_inode* node = (tmpfs_inode*)file->inode;
     mutex_lock(&node->lock);
     int rc = vec_resize(&node->content, length);
     mutex_unlock(&node->lock);
     return rc;
 }
 
-static int tmpfs_getdents(file_description* desc, getdents_callback_fn callback,
+static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
                           void* ctx) {
-    tmpfs_inode* node = (tmpfs_inode*)desc->inode;
+    tmpfs_inode* node = (tmpfs_inode*)file->inode;
     mutex_lock(&node->lock);
-    mutex_lock(&desc->offset_lock);
-    int rc = dentry_getdents(desc, node->children, callback, ctx);
-    mutex_unlock(&desc->offset_lock);
+    mutex_lock(&file->offset_lock);
+    int rc = dentry_getdents(file, node->children, callback, ctx);
+    mutex_unlock(&file->offset_lock);
     mutex_unlock(&node->lock);
     return rc;
 }

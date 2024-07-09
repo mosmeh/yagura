@@ -8,10 +8,9 @@
 #include <kernel/memory/memory.h>
 #include <string.h>
 
-static struct font* load_psf1(file_description* desc) {
+static struct font* load_psf1(struct file* file) {
     struct psf1_header header;
-    if (file_description_read_to_end(desc, &header,
-                                     sizeof(struct psf1_header)) !=
+    if (file_read_to_end(file, &header, sizeof(struct psf1_header)) !=
         sizeof(struct psf1_header)) {
         return ERR_PTR(-EINVAL);
     }
@@ -32,8 +31,7 @@ static struct font* load_psf1(file_description* desc) {
         kfree(font);
         return ERR_PTR(-ENOMEM);
     }
-    if ((size_t)file_description_read_to_end(desc, font->glyphs, buf_size) !=
-        buf_size) {
+    if ((size_t)file_read_to_end(file, font->glyphs, buf_size) != buf_size) {
         kfree(font->glyphs);
         kfree(font);
         return ERR_PTR(-EINVAL);
@@ -44,7 +42,7 @@ static struct font* load_psf1(file_description* desc) {
         for (size_t i = 0; i < num_glyphs; ++i) {
             for (;;) {
                 uint16_t uc;
-                if (file_description_read_to_end(desc, &uc, sizeof(uint16_t)) !=
+                if (file_read_to_end(file, &uc, sizeof(uint16_t)) !=
                     sizeof(uint16_t)) {
                     kfree(font->glyphs);
                     kfree(font);
@@ -64,10 +62,9 @@ static struct font* load_psf1(file_description* desc) {
     return font;
 }
 
-static struct font* load_psf2(file_description* desc) {
+static struct font* load_psf2(struct file* file) {
     struct psf2_header header;
-    if (file_description_read_to_end(desc, &header,
-                                     sizeof(struct psf2_header)) !=
+    if (file_read_to_end(file, &header, sizeof(struct psf2_header)) !=
         sizeof(struct psf2_header))
         return ERR_PTR(-EINVAL);
     if (header.magic != PSF2_MAGIC || header.version != 0 ||
@@ -93,8 +90,7 @@ static struct font* load_psf2(file_description* desc) {
         kfree(font);
         return ERR_PTR(-ENOMEM);
     }
-    if ((size_t)file_description_read_to_end(desc, font->glyphs, buf_size) !=
-        buf_size) {
+    if ((size_t)file_read_to_end(file, font->glyphs, buf_size) != buf_size) {
         kfree(font->glyphs);
         kfree(font);
         return ERR_PTR(-EINVAL);
@@ -105,7 +101,7 @@ static struct font* load_psf2(file_description* desc) {
         for (size_t i = 0; i < header.numglyph; ++i) {
             for (;;) {
                 uint8_t uc;
-                if (file_description_read_to_end(desc, &uc, sizeof(uint8_t)) !=
+                if (file_read_to_end(file, &uc, sizeof(uint8_t)) !=
                     sizeof(uint8_t)) {
                     kfree(font->glyphs);
                     kfree(font);
@@ -132,32 +128,32 @@ struct font* load_psf(const char* filename) {
 
     struct font* ret = NULL;
 
-    file_description* desc = vfs_open_at(root, filename, O_RDONLY, 0);
-    if (IS_ERR(desc)) {
-        ret = ERR_CAST(desc);
-        desc = NULL;
+    struct file* file = vfs_open_at(root, filename, O_RDONLY, 0);
+    if (IS_ERR(file)) {
+        ret = ERR_CAST(file);
+        file = NULL;
         goto done;
     }
 
-    ret = load_psf1(desc);
+    ret = load_psf1(file);
     if (IS_OK(ret))
         goto done;
 
-    int rc = file_description_seek(desc, 0, SEEK_SET);
+    int rc = file_seek(file, 0, SEEK_SET);
     if (IS_ERR(rc)) {
         ret = ERR_PTR(rc);
         goto done;
     }
 
-    ret = load_psf2(desc);
+    ret = load_psf2(file);
     if (IS_OK(ret))
         goto done;
 
     ret = ERR_PTR(-EINVAL);
 
 done:
-    if (desc)
-        file_description_close(desc);
+    if (file)
+        file_close(file);
     path_destroy_recursive(root);
     return ret;
 }

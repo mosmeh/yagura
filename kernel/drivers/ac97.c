@@ -104,8 +104,8 @@ static uint8_t buffer_descriptor_list_idx = 0;
 
 static bool can_write(void) { return !buffer_descriptor_list_is_full; }
 
-static bool unblock_write(file_description* desc) {
-    (void)desc;
+static bool unblock_write(struct file* file) {
+    (void)file;
     return can_write();
 }
 
@@ -118,7 +118,7 @@ static void start_dma(void) {
     dma_is_running = true;
 }
 
-static int write_single_buffer(file_description* desc, const void* buffer,
+static int write_single_buffer(struct file* file, const void* buffer,
                                size_t count) {
     bool int_flag = push_cli();
     do {
@@ -140,7 +140,7 @@ static int write_single_buffer(file_description* desc, const void* buffer,
             break;
 
         buffer_descriptor_list_is_full = true;
-        int rc = file_description_block(desc, unblock_write, 0);
+        int rc = file_block(file, unblock_write, 0);
         if (IS_ERR(rc)) {
             pop_cli(int_flag);
             return rc;
@@ -172,13 +172,13 @@ static int write_single_buffer(file_description* desc, const void* buffer,
     return 0;
 }
 
-static ssize_t ac97_device_write(file_description* desc, const void* buffer,
+static ssize_t ac97_device_write(struct file* file, const void* buffer,
                                  size_t count) {
     unsigned char* src = (unsigned char*)buffer;
     size_t nwritten = 0;
     while (count > 0) {
         size_t size = MIN(PAGE_SIZE, count);
-        int rc = write_single_buffer(desc, src, size);
+        int rc = write_single_buffer(file, src, size);
         if (IS_ERR(rc))
             return rc;
         src += size;
@@ -188,9 +188,8 @@ static ssize_t ac97_device_write(file_description* desc, const void* buffer,
     return nwritten;
 }
 
-static int ac97_device_ioctl(file_description* desc, int request,
-                             void* user_argp) {
-    (void)desc;
+static int ac97_device_ioctl(struct file* file, int request, void* user_argp) {
+    (void)file;
 
     switch (request) {
     case SOUND_GET_SAMPLE_RATE: {
@@ -231,8 +230,8 @@ static int ac97_device_ioctl(file_description* desc, int request,
     return -EINVAL;
 }
 
-static short ac97_device_poll(file_description* desc, short events) {
-    (void)desc;
+static short ac97_device_poll(struct file* file, short events) {
+    (void)file;
     short revents = 0;
     if (events & POLLIN)
         revents |= POLLIN;

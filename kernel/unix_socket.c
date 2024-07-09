@@ -13,52 +13,51 @@ static void unix_socket_destroy_inode(struct inode* inode) {
     kfree(socket);
 }
 
-static int unix_socket_close(file_description* desc) {
-    unix_socket* socket = (unix_socket*)desc->inode;
+static int unix_socket_close(struct file* file) {
+    unix_socket* socket = (unix_socket*)file->inode;
     socket->is_open_for_writing_to_connector = false;
     socket->is_open_for_writing_to_acceptor = false;
     return 0;
 }
 
-static bool is_connector(file_description* desc) {
-    unix_socket* socket = (unix_socket*)desc->inode;
-    return socket->connector_fd == desc;
+static bool is_connector(struct file* file) {
+    unix_socket* socket = (unix_socket*)file->inode;
+    return socket->connector_file == file;
 }
 
-static bool is_open_for_reading(file_description* desc) {
-    unix_socket* socket = (unix_socket*)desc->inode;
-    return is_connector(desc) ? socket->is_open_for_writing_to_connector
+static bool is_open_for_reading(struct file* file) {
+    unix_socket* socket = (unix_socket*)file->inode;
+    return is_connector(file) ? socket->is_open_for_writing_to_connector
                               : socket->is_open_for_writing_to_acceptor;
 }
 
-static ring_buf* buf_to_read(file_description* desc) {
-    unix_socket* socket = (unix_socket*)desc->inode;
-    return is_connector(desc) ? &socket->to_connector_buf
+static ring_buf* buf_to_read(struct file* file) {
+    unix_socket* socket = (unix_socket*)file->inode;
+    return is_connector(file) ? &socket->to_connector_buf
                               : &socket->to_acceptor_buf;
 }
 
-static ring_buf* buf_to_write(file_description* desc) {
-    unix_socket* socket = (unix_socket*)desc->inode;
-    return is_connector(desc) ? &socket->to_acceptor_buf
+static ring_buf* buf_to_write(struct file* file) {
+    unix_socket* socket = (unix_socket*)file->inode;
+    return is_connector(file) ? &socket->to_acceptor_buf
                               : &socket->to_connector_buf;
 }
 
-static bool is_readable(file_description* desc) {
-    if (!is_open_for_reading(desc))
+static bool is_readable(struct file* file) {
+    if (!is_open_for_reading(file))
         return true;
-    ring_buf* buf = buf_to_read(desc);
+    ring_buf* buf = buf_to_read(file);
     return !ring_buf_is_empty(buf);
 }
 
-static ssize_t unix_socket_read(file_description* desc, void* buffer,
-                                size_t count) {
-    unix_socket* socket = (unix_socket*)desc->inode;
+static ssize_t unix_socket_read(struct file* file, void* buffer, size_t count) {
+    unix_socket* socket = (unix_socket*)file->inode;
     if (!socket->is_connected)
         return -EINVAL;
 
-    ring_buf* buf = buf_to_read(desc);
+    ring_buf* buf = buf_to_read(file);
     for (;;) {
-        int rc = file_description_block(desc, is_readable, 0);
+        int rc = file_block(file, is_readable, 0);
         if (IS_ERR(rc))
             return rc;
 
@@ -70,36 +69,36 @@ static ssize_t unix_socket_read(file_description* desc, void* buffer,
         }
         mutex_unlock(&socket->lock);
 
-        if (!is_open_for_reading(desc))
+        if (!is_open_for_reading(file))
             return 0;
     }
 }
 
-static bool is_writable(file_description* desc) {
-    unix_socket* socket = (unix_socket*)desc->inode;
-    if (is_connector(desc)) {
+static bool is_writable(struct file* file) {
+    unix_socket* socket = (unix_socket*)file->inode;
+    if (is_connector(file)) {
         if (!socket->is_open_for_writing_to_acceptor)
             return false;
     } else if (!socket->is_open_for_writing_to_connector) {
         return true;
     }
-    ring_buf* buf = buf_to_write(desc);
+    ring_buf* buf = buf_to_write(file);
     return !ring_buf_is_full(buf);
 }
 
-static ssize_t unix_socket_write(file_description* desc, const void* buffer,
+static ssize_t unix_socket_write(struct file* file, const void* buffer,
                                  size_t count) {
-    unix_socket* socket = (unix_socket*)desc->inode;
+    unix_socket* socket = (unix_socket*)file->inode;
     if (!socket->is_connected)
         return -ENOTCONN;
 
-    ring_buf* buf = buf_to_write(desc);
+    ring_buf* buf = buf_to_write(file);
     for (;;) {
-        int rc = file_description_block(desc, is_writable, 0);
+        int rc = file_block(file, is_writable, 0);
         if (IS_ERR(rc))
             return rc;
 
-        if (!is_connector(desc) && !socket->is_open_for_writing_to_connector) {
+        if (!is_connector(file) && !socket->is_open_for_writing_to_connector) {
             int rc = process_send_signal_to_one(current->pid, SIGPIPE);
             if (IS_ERR(rc))
                 return rc;
@@ -116,17 +115,17 @@ static ssize_t unix_socket_write(file_description* desc, const void* buffer,
     }
 }
 
-static short unix_socket_poll(file_description* desc, short events) {
-    unix_socket* socket = (unix_socket*)desc->inode;
+static short unix_socket_poll(struct file* file, short events) {
+    unix_socket* socket = (unix_socket*)file->inode;
     short revents = 0;
     if (events & POLLIN) {
         bool can_read =
-            socket->is_connected ? is_readable(desc) : socket->num_pending > 0;
+            socket->is_connected ? is_readable(file) : socket->num_pending > 0;
         if (can_read)
             revents |= POLLIN;
     }
     if (events & POLLOUT) {
-        bool can_write = socket->is_connected && is_writable(desc);
+        bool can_write = socket->is_connected && is_writable(file);
         if (can_write)
             revents |= POLLOUT;
     }
@@ -206,16 +205,16 @@ int unix_socket_listen(unix_socket* socket, int backlog) {
     return 0;
 }
 
-static bool is_acceptable(file_description* desc) {
-    unix_socket* socket = (unix_socket*)desc->inode;
+static bool is_acceptable(struct file* file) {
+    unix_socket* socket = (unix_socket*)file->inode;
     return socket->num_pending > 0;
 }
 
-unix_socket* unix_socket_accept(file_description* desc) {
-    if (!S_ISSOCK(desc->inode->mode))
+unix_socket* unix_socket_accept(struct file* file) {
+    if (!S_ISSOCK(file->inode->mode))
         return ERR_PTR(-ENOTSOCK);
 
-    unix_socket* listener = (unix_socket*)desc->inode;
+    unix_socket* listener = (unix_socket*)file->inode;
 
     mutex_lock(&listener->lock);
     bool is_listening = listener->state == SOCKET_STATE_LISTENING;
@@ -224,7 +223,7 @@ unix_socket* unix_socket_accept(file_description* desc) {
         return ERR_PTR(-EINVAL);
 
     for (;;) {
-        int rc = file_description_block(desc, is_acceptable, 0);
+        int rc = file_block(file, is_acceptable, 0);
         if (IS_ERR(rc))
             return ERR_PTR(rc);
 
@@ -250,20 +249,20 @@ unix_socket* unix_socket_accept(file_description* desc) {
     }
 }
 
-static bool is_connectable(file_description* desc) {
-    unix_socket* connector = (unix_socket*)desc->inode;
+static bool is_connectable(struct file* file) {
+    unix_socket* connector = (unix_socket*)file->inode;
     return connector->is_connected;
 }
 
-int unix_socket_connect(file_description* desc, struct inode* addr_inode) {
-    if (!S_ISSOCK(desc->inode->mode))
+int unix_socket_connect(struct file* file, struct inode* addr_inode) {
+    if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
 
     unix_socket* listener = addr_inode->bound_socket;
     if (!listener)
         return -ECONNREFUSED;
 
-    unix_socket* connector = (unix_socket*)desc->inode;
+    unix_socket* connector = (unix_socket*)file->inode;
     mutex_lock(&connector->lock);
 
     switch (connector->state) {
@@ -289,7 +288,7 @@ int unix_socket_connect(file_description* desc, struct inode* addr_inode) {
 
     ++listener->num_pending;
 
-    connector->connector_fd = desc;
+    connector->connector_file = file;
     connector->state = SOCKET_STATE_PENDING;
     connector->next = NULL;
 
@@ -307,11 +306,11 @@ int unix_socket_connect(file_description* desc, struct inode* addr_inode) {
     mutex_unlock(&listener->lock);
     mutex_unlock(&connector->lock);
 
-    return file_description_block(desc, is_connectable, 0);
+    return file_block(file, is_connectable, 0);
 }
 
-int unix_socket_shutdown(file_description* desc, int how) {
-    if (!S_ISSOCK(desc->inode->mode))
+int unix_socket_shutdown(struct file* file, int how) {
+    if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
 
     switch (how) {
@@ -325,8 +324,8 @@ int unix_socket_shutdown(file_description* desc, int how) {
 
     bool shut_read = how == SHUT_RD || how == SHUT_RDWR;
     bool shut_write = how == SHUT_WR || how == SHUT_RDWR;
-    bool conn = is_connector(desc);
-    unix_socket* socket = (unix_socket*)desc->inode;
+    bool conn = is_connector(file);
+    unix_socket* socket = (unix_socket*)file->inode;
     if ((conn && shut_read) || (!conn && shut_write))
         socket->is_open_for_writing_to_connector = false;
     if ((conn && shut_write) || (!conn && shut_read))

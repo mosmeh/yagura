@@ -7,29 +7,29 @@
 #include <kernel/panic.h>
 #include <kernel/system.h>
 
-static file_description* active_console;
+static struct file* active_console;
 
-static ssize_t system_console_device_read(file_description* desc, void* buffer,
+static ssize_t system_console_device_read(struct file* file, void* buffer,
                                           size_t count) {
-    (void)desc;
-    return file_description_read(active_console, buffer, count);
+    (void)file;
+    return file_read(active_console, buffer, count);
 }
 
-static ssize_t system_console_device_write(file_description* desc,
+static ssize_t system_console_device_write(struct file* file,
                                            const void* buffer, size_t count) {
-    (void)desc;
-    return file_description_write(active_console, buffer, count);
+    (void)file;
+    return file_write(active_console, buffer, count);
 }
 
-static int system_console_device_ioctl(file_description* desc, int request,
+static int system_console_device_ioctl(struct file* file, int request,
                                        void* user_argp) {
-    (void)desc;
-    return file_description_ioctl(active_console, request, user_argp);
+    (void)file;
+    return file_ioctl(active_console, request, user_argp);
 }
 
-static short system_console_device_poll(file_description* desc, short events) {
-    (void)desc;
-    return file_description_poll(active_console, events);
+static short system_console_device_poll(struct file* file, short events) {
+    (void)file;
+    return file_poll(active_console, events);
 }
 
 static struct inode* system_console_device_get(void) {

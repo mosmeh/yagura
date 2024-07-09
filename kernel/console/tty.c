@@ -14,17 +14,17 @@ static bool can_read(struct tty* tty) {
     return !ring_buf_is_empty(&tty->input_buf);
 }
 
-static bool unblock_read(file_description* desc) {
-    struct tty* tty = (struct tty*)desc->inode;
+static bool unblock_read(struct file* file) {
+    struct tty* tty = (struct tty*)file->inode;
     return can_read(tty);
 }
 
-static ssize_t tty_read(file_description* desc, void* buf, size_t count) {
-    struct tty* tty = (struct tty*)desc->inode;
+static ssize_t tty_read(struct file* file, void* buf, size_t count) {
+    struct tty* tty = (struct tty*)file->inode;
 
     bool int_flag;
     for (;;) {
-        int rc = file_description_block(desc, unblock_read, 0);
+        int rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 
@@ -76,17 +76,16 @@ static void processed_echo(struct tty* tty, const char* buf, size_t count) {
     }
 }
 
-static ssize_t tty_write(file_description* desc, const void* buf,
-                         size_t count) {
-    struct tty* tty = (struct tty*)desc->inode;
+static ssize_t tty_write(struct file* file, const void* buf, size_t count) {
+    struct tty* tty = (struct tty*)file->inode;
     bool int_flag = push_cli();
     processed_echo(tty, buf, count);
     pop_cli(int_flag);
     return count;
 }
 
-static int tty_ioctl(file_description* desc, int request, void* user_argp) {
-    struct tty* tty = (struct tty*)desc->inode;
+static int tty_ioctl(struct file* file, int request, void* user_argp) {
+    struct tty* tty = (struct tty*)file->inode;
     struct termios* termios = &tty->termios;
     int ret = 0;
     bool int_flag = push_cli();
@@ -153,8 +152,8 @@ done:
     return ret;
 }
 
-static short tty_poll(file_description* desc, short events) {
-    struct tty* tty = (struct tty*)desc->inode;
+static short tty_poll(struct file* file, short events) {
+    struct tty* tty = (struct tty*)file->inode;
     short revents = 0;
     if (events & POLLIN) {
         bool int_flag = push_cli();

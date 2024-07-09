@@ -25,21 +25,21 @@ int sys_open(const char* user_pathname, int flags, unsigned mode) {
     if (IS_ERR(rc))
         return rc;
 
-    file_description* desc = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    rc = process_alloc_file_descriptor(-1, desc);
+    struct file* file = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    rc = process_alloc_file_descriptor(-1, file);
     if (IS_ERR(rc))
-        file_description_close(desc);
+        file_close(file);
     return rc;
 }
 
 int sys_close(int fd) {
-    file_description* desc = process_get_file_description(fd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
+    struct file* file = process_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
 
-    int rc = file_description_close(desc);
+    int rc = file_close(file);
     if (IS_ERR(rc))
         return rc;
 
@@ -49,10 +49,10 @@ int sys_close(int fd) {
 ssize_t sys_read(int fd, void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    file_description* desc = process_get_file_description(fd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    return file_description_read(desc, user_buf, count);
+    struct file* file = process_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return file_read(file, user_buf, count);
 }
 
 ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
@@ -72,15 +72,15 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
         return -EINVAL;
     }
 
-    file_description* desc = inode_open(inode, O_RDONLY, 0);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
+    struct file* file = inode_open(inode, O_RDONLY, 0);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
 
     bufsiz = MIN(bufsiz, SYMLINK_MAX);
 
     char buf[SYMLINK_MAX];
-    ssize_t nread = file_description_read_to_end(desc, buf, bufsiz);
-    file_description_close(desc);
+    ssize_t nread = file_read_to_end(file, buf, bufsiz);
+    file_close(file);
     if (IS_ERR(nread))
         return nread;
 
@@ -92,24 +92,24 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
 ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    file_description* desc = process_get_file_description(fd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    return file_description_write(desc, user_buf, count);
+    struct file* file = process_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return file_write(file, user_buf, count);
 }
 
 int sys_ftruncate(int fd, off_t length) {
-    file_description* desc = process_get_file_description(fd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    return file_description_truncate(desc, length);
+    struct file* file = process_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return file_truncate(file, length);
 }
 
 off_t sys_lseek(int fd, off_t offset, int whence) {
-    file_description* desc = process_get_file_description(fd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    return file_description_seek(desc, offset, whence);
+    struct file* file = process_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return file_seek(file, offset, whence);
 }
 
 int sys_lstat(const char* user_pathname, struct stat* user_buf) {
@@ -158,12 +158,12 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
     if (IS_ERR(inode))
         return PTR_ERR(inode);
 
-    file_description* desc = inode_open(inode, O_WRONLY, 0);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    rc = file_description_write_all(desc, target, target_len);
+    struct file* file = inode_open(inode, O_WRONLY, 0);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    rc = file_write_all(file, target, target_len);
 
-    file_description_close(desc);
+    file_close(file);
     inode_unref(inode);
     return rc;
 }
@@ -171,10 +171,10 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
 int sys_ioctl(int fd, int request, void* user_argp) {
     if (!is_user_address(user_argp))
         return -EFAULT;
-    file_description* desc = process_get_file_description(fd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
-    return file_description_ioctl(desc, request, user_argp);
+    struct file* file = process_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return file_ioctl(file, request, user_argp);
 }
 
 int sys_mkdir(const char* user_pathname, mode_t mode) {
@@ -316,13 +316,13 @@ static bool set_has_children(const char* name, uint8_t type, void* ctx) {
 static int ensure_empty_directory(struct inode* inode) {
     ASSERT(S_ISDIR(inode->mode));
 
-    file_description* desc = inode_open(inode, O_RDONLY, 0);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
+    struct file* file = inode_open(inode, O_RDONLY, 0);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
 
     bool has_children = false;
-    int rc = file_description_getdents(desc, set_has_children, &has_children);
-    file_description_close(desc);
+    int rc = file_getdents(file, set_has_children, &has_children);
+    file_close(file);
     if (IS_ERR(rc))
         return rc;
 
@@ -460,15 +460,15 @@ static bool fill_dir(const char* name, uint8_t type, void* raw_ctx) {
 }
 
 long sys_getdents(int fd, void* user_dirp, size_t count) {
-    file_description* desc = process_get_file_description(fd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
+    struct file* file = process_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
 
     struct fill_dir_ctx ctx = {.user_dirp = user_dirp,
                                .remaining_count = count,
                                .nwritten = 0,
                                .rc = 0};
-    int rc = file_description_getdents(desc, fill_dir, &ctx);
+    int rc = file_getdents(file, fill_dir, &ctx);
     if (IS_ERR(rc))
         return rc;
     if (IS_ERR(ctx.rc))
@@ -477,21 +477,21 @@ long sys_getdents(int fd, void* user_dirp, size_t count) {
 }
 
 int sys_fcntl(int fd, int cmd, uintptr_t arg) {
-    file_description* desc = process_get_file_description(fd);
-    if (IS_ERR(desc))
-        return PTR_ERR(desc);
+    struct file* file = process_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
     switch (cmd) {
     case F_DUPFD: {
-        int ret = process_alloc_file_descriptor(-1, desc);
+        int ret = process_alloc_file_descriptor(-1, file);
         if (IS_ERR(ret))
             return ret;
-        ++desc->ref_count;
+        ++file->ref_count;
         return ret;
     }
     case F_GETFL:
-        return desc->flags;
+        return file->flags;
     case F_SETFL:
-        desc->flags = arg;
+        file->flags = arg;
         return 0;
     default:
         return -EINVAL;
@@ -499,24 +499,24 @@ int sys_fcntl(int fd, int cmd, uintptr_t arg) {
 }
 
 int sys_dup2(int oldfd, int newfd) {
-    file_description* oldfd_desc = process_get_file_description(oldfd);
-    if (IS_ERR(oldfd_desc))
-        return PTR_ERR(oldfd_desc);
+    struct file* oldfd_file = process_get_file(oldfd);
+    if (IS_ERR(oldfd_file))
+        return PTR_ERR(oldfd_file);
     if (oldfd == newfd)
         return oldfd;
-    file_description* newfd_desc = process_get_file_description(newfd);
-    if (IS_OK(newfd_desc)) {
-        int rc = file_description_close(newfd_desc);
+    struct file* newfd_file = process_get_file(newfd);
+    if (IS_OK(newfd_file)) {
+        int rc = file_close(newfd_file);
         if (IS_ERR(rc))
             return rc;
         rc = process_free_file_descriptor(newfd);
         if (IS_ERR(rc))
             return rc;
     }
-    int ret = process_alloc_file_descriptor(newfd, oldfd_desc);
+    int ret = process_alloc_file_descriptor(newfd, oldfd_file);
     if (IS_ERR(ret))
         return ret;
-    ++oldfd_desc->ref_count;
+    ++oldfd_file->ref_count;
     return ret;
 }
 
@@ -526,28 +526,28 @@ int sys_pipe(int user_fifofd[2]) {
         return PTR_ERR(fifo);
 
     inode_ref(fifo);
-    file_description* reader_desc = inode_open(fifo, O_RDONLY, 0);
-    if (IS_ERR(reader_desc)) {
+    struct file* reader_file = inode_open(fifo, O_RDONLY, 0);
+    if (IS_ERR(reader_file)) {
         inode_unref(fifo);
-        return PTR_ERR(reader_desc);
+        return PTR_ERR(reader_file);
     }
 
-    file_description* writer_desc = inode_open(fifo, O_WRONLY, 0);
-    if (IS_ERR(writer_desc)) {
-        file_description_close(reader_desc);
-        return PTR_ERR(writer_desc);
+    struct file* writer_file = inode_open(fifo, O_WRONLY, 0);
+    if (IS_ERR(writer_file)) {
+        file_close(reader_file);
+        return PTR_ERR(writer_file);
     }
 
     int rc = 0;
     int writer_fd = -1;
 
-    int reader_fd = process_alloc_file_descriptor(-1, reader_desc);
+    int reader_fd = process_alloc_file_descriptor(-1, reader_file);
     if (IS_ERR(reader_fd)) {
         rc = reader_fd;
         goto fail;
     }
 
-    writer_fd = process_alloc_file_descriptor(-1, writer_desc);
+    writer_fd = process_alloc_file_descriptor(-1, writer_file);
     if (IS_ERR(writer_fd)) {
         rc = writer_fd;
         goto fail;
@@ -568,7 +568,7 @@ fail:
         process_free_file_descriptor(reader_fd);
     if (IS_OK(writer_fd))
         process_free_file_descriptor(writer_fd);
-    file_description_close(reader_desc);
-    file_description_close(writer_desc);
+    file_close(reader_file);
+    file_close(writer_file);
     return rc;
 }
