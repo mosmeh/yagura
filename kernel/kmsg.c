@@ -5,7 +5,11 @@
 #include <stdio.h>
 #include <string.h>
 
-int kprint(const char* str) { return kmsg_write(str, strlen(str)); }
+int kprint(const char* str) {
+    size_t len = strlen(str);
+    kmsg_write(str, len);
+    return len;
+}
 
 int kprintf(const char* format, ...) {
     va_list args;
@@ -39,7 +43,7 @@ size_t kmsg_read(char* buf, size_t count) {
     return dest_index;
 }
 
-size_t kmsg_write(const char* buf, size_t count) {
+void kmsg_write(const char* buf, size_t count) {
     int int_flag = push_cli();
     for (size_t i = 0; i < count; ++i) {
         ring_buf[write_index] = buf[i];
@@ -47,7 +51,6 @@ size_t kmsg_write(const char* buf, size_t count) {
         if (write_index == read_index)
             read_index = (read_index + 1) % KMSG_BUF_SIZE;
     }
-    size_t nwritten = serial_write(SERIAL_COM1, buf, count);
+    serial_write(0, buf, count);
     pop_cli(int_flag);
-    return nwritten;
 }

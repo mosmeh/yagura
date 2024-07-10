@@ -6,37 +6,32 @@
 
 typedef struct serial_console_device {
     struct tty tty;
-    uint16_t port;
+    uint8_t index;
 } serial_console_device;
 
-static serial_console_device* devices[4];
+static serial_console_device* devices[SERIAL_NUM_PORTS];
 
-void serial_console_on_char(uint16_t port, char ch) {
-    uint8_t com_number = serial_port_to_com_number(port);
-    if (!com_number)
-        return;
-    serial_console_device* dev = devices[com_number - 1];
+static void on_char(uint8_t index, char ch) {
+    ASSERT(index < SERIAL_NUM_PORTS);
+    serial_console_device* dev = devices[index];
     if (dev)
         tty_emit(&dev->tty, &ch, 1);
 }
 
 static void echo(const char* buf, size_t count, void* ctx) {
     serial_console_device* dev = (serial_console_device*)ctx;
-    serial_write(dev->port, buf, count);
+    serial_write(dev->index, buf, count);
 }
 
-static serial_console_device* serial_console_device_create(uint16_t port) {
-    if (!serial_is_valid_port(port))
-        return ERR_PTR(-EINVAL);
-
+static serial_console_device* serial_console_device_create(uint8_t index) {
     serial_console_device* dev = kmalloc(sizeof(serial_console_device));
     if (!dev)
         return ERR_PTR(-ENOMEM);
     *dev = (serial_console_device){0};
 
-    dev->port = port;
+    dev->index = index;
 
-    uint8_t minor = 63 + serial_port_to_com_number(port);
+    uint8_t minor = 64 + index;
     int rc = tty_init(&dev->tty, minor);
     if (IS_ERR(rc)) {
         kfree(dev);
@@ -48,15 +43,9 @@ static serial_console_device* serial_console_device_create(uint16_t port) {
 }
 
 void serial_console_init(void) {
-    static const uint16_t ports[] = {
-        SERIAL_COM1,
-        SERIAL_COM2,
-        SERIAL_COM3,
-        SERIAL_COM4,
-    };
-    for (size_t i = 0; i < ARRAY_SIZE(ports); ++i) {
-        if (serial_is_port_enabled(ports[i])) {
-            serial_console_device* dev = serial_console_device_create(ports[i]);
+    for (uint8_t i = 0; i < SERIAL_NUM_PORTS; ++i) {
+        if (serial_is_port_enabled(i)) {
+            serial_console_device* dev = serial_console_device_create(i);
             ASSERT_OK(dev);
 
             char name[8];
@@ -69,4 +58,5 @@ void serial_console_init(void) {
             devices[i] = dev;
         }
     }
+    serial_set_input_handler(on_char);
 }

@@ -151,7 +151,8 @@ done:
 static ssize_t kmsg_device_write(struct file* file, const void* buffer,
                                  size_t count) {
     (void)file;
-    return kmsg_write(buffer, count);
+    kmsg_write(buffer, count);
+    return count;
 }
 
 static struct inode* kmsg_device_get(void) {
