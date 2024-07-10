@@ -10,9 +10,9 @@
 
 #define SECTOR_SIZE 512
 
-typedef struct virtio_blk_device {
+typedef struct {
     struct inode inode;
-    mutex lock;
+    struct mutex lock;
     struct virtio_device* virtio;
     uint64_t capacity;
 } virtio_blk_device;
@@ -152,17 +152,16 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
         name[3] = 'a' + id % 26;
     }
 
-    struct virtio_blk_device* device =
-        kmalloc(sizeof(struct virtio_blk_device));
+    virtio_blk_device* device = kmalloc(sizeof(virtio_blk_device));
     if (!device)
         goto fail;
-    *device = (struct virtio_blk_device){0};
+    *device = (virtio_blk_device){0};
 
     device->virtio = virtio;
     device->capacity = capacity;
 
     struct inode* inode = &device->inode;
-    static file_ops fops = {
+    static struct file_ops fops = {
         .destroy_inode = virtio_blk_destroy_inode,
         .read = virtio_blk_read,
         .write = virtio_blk_write,

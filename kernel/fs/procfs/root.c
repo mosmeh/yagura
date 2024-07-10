@@ -213,7 +213,7 @@ struct inode* procfs_create_root(void) {
         return ERR_PTR(-ENOMEM);
     *root = (procfs_dir_inode){0};
 
-    static file_ops fops = {
+    static struct file_ops fops = {
         .destroy_inode = procfs_dir_destroy_inode,
         .lookup_child = procfs_root_lookup_child,
         .getdents = procfs_root_getdents,

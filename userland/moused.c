@@ -70,8 +70,8 @@ static int handle_new_connection(void) {
 
 static int broadcast_event(void) {
     for (;;) {
-        mouse_event event;
-        ssize_t nread = read(mouse_fd, &event, sizeof(mouse_event));
+        struct mouse_event event;
+        ssize_t nread = read(mouse_fd, &event, sizeof(struct mouse_event));
         if (nread < 0) {
             if (errno == EAGAIN)
                 return 0;
@@ -80,7 +80,7 @@ static int broadcast_event(void) {
         }
         cursor_x = MAX(0, MIN((int32_t)(width - 1), cursor_x + event.dx));
         cursor_y = MAX(0, MIN((int32_t)(height - 1), cursor_y + event.dy));
-        moused_event hidd_event = {
+        struct moused_event moused_event = {
             .x = cursor_x,
             .y = cursor_y,
             .dx = event.dx,
@@ -91,7 +91,8 @@ static int broadcast_event(void) {
             int* fd = &pollfds[2 + i].fd;
             if (*fd < 0)
                 continue;
-            ssize_t nwritten = write(*fd, &hidd_event, sizeof(moused_event));
+            ssize_t nwritten =
+                write(*fd, &moused_event, sizeof(struct moused_event));
             if (nwritten < 0 && errno != EAGAIN)
                 *fd = -1;
         }

@@ -38,7 +38,7 @@ static ssize_t write_to_full_disk(struct file* file, const void* buffer,
 }
 
 static struct inode* null_device_get(void) {
-    static file_ops fops = {
+    static struct file_ops fops = {
         .read = read_nothing,
         .write = write_to_bit_bucket,
     };
@@ -52,7 +52,7 @@ static struct inode* null_device_get(void) {
 }
 
 static struct inode* zero_device_get(void) {
-    static file_ops fops = {
+    static struct file_ops fops = {
         .read = read_zeros,
         .write = write_to_bit_bucket,
     };
@@ -66,7 +66,7 @@ static struct inode* zero_device_get(void) {
 }
 
 static struct inode* full_device_get(void) {
-    static file_ops fops = {
+    static struct file_ops fops = {
         .read = read_zeros,
         .write = write_to_full_disk,
     };
@@ -86,7 +86,7 @@ static ssize_t random_device_read(struct file* file, void* buffer,
 }
 
 static struct inode* random_device_get(void) {
-    static file_ops fops = {
+    static struct file_ops fops = {
         .read = random_device_read,
         .write = write_to_bit_bucket,
     };
@@ -100,7 +100,7 @@ static struct inode* random_device_get(void) {
 }
 
 static struct inode* urandom_device_get(void) {
-    static file_ops fops = {
+    static struct file_ops fops = {
         .read = random_device_read,
         .write = write_to_bit_bucket,
     };
@@ -156,7 +156,7 @@ static ssize_t kmsg_device_write(struct file* file, const void* buffer,
 }
 
 static struct inode* kmsg_device_get(void) {
-    static file_ops fops = {
+    static struct file_ops fops = {
         .close = kmsg_device_close,
         .read = kmsg_device_read,
         .write = kmsg_device_write,

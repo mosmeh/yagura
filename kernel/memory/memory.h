@@ -65,7 +65,7 @@ struct vm {
     uintptr_t start;
     uintptr_t end;
     struct page_directory* page_directory;
-    mutex lock;
+    struct mutex lock;
     struct vm_region* regions;
 };
 

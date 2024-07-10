@@ -8,7 +8,7 @@
 #include "safe_string.h"
 #include "system.h"
 
-typedef struct idt_descriptor {
+struct idt_gate {
     uint16_t base_lo : 16;
     uint16_t segment_selector : 16;
     uint8_t reserved1 : 8;
@@ -17,23 +17,23 @@ typedef struct idt_descriptor {
     uint8_t dpl : 2;
     bool present : 1;
     uint16_t base_hi : 16;
-} __attribute__((packed)) idt_descriptor;
+} __attribute__((packed));
 
-typedef struct idt_pointer {
+struct idtr {
     uint16_t limit;
     uint32_t base;
-} __attribute__((packed)) idt_pointer;
+} __attribute__((packed));
 
 #define NUM_IDT_ENTRIES 256
-static idt_descriptor idt[NUM_IDT_ENTRIES];
-static idt_pointer idtr;
+static struct idt_gate idt[NUM_IDT_ENTRIES];
+static struct idtr idtr;
 interrupt_handler_fn interrupt_handlers[NUM_IDT_ENTRIES];
 
 void idt_set_interrupt_handler(uint8_t num, interrupt_handler_fn handler) {
     interrupt_handlers[num] = handler;
 }
 
-void isr_handler(registers* regs) {
+void isr_handler(struct registers* regs) {
     interrupt_handler_fn handler = interrupt_handlers[regs->num];
     if (handler) {
         handler(regs);
@@ -47,7 +47,7 @@ void isr_handler(registers* regs) {
 
 void idt_set_gate(uint8_t idx, uint32_t base, uint16_t segment_selector,
                   uint8_t gate_type, uint8_t dpl) {
-    idt_descriptor* entry = idt + idx;
+    struct idt_gate* entry = idt + idx;
 
     entry->base_lo = base & 0xffff;
     entry->base_hi = (base >> 16) & 0xffff;
@@ -61,14 +61,14 @@ void idt_set_gate(uint8_t idx, uint32_t base, uint16_t segment_selector,
 }
 
 void idt_set_gate_user_callable(uint8_t idx) {
-    idt_descriptor* entry = idt + idx;
+    struct idt_gate* entry = idt + idx;
     entry->gate_type = TRAP_GATE32;
     entry->dpl = 3;
 }
 
 void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
 
-static noreturn void crash(registers* regs, int signum) {
+static noreturn void crash(const struct registers* regs, int signum) {
     dump_context(regs);
 
     if ((regs->cs & 3) != 3)
@@ -90,7 +90,7 @@ static noreturn void crash(registers* regs, int signum) {
             "jmp isr_common_stub");
 
 #define DEFINE_EXCEPTION(num, msg)                                             \
-    static void handle_exception##num(registers* regs) {                       \
+    static void handle_exception##num(struct registers* regs) {                \
         kprint("Exception: " msg "\n");                                        \
         dump_context(regs);                                                    \
         PANIC("Unrecoverable exception");                                      \
@@ -105,7 +105,7 @@ static noreturn void crash(registers* regs, int signum) {
     DEFINE_EXCEPTION(num, msg)
 
 DEFINE_ISR_WITHOUT_ERROR_CODE(0)
-static void handle_exception0(registers* regs) {
+static void handle_exception0(struct registers* regs) {
     kprint("Divide-by-zero error\n");
     crash(regs, SIGFPE);
 }
@@ -117,7 +117,7 @@ DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(4, "Overflow")
 DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(5, "Bound range exceeded")
 
 DEFINE_ISR_WITHOUT_ERROR_CODE(6)
-static void handle_exception6(registers* regs) {
+static void handle_exception6(struct registers* regs) {
     kprint("Invalid opcode\n");
     crash(regs, SIGILL);
 }
@@ -130,19 +130,19 @@ DEFINE_EXCEPTION_WITH_ERROR_CODE(11, "Segment not present")
 DEFINE_EXCEPTION_WITH_ERROR_CODE(12, "Stack-segment fault")
 
 DEFINE_ISR_WITH_ERROR_CODE(13)
-static void handle_exception13(registers* regs) {
+static void handle_exception13(struct registers* regs) {
     kprint("General protection fault\n");
     crash(regs, SIGSEGV);
 }
 
 DEFINE_ISR_WITH_ERROR_CODE(14)
-static void handle_exception14(registers* regs) {
+static void handle_exception14(struct registers* regs) {
     if (safe_string_handle_page_fault(regs))
         return;
 
-    uint32_t present = regs->err_code & 0x1;
-    uint32_t write = regs->err_code & 0x2;
-    uint32_t user = regs->err_code & 0x4;
+    bool present = regs->err_code & 0x1;
+    bool write = regs->err_code & 0x2;
+    bool user = regs->err_code & 0x4;
 
     kprintf("Page fault (%s%s%s) at %p\n",
             present ? "page-protection " : "non-present ",
@@ -157,7 +157,7 @@ DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(16, "x87 floating-point exception")
 ENUMERATE_ISR_STUBS(DEFINE_ISR_WITHOUT_ERROR_CODE)
 
 void idt_init(void) {
-    idtr.limit = NUM_IDT_ENTRIES * sizeof(idt_descriptor) - 1;
+    idtr.limit = NUM_IDT_ENTRIES * sizeof(struct idt_gate) - 1;
     idtr.base = (uint32_t)&idt;
 
 #define REGISTER_ISR(num)                                                      \

@@ -26,7 +26,7 @@
 
 static uintptr_t phys_addr;
 static struct fb_info info;
-static mutex lock;
+static struct mutex lock;
 
 static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,
                                 uint16_t device_id, void* ctx) {

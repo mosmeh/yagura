@@ -240,13 +240,13 @@ static void set_state(uint8_t which, bool pressed) {
         state &= ~which;
 }
 
-static key_event queue[QUEUE_SIZE];
+static struct key_event queue[QUEUE_SIZE];
 static size_t queue_read_idx = 0;
 static size_t queue_write_idx = 0;
 
 static ps2_key_event_handler_fn event_handler = NULL;
 
-static void irq_handler(registers* reg) {
+static void irq_handler(struct registers* reg) {
     (void)reg;
 
     uint8_t data = in8(PS2_DATA);
@@ -298,7 +298,7 @@ static void irq_handler(registers* reg) {
                                     ? scancode_to_shifted_keycode
                                     : scancode_to_keycode;
 
-    key_event* event = queue + queue_write_idx;
+    struct key_event* event = queue + queue_write_idx;
     queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
 
     event->scancode = ch;
@@ -345,13 +345,14 @@ static ssize_t ps2_keyboard_device_read(struct file* file, void* buffer,
         }
 
         size_t nread = 0;
-        key_event* out = (key_event*)buffer;
+        struct key_event* out = (struct key_event*)buffer;
         while (count > 0) {
-            if (queue_read_idx == queue_write_idx || count < sizeof(key_event))
+            if (queue_read_idx == queue_write_idx ||
+                count < sizeof(struct key_event))
                 break;
             *out++ = queue[queue_read_idx];
-            nread += sizeof(key_event);
-            count -= sizeof(key_event);
+            nread += sizeof(struct key_event);
+            count -= sizeof(struct key_event);
             queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
         }
         pop_cli(int_flag);
@@ -370,7 +371,7 @@ static short ps2_keyboard_device_poll(struct file* file, short events) {
 }
 
 static struct inode* ps2_keyboard_device_get(void) {
-    static file_ops fops = {
+    static struct file_ops fops = {
         .read = ps2_keyboard_device_read,
         .poll = ps2_keyboard_device_poll,
     };

@@ -42,7 +42,7 @@ noreturn void poweroff(void) {
     halt();
 }
 
-static void dump_registers(const registers* regs) {
+static void dump_registers(const struct registers* regs) {
     uint16_t ss;
     uint32_t esp;
     if (regs->cs & 3) {
@@ -125,7 +125,7 @@ noreturn void panic(const char* file, size_t line, const char* format, ...) {
     halt();
 }
 
-void dump_context(const registers* regs) {
+void dump_context(const struct registers* regs) {
     dump_registers(regs);
     dump_stack_trace(regs->eip, regs->ebp);
 }

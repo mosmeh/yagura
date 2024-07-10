@@ -14,8 +14,7 @@
 
 static void (*tick_handler)(void);
 
-static void irq_handler(registers* regs) {
-    (void)regs;
+static void irq_handler(struct registers* regs) {
     ASSERT(!interrupts_enabled());
 
     if (tick_handler)

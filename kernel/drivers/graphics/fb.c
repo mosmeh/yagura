@@ -54,9 +54,16 @@ static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
 }
 
 static struct inode* fb_device_get(void) {
-    static file_ops fops = {.mmap = fb_device_mmap, .ioctl = fb_device_ioctl};
+    static struct file_ops fops = {
+        .mmap = fb_device_mmap,
+        .ioctl = fb_device_ioctl,
+    };
     static struct inode inode = {
-        .fops = &fops, .mode = S_IFBLK, .rdev = makedev(29, 0), .ref_count = 1};
+        .fops = &fops,
+        .mode = S_IFBLK,
+        .rdev = makedev(29, 0),
+        .ref_count = 1,
+    };
     return &inode;
 }
 

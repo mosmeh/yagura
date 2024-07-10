@@ -119,20 +119,20 @@ enum {
 #define KEY_MODIFIER_SUPER 0x8
 #define KEY_MODIFIER_ALTGR 0x10
 
-typedef struct key_event {
+struct key_event {
     uint16_t scancode;
     uint8_t modifiers;
     uint8_t keycode;
     char key;
     bool pressed;
-} key_event;
+};
 
 #define MOUSE_BUTTON_LEFT 0x1
 #define MOUSE_BUTTON_RIGHT 0x2
 #define MOUSE_BUTTON_MIDDLE 0x4
 
-typedef struct mouse_event {
+struct mouse_event {
     int16_t dx;
     int16_t dy;
     uint8_t buttons;
-} mouse_event;
+};

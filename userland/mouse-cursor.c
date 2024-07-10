@@ -137,9 +137,9 @@ int main(void) {
 
     move_cursor_to(fb_info.width / 2, fb_info.height / 2);
 
-    moused_event event;
+    struct moused_event event;
     for (;;) {
-        ssize_t nread = read(sockfd, &event, sizeof(moused_event));
+        ssize_t nread = read(sockfd, &event, sizeof(struct moused_event));
         if (nread == 0) {
             close(sockfd);
             return EXIT_FAILURE;

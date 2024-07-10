@@ -8,7 +8,7 @@
 #include <kernel/api/sys/utsname.h>
 #include <kernel/api/time.h>
 
-typedef struct registers registers;
+struct registers;
 
 int sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen);
 int sys_bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
@@ -24,7 +24,7 @@ int sys_dup2(int oldfd, int newfd);
 int sys_execve(const char* pathname, char* const argv[], char* const envp[]);
 void sys_exit(int status);
 int sys_fcntl(int fd, int cmd, uintptr_t arg);
-pid_t sys_fork(registers*);
+pid_t sys_fork(struct registers*);
 int sys_ftruncate(int fd, off_t length);
 char* sys_getcwd(char* buf, size_t size);
 long sys_getdents(int fd, void* dirp, size_t count);
@@ -38,8 +38,8 @@ off_t sys_lseek(int fd, off_t offset, int whence);
 int sys_lstat(const char* pathname, struct stat* buf);
 int sys_mkdir(const char* pathname, mode_t mode);
 int sys_mknod(const char* pathname, mode_t mode, dev_t dev);
-void* sys_mmap(const mmap_params* params);
-int sys_mount(const mount_params* params);
+void* sys_mmap(const struct mmap_params*);
+int sys_mount(const struct mount_params*);
 int sys_munmap(void* addr, size_t length);
 int sys_open(const char* pathname, int flags, unsigned mode);
 int sys_pipe(int pipefd[2]);

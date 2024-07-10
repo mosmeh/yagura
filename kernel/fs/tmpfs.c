@@ -4,9 +4,9 @@
 #include <kernel/panic.h>
 #include <kernel/vec.h>
 
-typedef struct tmpfs_inode {
+typedef struct {
     struct inode inode;
-    mutex lock;
+    struct mutex lock;
     struct vec content;
     struct dentry* children;
 } tmpfs_inode;
@@ -109,7 +109,7 @@ static struct inode* tmpfs_unlink_child(struct inode* inode, const char* name) {
 static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
                                         mode_t mode);
 
-static file_ops dir_fops = {
+static struct file_ops dir_fops = {
     .destroy_inode = tmpfs_destroy_inode,
     .lookup_child = tmpfs_lookup_child,
     .create_child = tmpfs_create_child,
@@ -118,7 +118,7 @@ static file_ops dir_fops = {
     .stat = tmpfs_stat,
     .getdents = tmpfs_getdents,
 };
-static file_ops non_dir_fops = {
+static struct file_ops non_dir_fops = {
     .destroy_inode = tmpfs_destroy_inode,
     .stat = tmpfs_stat,
     .read = tmpfs_read,

@@ -67,7 +67,7 @@ static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,
 static atomic_bool dma_is_running = false;
 static atomic_bool buffer_descriptor_list_is_full = false;
 
-static void irq_handler(registers* regs) {
+static void irq_handler(struct registers* regs) {
     (void)regs;
 
     uint16_t status = in16(pcm_out_channel + CHANNEL_STATUS);
@@ -241,7 +241,7 @@ static short ac97_device_poll(struct file* file, short events) {
 }
 
 static struct inode* ac97_device_get(void) {
-    static file_ops fops = {
+    static struct file_ops fops = {
         .write = ac97_device_write,
         .ioctl = ac97_device_ioctl,
         .poll = ac97_device_poll,

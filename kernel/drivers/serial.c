@@ -52,13 +52,13 @@ static bool read_and_report(uint8_t index) {
     return false;
 }
 
-static void handle_com1_and_com3(registers* regs) {
+static void handle_com1_and_com3(struct registers* regs) {
     (void)regs;
     while (read_and_report(0) || read_and_report(2))
         ;
 }
 
-static void handle_com2_and_com4(registers* regs) {
+static void handle_com2_and_com4(struct registers* regs) {
     (void)regs;
     while (read_and_report(1) || read_and_report(3))
         ;

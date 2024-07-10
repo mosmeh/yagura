@@ -37,6 +37,6 @@ static inline void ps2_write(uint8_t port, uint8_t data) {
     out8(port, data);
 }
 
-typedef void (*ps2_key_event_handler_fn)(const key_event*);
+typedef void (*ps2_key_event_handler_fn)(const struct key_event*);
 
 void ps2_set_key_event_handler(ps2_key_event_handler_fn);

@@ -1,7 +1,7 @@
 #include "system.h"
 #include <stddef.h>
 
-typedef struct gdt_descriptor {
+struct gdt_segment {
     uint16_t limit_lo : 16;
     uint16_t base_lo : 16;
     uint8_t base_mid : 8;
@@ -9,12 +9,12 @@ typedef struct gdt_descriptor {
     uint8_t limit_hi : 4;
     uint8_t flags : 4;
     uint8_t base_hi : 8;
-} __attribute__((packed)) gdt_descriptor;
+} __attribute__((packed));
 
-typedef struct gdt_pointer {
+struct gdtr {
     uint16_t limit;
     uint32_t base;
-} __attribute__((packed)) gdt_pointer;
+} __attribute__((packed));
 
 struct tss {
     uint32_t prev_tss;
@@ -27,13 +27,13 @@ struct tss {
 } __attribute__((packed));
 
 #define NUM_GDT_ENTRIES 6
-static gdt_descriptor gdt[NUM_GDT_ENTRIES];
+static struct gdt_segment gdt[NUM_GDT_ENTRIES];
 static struct tss tss;
-static gdt_pointer gdtr;
+static struct gdtr gdtr;
 
 static void gdt_set_gate(size_t idx, uint32_t base, uint32_t limit,
                          uint8_t access, uint8_t flags) {
-    gdt_descriptor* entry = gdt + idx;
+    struct gdt_segment* entry = gdt + idx;
 
     entry->base_lo = base & 0xffff;
     entry->base_mid = (base >> 16) & 0xff;
@@ -47,7 +47,7 @@ static void gdt_set_gate(size_t idx, uint32_t base, uint32_t limit,
 }
 
 void gdt_init(void) {
-    gdtr.limit = NUM_GDT_ENTRIES * sizeof(gdt_descriptor) - 1;
+    gdtr.limit = NUM_GDT_ENTRIES * sizeof(struct gdt_segment) - 1;
     gdtr.base = (uint32_t)&gdt;
 
     gdt_set_gate(0, 0, 0, 0, 0);

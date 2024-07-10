@@ -4,7 +4,7 @@
 #include "sys/fcntl.h"
 #include "unistd.h"
 
-typedef struct DIR {
+typedef struct __DIR {
     int fd;
     unsigned char* buf;
     size_t buf_capacity, buf_size;

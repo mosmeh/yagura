@@ -11,13 +11,12 @@
 #define PATH_SEPARATOR_STR "/"
 #define ROOT_DIR PATH_SEPARATOR_STR
 
-typedef struct unix_socket unix_socket;
 typedef struct multiboot_info multiboot_info_t;
 typedef struct multiboot_mod_list multiboot_module_t;
 
 // Open file description
 struct file {
-    mutex offset_lock;
+    struct mutex offset_lock;
     struct inode* inode;
     atomic_int flags;
     off_t offset;
@@ -25,7 +24,7 @@ struct file {
     atomic_size_t ref_count;
 };
 
-typedef struct file_descriptor_table {
+typedef struct {
     struct file** entries;
 } file_descriptor_table;
 
@@ -46,7 +45,7 @@ file_descriptor_table_clone_from(file_descriptor_table* to,
 
 typedef bool (*getdents_callback_fn)(const char* name, uint8_t type, void* ctx);
 
-typedef struct file_ops {
+struct file_ops {
     void (*destroy_inode)(struct inode*);
 
     struct inode* (*lookup_child)(struct inode*, const char* name);
@@ -64,14 +63,14 @@ typedef struct file_ops {
     int (*ioctl)(struct file*, int request, void* user_argp);
     int (*getdents)(struct file*, getdents_callback_fn callback, void* ctx);
     short (*poll)(struct file*, short events);
-} file_ops;
+};
 
 struct inode {
-    file_ops* fops;
+    struct file_ops* fops;
     dev_t dev;  // Device number of device containing this inode
     dev_t rdev; // Device number (if this inode is a special file)
     _Atomic(struct inode*) fifo;
-    _Atomic(unix_socket*) bound_socket;
+    _Atomic(struct unix_socket*) bound_socket;
     _Atomic(nlink_t) num_links;
     atomic_size_t ref_count;
     mode_t mode;

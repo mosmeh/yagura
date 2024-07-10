@@ -7,38 +7,38 @@
 #include "socket.h"
 
 static void unix_socket_destroy_inode(struct inode* inode) {
-    unix_socket* socket = (unix_socket*)inode;
+    struct unix_socket* socket = (struct unix_socket*)inode;
     ring_buf_destroy(&socket->to_connector_buf);
     ring_buf_destroy(&socket->to_acceptor_buf);
     kfree(socket);
 }
 
 static int unix_socket_close(struct file* file) {
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     socket->is_open_for_writing_to_connector = false;
     socket->is_open_for_writing_to_acceptor = false;
     return 0;
 }
 
 static bool is_connector(struct file* file) {
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     return socket->connector_file == file;
 }
 
 static bool is_open_for_reading(struct file* file) {
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     return is_connector(file) ? socket->is_open_for_writing_to_connector
                               : socket->is_open_for_writing_to_acceptor;
 }
 
-static ring_buf* buf_to_read(struct file* file) {
-    unix_socket* socket = (unix_socket*)file->inode;
+static struct ring_buf* buf_to_read(struct file* file) {
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     return is_connector(file) ? &socket->to_connector_buf
                               : &socket->to_acceptor_buf;
 }
 
-static ring_buf* buf_to_write(struct file* file) {
-    unix_socket* socket = (unix_socket*)file->inode;
+static struct ring_buf* buf_to_write(struct file* file) {
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     return is_connector(file) ? &socket->to_acceptor_buf
                               : &socket->to_connector_buf;
 }
@@ -46,16 +46,16 @@ static ring_buf* buf_to_write(struct file* file) {
 static bool is_readable(struct file* file) {
     if (!is_open_for_reading(file))
         return true;
-    ring_buf* buf = buf_to_read(file);
+    struct ring_buf* buf = buf_to_read(file);
     return !ring_buf_is_empty(buf);
 }
 
 static ssize_t unix_socket_read(struct file* file, void* buffer, size_t count) {
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     if (!socket->is_connected)
         return -EINVAL;
 
-    ring_buf* buf = buf_to_read(file);
+    struct ring_buf* buf = buf_to_read(file);
     for (;;) {
         int rc = file_block(file, is_readable, 0);
         if (IS_ERR(rc))
@@ -75,24 +75,24 @@ static ssize_t unix_socket_read(struct file* file, void* buffer, size_t count) {
 }
 
 static bool is_writable(struct file* file) {
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     if (is_connector(file)) {
         if (!socket->is_open_for_writing_to_acceptor)
             return false;
     } else if (!socket->is_open_for_writing_to_connector) {
         return true;
     }
-    ring_buf* buf = buf_to_write(file);
+    struct ring_buf* buf = buf_to_write(file);
     return !ring_buf_is_full(buf);
 }
 
 static ssize_t unix_socket_write(struct file* file, const void* buffer,
                                  size_t count) {
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     if (!socket->is_connected)
         return -ENOTCONN;
 
-    ring_buf* buf = buf_to_write(file);
+    struct ring_buf* buf = buf_to_write(file);
     for (;;) {
         int rc = file_block(file, is_writable, 0);
         if (IS_ERR(rc))
@@ -116,7 +116,7 @@ static ssize_t unix_socket_write(struct file* file, const void* buffer,
 }
 
 static short unix_socket_poll(struct file* file, short events) {
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     short revents = 0;
     if (events & POLLIN) {
         bool can_read =
@@ -135,14 +135,14 @@ static short unix_socket_poll(struct file* file, short events) {
     return revents;
 }
 
-unix_socket* unix_socket_create(void) {
-    unix_socket* socket = kmalloc(sizeof(unix_socket));
+struct unix_socket* unix_socket_create(void) {
+    struct unix_socket* socket = kmalloc(sizeof(struct unix_socket));
     if (!socket)
         return ERR_PTR(-ENOMEM);
-    *socket = (unix_socket){0};
+    *socket = (struct unix_socket){0};
 
     struct inode* inode = &socket->inode;
-    static file_ops fops = {
+    static struct file_ops fops = {
         .destroy_inode = unix_socket_destroy_inode,
         .close = unix_socket_close,
         .read = unix_socket_read,
@@ -172,7 +172,7 @@ unix_socket* unix_socket_create(void) {
     return socket;
 }
 
-int unix_socket_bind(unix_socket* socket, struct inode* addr_inode) {
+int unix_socket_bind(struct unix_socket* socket, struct inode* addr_inode) {
     mutex_lock(&socket->lock);
     if (socket->is_bound) {
         mutex_unlock(&socket->lock);
@@ -184,7 +184,7 @@ int unix_socket_bind(unix_socket* socket, struct inode* addr_inode) {
     return 0;
 }
 
-int unix_socket_listen(unix_socket* socket, int backlog) {
+int unix_socket_listen(struct unix_socket* socket, int backlog) {
     mutex_lock(&socket->lock);
     switch (socket->state) {
     case SOCKET_STATE_OPENED:
@@ -206,15 +206,15 @@ int unix_socket_listen(unix_socket* socket, int backlog) {
 }
 
 static bool is_acceptable(struct file* file) {
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     return socket->num_pending > 0;
 }
 
-unix_socket* unix_socket_accept(struct file* file) {
+struct unix_socket* unix_socket_accept(struct file* file) {
     if (!S_ISSOCK(file->inode->mode))
         return ERR_PTR(-ENOTSOCK);
 
-    unix_socket* listener = (unix_socket*)file->inode;
+    struct unix_socket* listener = (struct unix_socket*)file->inode;
 
     mutex_lock(&listener->lock);
     bool is_listening = listener->state == SOCKET_STATE_LISTENING;
@@ -229,7 +229,7 @@ unix_socket* unix_socket_accept(struct file* file) {
 
         mutex_lock(&listener->lock);
 
-        unix_socket* connector = listener->next;
+        struct unix_socket* connector = listener->next;
         if (connector) {
             listener->next = connector->next;
             --listener->num_pending;
@@ -250,7 +250,7 @@ unix_socket* unix_socket_accept(struct file* file) {
 }
 
 static bool is_connectable(struct file* file) {
-    unix_socket* connector = (unix_socket*)file->inode;
+    struct unix_socket* connector = (struct unix_socket*)file->inode;
     return connector->is_connected;
 }
 
@@ -258,11 +258,11 @@ int unix_socket_connect(struct file* file, struct inode* addr_inode) {
     if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
 
-    unix_socket* listener = addr_inode->bound_socket;
+    struct unix_socket* listener = addr_inode->bound_socket;
     if (!listener)
         return -ECONNREFUSED;
 
-    unix_socket* connector = (unix_socket*)file->inode;
+    struct unix_socket* connector = (struct unix_socket*)file->inode;
     mutex_lock(&connector->lock);
 
     switch (connector->state) {
@@ -295,7 +295,7 @@ int unix_socket_connect(struct file* file, struct inode* addr_inode) {
     inode_ref((struct inode*)connector);
 
     if (listener->next) {
-        unix_socket* it = listener->next;
+        struct unix_socket* it = listener->next;
         while (it->next)
             it = it->next;
         it->next = connector;
@@ -325,7 +325,7 @@ int unix_socket_shutdown(struct file* file, int how) {
     bool shut_read = how == SHUT_RD || how == SHUT_RDWR;
     bool shut_write = how == SHUT_WR || how == SHUT_RDWR;
     bool conn = is_connector(file);
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     if ((conn && shut_read) || (!conn && shut_write))
         socket->is_open_for_writing_to_connector = false;
     if ((conn && shut_write) || (!conn && shut_read))

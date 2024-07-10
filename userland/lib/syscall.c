@@ -179,7 +179,7 @@ int mknod(const char* pathname, mode_t mode, dev_t dev) {
 
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,
            off_t offset) {
-    mmap_params params = {
+    struct mmap_params params = {
         .addr = addr,
         .length = length,
         .prot = prot,
@@ -194,7 +194,7 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd,
 
 int mount(const char* source, const char* target, const char* filesystemtype,
           unsigned long mountflags, const void* data) {
-    mount_params params = {
+    struct mount_params params = {
         .source = source,
         .target = target,
         .filesystemtype = filesystemtype,

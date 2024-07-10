@@ -4,7 +4,7 @@
 #include "process.h"
 #include "scheduler.h"
 
-void mutex_lock(mutex* m) {
+void mutex_lock(struct mutex* m) {
     ASSERT(interrupts_enabled());
 
     for (;;) {
@@ -24,7 +24,7 @@ void mutex_lock(mutex* m) {
     }
 }
 
-void mutex_unlock(mutex* m) {
+void mutex_unlock(struct mutex* m) {
     for (;;) {
         bool expected = false;
         if (atomic_compare_exchange_strong_explicit(&m->lock, &expected, true,
@@ -41,7 +41,7 @@ void mutex_unlock(mutex* m) {
     }
 }
 
-bool mutex_unlock_if_locked(mutex* m) {
+bool mutex_unlock_if_locked(struct mutex* m) {
     for (;;) {
         bool expected = false;
         if (atomic_compare_exchange_strong_explicit(&m->lock, &expected, true,

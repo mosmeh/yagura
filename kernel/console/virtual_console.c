@@ -11,10 +11,10 @@
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
 
-typedef struct virtual_console_device {
+typedef struct {
     struct tty tty;
     struct vt* vt;
-    mutex lock;
+    struct mutex lock;
 } virtual_console_device;
 
 static virtual_console_device* devices[6];
@@ -26,7 +26,7 @@ static void emit_str(const char* s) {
 
 #define CTRL_ALT (KEY_MODIFIER_CTRL | KEY_MODIFIER_ALT)
 
-static void on_key_event(const key_event* event) {
+static void on_key_event(const struct key_event* event) {
     if (!event->pressed)
         return;
 

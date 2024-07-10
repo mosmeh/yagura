@@ -7,20 +7,20 @@ struct vec;
 
 typedef int (*procfs_populate_fn)(struct file*, struct vec*);
 
-typedef struct procfs_item_def {
+typedef struct {
     const char* name;
     mode_t mode;
     procfs_populate_fn populate;
 } procfs_item_def;
 
-typedef struct procfs_item_inode {
+typedef struct {
     struct inode inode;
     procfs_populate_fn populate;
 } procfs_item_inode;
 
-extern file_ops procfs_item_fops;
+extern struct file_ops procfs_item_fops;
 
-typedef struct procfs_dir_inode {
+typedef struct {
     struct inode inode;
     struct dentry* children;
 } procfs_dir_inode;

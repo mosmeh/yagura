@@ -5,7 +5,7 @@
 
 #define IRQ(i) (0x20 + i)
 
-typedef struct registers registers;
+struct registers;
 
 void idt_init(void);
 void irq_init(void);
@@ -23,7 +23,7 @@ void idt_set_gate(uint8_t idx, uint32_t base, uint16_t segment_selector,
 void idt_set_gate_user_callable(uint8_t idx);
 void idt_flush(void);
 
-typedef void (*interrupt_handler_fn)(registers*);
+typedef void (*interrupt_handler_fn)(struct registers*);
 
 void idt_set_interrupt_handler(uint8_t num, interrupt_handler_fn handler);
 

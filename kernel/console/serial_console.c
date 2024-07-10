@@ -4,7 +4,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
-typedef struct serial_console_device {
+typedef struct {
     struct tty tty;
     uint8_t index;
 } serial_console_device;

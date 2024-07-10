@@ -3,7 +3,7 @@
 #include <kernel/api/dirent.h>
 #include <stddef.h>
 
-typedef struct DIR DIR;
+typedef struct __DIR DIR;
 
 DIR* opendir(const char* name);
 int closedir(DIR* dirp);

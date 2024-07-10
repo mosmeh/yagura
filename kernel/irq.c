@@ -59,7 +59,7 @@ ENUMERATE_IRQS(DEFINE_IRQ)
 
 extern interrupt_handler_fn interrupt_handlers[256];
 
-void irq_handler(registers* regs) {
+void irq_handler(struct registers* regs) {
     ASSERT(!interrupts_enabled());
 
     if (regs->num >= NUM_IRQS_PER_PIC)

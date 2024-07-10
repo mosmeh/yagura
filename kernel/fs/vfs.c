@@ -38,14 +38,14 @@ struct path* vfs_get_root(void) {
     return path;
 }
 
-typedef struct mount_point {
+struct mount_point {
     struct inode* host;
     struct inode* guest;
     struct mount_point* next;
-} mount_point;
+};
 
-static mount_point* mount_points;
-static mutex mount_lock;
+static struct mount_point* mount_points;
+static struct mutex mount_lock;
 
 static int mount_at(struct inode* host, struct inode* guest) {
     if (!S_ISDIR(host->mode)) {
@@ -53,7 +53,7 @@ static int mount_at(struct inode* host, struct inode* guest) {
         inode_unref(guest);
         return -ENOTDIR;
     }
-    mount_point* mp = kmalloc(sizeof(mount_point));
+    struct mount_point* mp = kmalloc(sizeof(struct mount_point));
     if (!mp) {
         inode_unref(host);
         inode_unref(guest);
@@ -72,7 +72,7 @@ static struct inode* resolve_mounts(struct inode* host) {
     struct inode* needle = host;
     mutex_lock(&mount_lock);
     for (;;) {
-        mount_point* it = mount_points;
+        struct mount_point* it = mount_points;
         while (it) {
             if (it->host == needle)
                 break;
@@ -101,18 +101,18 @@ int vfs_mount_at(const struct path* base, const char* pathname,
     return mount_at(path_into_inode(path), fs_root);
 }
 
-typedef struct device {
+struct device {
     char name[16];
     struct inode* inode;
     struct device* next;
-} device;
+};
 
-static device* devices;
+static struct device* devices;
 
 int vfs_register_device(const char* name, struct inode* inode) {
-    device** dest = &devices;
+    struct device** dest = &devices;
     if (devices) {
-        device* it = devices;
+        struct device* it = devices;
         for (;;) {
             if (it->inode->rdev == inode->rdev || !strcmp(it->name, name)) {
                 inode_unref(inode);
@@ -124,7 +124,7 @@ int vfs_register_device(const char* name, struct inode* inode) {
         }
         dest = &it->next;
     }
-    device* dev = kmalloc(sizeof(device));
+    struct device* dev = kmalloc(sizeof(struct device));
     if (!dev) {
         inode_unref(inode);
         return -ENOMEM;
@@ -139,7 +139,7 @@ int vfs_register_device(const char* name, struct inode* inode) {
 }
 
 struct inode* vfs_get_device_by_id(dev_t id) {
-    device* it = devices;
+    struct device* it = devices;
     while (it) {
         if (it->inode->rdev == id) {
             inode_ref(it->inode);
@@ -151,7 +151,7 @@ struct inode* vfs_get_device_by_id(dev_t id) {
 }
 
 struct inode* vfs_get_device_by_name(const char* name) {
-    device* it = devices;
+    struct device* it = devices;
     while (it) {
         if (!strcmp(it->name, name)) {
             inode_ref(it->inode);

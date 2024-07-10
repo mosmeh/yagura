@@ -63,19 +63,19 @@ enum {
         NUM_SYSCALLS
 };
 
-typedef struct mmap_params {
+struct mmap_params {
     void* addr;
     size_t length;
     int prot;
     int flags;
     int fd;
     off_t offset;
-} mmap_params;
+};
 
-typedef struct mount_params {
+struct mount_params {
     const char* source;
     const char* target;
     const char* filesystemtype;
     unsigned long mountflags;
     const void* data;
-} mount_params;
+};

@@ -62,9 +62,9 @@ int sys_execve(const char* user_pathname, char* const user_argv[],
                                (const char* const*)user_envp);
 }
 
-void return_to_userland(registers);
+void return_to_userland(struct registers);
 
-pid_t sys_fork(registers* regs) {
+pid_t sys_fork(struct registers* regs) {
     struct process* process =
         kaligned_alloc(alignof(struct process), sizeof(struct process));
     if (!process)
@@ -102,8 +102,8 @@ pid_t sys_fork(registers* regs) {
     process->esp = process->ebp = process->kernel_stack_top;
 
     // push the argument of return_to_userland()
-    process->esp -= sizeof(registers);
-    registers* child_regs = (registers*)process->esp;
+    process->esp -= sizeof(struct registers);
+    struct registers* child_regs = (struct registers*)process->esp;
     *child_regs = *regs;
     child_regs->eax = 0; // fork() returns 0 in the child
 

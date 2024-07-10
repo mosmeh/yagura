@@ -171,11 +171,12 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    moused_event event = {.x = fb_info.width / 2, .y = fb_info.height / 2};
+    struct moused_event event = {.x = fb_info.width / 2,
+                                 .y = fb_info.height / 2};
     for (;;) {
         draw(event.x, event.y);
 
-        ssize_t nread = read(sockfd, &event, sizeof(moused_event));
+        ssize_t nread = read(sockfd, &event, sizeof(struct moused_event));
         if (nread == 0) {
             close(sockfd);
             return EXIT_FAILURE;

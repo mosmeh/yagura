@@ -13,14 +13,14 @@ typedef struct multiboot_info multiboot_info_t;
 
 extern unsigned char kernel_end[];
 
-typedef struct registers {
+struct registers {
     uint32_t ss, gs, fs, es, ds;
     uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
     uint32_t num, err_code;
     uint32_t eip, cs, eflags, user_esp, user_ss;
-} __attribute__((packed)) registers;
+} __attribute__((packed));
 
-void dump_context(const registers*);
+void dump_context(const struct registers*);
 
 struct fpu_state {
     alignas(16) unsigned char buffer[512];

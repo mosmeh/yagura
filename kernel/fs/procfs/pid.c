@@ -18,7 +18,7 @@ static bool copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
     return ok;
 }
 
-typedef struct procfs_pid_item_inode {
+typedef struct {
     procfs_item_inode item_inode;
     pid_t pid;
 } procfs_pid_item_inode;
@@ -188,7 +188,7 @@ struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid) {
         return ERR_PTR(-ENOMEM);
     *node = (procfs_dir_inode){0};
 
-    static file_ops fops = {
+    static struct file_ops fops = {
         .destroy_inode = procfs_dir_destroy_inode,
         .lookup_child = procfs_dir_lookup_child,
         .getdents = procfs_dir_getdents,

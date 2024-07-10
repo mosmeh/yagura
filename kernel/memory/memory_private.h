@@ -51,7 +51,7 @@ void page_directory_destroy_current(void);
 void page_directory_switch(struct page_directory* to);
 
 struct slab_cache {
-    mutex lock;
+    struct mutex lock;
     size_t obj_size;
     struct slab_obj* free_list;
 };

@@ -41,7 +41,7 @@ static ssize_t procfs_item_read(struct file* file, void* buffer, size_t count) {
     return nread;
 }
 
-file_ops procfs_item_fops = {
+struct file_ops procfs_item_fops = {
     .destroy_inode = procfs_item_destroy_inode,
     .open = procfs_item_open,
     .close = procfs_item_close,

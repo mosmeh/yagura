@@ -13,7 +13,7 @@ int sys_socket(int domain, int type, int protocol) {
     if (domain != AF_UNIX || type != SOCK_STREAM)
         return -EAFNOSUPPORT;
 
-    unix_socket* socket = unix_socket_create();
+    struct unix_socket* socket = unix_socket_create();
     if (IS_ERR(socket))
         return PTR_ERR(socket);
     struct file* file = inode_open((struct inode*)socket, O_RDWR, 0);
@@ -31,7 +31,7 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
 
     if (addrlen <= sizeof(sa_family_t) || sizeof(struct sockaddr_un) < addrlen)
         return -EINVAL;
@@ -69,7 +69,7 @@ int sys_listen(int sockfd, int backlog) {
     if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
 
-    unix_socket* socket = (unix_socket*)file->inode;
+    struct unix_socket* socket = (struct unix_socket*)file->inode;
     return unix_socket_listen(socket, backlog);
 }
 
@@ -97,7 +97,7 @@ int sys_accept(int sockfd, struct sockaddr* user_addr,
             return -EFAULT;
     }
 
-    unix_socket* connector = unix_socket_accept(file);
+    struct unix_socket* connector = unix_socket_accept(file);
     if (IS_ERR(connector))
         return PTR_ERR(connector);
     struct file* connector_file =

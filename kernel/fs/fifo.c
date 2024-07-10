@@ -9,8 +9,8 @@
 
 struct fifo {
     struct inode inode;
-    ring_buf buf;
-    mutex lock;
+    struct ring_buf buf;
+    struct mutex lock;
     atomic_size_t num_readers;
     atomic_size_t num_writers;
 };
@@ -67,7 +67,7 @@ static bool unblock_read(struct file* file) {
 
 static ssize_t fifo_read(struct file* file, void* buffer, size_t count) {
     struct fifo* fifo = (struct fifo*)file->inode;
-    ring_buf* buf = &fifo->buf;
+    struct ring_buf* buf = &fifo->buf;
 
     for (;;) {
         int rc = file_block(file, unblock_read, 0);
@@ -95,7 +95,7 @@ static bool unblock_write(struct file* file) {
 
 static ssize_t fifo_write(struct file* file, const void* buffer, size_t count) {
     struct fifo* fifo = (struct fifo*)file->inode;
-    ring_buf* buf = &fifo->buf;
+    struct ring_buf* buf = &fifo->buf;
 
     for (;;) {
         int rc = file_block(file, unblock_write, 0);
@@ -149,7 +149,7 @@ struct inode* fifo_create(void) {
     }
 
     struct inode* inode = &fifo->inode;
-    static file_ops fops = {
+    static struct file_ops fops = {
         .destroy_inode = fifo_destroy_inode,
         .open = fifo_open,
         .close = fifo_close,

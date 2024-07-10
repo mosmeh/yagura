@@ -16,7 +16,7 @@
 static size_t bitmap_len;
 static uint32_t bitmap[BITMAP_MAX_LEN];
 static uint8_t ref_counts[MAX_NUM_PAGES];
-static mutex lock;
+static struct mutex lock;
 
 static bool bitmap_get(size_t i) {
     ASSERT(BITMAP_INDEX(i) < bitmap_len);

@@ -214,9 +214,9 @@ int sys_mknod(const char* user_pathname, mode_t mode, dev_t dev) {
     return 0;
 }
 
-int sys_mount(const mount_params* user_params) {
-    mount_params params;
-    if (!copy_from_user(&params, user_params, sizeof(mount_params)))
+int sys_mount(const struct mount_params* user_params) {
+    struct mount_params params;
+    if (!copy_from_user(&params, user_params, sizeof(struct mount_params)))
         return -EFAULT;
 
     char target[PATH_MAX];

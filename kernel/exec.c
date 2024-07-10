@@ -10,7 +10,7 @@
 #include <kernel/process.h>
 #include <kernel/safe_string.h>
 
-typedef struct string_vec {
+struct string_vec {
     size_t count;
     bool is_owned;
     union {
@@ -22,9 +22,9 @@ typedef struct string_vec {
             const char* const* elements;
         } borrowed;
     };
-} string_vec;
+};
 
-static int string_vec_clone_from_user(string_vec* strings,
+static int string_vec_clone_from_user(struct string_vec* strings,
                                       const char* const* user_src) {
     strings->is_owned = true;
     strings->count = 0;
@@ -73,7 +73,7 @@ static int string_vec_clone_from_user(string_vec* strings,
     return 0;
 }
 
-static void string_vec_borrow_from_kernel(string_vec* strings,
+static void string_vec_borrow_from_kernel(struct string_vec* strings,
                                           const char* const* src) {
     strings->is_owned = false;
     strings->count = 0;
@@ -82,7 +82,7 @@ static void string_vec_borrow_from_kernel(string_vec* strings,
     strings->borrowed.elements = src;
 }
 
-static void string_vec_destroy(string_vec* strings) {
+static void string_vec_destroy(struct string_vec* strings) {
     if (!strings->is_owned)
         return;
     if (strings->owned.buffer) {
@@ -95,12 +95,12 @@ static void string_vec_destroy(string_vec* strings) {
     }
 }
 
-typedef struct ptr_vec {
+struct ptr_vec {
     size_t count;
     uintptr_t* elements;
-} ptr_vec;
+};
 
-static void ptr_vec_destroy(ptr_vec* ptrs) {
+static void ptr_vec_destroy(struct ptr_vec* ptrs) {
     if (ptrs->elements) {
         kfree(ptrs->elements);
         ptrs->elements = NULL;
@@ -117,7 +117,8 @@ NODISCARD static int push_value(uintptr_t* sp, uintptr_t stack_base,
 }
 
 NODISCARD static int push_strings(uintptr_t* sp, uintptr_t stack_base,
-                                  ptr_vec* ptrs, const string_vec* strings) {
+                                  struct ptr_vec* ptrs,
+                                  const struct string_vec* strings) {
     ptrs->count = strings->count;
 
     if (strings->count == 0) {
@@ -147,7 +148,7 @@ NODISCARD static int push_strings(uintptr_t* sp, uintptr_t stack_base,
 }
 
 NODISCARD static int push_ptrs(uintptr_t* sp, uintptr_t stack_base,
-                               const ptr_vec* ptrs) {
+                               const struct ptr_vec* ptrs) {
     for (size_t i = 0; i < ptrs->count; ++i) {
         int rc = push_value(sp, stack_base, ptrs->elements[i]);
         if (IS_ERR(rc))
@@ -156,7 +157,8 @@ NODISCARD static int push_ptrs(uintptr_t* sp, uintptr_t stack_base,
     return 0;
 }
 
-static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
+static int execve(const char* pathname, struct string_vec* argv,
+                  struct string_vec* envp) {
     int ret = 0;
     unsigned char* exe_buf = NULL;
     struct file* file = NULL;
@@ -222,8 +224,8 @@ static int execve(const char* pathname, string_vec* argv, string_vec* envp) {
     }
     vm_enter(vm);
 
-    ptr_vec envp_ptrs = (ptr_vec){0};
-    ptr_vec argv_ptrs = (ptr_vec){0};
+    struct ptr_vec envp_ptrs = (struct ptr_vec){0};
+    struct ptr_vec argv_ptrs = (struct ptr_vec){0};
 
     Elf32_Phdr* phdr = (Elf32_Phdr*)(exe_buf + ehdr->e_phoff);
     for (size_t i = 0; i < ehdr->e_phnum; ++i, ++phdr) {
@@ -387,12 +389,12 @@ int process_user_execve(const char* pathname, const char* const* user_argv,
     if (!pathname || !user_argv || !user_envp)
         return -EFAULT;
 
-    string_vec argv = (string_vec){0};
+    struct string_vec argv = (struct string_vec){0};
     int rc = string_vec_clone_from_user(&argv, user_argv);
     if (IS_ERR(rc))
         return rc;
 
-    string_vec envp = (string_vec){0};
+    struct string_vec envp = (struct string_vec){0};
     rc = string_vec_clone_from_user(&envp, user_envp);
     if (IS_ERR(rc)) {
         string_vec_destroy(&argv);
@@ -404,10 +406,10 @@ int process_user_execve(const char* pathname, const char* const* user_argv,
 
 int process_kernel_execve(const char* pathname, const char* const* argv,
                           const char* const* envp) {
-    string_vec argv_vec = (string_vec){0};
+    struct string_vec argv_vec = (struct string_vec){0};
     string_vec_borrow_from_kernel(&argv_vec, argv);
 
-    string_vec envp_vec = (string_vec){0};
+    struct string_vec envp_vec = (struct string_vec){0};
     string_vec_borrow_from_kernel(&envp_vec, envp);
 
     return execve(pathname, &argv_vec, &envp_vec);

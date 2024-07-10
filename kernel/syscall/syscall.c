@@ -70,7 +70,7 @@ static syscall_handler_fn syscall_handlers[NUM_SYSCALLS + 1] = {
 #undef ENUM_ITEM
         NULL};
 
-static void syscall_handler(registers* regs) {
+static void syscall_handler(struct registers* regs) {
     ASSERT((regs->cs & 3) == 3);
     ASSERT((regs->ds & 3) == 3);
     ASSERT((regs->es & 3) == 3);

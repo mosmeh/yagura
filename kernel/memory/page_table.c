@@ -7,7 +7,7 @@
 
 #define PTE_FLAGS_MASK 0xfff
 
-typedef union page_directory_entry {
+typedef union {
     struct {
         bool present : 1;
         bool write : 1;
@@ -27,7 +27,7 @@ struct page_directory {
     alignas(PAGE_SIZE) page_directory_entry entries[1024];
 };
 
-typedef union page_table_entry {
+typedef union {
     struct {
         bool present : 1;
         bool write : 1;
@@ -44,7 +44,7 @@ typedef union page_table_entry {
     uint32_t raw;
 } __attribute__((packed)) page_table_entry;
 
-typedef struct page_table {
+typedef struct {
     alignas(PAGE_SIZE) page_table_entry entries[1024];
 } page_table;
 
@@ -130,7 +130,7 @@ struct page_directory* page_directory_create(void) {
 #define QUICKMAP_PAGE_TABLE 1023
 
 // this is locked in page_directory_clone_current
-static mutex quickmap_lock;
+static struct mutex quickmap_lock;
 
 static uintptr_t quickmap(size_t which, uintptr_t phys_addr, uint32_t flags) {
     volatile page_table* pt = get_page_table_from_index(KERNEL_PDE_IDX);
