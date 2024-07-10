@@ -66,7 +66,7 @@ struct file_ops {
 };
 
 struct inode {
-    struct file_ops* fops;
+    const struct file_ops* fops;
     dev_t dev;  // Device number of device containing this inode
     dev_t rdev; // Device number (if this inode is a special file)
     _Atomic(struct inode*) fifo;
@@ -105,12 +105,23 @@ NODISCARD short file_poll(struct file*, short events);
 NODISCARD int file_block(struct file*, bool (*unblock)(struct file*),
                          int flags);
 
-void vfs_init(void);
-void vfs_populate_root_fs(const multiboot_module_t* initrd_mod);
+void vfs_init(const multiboot_module_t* initrd_mod);
+
 struct path* vfs_get_root(void);
-NODISCARD int vfs_mount(const char* pathname, struct inode* fs_root);
-NODISCARD int vfs_mount_at(const struct path* base, const char* pathname,
-                           struct inode* fs_root);
+
+struct file_system {
+    char name[16];
+    struct inode* (*mount)(const char* source);
+    struct file_system* next;
+};
+
+extern struct file_system* file_systems;
+
+NODISCARD int vfs_register_file_system(struct file_system*);
+NODISCARD int vfs_mount(const char* source, const char* target,
+                        const char* type);
+NODISCARD int vfs_mount_at(const struct path* base, const char* source,
+                           const char* target, const char* type);
 
 NODISCARD int vfs_register_device(const char* name, struct inode* device);
 struct inode* vfs_get_device_by_id(dev_t);
@@ -141,9 +152,4 @@ struct path* vfs_resolve_path(const char* pathname, int flags);
 struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
                                  int flags);
 
-uint8_t mode_to_dirent_type(mode_t);
-
 struct inode* fifo_create(void);
-
-struct inode* tmpfs_create_root(void);
-struct inode* procfs_create_root(void);

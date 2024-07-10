@@ -12,6 +12,7 @@
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
+#define SIZEOF_MEMBER(s, member) sizeof(((s*)0)->member)
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 #define NODISCARD __attribute__((__warn_unused_result__))

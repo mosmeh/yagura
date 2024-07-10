@@ -109,7 +109,7 @@ static struct inode* tmpfs_unlink_child(struct inode* inode, const char* name) {
 static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
                                         mode_t mode);
 
-static struct file_ops dir_fops = {
+static const struct file_ops dir_fops = {
     .destroy_inode = tmpfs_destroy_inode,
     .lookup_child = tmpfs_lookup_child,
     .create_child = tmpfs_create_child,
@@ -118,7 +118,7 @@ static struct file_ops dir_fops = {
     .stat = tmpfs_stat,
     .getdents = tmpfs_getdents,
 };
-static struct file_ops non_dir_fops = {
+static const struct file_ops non_dir_fops = {
     .destroy_inode = tmpfs_destroy_inode,
     .stat = tmpfs_stat,
     .read = tmpfs_read,
@@ -150,7 +150,9 @@ static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
     return child_inode;
 }
 
-struct inode* tmpfs_create_root(void) {
+static struct inode* tmpfs_mount(const char* source) {
+    (void)source;
+
     tmpfs_inode* root = kmalloc(sizeof(tmpfs_inode));
     if (!root)
         return ERR_PTR(-ENOMEM);
@@ -163,4 +165,12 @@ struct inode* tmpfs_create_root(void) {
     inode->ref_count = 1;
 
     return inode;
+}
+
+void tmpfs_init(void) {
+    static struct file_system fs = {
+        .name = "tmpfs",
+        .mount = tmpfs_mount,
+    };
+    ASSERT_OK(vfs_register_file_system(&fs));
 }

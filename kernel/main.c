@@ -69,11 +69,10 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     cmdline_init(mb_info);
     memory_init(mb_info);
     ksyms_init();
-    vfs_init();
+    vfs_init(&initrd_mod);
     process_init();
     scheduler_init();
     drivers_init(mb_info);
-    vfs_populate_root_fs(&initrd_mod);
     random_init();
     console_init();
     time_init();

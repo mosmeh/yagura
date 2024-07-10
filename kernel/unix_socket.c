@@ -142,7 +142,7 @@ struct unix_socket* unix_socket_create(void) {
     *socket = (struct unix_socket){0};
 
     struct inode* inode = &socket->inode;
-    static struct file_ops fops = {
+    static const struct file_ops fops = {
         .destroy_inode = unix_socket_destroy_inode,
         .close = unix_socket_close,
         .read = unix_socket_read,

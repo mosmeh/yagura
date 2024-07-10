@@ -33,7 +33,7 @@ static short system_console_device_poll(struct file* file, short events) {
 }
 
 static struct inode* system_console_device_get(void) {
-    static struct file_ops fops = {
+    static const struct file_ops fops = {
         .read = system_console_device_read,
         .write = system_console_device_write,
         .ioctl = system_console_device_ioctl,

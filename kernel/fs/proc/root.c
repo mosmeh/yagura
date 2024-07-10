@@ -1,4 +1,4 @@
-#include "procfs_private.h"
+#include "proc_private.h"
 #include <common/stdio.h>
 #include <common/stdlib.h>
 #include <kernel/api/dirent.h>
@@ -125,7 +125,7 @@ static int populate_version(struct file* file, struct vec* vec) {
                       utsname()->release, utsname()->version);
 }
 
-static procfs_item_def root_items[] = {
+static proc_item_def root_items[] = {
     {"cpuinfo", S_IFREG, populate_cpuinfo},
     {"cmdline", S_IFREG, populate_cmdline},
     {"kallsyms", S_IFREG, populate_kallsyms},
@@ -136,18 +136,18 @@ static procfs_item_def root_items[] = {
 };
 #define NUM_ITEMS ARRAY_SIZE(root_items)
 
-static struct inode* procfs_root_lookup_child(struct inode* inode,
-                                              const char* name) {
+static struct inode* proc_root_lookup_child(struct inode* inode,
+                                            const char* name) {
     if (str_is_uint(name)) {
         pid_t pid = atoi(name);
-        return procfs_pid_dir_inode_create((procfs_dir_inode*)inode, pid);
+        return proc_pid_dir_inode_create((proc_dir_inode*)inode, pid);
     }
-    return procfs_dir_lookup_child(inode, name);
+    return proc_dir_lookup_child(inode, name);
 }
 
-static int procfs_root_getdents(struct file* file,
-                                getdents_callback_fn callback, void* ctx) {
-    procfs_dir_inode* node = (procfs_dir_inode*)file->inode;
+static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
+                              void* ctx) {
+    proc_dir_inode* node = (proc_dir_inode*)file->inode;
 
     mutex_lock(&file->offset_lock);
     if ((size_t)file->offset < NUM_ITEMS) {
@@ -186,19 +186,19 @@ static int procfs_root_getdents(struct file* file,
     return 0;
 }
 
-static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def) {
-    procfs_item_inode* node = kmalloc(sizeof(procfs_item_inode));
+static int add_item(proc_dir_inode* parent, const proc_item_def* item_def) {
+    proc_item_inode* node = kmalloc(sizeof(proc_item_inode));
     if (!node) {
         inode_unref((struct inode*)parent);
         return -ENOMEM;
     }
-    *node = (procfs_item_inode){0};
+    *node = (proc_item_inode){0};
 
     node->populate = item_def->populate;
 
     struct inode* inode = &node->inode;
     inode->dev = parent->inode.dev;
-    inode->fops = &procfs_item_fops;
+    inode->fops = &proc_item_fops;
     inode->mode = item_def->mode;
     inode->ref_count = 1;
 
@@ -207,16 +207,18 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def) {
     return rc;
 }
 
-struct inode* procfs_create_root(void) {
-    procfs_dir_inode* root = kmalloc(sizeof(procfs_dir_inode));
+struct inode* proc_mount(const char* source) {
+    (void)source;
+
+    proc_dir_inode* root = kmalloc(sizeof(proc_dir_inode));
     if (!root)
         return ERR_PTR(-ENOMEM);
-    *root = (procfs_dir_inode){0};
+    *root = (proc_dir_inode){0};
 
-    static struct file_ops fops = {
-        .destroy_inode = procfs_dir_destroy_inode,
-        .lookup_child = procfs_root_lookup_child,
-        .getdents = procfs_root_getdents,
+    static const struct file_ops fops = {
+        .destroy_inode = proc_dir_destroy_inode,
+        .lookup_child = proc_root_lookup_child,
+        .getdents = proc_root_getdents,
     };
 
     struct inode* inode = &root->inode;

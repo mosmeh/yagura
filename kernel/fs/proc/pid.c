@@ -1,4 +1,4 @@
-#include "procfs_private.h"
+#include "proc_private.h"
 #include <common/string.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/fs/dentry.h>
@@ -19,12 +19,12 @@ static bool copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
 }
 
 typedef struct {
-    procfs_item_inode item_inode;
+    proc_item_inode item_inode;
     pid_t pid;
-} procfs_pid_item_inode;
+} proc_pid_item_inode;
 
 static int populate_cmdline(struct file* file, struct vec* vec) {
-    procfs_pid_item_inode* node = (procfs_pid_item_inode*)file->inode;
+    proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
     struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
@@ -57,7 +57,7 @@ done:
 }
 
 static int populate_comm(struct file* file, struct vec* vec) {
-    procfs_pid_item_inode* node = (procfs_pid_item_inode*)file->inode;
+    proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
     struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
@@ -71,7 +71,7 @@ static int populate_comm(struct file* file, struct vec* vec) {
 }
 
 static int populate_cwd(struct file* file, struct vec* vec) {
-    procfs_pid_item_inode* node = (procfs_pid_item_inode*)file->inode;
+    proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
     struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
@@ -89,7 +89,7 @@ static int populate_cwd(struct file* file, struct vec* vec) {
 }
 
 static int populate_environ(struct file* file, struct vec* vec) {
-    procfs_pid_item_inode* node = (procfs_pid_item_inode*)file->inode;
+    proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
     struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
@@ -122,7 +122,7 @@ done:
 }
 
 static int populate_maps(struct file* file, struct vec* vec) {
-    procfs_pid_item_inode* node = (procfs_pid_item_inode*)file->inode;
+    proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
     struct process* process = process_find_by_pid(node->pid);
     if (!process)
         return -ENOENT;
@@ -145,21 +145,21 @@ static int populate_maps(struct file* file, struct vec* vec) {
     return ret;
 }
 
-static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
+static int add_item(proc_dir_inode* parent, const proc_item_def* item_def,
                     pid_t pid) {
-    procfs_pid_item_inode* node = kmalloc(sizeof(procfs_pid_item_inode));
+    proc_pid_item_inode* node = kmalloc(sizeof(proc_pid_item_inode));
     if (!node) {
         inode_unref((struct inode*)parent);
         return -ENOMEM;
     }
-    *node = (procfs_pid_item_inode){0};
+    *node = (proc_pid_item_inode){0};
 
     node->pid = pid;
     node->item_inode.populate = item_def->populate;
 
     struct inode* inode = &node->item_inode.inode;
     inode->dev = parent->inode.dev;
-    inode->fops = &procfs_item_fops;
+    inode->fops = &proc_item_fops;
     inode->mode = item_def->mode;
     inode->ref_count = 1;
 
@@ -168,30 +168,29 @@ static int add_item(procfs_dir_inode* parent, const procfs_item_def* item_def,
     return rc;
 }
 
-static procfs_item_def pid_items[] = {
+static proc_item_def pid_items[] = {
     {"cmdline", S_IFREG, populate_cmdline},
     {"comm", S_IFREG, populate_comm},
     {"cwd", S_IFLNK, populate_cwd},
     {"environ", S_IFREG, populate_environ},
     {"maps", S_IFREG, populate_maps},
 };
-#define NUM_ITEMS ARRAY_SIZE(pid_items)
 
-struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid) {
+struct inode* proc_pid_dir_inode_create(proc_dir_inode* parent, pid_t pid) {
     struct process* process = process_find_by_pid(pid);
     if (!process)
         return ERR_PTR(-ENOENT);
     process_unref(process);
 
-    procfs_dir_inode* node = kmalloc(sizeof(procfs_dir_inode));
+    proc_dir_inode* node = kmalloc(sizeof(proc_dir_inode));
     if (!node)
         return ERR_PTR(-ENOMEM);
-    *node = (procfs_dir_inode){0};
+    *node = (proc_dir_inode){0};
 
-    static struct file_ops fops = {
-        .destroy_inode = procfs_dir_destroy_inode,
-        .lookup_child = procfs_dir_lookup_child,
-        .getdents = procfs_dir_getdents,
+    static const struct file_ops fops = {
+        .destroy_inode = proc_dir_destroy_inode,
+        .lookup_child = proc_dir_lookup_child,
+        .getdents = proc_dir_getdents,
     };
     struct inode* inode = &node->inode;
     inode->dev = parent->inode.dev;
@@ -199,7 +198,7 @@ struct inode* procfs_pid_dir_inode_create(procfs_dir_inode* parent, pid_t pid) {
     inode->mode = S_IFDIR;
     inode->ref_count = 1;
 
-    for (size_t i = 0; i < NUM_ITEMS; ++i) {
+    for (size_t i = 0; i < ARRAY_SIZE(pid_items); ++i) {
         inode_ref(inode);
         int rc = add_item(node, pid_items + i, pid);
         if (IS_ERR(rc))

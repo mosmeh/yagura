@@ -149,7 +149,7 @@ struct inode* fifo_create(void) {
     }
 
     struct inode* inode = &fifo->inode;
-    static struct file_ops fops = {
+    static const struct file_ops fops = {
         .destroy_inode = fifo_destroy_inode,
         .open = fifo_open,
         .close = fifo_close,

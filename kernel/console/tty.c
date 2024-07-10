@@ -189,7 +189,7 @@ int tty_init(struct tty* tty, uint8_t minor) {
         return rc;
 
     struct inode* inode = &tty->inode;
-    static struct file_ops fops = {
+    static const struct file_ops fops = {
         .read = tty_read,
         .write = tty_write,
         .ioctl = tty_ioctl,

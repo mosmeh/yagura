@@ -12,21 +12,7 @@
 #include <kernel/process.h>
 #include <string.h>
 
-void initrd_populate_root_fs(uintptr_t phys_addr, size_t size);
-
 static struct inode* root;
-
-void vfs_init(void) {
-    kprintf("vfs: mounting root filesystem\n");
-    root = tmpfs_create_root();
-}
-
-void vfs_populate_root_fs(const multiboot_module_t* initrd_mod) {
-    kprintf("vfs: populating root fs with initrd at P%#x - P%#x\n",
-            initrd_mod->mod_start, initrd_mod->mod_end);
-    initrd_populate_root_fs(initrd_mod->mod_start,
-                            initrd_mod->mod_end - initrd_mod->mod_start);
-}
 
 struct path* vfs_get_root(void) {
     ASSERT(root);
@@ -36,6 +22,25 @@ struct path* vfs_get_root(void) {
     *path = (struct path){.inode = root};
     inode_ref(root);
     return path;
+}
+
+struct file_system* file_systems;
+
+static struct file_system* find_file_system(const char* name) {
+    for (struct file_system* it = file_systems; it; it = it->next) {
+        if (!strcmp(it->name, name))
+            return it;
+    }
+    return NULL;
+}
+
+int vfs_register_file_system(struct file_system* fs) {
+    if (find_file_system(fs->name))
+        return -EEXIST;
+    fs->next = file_systems;
+    file_systems = fs;
+    kprintf("vfs: registered filesystem %s\n", fs->name);
+    return 0;
 }
 
 struct mount_point {
@@ -88,17 +93,27 @@ static struct inode* resolve_mounts(struct inode* host) {
     return needle;
 }
 
-int vfs_mount(const char* pathname, struct inode* fs_root) {
-    return vfs_mount_at(current->cwd, pathname, fs_root);
+int vfs_mount(const char* source, const char* target, const char* type) {
+    return vfs_mount_at(current->cwd, source, target, type);
 }
 
-int vfs_mount_at(const struct path* base, const char* pathname,
-                 struct inode* fs_root) {
-    struct path* path = vfs_resolve_path_at(base, pathname, 0);
-    if (IS_ERR(path))
-        return PTR_ERR(path);
+int vfs_mount_at(const struct path* base, const char* source,
+                 const char* target, const char* type) {
+    struct file_system* fs = find_file_system(type);
+    if (!fs)
+        return -ENODEV;
 
-    return mount_at(path_into_inode(path), fs_root);
+    struct path* target_path = vfs_resolve_path_at(base, target, 0);
+    if (IS_ERR(target_path))
+        return PTR_ERR(target_path);
+
+    struct inode* inode = fs->mount(source);
+    if (IS_ERR(inode)) {
+        path_destroy_recursive(target_path);
+        return PTR_ERR(inode);
+    }
+
+    return mount_at(path_into_inode(target_path), inode);
 }
 
 struct device {
@@ -438,4 +453,24 @@ struct inode* vfs_create_at(const struct path* base, const char* pathname,
     if (IS_ERR(path))
         return ERR_CAST(path);
     return path_into_inode(path);
+}
+
+void tmpfs_init(void);
+void proc_init(void);
+void initrd_populate_root_fs(uintptr_t phys_addr, size_t size);
+
+void vfs_init(const multiboot_module_t* initrd_mod) {
+    tmpfs_init();
+    proc_init();
+
+    kprintf("vfs: mounting root filesystem\n");
+    struct file_system* fs = find_file_system("tmpfs");
+    ASSERT(fs);
+    root = fs->mount(NULL);
+    ASSERT_OK(root);
+
+    kprintf("vfs: populating root fs with initrd at P%#x - P%#x\n",
+            initrd_mod->mod_start, initrd_mod->mod_end);
+    initrd_populate_root_fs(initrd_mod->mod_start,
+                            initrd_mod->mod_end - initrd_mod->mod_start);
 }

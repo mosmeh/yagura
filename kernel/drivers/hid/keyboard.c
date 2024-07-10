@@ -371,7 +371,7 @@ static short ps2_keyboard_device_poll(struct file* file, short events) {
 }
 
 static struct inode* ps2_keyboard_device_get(void) {
-    static struct file_ops fops = {
+    static const struct file_ops fops = {
         .read = ps2_keyboard_device_read,
         .poll = ps2_keyboard_device_poll,
     };

@@ -316,23 +316,3 @@ int file_block(struct file* file, bool (*unblock)(struct file*), int flags) {
         return -EAGAIN;
     return scheduler_block((unblock_fn)unblock, file, flags);
 }
-
-uint8_t mode_to_dirent_type(mode_t mode) {
-    switch (mode & S_IFMT) {
-    case S_IFDIR:
-        return DT_DIR;
-    case S_IFCHR:
-        return DT_CHR;
-    case S_IFBLK:
-        return DT_BLK;
-    case S_IFREG:
-        return DT_REG;
-    case S_IFIFO:
-        return DT_FIFO;
-    case S_IFLNK:
-        return DT_LNK;
-    case S_IFSOCK:
-        return DT_SOCK;
-    }
-    UNREACHABLE();
-}

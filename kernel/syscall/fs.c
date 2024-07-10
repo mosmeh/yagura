@@ -219,12 +219,17 @@ int sys_mount(const struct mount_params* user_params) {
     if (!copy_from_user(&params, user_params, sizeof(struct mount_params)))
         return -EFAULT;
 
-    char target[PATH_MAX];
-    int rc = copy_pathname_from_user(target, params.target);
+    char source[PATH_MAX];
+    int rc = copy_pathname_from_user(source, params.source);
     if (IS_ERR(rc))
         return rc;
 
-    char fs_type[8];
+    char target[PATH_MAX];
+    rc = copy_pathname_from_user(target, params.target);
+    if (IS_ERR(rc))
+        return rc;
+
+    char fs_type[SIZEOF_MEMBER(struct file_system, name)];
     ssize_t fs_type_len =
         strncpy_from_user(fs_type, params.filesystemtype, sizeof(fs_type));
     if (IS_ERR(fs_type_len))
@@ -234,13 +239,7 @@ int sys_mount(const struct mount_params* user_params) {
         return -ENODEV;
     }
 
-    if (!strcmp(fs_type, "tmpfs")) {
-        return vfs_mount(target, tmpfs_create_root());
-    }
-    if (!strcmp(fs_type, "proc")) {
-        return vfs_mount(target, procfs_create_root());
-    }
-    return -ENODEV;
+    return vfs_mount(source, target, fs_type);
 }
 
 int sys_link(const char* user_oldpath, const char* user_newpath) {

@@ -241,7 +241,7 @@ static short ac97_device_poll(struct file* file, short events) {
 }
 
 static struct inode* ac97_device_get(void) {
-    static struct file_ops fops = {
+    static const struct file_ops fops = {
         .write = ac97_device_write,
         .ioctl = ac97_device_ioctl,
         .poll = ac97_device_poll,

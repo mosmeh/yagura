@@ -161,7 +161,7 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
     device->capacity = capacity;
 
     struct inode* inode = &device->inode;
-    static struct file_ops fops = {
+    static const struct file_ops fops = {
         .destroy_inode = virtio_blk_destroy_inode,
         .read = virtio_blk_read,
         .write = virtio_blk_write,
