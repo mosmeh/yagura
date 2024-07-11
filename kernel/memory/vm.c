@@ -501,10 +501,12 @@ static void* resize(struct vm* vm, void* virt_addr, size_t new_size) {
     // If the region is the last one or there is enough space after the
     // region, we can simply extend the region
     if (!region->next || region->start + new_size < region->next->start) {
-        int rc = page_table_map_anon(region->start + old_size,
-                                     new_size - old_size, pte_flags);
-        if (IS_ERR(rc))
-            return ERR_PTR(rc);
+        if (region->flags & VM_RW) {
+            int rc = page_table_map_anon(region->start + old_size,
+                                         new_size - old_size, pte_flags);
+            if (IS_ERR(rc))
+                return ERR_PTR(rc);
+        }
         region->end = region->start + new_size;
         return virt_addr;
     }
@@ -523,11 +525,13 @@ static void* resize(struct vm* vm, void* virt_addr, size_t new_size) {
         return ERR_PTR(rc);
 
     // Extend
-    rc = page_table_map_anon(new_virt_addr + old_size, new_size - old_size,
-                             pte_flags);
-    if (IS_ERR(rc)) {
-        page_table_unmap(new_virt_addr, old_size);
-        return ERR_PTR(rc);
+    if (region->flags & VM_RW) {
+        rc = page_table_map_anon(new_virt_addr + old_size, new_size - old_size,
+                                 pte_flags);
+        if (IS_ERR(rc)) {
+            page_table_unmap(new_virt_addr, old_size);
+            return ERR_PTR(rc);
+        }
     }
 
     // Unmap the old range
