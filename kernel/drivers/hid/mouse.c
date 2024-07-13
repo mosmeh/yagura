@@ -1,4 +1,4 @@
-#include "hid.h"
+#include "ps2.h"
 #include <kernel/api/hid.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>

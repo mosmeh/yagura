@@ -2,6 +2,7 @@
 #include "screen/screen.h"
 #include <common/stdio.h>
 #include <common/string.h>
+#include <kernel/api/hid.h>
 #include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
