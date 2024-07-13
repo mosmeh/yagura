@@ -1,5 +1,6 @@
 #include "dentry.h"
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/fs/fs.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/vec.h>
@@ -159,7 +160,7 @@ static struct inode* tmpfs_mount(const char* source) {
     *root = (tmpfs_inode){0};
 
     struct inode* inode = &root->inode;
-    inode->dev = vfs_generate_unnamed_device_number();
+    inode->dev = vfs_generate_unnamed_block_device_number();
     inode->fops = &dir_fops;
     inode->mode = S_IFDIR;
     inode->ref_count = 1;

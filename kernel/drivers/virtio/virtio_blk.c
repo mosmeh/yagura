@@ -111,8 +111,6 @@ static ssize_t virtio_blk_write(struct file* file, const void* buffer,
                             false);
 }
 
-static int device_major;
-
 static void virtio_blk_device_init(const struct pci_addr* addr) {
     struct virtio_pci_cap device_cfg_cap;
     if (!virtio_find_pci_cap(addr, VIRTIO_PCI_CAP_DEVICE_CFG,
@@ -122,7 +120,7 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
     }
 
     static size_t next_id = 0;
-    if (next_id >= 26 * 26) {
+    if (next_id > 255) {
         kprint("virtio_blk: too many devices\n");
         return;
     }
@@ -143,7 +141,7 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
     kfree(device_cfg_space);
 
     size_t id = next_id++;
-    dev_t rdev = makedev(device_major, id);
+    dev_t rdev = makedev(254, id);
     char name[8] = "vd";
     if (id < 26) {
         name[2] = 'a' + id;
@@ -185,7 +183,4 @@ static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,
         virtio_blk_device_init(addr);
 }
 
-void virtio_blk_init(void) {
-    device_major = vfs_generate_major_device_number();
-    pci_enumerate_devices(pci_device_callback, NULL);
-}
+void virtio_blk_init(void) { pci_enumerate_devices(pci_device_callback, NULL); }

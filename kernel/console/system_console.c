@@ -58,6 +58,11 @@ void system_console_init(void) {
         kprintf("system_console: device %s not found\n", console);
         return;
     }
+    if (!S_ISCHR(device->mode)) {
+        kprintf("system_console: device %s is not a character device\n",
+                console);
+        return;
+    }
 
     active_console = inode_open(device, O_RDWR, 0);
     if (!active_console) {

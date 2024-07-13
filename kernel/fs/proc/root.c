@@ -234,7 +234,7 @@ struct inode* proc_mount(const char* source) {
     };
 
     struct inode* inode = &root->inode;
-    inode->dev = vfs_generate_unnamed_device_number();
+    inode->dev = vfs_generate_unnamed_block_device_number();
     inode->fops = &fops;
     inode->mode = S_IFDIR;
     inode->ref_count = 1;

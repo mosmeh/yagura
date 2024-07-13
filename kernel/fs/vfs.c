@@ -124,69 +124,71 @@ struct device {
 
 static struct device* devices;
 
-int vfs_register_device(const char* name, struct inode* inode) {
-    struct device** dest = &devices;
-    if (devices) {
-        struct device* it = devices;
-        for (;;) {
-            if (it->inode->rdev == inode->rdev || !strcmp(it->name, name)) {
-                inode_unref(inode);
-                return -EEXIST;
-            }
-            if (!it->next)
-                break;
-            it = it->next;
-        }
-        dest = &it->next;
-    }
-    struct device* dev = kmalloc(sizeof(struct device));
-    if (!dev) {
-        inode_unref(inode);
-        return -ENOMEM;
-    }
-    strlcpy(dev->name, name, sizeof(dev->name));
-    dev->inode = inode;
-    dev->next = NULL;
-    *dest = dev;
-    kprintf("vfs: registered device %s %u,%u\n", dev->name, major(inode->rdev),
-            minor(inode->rdev));
-    return 0;
-}
-
-struct inode* vfs_get_device_by_id(dev_t id) {
-    struct device* it = devices;
-    while (it) {
-        if (it->inode->rdev == id) {
-            inode_ref(it->inode);
-            return it->inode;
-        }
-        it = it->next;
-    }
-    return NULL;
-}
-
 struct inode* vfs_get_device_by_name(const char* name) {
-    struct device* it = devices;
-    while (it) {
+    for (struct device* it = devices; it; it = it->next) {
         if (!strcmp(it->name, name)) {
             inode_ref(it->inode);
             return it->inode;
         }
-        it = it->next;
     }
     return NULL;
 }
 
-dev_t vfs_generate_unnamed_device_number(void) {
+static struct inode* find_device(mode_t mode, dev_t rdev) {
+    if (!S_ISCHR(mode) && !S_ISBLK(mode))
+        return NULL;
+    for (struct device* it = devices; it; it = it->next) {
+        if ((it->inode->mode & S_IFMT) == (mode & S_IFMT) &&
+            it->inode->rdev == rdev) {
+            inode_ref(it->inode);
+            return it->inode;
+        }
+    }
+    return NULL;
+}
+
+int vfs_register_device(const char* name, struct inode* inode) {
+    int ret = 0;
+
+    if (!S_ISCHR(inode->mode) && !S_ISBLK(inode->mode)) {
+        ret = -ENODEV;
+        goto fail;
+    }
+
+    for (struct device* it = devices; it; it = it->next) {
+        if ((it->inode->mode & S_IFMT) == (inode->mode & S_IFMT) &&
+            it->inode->rdev == inode->rdev) {
+            ret = -EEXIST;
+            goto fail;
+        }
+        if (!strcmp(it->name, name)) {
+            ret = -EEXIST;
+            goto fail;
+        }
+    }
+
+    struct device* dev = kmalloc(sizeof(struct device));
+    if (!dev) {
+        ret = -ENOMEM;
+        goto fail;
+    }
+    strlcpy(dev->name, name, sizeof(dev->name));
+    dev->inode = inode;
+    dev->next = devices;
+    devices = dev;
+    kprintf("vfs: registered device %s %u,%u\n", dev->name, major(inode->rdev),
+            minor(inode->rdev));
+    return 0;
+
+fail:
+    inode_unref(inode);
+    return ret;
+}
+
+dev_t vfs_generate_unnamed_block_device_number(void) {
     static int next_id = 1;
     int id = next_id++;
     return makedev(0, id);
-}
-
-int vfs_generate_major_device_number(void) {
-    static int next_major = 254;
-    ASSERT(next_major >= 234);
-    return next_major--;
 }
 
 static bool is_absolute_path(const char* path) {
@@ -343,7 +345,7 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
 
 static struct inode* resolve_special_file(struct inode* inode) {
     if (S_ISBLK(inode->mode) || S_ISCHR(inode->mode)) {
-        struct inode* device = vfs_get_device_by_id(inode->rdev);
+        struct inode* device = find_device(inode->mode, inode->rdev);
         inode_unref(inode);
         if (!device)
             return ERR_PTR(-ENODEV);
