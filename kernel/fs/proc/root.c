@@ -71,13 +71,24 @@ static int populate_cpuinfo(struct file* file, struct vec* vec) {
                       cpu->phys_addr_bits, cpu->virt_addr_bits);
 }
 
+static int populate_filesystems(struct file* file, struct vec* vec) {
+    (void)file;
+    for (struct file_system* fs = file_systems; fs; fs = fs->next) {
+        int rc = vec_printf(vec, "%s\n", fs->name);
+        if (IS_ERR(rc))
+            return rc;
+    }
+    return 0;
+}
+
 static int populate_kallsyms(struct file* file, struct vec* vec) {
     (void)file;
     const struct symbol* symbol = NULL;
     while ((symbol = ksyms_next(symbol))) {
-        if (vec_printf(vec, "%08x %c %s\n", symbol->addr, symbol->type,
-                       symbol->name) < 0)
-            return -ENOMEM;
+        int rc = vec_printf(vec, "%08x %c %s\n", symbol->addr, symbol->type,
+                            symbol->name);
+        if (IS_ERR(rc))
+            return rc;
     }
     return 0;
 }
@@ -126,8 +137,9 @@ static int populate_version(struct file* file, struct vec* vec) {
 }
 
 static proc_item_def root_items[] = {
-    {"cpuinfo", S_IFREG, populate_cpuinfo},
     {"cmdline", S_IFREG, populate_cmdline},
+    {"cpuinfo", S_IFREG, populate_cpuinfo},
+    {"filesystems", S_IFREG, populate_filesystems},
     {"kallsyms", S_IFREG, populate_kallsyms},
     {"meminfo", S_IFREG, populate_meminfo},
     {"self", S_IFLNK, populate_self},
