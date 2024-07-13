@@ -46,6 +46,7 @@ BIN_TARGET_NAMES := \
 	sh \
 	sleep \
 	stat \
+	stty \
 	touch \
 	uname \
 	usertests \
