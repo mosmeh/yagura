@@ -9,13 +9,13 @@
 #include <kernel/safe_string.h>
 #include <kernel/vec.h>
 
-static bool copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
-                                size_t size) {
+static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
+                               size_t size) {
     struct vm* current_vm = current->vm;
     vm_enter(vm);
-    bool ok = copy_from_user(dst, user_src, size);
+    int ret = copy_from_user(dst, user_src, size);
     vm_enter(current_vm);
-    return ok;
+    return ret;
 }
 
 typedef struct {
@@ -42,8 +42,7 @@ static int populate_cmdline(struct file* file, struct vec* vec) {
         goto done;
     }
 
-    if (!copy_from_remote_vm(process->vm, buf, (void*)process->arg_start,
-                             len)) {
+    if (copy_from_remote_vm(process->vm, buf, (void*)process->arg_start, len)) {
         ret = -EFAULT;
         goto done;
     }
@@ -107,8 +106,7 @@ static int populate_environ(struct file* file, struct vec* vec) {
         goto done;
     }
 
-    if (!copy_from_remote_vm(process->vm, buf, (void*)process->env_start,
-                             len)) {
+    if (copy_from_remote_vm(process->vm, buf, (void*)process->env_start, len)) {
         ret = -EFAULT;
         goto done;
     }

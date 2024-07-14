@@ -32,7 +32,7 @@ static int string_vec_clone_from_user(struct string_vec* strings,
     size_t total_size = 0;
     for (const char* const* it = user_src;; ++it) {
         const char* p = NULL;
-        if (!copy_from_user(&p, it, sizeof(char*)))
+        if (copy_from_user(&p, it, sizeof(char*)))
             return -EFAULT;
         if (!p)
             break;

@@ -50,7 +50,7 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
             ret = -ENOMEM;
             goto exit;
         }
-        if (!copy_from_user(blocker.fds, user_fds, fds_size)) {
+        if (copy_from_user(blocker.fds, user_fds, fds_size)) {
             ret = -EFAULT;
             goto exit;
         }
@@ -92,8 +92,7 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
         goto exit;
 
     if (nfds > 0) {
-        if (!copy_to_user(user_fds, blocker.fds,
-                          sizeof(struct pollfd) * nfds)) {
+        if (copy_to_user(user_fds, blocker.fds, sizeof(struct pollfd) * nfds)) {
             ret = -EFAULT;
             goto exit;
         }

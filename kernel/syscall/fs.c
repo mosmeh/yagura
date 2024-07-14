@@ -84,7 +84,7 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
     if (IS_ERR(nread))
         return nread;
 
-    if (!copy_to_user(user_buf, buf, nread))
+    if (copy_to_user(user_buf, buf, nread))
         return -EFAULT;
     return nread;
 }
@@ -121,7 +121,7 @@ int sys_lstat(const char* user_pathname, struct stat* user_buf) {
     rc = vfs_stat(pathname, &buf, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
     if (IS_ERR(rc))
         return rc;
-    if (!copy_to_user(user_buf, &buf, sizeof(struct stat)))
+    if (copy_to_user(user_buf, &buf, sizeof(struct stat)))
         return -EFAULT;
     return 0;
 }
@@ -135,7 +135,7 @@ int sys_stat(const char* user_pathname, struct stat* user_buf) {
     rc = vfs_stat(pathname, &buf, 0);
     if (IS_ERR(rc))
         return rc;
-    if (!copy_to_user(user_buf, &buf, sizeof(struct stat)))
+    if (copy_to_user(user_buf, &buf, sizeof(struct stat)))
         return -EFAULT;
     return 0;
 }
@@ -216,7 +216,7 @@ int sys_mknod(const char* user_pathname, mode_t mode, dev_t dev) {
 
 int sys_mount(const struct mount_params* user_params) {
     struct mount_params params;
-    if (!copy_from_user(&params, user_params, sizeof(struct mount_params)))
+    if (copy_from_user(&params, user_params, sizeof(struct mount_params)))
         return -EFAULT;
 
     char source[PATH_MAX];
@@ -443,11 +443,11 @@ static bool fill_dir(const char* name, uint8_t type, void* raw_ctx) {
     struct dirent dent = {
         .d_reclen = size, .d_type = type, .d_namlen = name_len};
     struct dirent* user_dent = (struct dirent*)ctx->user_dirp;
-    if (!copy_to_user(user_dent, &dent, sizeof(struct dirent))) {
+    if (copy_to_user(user_dent, &dent, sizeof(struct dirent))) {
         ctx->rc = -EFAULT;
         return false;
     }
-    if (!copy_to_user(user_dent->d_name, name, name_len)) {
+    if (copy_to_user(user_dent->d_name, name, name_len)) {
         ctx->rc = -EFAULT;
         return false;
     }
@@ -553,7 +553,7 @@ int sys_pipe(int user_fifofd[2]) {
     }
 
     int fifofd[2] = {reader_fd, writer_fd};
-    if (!copy_to_user(user_fifofd, fifofd, sizeof(int[2]))) {
+    if (copy_to_user(user_fifofd, fifofd, sizeof(int[2]))) {
         rc = -EFAULT;
         goto fail;
     }

@@ -194,35 +194,35 @@ static int ac97_device_ioctl(struct file* file, int request, void* user_argp) {
     switch (request) {
     case SOUND_GET_SAMPLE_RATE: {
         uint16_t value = in16(mixer_base + MIXER_SAMPLE_RATE);
-        if (!copy_to_user(user_argp, &value, sizeof(uint16_t)))
+        if (copy_to_user(user_argp, &value, sizeof(uint16_t)))
             return -EFAULT;
         return 0;
     }
     case SOUND_SET_SAMPLE_RATE: {
         uint16_t value;
-        if (!copy_from_user(&value, user_argp, sizeof(uint16_t)))
+        if (copy_from_user(&value, user_argp, sizeof(uint16_t)))
             return -EFAULT;
         out16(mixer_base + MIXER_SAMPLE_RATE, value);
         value = in16(mixer_base + MIXER_SAMPLE_RATE);
         if (dma_is_running)
             start_dma();
-        if (!copy_to_user(user_argp, &value, sizeof(uint16_t)))
+        if (copy_to_user(user_argp, &value, sizeof(uint16_t)))
             return -EFAULT;
         return 0;
     }
     case SOUND_GET_ATTENUATION: {
         uint16_t value = in16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME);
-        if (!copy_to_user(user_argp, &value, sizeof(uint16_t)))
+        if (copy_to_user(user_argp, &value, sizeof(uint16_t)))
             return -EFAULT;
         return 0;
     }
     case SOUND_SET_ATTENUATION: {
         uint16_t value;
-        if (!copy_from_user(&value, user_argp, sizeof(uint16_t)))
+        if (copy_from_user(&value, user_argp, sizeof(uint16_t)))
             return -EFAULT;
         out16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME, value);
         value = in16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME);
-        if (!copy_to_user(user_argp, &value, sizeof(uint16_t)))
+        if (copy_to_user(user_argp, &value, sizeof(uint16_t)))
             return -EFAULT;
         return 0;
     }

@@ -91,19 +91,19 @@ static int tty_ioctl(struct file* file, int request, void* user_argp) {
     bool int_flag = push_cli();
     switch (request) {
     case TIOCGPGRP:
-        if (!copy_to_user(user_argp, &tty->pgid, sizeof(pid_t))) {
+        if (copy_to_user(user_argp, &tty->pgid, sizeof(pid_t))) {
             ret = -EFAULT;
             goto done;
         }
         break;
     case TIOCSPGRP:
-        if (!copy_from_user(&tty->pgid, user_argp, sizeof(pid_t))) {
+        if (copy_from_user(&tty->pgid, user_argp, sizeof(pid_t))) {
             ret = -EFAULT;
             goto done;
         }
         break;
     case TCGETS:
-        if (!copy_to_user(user_argp, termios, sizeof(struct termios))) {
+        if (copy_to_user(user_argp, termios, sizeof(struct termios))) {
             ret = -EFAULT;
             goto done;
         }
@@ -111,7 +111,7 @@ static int tty_ioctl(struct file* file, int request, void* user_argp) {
     case TCSETS:
     case TCSETSW:
     case TCSETSF:
-        if (!copy_from_user(termios, user_argp, sizeof(struct termios))) {
+        if (copy_from_user(termios, user_argp, sizeof(struct termios))) {
             ret = -EFAULT;
             goto done;
         }
@@ -127,7 +127,7 @@ static int tty_ioctl(struct file* file, int request, void* user_argp) {
             .ws_xpixel = 0,
             .ws_ypixel = 0,
         };
-        if (!copy_to_user(user_argp, &winsize, sizeof(struct winsize))) {
+        if (copy_to_user(user_argp, &winsize, sizeof(struct winsize))) {
             ret = -EFAULT;
             goto done;
         }
@@ -135,7 +135,7 @@ static int tty_ioctl(struct file* file, int request, void* user_argp) {
     }
     case TIOCSWINSZ: {
         struct winsize winsize;
-        if (!copy_from_user(&winsize, user_argp, sizeof(struct winsize))) {
+        if (copy_from_user(&winsize, user_argp, sizeof(struct winsize))) {
             ret = -EFAULT;
             goto done;
         }

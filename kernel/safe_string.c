@@ -3,9 +3,9 @@
 #include "panic.h"
 #include "system.h"
 
-NOINLINE bool safe_memcpy(void* dest, const void* src, size_t n) {
+NOINLINE int safe_memcpy(void* dest, const void* src, size_t n) {
     if (!dest || !src)
-        return false;
+        return -EFAULT;
 
     size_t remainder;
     __asm__ volatile(".globl safe_memcpy_copy\n"
@@ -16,12 +16,12 @@ NOINLINE bool safe_memcpy(void* dest, const void* src, size_t n) {
                      : "=c"(remainder)
                      : "S"(src), "D"(dest), "c"(n)
                      : "memory");
-    return remainder == 0;
+    return remainder == 0 ? 0 : -EFAULT;
 }
 
-NOINLINE bool safe_memset(void* s, unsigned char c, size_t n) {
+NOINLINE int safe_memset(void* s, unsigned char c, size_t n) {
     if (!s)
-        return false;
+        return -EFAULT;
 
     size_t remainder;
     __asm__ volatile(".globl safe_memset_write\n"
@@ -32,7 +32,7 @@ NOINLINE bool safe_memset(void* s, unsigned char c, size_t n) {
                      : "=c"(remainder)
                      : "D"(s), "a"(c), "c"(n)
                      : "memory");
-    return remainder == 0;
+    return remainder == 0 ? 0 : -EFAULT;
 }
 
 NOINLINE ssize_t safe_strnlen(const char* str, size_t n) {
@@ -92,30 +92,31 @@ NOINLINE ssize_t safe_strncpy(char* dest, const char* src, size_t n) {
     if (num_copied < 0)
         return -EFAULT;
 
-    if (!safe_memset(dest + num_copied, 0, n - num_copied))
-        return -EFAULT;
+    ssize_t rc = safe_memset(dest + num_copied, 0, n - num_copied);
+    if (IS_ERR(rc))
+        return rc;
 
     return num_copied;
 }
 
-bool copy_from_user(void* to, const void* user_from, size_t n) {
+int copy_from_user(void* to, const void* user_from, size_t n) {
     ASSERT(is_kernel_address(to));
     if (is_kernel_range(to, n) && is_user_range(user_from, n))
         return safe_memcpy(to, user_from, n);
-    return false;
+    return -EFAULT;
 }
 
-bool copy_to_user(void* user_to, const void* from, size_t n) {
+int copy_to_user(void* user_to, const void* from, size_t n) {
     ASSERT(is_kernel_address(from));
     if (is_user_range(user_to, n) && is_kernel_range(from, n))
         return safe_memcpy(user_to, from, n);
-    return false;
+    return -EFAULT;
 }
 
-bool clear_user(void* user_to, size_t n) {
+int clear_user(void* user_to, size_t n) {
     if (is_user_range(user_to, n))
         return safe_memset(user_to, 0, n);
-    return false;
+    return -EFAULT;
 }
 
 ssize_t strnlen_user(const char* user_str, size_t n) {

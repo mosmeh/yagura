@@ -234,7 +234,7 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
     process_unref(waited_process);
 
     if (user_wstatus) {
-        if (!copy_to_user(user_wstatus, &wstatus, sizeof(int)))
+        if (copy_to_user(user_wstatus, &wstatus, sizeof(int)))
             return -EFAULT;
     }
 
@@ -244,7 +244,7 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
 clock_t sys_times(struct tms* user_buf) {
     struct tms buf = {.tms_utime = current->user_ticks,
                       .tms_stime = current->kernel_ticks};
-    if (!copy_to_user(user_buf, &buf, sizeof(struct tms)))
+    if (copy_to_user(user_buf, &buf, sizeof(struct tms)))
         return -EFAULT;
     return uptime;
 }
@@ -262,7 +262,7 @@ char* sys_getcwd(char* user_buf, size_t size) {
         kfree(cwd_str);
         return ERR_PTR(-ERANGE);
     }
-    if (!copy_to_user(user_buf, cwd_str, len)) {
+    if (copy_to_user(user_buf, cwd_str, len)) {
         kfree(cwd_str);
         return ERR_PTR(-EFAULT);
     }

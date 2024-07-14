@@ -80,9 +80,9 @@ static void dump_stack_trace(uintptr_t eip, uintptr_t ebp) {
         else
             kprintf("  0x%08x\n", eip);
 
-        if (!safe_memcpy(&eip, (uintptr_t*)ebp + 1, sizeof(uintptr_t)))
+        if (safe_memcpy(&eip, (uintptr_t*)ebp + 1, sizeof(uintptr_t)))
             break;
-        if (!safe_memcpy(&ebp, (uintptr_t*)ebp, sizeof(uintptr_t)))
+        if (safe_memcpy(&ebp, (uintptr_t*)ebp, sizeof(uintptr_t)))
             break;
 
         if (!eip || !ebp)

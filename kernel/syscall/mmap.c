@@ -12,7 +12,7 @@
 
 void* sys_mmap(const struct mmap_params* user_params) {
     struct mmap_params params;
-    if (!copy_from_user(&params, user_params, sizeof(struct mmap_params)))
+    if (copy_from_user(&params, user_params, sizeof(struct mmap_params)))
         return ERR_PTR(-EINVAL);
 
     if (params.length == 0 || params.offset < 0 ||

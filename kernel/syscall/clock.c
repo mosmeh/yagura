@@ -12,7 +12,7 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec* user_tp) {
     case CLOCK_MONOTONIC: {
         struct timespec tp;
         time_now(&tp);
-        if (!copy_to_user(user_tp, &tp, sizeof(struct timespec)))
+        if (copy_to_user(user_tp, &tp, sizeof(struct timespec)))
             return -EINVAL;
         return 0;
     }
@@ -39,7 +39,7 @@ int sys_clock_nanosleep(clockid_t clockid, int flags,
     }
 
     struct timespec request;
-    if (!copy_from_user(&request, user_request, sizeof(struct timespec)))
+    if (copy_from_user(&request, user_request, sizeof(struct timespec)))
         return -EFAULT;
 
     struct timespec deadline = {0};
@@ -64,7 +64,7 @@ int sys_clock_nanosleep(clockid_t clockid, int flags,
         struct timespec now;
         time_now(&now);
         timespec_saturating_sub(&remain, &now);
-        if (!copy_to_user(user_remain, &remain, sizeof(struct timespec)))
+        if (copy_to_user(user_remain, &remain, sizeof(struct timespec)))
             return -EFAULT;
     }
     return 0;

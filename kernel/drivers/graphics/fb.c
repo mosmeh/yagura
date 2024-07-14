@@ -37,7 +37,7 @@ static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
         break;
     }
     case FBIOSET_INFO: {
-        if (!copy_from_user(&info, user_argp, sizeof(struct fb_info)))
+        if (copy_from_user(&info, user_argp, sizeof(struct fb_info)))
             return -EFAULT;
         int rc = fb->set_info(&info);
         if (IS_ERR(rc))
@@ -48,7 +48,7 @@ static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
         return -EINVAL;
     }
 
-    if (!copy_to_user(user_argp, &info, sizeof(struct fb_info)))
+    if (copy_to_user(user_argp, &info, sizeof(struct fb_info)))
         return -EFAULT;
     return 0;
 }

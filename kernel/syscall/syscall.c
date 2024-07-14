@@ -46,7 +46,7 @@ long sys_sysconf(int name) {
 }
 
 int sys_uname(struct utsname* user_buf) {
-    if (!copy_to_user(user_buf, utsname(), sizeof(struct utsname)))
+    if (copy_to_user(user_buf, utsname(), sizeof(struct utsname)))
         return -EFAULT;
     return 0;
 }

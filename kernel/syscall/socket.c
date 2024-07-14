@@ -37,7 +37,7 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
         return -EINVAL;
 
     struct sockaddr_un addr_un;
-    if (!copy_from_user(&addr_un, user_addr, addrlen))
+    if (copy_from_user(&addr_un, user_addr, addrlen))
         return -EFAULT;
 
     if (addr_un.sun_family != AF_UNIX)
@@ -84,16 +84,15 @@ int sys_accept(int sockfd, struct sockaddr* user_addr,
             return -EINVAL;
 
         socklen_t requested_addrlen;
-        if (!copy_from_user(&requested_addrlen, user_addrlen,
-                            sizeof(socklen_t)))
+        if (copy_from_user(&requested_addrlen, user_addrlen, sizeof(socklen_t)))
             return -EFAULT;
 
         struct sockaddr_un addr_un = {.sun_family = AF_UNIX, .sun_path = {0}};
-        if (!copy_to_user(user_addr, &addr_un, requested_addrlen))
+        if (copy_to_user(user_addr, &addr_un, requested_addrlen))
             return -EFAULT;
 
         socklen_t actual_addrlen = sizeof(struct sockaddr_un);
-        if (!copy_to_user(user_addrlen, &actual_addrlen, sizeof(socklen_t)))
+        if (copy_to_user(user_addrlen, &actual_addrlen, sizeof(socklen_t)))
             return -EFAULT;
     }
 
@@ -124,7 +123,7 @@ int sys_connect(int sockfd, const struct sockaddr* user_addr,
         return -EINVAL;
 
     struct sockaddr_un addr_un;
-    if (!copy_from_user(&addr_un, user_addr, addrlen))
+    if (copy_from_user(&addr_un, user_addr, addrlen))
         return -EFAULT;
 
     if (addr_un.sun_family != AF_UNIX)
