@@ -357,9 +357,8 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
     ed->input_len = ed->cursor = 0;
     ed->dirty = true;
 
-    char cwd_buf[BUF_SIZE];
-    memset(cwd_buf, 0, BUF_SIZE);
-    getcwd(cwd_buf, 1024);
+    char cwd_buf[BUF_SIZE] = {0};
+    getcwd(cwd_buf, BUF_SIZE);
 
     size_t prompt_len = strlen(cwd_buf) + 3;
 
@@ -423,20 +422,22 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
     if (tcsetattr(STDIN_FILENO, TCSANOW, &ed->default_termios) < 0)
         perror("tcsetattr");
 
-    struct history_entry* entry = malloc(sizeof(struct history_entry));
-    if (!entry) {
-        perror("malloc");
-        return NULL;
-    }
-    *entry = (struct history_entry){0};
-    memcpy(entry->line, ed->input_buf, BUF_SIZE);
+    if (ed->input_len) {
+        struct history_entry* entry = malloc(sizeof(struct history_entry));
+        if (!entry) {
+            perror("malloc");
+            return NULL;
+        }
+        *entry = (struct history_entry){0};
+        memcpy(entry->line, ed->input_buf, BUF_SIZE);
 
-    if (!ed->history_head) {
-        ed->history_head = ed->history_tail = entry;
-    } else {
-        entry->prev = ed->history_tail;
-        ed->history_tail->next = entry;
-        ed->history_tail = entry;
+        if (!ed->history_head) {
+            ed->history_head = ed->history_tail = entry;
+        } else {
+            entry->prev = ed->history_tail;
+            ed->history_tail->next = entry;
+            ed->history_tail = entry;
+        }
     }
     ed->history_cursor = NULL;
 
