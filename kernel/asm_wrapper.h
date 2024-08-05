@@ -7,7 +7,7 @@ uint32_t read_eip(void);
 
 static inline uint32_t read_eflags(void) {
     uint32_t eflags;
-    __asm__ volatile("pushf;\n"
+    __asm__ volatile("pushf\n"
                      "popl %0"
                      : "=r"(eflags));
     return eflags;

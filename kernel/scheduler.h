@@ -3,17 +3,27 @@
 #include <common/extra.h>
 #include <stdatomic.h>
 #include <stdbool.h>
+#include <stdnoreturn.h>
 
+struct cpu;
 struct process;
+struct registers;
 
 extern atomic_uint idle_ticks;
 
 void scheduler_init(void);
 
-void scheduler_yield(bool requeue_current);
+// Registers a process to be scheduled.
 void scheduler_register(struct process*);
-void scheduler_enqueue(struct process*);
-void scheduler_tick(bool in_kernel);
+
+// Starts the scheduler on the current CPU.
+noreturn void scheduler_start(void);
+
+// Yields the current CPU to other processes.
+void scheduler_yield(bool requeue_current);
+
+// Should be called on every timer tick.
+void scheduler_tick(struct registers*);
 
 #define BLOCK_UNINTERRUPTIBLE 1
 

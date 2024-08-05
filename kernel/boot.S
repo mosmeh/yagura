@@ -62,19 +62,19 @@ _start:
 
   .section .init_bss, "aw", @nobits
   .globl kernel_page_directory_start
+  .align PAGE_SIZE
 kernel_page_directory_start:
-  .align PAGE_SIZE
   .skip PAGE_SIZE
-kernel_page_table_start:
   .align PAGE_SIZE
+kernel_page_table_start:
   .skip PAGE_SIZE
 
   .text
 paging_enabled:
   # remove identity mapping
-  movl $0, kernel_page_directory_start + KERNEL_VIRT_ADDR
-  movl $kernel_page_directory_start, %edx
-  movl %edx, %cr3
+  #movl $0, kernel_page_directory_start + KERNEL_VIRT_ADDR
+  #movl $kernel_page_directory_start, %edx
+  #movl %edx, %cr3
 
   movl $initial_kernel_stack_top, %esp
   pushl %ebx # Multiboot info struct
@@ -92,8 +92,71 @@ read_eip:
   popl %eax
   jmp *%eax
 
+  .code16
+  .globl ap_trampoline_start, ap_trampoline_end
+ap_trampoline_start:
+  cli
+
+  xorw %ax, %ax
+  movw %ax, %ds
+
+  lgdtl ap_initial_gdtr - ap_trampoline_start + AP_TRAMPOLINE_ADDR
+
+  movl %cr0, %eax
+  orl $1, %eax # PE
+  movl %eax, %cr0
+
+  movw $0x10, %ax
+  movw %ax, %ds
+  movw %ax, %es
+  movw %ax, %fs
+  movw %ax, %gs
+  movw %ax, %ss
+  ljmp $8, $(ap_trampoline_start32 - ap_trampoline_start + AP_TRAMPOLINE_ADDR)
+
+  .align 16
+ap_initial_gdt:
+  .long 0, 0
+  .long 0x0000ffff, 0x00cf9a00 # code
+  .long 0x0000ffff, 0x00cf9200 # data
+ap_initial_gdtr:
+  .word ap_initial_gdtr - ap_initial_gdt - 1
+  .long ap_initial_gdt - ap_trampoline_start + AP_TRAMPOLINE_ADDR
+
+  .align 32
+  .code32
+ap_trampoline_start32:
+  movl $kernel_page_directory_start, %eax
+  movl %eax, %cr3
+
+  movl %cr0, %eax
+  orl $0x80010000, %eax # PG | WP
+  movl %eax, %cr0
+
+  # ebx = atomic_fetch_add(&ap_id, 1)
+  movl $1, %ebx
+  lock; xaddl %ebx, (ap_id - ap_trampoline_start + AP_TRAMPOLINE_ADDR)
+
+  .extern ap_stack_top
+  # esp = ap_stack_top - STACK_SIZE * ebx
+  movl $STACK_SIZE, %eax
+  mull %ebx
+  movl ap_stack_top, %esp
+  subl %eax, %esp
+
+  pushl $loop_forever # return address
+
+  .extern ap_start
+  .type ap_start, @function
+  ljmp $8, $ap_start
+ap_trampoline_end:
+
+  .bss
   .globl initial_kernel_stack_base, initial_kernel_stack_top
+  .align PAGE_SIZE
 initial_kernel_stack_base:
-  .section .stack, "aw", @nobits
   .skip STACK_SIZE
 initial_kernel_stack_top:
+
+ap_id:
+  .long 0

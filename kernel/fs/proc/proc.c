@@ -1,8 +1,8 @@
 #include "proc_private.h"
+#include <kernel/containers/vec.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/vec.h>
 
 static void proc_item_destroy_inode(struct inode* inode) { kfree(inode); }
 

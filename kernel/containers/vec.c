@@ -1,8 +1,6 @@
 #include "vec.h"
-#include "api/err.h"
-#include "boot_defs.h"
-#include "memory/memory.h"
-#include "panic.h"
+#include <kernel/memory/memory.h>
+#include <kernel/panic.h>
 #include <stdio.h>
 #include <string.h>
 

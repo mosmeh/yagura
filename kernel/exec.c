@@ -6,6 +6,7 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/boot_defs.h>
+#include <kernel/gdt.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/safe_string.h>
@@ -336,35 +337,38 @@ static int execve(const char* pathname, struct string_vec* argv,
         vm_destroy(prev_vm);
 
     cli();
+    struct process* process = current;
 
-    current->eip = entry_point;
-    current->esp = current->ebp = current->kernel_stack_top;
-    current->ebx = current->esi = current->edi = 0;
-    current->fpu_state = initial_fpu_state;
+    process->eip = entry_point;
+    process->esp = process->ebp = sp;
+    process->ebx = process->esi = process->edi = 0;
+    process->fpu_state = initial_fpu_state;
 
-    strlcpy(current->comm, comm, sizeof(current->comm));
-    current->arg_start = arg_start;
-    current->arg_end = arg_end;
-    current->env_start = env_start;
-    current->env_end = env_end;
+    strlcpy(process->comm, comm, sizeof(process->comm));
+    process->arg_start = arg_start;
+    process->arg_end = arg_end;
+    process->env_start = env_start;
+    process->env_end = env_end;
 
     // enter userland
-    __asm__ volatile("movw $0x23, %%ax\n"
+    __asm__ volatile("movw %[user_ds], %%ax\n"
                      "movw %%ax, %%ds\n"
                      "movw %%ax, %%es\n"
                      "movw %%ax, %%fs\n"
                      "movw %%ax, %%gs\n"
-                     "movl %0, %%esp\n"
-                     "pushl $0x23\n"
-                     "pushl %0\n"
+                     "movl %[sp], %%esp\n"
+                     "pushl %[user_ds]\n"
+                     "pushl %[sp]\n"
                      "pushf\n"
                      "popl %%eax\n"
                      "orl $0x200, %%eax\n" // set IF
                      "pushl %%eax\n"
-                     "pushl $0x1b\n"
-                     "push %1\n"
-                     "iret" ::"r"(sp),
-                     "r"(entry_point)
+                     "pushl %[user_cs]\n"
+                     "push %[entry_point]\n"
+                     "iret"
+                     :
+                     : [user_cs] "i"(USER_CS | 3), [user_ds] "i"(USER_DS | 3),
+                       [sp] "r"(sp), [entry_point] "r"(entry_point)
                      : "eax");
     UNREACHABLE();
 

@@ -13,4 +13,5 @@ void timespec_saturating_sub(struct timespec*, const struct timespec*);
 int timespec_compare(const struct timespec*, const struct timespec*);
 
 void time_init(void);
+void time_tick(void);
 void time_now(struct timespec*);

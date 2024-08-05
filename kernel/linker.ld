@@ -43,7 +43,6 @@ SECTIONS {
     .bss ALIGN(4K) : AT(ADDR(.bss) - KERNEL_VIRT_ADDR) {
         *(COMMON)
         *(.bss)
-        *(.stack)
     } :bss
 
     kernel_end = .;

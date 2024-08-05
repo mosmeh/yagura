@@ -3,7 +3,7 @@
 #include <kernel/api/sys/reboot.h>
 #include <kernel/api/unistd.h>
 #include <kernel/boot_defs.h>
-#include <kernel/interrupts.h>
+#include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
@@ -64,11 +64,11 @@ int sys_dbgprint(const char* user_str) {
 typedef uintptr_t (*syscall_handler_fn)(uintptr_t arg1, uintptr_t arg2,
                                         uintptr_t arg3, uintptr_t arg4);
 
-static syscall_handler_fn syscall_handlers[NUM_SYSCALLS + 1] = {
+static syscall_handler_fn syscall_handlers[NUM_SYSCALLS] = {
 #define ENUM_ITEM(name) (syscall_handler_fn)(uintptr_t) sys_##name,
     ENUMERATE_SYSCALLS(ENUM_ITEM)
 #undef ENUM_ITEM
-        NULL};
+};
 
 static void syscall_handler(struct registers* regs) {
     ASSERT((regs->cs & 3) == 3);
@@ -90,7 +90,7 @@ static void syscall_handler(struct registers* regs) {
     ASSERT(handler);
 
     if (regs->eax == SYS_fork)
-        regs->eax = handler((uintptr_t)regs, 0, 0, 0);
+        regs->eax = sys_fork(regs);
     else
         regs->eax = handler(regs->edx, regs->ecx, regs->ebx, regs->esi);
 

@@ -40,6 +40,9 @@ if command -v wslpath >/dev/null; then
     INITRD=$(wslpath -w "${INITRD}")
 fi
 
+NCPUS=8
+#CMDLINE+=(nosmp)
+
 QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
 "${QEMU_BIN}" \
     -kernel "${KERNEL}" \
@@ -47,9 +50,9 @@ QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
     -append "${CMDLINE[*]}" \
     -d guest_errors \
     "${QEMU_DISPLAY_ARGS[@]}" \
-    -device ac97 \
     -chardev stdio,mux=on,id=char0 \
     -serial chardev:char0 \
     -mon char0,mode=readline \
+    -smp "cpus=$NCPUS,cores=1,threads=1,sockets=$NCPUS" \
     -m 512M \
     "${QEMU_VIRT_TECH_ARGS[@]}"

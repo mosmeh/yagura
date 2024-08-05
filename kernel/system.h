@@ -26,9 +26,6 @@ struct fpu_state {
     alignas(16) unsigned char buffer[512];
 };
 
-void gdt_init(void);
-void gdt_set_kernel_stack(uintptr_t stack_top);
-
 void syscall_init(void);
 
 const struct utsname* utsname(void);
@@ -50,6 +47,12 @@ const struct symbol* ksyms_next(const struct symbol* symbol);
 
 void random_init(void);
 ssize_t random_get(void* buffer, size_t count);
+
+extern bool smp_enabled;
+extern atomic_bool smp_active;
+
+void smp_init(void);
+void smp_start(void);
 
 noreturn void reboot(void);
 noreturn void halt(void);

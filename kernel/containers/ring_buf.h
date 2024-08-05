@@ -1,28 +1,36 @@
-#include "ring_buf.h"
-#include "api/errno.h"
-#include "memory/memory.h"
+#pragma once
 
-int ring_buf_init(struct ring_buf* b, size_t capacity) {
-    *b = (struct ring_buf){0};
-    b->capacity = capacity;
-    b->write_index = b->read_index = 0;
+#include <kernel/api/errno.h>
+#include <kernel/api/sys/types.h>
+#include <kernel/memory/memory.h>
+
+struct ring_buf {
+    size_t capacity;
+    atomic_size_t write_index;
+    atomic_size_t read_index;
+    unsigned char* ring;
+};
+
+NODISCARD static inline int ring_buf_init(struct ring_buf* b, size_t capacity) {
+    *b = (struct ring_buf){.capacity = capacity};
     b->ring = kmalloc(capacity);
     if (!b->ring)
         return -ENOMEM;
     return 0;
 }
 
-void ring_buf_destroy(struct ring_buf* b) { kfree(b->ring); }
+static inline void ring_buf_destroy(struct ring_buf* b) { kfree(b->ring); }
 
-bool ring_buf_is_empty(const struct ring_buf* b) {
+static inline bool ring_buf_is_empty(const struct ring_buf* b) {
     return b->write_index == b->read_index;
 }
 
-bool ring_buf_is_full(const struct ring_buf* b) {
+static inline bool ring_buf_is_full(const struct ring_buf* b) {
     return (b->write_index + 1) % b->capacity == b->read_index;
 }
 
-ssize_t ring_buf_read(struct ring_buf* b, void* bytes, size_t count) {
+NODISCARD static inline ssize_t ring_buf_read(struct ring_buf* b, void* bytes,
+                                              size_t count) {
     size_t nread = 0;
     unsigned char* dest = bytes;
     const unsigned char* src = b->ring;
@@ -35,7 +43,8 @@ ssize_t ring_buf_read(struct ring_buf* b, void* bytes, size_t count) {
     return nread;
 }
 
-ssize_t ring_buf_write(struct ring_buf* b, const void* bytes, size_t count) {
+NODISCARD static inline ssize_t
+ring_buf_write(struct ring_buf* b, const void* bytes, size_t count) {
     size_t nwritten = 0;
     unsigned char* dest = b->ring;
     const unsigned char* src = bytes;
@@ -48,8 +57,9 @@ ssize_t ring_buf_write(struct ring_buf* b, const void* bytes, size_t count) {
     return nwritten;
 }
 
-ssize_t ring_buf_write_evicting_oldest(struct ring_buf* b, const void* bytes,
-                                       size_t count) {
+static inline ssize_t ring_buf_write_evicting_oldest(struct ring_buf* b,
+                                                     const void* bytes,
+                                                     size_t count) {
     size_t nwritten = 0;
     unsigned char* dest = b->ring;
     const unsigned char* src = bytes;
@@ -62,4 +72,6 @@ ssize_t ring_buf_write_evicting_oldest(struct ring_buf* b, const void* bytes,
     return nwritten;
 }
 
-void ring_buf_clear(struct ring_buf* b) { b->write_index = b->read_index = 0; }
+static inline void ring_buf_clear(struct ring_buf* b) {
+    b->write_index = b->read_index = 0;
+}

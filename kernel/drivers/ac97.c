@@ -5,7 +5,7 @@
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/boot_defs.h>
 #include <kernel/fs/fs.h>
-#include <kernel/interrupts.h>
+#include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
@@ -120,7 +120,6 @@ static void start_dma(void) {
 
 static int write_single_buffer(struct file* file, const void* buffer,
                                size_t count) {
-    bool int_flag = push_cli();
     do {
         uint8_t current_idx = in8(pcm_out_channel + CHANNEL_CURRENT_INDEX);
         uint8_t last_valid_idx =
@@ -141,12 +140,9 @@ static int write_single_buffer(struct file* file, const void* buffer,
 
         buffer_descriptor_list_is_full = true;
         int rc = file_block(file, unblock_write, 0);
-        if (IS_ERR(rc)) {
-            pop_cli(int_flag);
+        if (IS_ERR(rc))
             return rc;
-        }
     } while (dma_is_running);
-    pop_cli(int_flag);
 
     unsigned char* dest = output_buf + PAGE_SIZE * output_buf_page_idx;
     memcpy(dest, buffer, count);
@@ -172,19 +168,25 @@ static int write_single_buffer(struct file* file, const void* buffer,
     return 0;
 }
 
+static struct spinlock lock;
+
 static ssize_t ac97_device_write(struct file* file, const void* buffer,
                                  size_t count) {
     unsigned char* src = (unsigned char*)buffer;
     size_t nwritten = 0;
+    spinlock_lock(&lock);
     while (count > 0) {
         size_t size = MIN(PAGE_SIZE, count);
         int rc = write_single_buffer(file, src, size);
-        if (IS_ERR(rc))
+        if (IS_ERR(rc)) {
+            spinlock_unlock(&lock);
             return rc;
+        }
         src += size;
         count -= size;
         nwritten += size;
     }
+    spinlock_unlock(&lock);
     return nwritten;
 }
 

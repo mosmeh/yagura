@@ -1,7 +1,6 @@
 #include "memory.h"
 #include "memory_private.h"
 #include <common/string.h>
-#include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
@@ -26,7 +25,9 @@ struct vm* vm_create(void* start, void* end) {
     struct vm* vm = kmalloc(sizeof(struct vm));
     if (!vm)
         return ERR_PTR(-ENOMEM);
+    mutex_lock(&kernel_vm->lock);
     struct page_directory* page_directory = page_directory_create();
+    mutex_unlock(&kernel_vm->lock);
     if (IS_ERR(page_directory)) {
         kfree(vm);
         return ERR_CAST(page_directory);
@@ -89,7 +90,9 @@ struct vm* vm_clone(void) {
 
     mutex_lock(&vm->lock);
 
+    mutex_lock(&kernel_vm->lock);
     struct page_directory* page_directory = page_directory_clone_current();
+    mutex_unlock(&kernel_vm->lock);
     if (IS_ERR(page_directory)) {
         mutex_unlock(&vm->lock);
         kfree(new_vm);
@@ -627,39 +630,40 @@ void* vm_alloc_at(void* virt_addr, size_t size, int vm_flags) {
 }
 
 void* vm_phys_map(uintptr_t phys_addr, size_t size, int vm_flags) {
-    if (!phys_addr || phys_addr % PAGE_SIZE != 0)
+    if (!phys_addr)
         return ERR_PTR(-EINVAL);
     if (size == 0)
         return ERR_PTR(-EINVAL);
     if (!validate_vm_flags(vm_flags))
         return ERR_PTR(-EINVAL);
-    size = round_up(size, PAGE_SIZE);
+    uintptr_t aligned_phys_addr = round_down(phys_addr, PAGE_SIZE);
+    size = round_up(phys_addr + size, PAGE_SIZE) - aligned_phys_addr;
 
     struct vm* vm = vm_for_flags(vm_flags);
     mutex_lock(&vm->lock);
-    void* addr = phys_map(vm, phys_addr, size, vm_flags);
+    unsigned char* addr = phys_map(vm, aligned_phys_addr, size, vm_flags);
     mutex_unlock(&vm->lock);
-    return addr;
+    return addr + (phys_addr - aligned_phys_addr);
 }
 
 void* vm_virt_map(void* virt_addr, size_t size, int vm_flags) {
     if (!virt_addr)
         return ERR_PTR(-EFAULT);
-    if ((uintptr_t)virt_addr % PAGE_SIZE != 0)
-        return ERR_PTR(-EINVAL);
     if (size == 0)
         return ERR_PTR(-EINVAL);
     if (!validate_vm_flags(vm_flags))
         return ERR_PTR(-EINVAL);
     if (is_user_address(virt_addr) && !(vm_flags & VM_USER))
         return ERR_PTR(-EINVAL);
-    size = round_up(size, PAGE_SIZE);
+    uintptr_t aligned_virt_addr = round_down((uintptr_t)virt_addr, PAGE_SIZE);
+    size = round_up((uintptr_t)virt_addr + size, PAGE_SIZE) - aligned_virt_addr;
 
     struct vm* vm = vm_for_flags(vm_flags);
     mutex_lock(&vm->lock);
-    void* ret = virt_map(vm, virt_addr, size, vm_flags);
+    unsigned char* addr =
+        virt_map(vm, (void*)aligned_virt_addr, size, vm_flags);
     mutex_unlock(&vm->lock);
-    return ret;
+    return addr + ((uintptr_t)virt_addr - aligned_virt_addr);
 }
 
 void* vm_resize(void* virt_addr, size_t new_size) {
@@ -699,15 +703,14 @@ int vm_set_flags(void* addr, size_t size, int vm_flags) {
 int vm_unmap(void* addr, size_t size) {
     if (!addr)
         return -EFAULT;
-    if ((uintptr_t)addr % PAGE_SIZE != 0)
-        return -EINVAL;
     if (size == 0)
         return -EINVAL;
-    size = round_up(size, PAGE_SIZE);
+    uintptr_t aligned_addr = round_down((uintptr_t)addr, PAGE_SIZE);
+    size = round_up((uintptr_t)addr + size, PAGE_SIZE) - aligned_addr;
 
-    struct vm* vm = vm_for_addr(addr);
+    struct vm* vm = vm_for_addr((void*)aligned_addr);
     mutex_lock(&vm->lock);
-    int rc = unmap(vm, addr, size);
+    int rc = unmap(vm, (void*)aligned_addr, size);
     mutex_unlock(&vm->lock);
     return rc;
 }

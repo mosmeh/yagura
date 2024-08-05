@@ -2,6 +2,8 @@
 
 set -e
 
+NCPUS=8
+
 ! qemu-system-i386 \
     -kernel kernel/kernel \
     -initrd initrd \
@@ -10,5 +12,6 @@ set -e
     -no-reboot \
     -serial stdio \
     -vga none -display none \
+    -smp "cpus=$NCPUS,cores=1,threads=1,sockets=$NCPUS" \
     -m 512M \
     2>&1 | tee >(cat 1>&2) | grep -q PANIC

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdatomic.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 struct mutex {
@@ -12,4 +11,11 @@ struct mutex {
 
 void mutex_lock(struct mutex*);
 void mutex_unlock(struct mutex*);
-bool mutex_unlock_if_locked(struct mutex* m);
+
+struct spinlock {
+    uint32_t level;
+    volatile atomic_uint lock;
+};
+
+void spinlock_lock(struct spinlock*);
+void spinlock_unlock(struct spinlock*);

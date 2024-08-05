@@ -3,72 +3,79 @@
 #include <common/stdlib.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/containers/vec.h>
 #include <kernel/cpu.h>
 #include <kernel/fs/dentry.h>
-#include <kernel/interrupts.h>
-#include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/scheduler.h>
 #include <kernel/system.h>
 #include <kernel/time.h>
-#include <kernel/vec.h>
 
 static int populate_cmdline(struct file* file, struct vec* vec) {
     (void)file;
     return vec_printf(vec, "%s\n", cmdline_get_raw());
 }
 
-static int print_flag(struct vec* vec, int feature, const char* name) {
+static int print_flag(struct vec* vec, const struct cpu* cpu, int feature,
+                      const char* name) {
     if (!name[0]) {
         // Skip empty names
         return 0;
     }
-    if (!cpu_has_feature(feature))
+    if (!cpu_has_feature(cpu, feature))
         return 0;
     return vec_printf(vec, "%s ", name);
 }
 
 static int populate_cpuinfo(struct file* file, struct vec* vec) {
     (void)file;
-    struct cpu* cpu = cpu_get();
 
-    int ret =
-        vec_printf(vec,
-                   "vendor_id       : %s\n"
-                   "cpu family      : %u\n"
-                   "model           : %u\n"
-                   "model name      : %s\n",
-                   cpu->vendor_id, cpu->family, cpu->model, cpu->model_name);
-    if (IS_ERR(ret))
+    for (size_t i = 0; i < num_cpus; ++i) {
+        struct cpu* cpu = cpus[i];
+        int ret = vec_printf(vec,
+                             "processor       : %u\n"
+                             "vendor_id       : %s\n"
+                             "cpu family      : %u\n"
+                             "model           : %u\n"
+                             "model name      : %s\n",
+                             i, cpu->vendor_id, cpu->family, cpu->model,
+                             cpu->model_name);
+        if (IS_ERR(ret))
+            return ret;
+
+        if (cpu->stepping) {
+            ret = vec_printf(vec, "stepping        : %u\n", cpu->stepping);
+            if (IS_ERR(ret))
+                return ret;
+        }
+
+        const char* fpu = cpu_has_feature(cpu, X86_FEATURE_FPU) ? "yes" : "no";
+        ret = vec_printf(vec,
+                         "apicid          : %u\n"
+                         "fpu             : %s\n"
+                         "fpu_exception   : %s\n"
+                         "wp              : yes\n"
+                         "flags           : ",
+                         cpu->apic_id, fpu, fpu);
+        if (IS_ERR(ret))
+            return ret;
+
+#define F(variant, name)                                                       \
+    ret = print_flag(vec, cpu, X86_FEATURE_##variant, #name);                  \
+    if (IS_ERR(ret))                                                           \
         return ret;
+        ENUMERATE_X86_FEATURES(F)
+#undef F
 
-    if (cpu->stepping) {
-        ret = vec_printf(vec, "stepping        : %u\n", cpu->stepping);
+        ret = vec_printf(
+            vec, "\naddress sizes   : %u bits physical, %u bits virtual\n\n",
+            cpu->phys_addr_bits, cpu->virt_addr_bits);
         if (IS_ERR(ret))
             return ret;
     }
 
-    const char* fpu = cpu_has_feature(X86_FEATURE_FPU) ? "yes" : "no";
-    ret = vec_printf(vec,
-                     "fpu             : %s\n"
-                     "fpu_exception   : %s\n"
-                     "wp              : yes\n"
-                     "flags           : ",
-                     fpu, fpu);
-    if (IS_ERR(ret))
-        return ret;
-
-#define F(variant, name)                                                       \
-    ret = print_flag(vec, X86_FEATURE_##variant, #name);                       \
-    if (IS_ERR(ret))                                                           \
-        return ret;
-    ENUMERATE_X86_FEATURES(F)
-#undef F
-
-    return vec_printf(vec,
-                      "\naddress sizes   : %u bits physical, %u bits virtual\n",
-                      cpu->phys_addr_bits, cpu->virt_addr_bits);
+    return 0;
 }
 
 static int populate_filesystems(struct file* file, struct vec* vec) {
@@ -174,12 +181,12 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
         return 0;
     }
 
-    bool int_flag = push_cli();
+    spinlock_lock(&all_processes_lock);
 
     pid_t offset_pid = (pid_t)(file->offset - NUM_ITEMS);
     struct process* it = all_processes;
     while (it->pid <= offset_pid) {
-        it = it->next_in_all_processes;
+        it = it->all_processes_next;
         if (!it)
             break;
     }
@@ -190,10 +197,10 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
         if (!callback(name, DT_DIR, ctx))
             break;
         file->offset = it->pid + NUM_ITEMS;
-        it = it->next_in_all_processes;
+        it = it->all_processes_next;
     }
 
-    pop_cli(int_flag);
+    spinlock_unlock(&all_processes_lock);
     mutex_unlock(&file->offset_lock);
     return 0;
 }

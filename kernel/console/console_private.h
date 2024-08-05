@@ -1,8 +1,8 @@
 #pragma once
 
 #include <kernel/api/termios.h>
+#include <kernel/containers/ring_buf.h>
 #include <kernel/fs/fs.h>
-#include <kernel/ring_buf.h>
 
 struct screen;
 
@@ -30,6 +30,8 @@ struct tty {
 
     pid_t pgid;
     size_t num_columns, num_rows;
+
+    struct spinlock lock;
 };
 
 // Initializes a tty structure in place, with the given minor device number.

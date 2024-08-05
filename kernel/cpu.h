@@ -1,6 +1,10 @@
 #pragma once
 
+#include "gdt.h"
+#include <common/extra.h>
+#include <stdatomic.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define ENUMERATE_X86_FEATURES(F)                                              \
@@ -201,14 +205,53 @@ struct cpu {
     uint32_t model;
     uint32_t stepping;
     uint32_t features[NUM_X86_FEATURES / 32 + 1];
+    uint8_t apic_id;
     uint8_t phys_addr_bits;
     uint8_t virt_addr_bits;
     // ebx, ecx, edx + '\0'
     char vendor_id[3 * sizeof(uint32_t) + 1];
     // 3 * (eax, ebx, ecx, edx) + '\0'
     char model_name[3 * 4 * sizeof(uint32_t) + 1];
+
+    struct gdt_segment gdt[NUM_GDT_ENTRIES];
+    struct tss tss;
+    struct gdtr gdtr;
+
+    struct process* current_process;
+    struct process* idle_process;
+
+    struct mpsc* msg_queue;
 };
 
-void cpu_init(void);
-struct cpu* cpu_get(void);
-bool cpu_has_feature(int feature);
+#define MAX_NUM_CPUS (UINT8_MAX + 1)
+
+extern size_t num_cpus;
+extern struct cpu* cpus[MAX_NUM_CPUS];
+
+void cpu_init_bsp(void);
+void cpu_init_ap(void);
+void cpu_init_smp(void);
+
+struct cpu* cpu_get_bsp(void);
+struct cpu* cpu_get_current(void);
+bool cpu_has_feature(const struct cpu*, int feature);
+
+void cpu_pause(void);
+
+struct ipi_message {
+    enum {
+        IPI_MESSAGE_HALT,
+        IPI_MESSAGE_FLUSH_TLB,
+    } type;
+    atomic_size_t ref_count;
+    struct {
+        uintptr_t virt_addr;
+        size_t size;
+    } flush_tlb;
+};
+
+void cpu_broadcast_message(struct ipi_message*);
+void cpu_unicast_message(struct cpu*, struct ipi_message*);
+struct ipi_message* cpu_alloc_message(void);
+void cpu_free_message(struct ipi_message*);
+void cpu_process_messages(void);

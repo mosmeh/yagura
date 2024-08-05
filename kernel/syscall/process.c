@@ -5,7 +5,6 @@
 #include <kernel/api/sys/wait.h>
 #include <kernel/boot_defs.h>
 #include <kernel/fs/path.h>
-#include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/safe_string.h>
@@ -62,8 +61,6 @@ int sys_execve(const char* user_pathname, char* const user_argv[],
                                (const char* const*)user_envp);
 }
 
-void return_to_userland(struct registers);
-
 pid_t sys_fork(struct registers* regs) {
     struct process* process =
         kaligned_alloc(alignof(struct process), sizeof(struct process));
@@ -72,12 +69,12 @@ pid_t sys_fork(struct registers* regs) {
     *process = (struct process){
         .ppid = current->pid,
         .pgid = current->pgid,
-        .eip = (uintptr_t)return_to_userland,
+        .eip = (uintptr_t)do_iret,
         .ebx = current->ebx,
         .esi = current->esi,
         .edi = current->edi,
         .fpu_state = current->fpu_state,
-        .state = PROCESS_STATE_RUNNABLE,
+        .state = PROCESS_STATE_RUNNING,
         .arg_start = current->arg_start,
         .arg_end = current->arg_end,
         .env_start = current->env_start,
@@ -101,7 +98,7 @@ pid_t sys_fork(struct registers* regs) {
     process->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
     process->esp = process->ebp = process->kernel_stack_top;
 
-    // push the argument of return_to_userland()
+    // push the argument of do_iret()
     process->esp -= sizeof(struct registers);
     struct registers* child_regs = (struct registers*)process->esp;
     *child_regs = *regs;
@@ -154,7 +151,7 @@ struct waitpid_blocker {
 };
 
 static bool unblock_waitpid(struct waitpid_blocker* blocker) {
-    bool int_flag = push_cli();
+    spinlock_lock(&all_processes_lock);
 
     struct process* prev = NULL;
     struct process* it = all_processes;
@@ -180,10 +177,10 @@ static bool unblock_waitpid(struct waitpid_blocker* blocker) {
             break;
 
         prev = it;
-        it = it->next_in_all_processes;
+        it = it->all_processes_next;
     }
     if (!it) {
-        pop_cli(int_flag);
+        spinlock_unlock(&all_processes_lock);
         if (!any_target_exists) {
             blocker->waited_process = NULL;
             return true;
@@ -192,12 +189,12 @@ static bool unblock_waitpid(struct waitpid_blocker* blocker) {
     }
 
     if (prev)
-        prev->next_in_all_processes = it->next_in_all_processes;
+        prev->all_processes_next = it->all_processes_next;
     else
-        all_processes = it->next_in_all_processes;
+        all_processes = it->all_processes_next;
     blocker->waited_process = it;
 
-    pop_cli(int_flag);
+    spinlock_unlock(&all_processes_lock);
     return true;
 }
 
