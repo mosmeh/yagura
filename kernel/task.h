@@ -9,7 +9,8 @@
 
 enum {
     TASK_RUNNING,
-    TASK_BLOCKED,
+    TASK_UNINTERRUPTIBLE,
+    TASK_INTERRUPTIBLE,
     TASK_DYING,
     TASK_DEAD,
 };
@@ -34,7 +35,6 @@ struct task {
 
     unblock_fn unblock;
     void* block_data;
-    int block_flags;
     bool block_was_interrupted;
 
     size_t user_ticks;

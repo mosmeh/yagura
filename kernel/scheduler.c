@@ -32,7 +32,7 @@ void scheduler_init(void) {
 
 void enqueue_ready(struct task* task) {
     ASSERT(task);
-    ASSERT(task->state != TASK_DEAD && task->state != TASK_BLOCKED);
+    ASSERT(task->state == TASK_RUNNING || task->state == TASK_DYING);
 
     task->ready_queue_next = NULL;
 
@@ -99,16 +99,16 @@ static void unblock_tasks(void) {
     }
 
     for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
-        if (it->state != TASK_BLOCKED)
+        if (it->state != TASK_UNINTERRUPTIBLE &&
+            it->state != TASK_INTERRUPTIBLE)
             continue;
 
         ASSERT(it->unblock);
         bool interrupted =
-            it->pending_signals && !(it->block_flags & BLOCK_UNINTERRUPTIBLE);
+            it->pending_signals && it->state == TASK_INTERRUPTIBLE;
         if (interrupted || it->unblock(it->block_data)) {
             it->unblock = NULL;
             it->block_data = NULL;
-            it->block_flags = 0;
             it->block_was_interrupted = interrupted;
             it->state = TASK_RUNNING;
             task_ref(it);
@@ -215,7 +215,6 @@ void scheduler_tick(struct registers* regs) {
 int scheduler_block(unblock_fn unblock, void* data, int flags) {
     ASSERT(!current->unblock);
     ASSERT(!current->block_data);
-    current->block_flags = 0;
     current->block_was_interrupted = false;
 
     if (unblock(data))
@@ -225,8 +224,8 @@ int scheduler_block(unblock_fn unblock, void* data, int flags) {
 
     current->unblock = unblock;
     current->block_data = data;
-    current->block_flags = flags;
-    current->state = TASK_BLOCKED;
+    current->state = (flags & BLOCK_UNINTERRUPTIBLE) ? TASK_UNINTERRUPTIBLE
+                                                     : TASK_INTERRUPTIBLE;
 
     scheduler_yield(false);
 
