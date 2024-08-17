@@ -1,7 +1,7 @@
 #include "api/time.h"
 #include "drivers/pit.h"
 #include "drivers/rtc.h"
-#include "interrupts.h"
+#include "lock.h"
 #include "time.h"
 
 #define NANOS 1000000000
@@ -41,17 +41,18 @@ int timespec_compare(const struct timespec* a, const struct timespec* b) {
 
 atomic_uint uptime;
 static struct timespec now;
+static struct spinlock now_lock;
 
 static void tick(void) {
     ++uptime;
 
-    bool int_flag = push_cli();
+    spinlock_lock(&now_lock);
     now.tv_nsec += NANOS / CLK_TCK;
     if (now.tv_nsec >= NANOS) {
         ++now.tv_sec;
         now.tv_nsec -= NANOS;
     }
-    pop_cli(int_flag);
+    spinlock_unlock(&now_lock);
 }
 
 void time_init(void) {
@@ -61,7 +62,7 @@ void time_init(void) {
 }
 
 void time_now(struct timespec* tp) {
-    bool int_flag = push_cli();
+    spinlock_lock(&now_lock);
     *tp = now;
-    pop_cli(int_flag);
+    spinlock_unlock(&now_lock);
 }

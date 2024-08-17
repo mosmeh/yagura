@@ -1,4 +1,5 @@
 #include "pci.h"
+#include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/sound.h>
 #include <kernel/api/sys/poll.h>
@@ -11,7 +12,6 @@
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
 #include <kernel/system.h>
-#include <string.h>
 
 #define PCI_CLASS_MULTIMEDIA 4
 #define PCI_SUBCLASS_AUDIO_CONTROLLER 1
@@ -120,7 +120,6 @@ static void start_dma(void) {
 
 static int write_single_buffer(struct file* file, const void* buffer,
                                size_t count) {
-    bool int_flag = push_cli();
     do {
         uint8_t current_idx = in8(pcm_out_channel + CHANNEL_CURRENT_INDEX);
         uint8_t last_valid_idx =
@@ -141,12 +140,9 @@ static int write_single_buffer(struct file* file, const void* buffer,
 
         buffer_descriptor_list_is_full = true;
         int rc = file_block(file, unblock_write, 0);
-        if (IS_ERR(rc)) {
-            pop_cli(int_flag);
+        if (IS_ERR(rc))
             return rc;
-        }
     } while (dma_is_running);
-    pop_cli(int_flag);
 
     unsigned char* dest = output_buf + PAGE_SIZE * output_buf_page_idx;
     memcpy(dest, buffer, count);
@@ -172,19 +168,25 @@ static int write_single_buffer(struct file* file, const void* buffer,
     return 0;
 }
 
+static struct mutex lock;
+
 static ssize_t ac97_device_write(struct file* file, const void* buffer,
                                  size_t count) {
     unsigned char* src = (unsigned char*)buffer;
     size_t nwritten = 0;
+    mutex_lock(&lock);
     while (count > 0) {
         size_t size = MIN(PAGE_SIZE, count);
         int rc = write_single_buffer(file, src, size);
-        if (IS_ERR(rc))
+        if (IS_ERR(rc)) {
+            mutex_unlock(&lock);
             return rc;
+        }
         src += size;
         count -= size;
         nwritten += size;
     }
+    mutex_unlock(&lock);
     return nwritten;
 }
 

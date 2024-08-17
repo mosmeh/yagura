@@ -6,8 +6,6 @@
 #include <kernel/containers/vec.h>
 #include <kernel/cpu.h>
 #include <kernel/fs/dentry.h>
-#include <kernel/interrupts.h>
-#include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/scheduler.h>
@@ -174,12 +172,12 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
         return 0;
     }
 
-    bool int_flag = push_cli();
+    spinlock_lock(&all_processes_lock);
 
     pid_t offset_pid = (pid_t)(file->offset - NUM_ITEMS);
     struct process* it = all_processes;
     while (it->pid <= offset_pid) {
-        it = it->next_in_all_processes;
+        it = it->all_processes_next;
         if (!it)
             break;
     }
@@ -190,10 +188,10 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
         if (!callback(name, DT_DIR, ctx))
             break;
         file->offset = it->pid + NUM_ITEMS;
-        it = it->next_in_all_processes;
+        it = it->all_processes_next;
     }
 
-    pop_cli(int_flag);
+    spinlock_unlock(&all_processes_lock);
     mutex_unlock(&file->offset_lock);
     return 0;
 }

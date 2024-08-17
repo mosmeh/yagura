@@ -7,7 +7,6 @@
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/drivers/hid/hid.h>
-#include <kernel/interrupts.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
@@ -15,7 +14,6 @@
 typedef struct {
     struct tty tty;
     struct vt* vt;
-    struct mutex lock;
 } virtual_console_device;
 
 static virtual_console_device* devices[6];

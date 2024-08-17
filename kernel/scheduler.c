@@ -8,6 +8,7 @@
 #include "system.h"
 
 static struct process* ready_queue;
+static struct spinlock ready_queue_lock;
 static struct process* idle;
 atomic_uint idle_ticks;
 
@@ -15,21 +16,21 @@ void scheduler_register(struct process* process) {
     ASSERT(process->state == PROCESS_STATE_RUNNABLE);
     process_ref(process);
 
-    bool int_flag = push_cli();
+    spinlock_lock(&all_processes_lock);
     struct process* prev = NULL;
     struct process* it = all_processes;
     while (it && it->pid < process->pid) {
         prev = it;
-        it = it->next_in_all_processes;
+        it = it->all_processes_next;
     }
     if (prev) {
-        process->next_in_all_processes = it;
-        prev->next_in_all_processes = process;
+        process->all_processes_next = it;
+        prev->all_processes_next = process;
     } else {
-        process->next_in_all_processes = all_processes;
+        process->all_processes_next = all_processes;
         all_processes = process;
     }
-    pop_cli(int_flag);
+    spinlock_unlock(&all_processes_lock);
 
     scheduler_enqueue(process);
 }
@@ -38,42 +39,49 @@ void scheduler_enqueue(struct process* process) {
     ASSERT(process->state != PROCESS_STATE_DEAD &&
            process->state != PROCESS_STATE_BLOCKED);
 
-    bool int_flag = push_cli();
+    spinlock_lock(&ready_queue_lock);
 
-    process->next_in_ready_queue = NULL;
+    process->ready_queue_next = NULL;
     if (ready_queue) {
         struct process* it = ready_queue;
         ASSERT(it != process);
-        while (it->next_in_ready_queue) {
-            it = it->next_in_ready_queue;
+        while (it->ready_queue_next) {
+            it = it->ready_queue_next;
             ASSERT(it != process);
         }
-        it->next_in_ready_queue = process;
+        it->ready_queue_next = process;
     } else {
         ready_queue = process;
     }
 
-    pop_cli(int_flag);
+    spinlock_unlock(&ready_queue_lock);
 }
 
 static struct process* scheduler_deque(void) {
     ASSERT(!interrupts_enabled());
-    if (!ready_queue)
+    spinlock_lock(&ready_queue_lock);
+    if (!ready_queue) {
+        spinlock_unlock(&ready_queue_lock);
         return idle;
+    }
     struct process* process = ready_queue;
-    ready_queue = process->next_in_ready_queue;
-    process->next_in_ready_queue = NULL;
+    ready_queue = process->ready_queue_next;
+    process->ready_queue_next = NULL;
     ASSERT(process->state != PROCESS_STATE_DEAD);
+    spinlock_unlock(&ready_queue_lock);
     return process;
 }
 
 static void unblock_processes(void) {
     ASSERT(!interrupts_enabled());
-    if (!all_processes)
-        return;
 
-    for (struct process* it = all_processes; it;
-         it = it->next_in_all_processes) {
+    spinlock_lock(&all_processes_lock);
+    if (!all_processes) {
+        spinlock_unlock(&all_processes_lock);
+        return;
+    }
+
+    for (struct process* it = all_processes; it; it = it->all_processes_next) {
         if (it->state != PROCESS_STATE_BLOCKED)
             continue;
 
@@ -90,6 +98,8 @@ static void unblock_processes(void) {
             scheduler_enqueue(it);
         }
     }
+
+    spinlock_unlock(&all_processes_lock);
 }
 
 static noreturn void do_idle(void) {

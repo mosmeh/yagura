@@ -22,6 +22,7 @@ static size_t state = 0;
 static struct mouse_event queue[QUEUE_SIZE];
 static size_t queue_read_idx = 0;
 static size_t queue_write_idx = 0;
+static struct spinlock queue_lock;
 
 static void irq_handler(struct registers* reg) {
     (void)reg;
@@ -46,8 +47,10 @@ static void irq_handler(struct registers* reg) {
         if (buf[0] & 0xc0)
             dx = dy = 0;
 
+        spinlock_lock(&queue_lock);
         queue[queue_write_idx] = (struct mouse_event){dx, -dy, buf[0] & 7};
         queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
+        spinlock_unlock(&queue_lock);
 
         state = 0;
         return;
@@ -57,9 +60,9 @@ static void irq_handler(struct registers* reg) {
 }
 
 static bool can_read(void) {
-    bool int_flag = push_cli();
+    spinlock_lock(&queue_lock);
     bool ret = queue_read_idx != queue_write_idx;
-    pop_cli(int_flag);
+    spinlock_unlock(&queue_lock);
     return ret;
 }
 
@@ -75,9 +78,9 @@ static ssize_t ps2_mouse_device_read(struct file* file, void* buffer,
         if (IS_ERR(rc))
             return rc;
 
-        bool int_flag = push_cli();
+        spinlock_lock(&queue_lock);
         if (queue_read_idx == queue_write_idx) {
-            pop_cli(int_flag);
+            spinlock_unlock(&queue_lock);
             continue;
         }
 
@@ -92,7 +95,7 @@ static ssize_t ps2_mouse_device_read(struct file* file, void* buffer,
             count -= sizeof(struct mouse_event);
             queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
         }
-        pop_cli(int_flag);
+        spinlock_unlock(&queue_lock);
         return nread;
     }
 }

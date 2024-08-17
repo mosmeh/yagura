@@ -17,6 +17,7 @@ struct fpu_state initial_fpu_state;
 static atomic_int next_pid = 1;
 
 struct process* all_processes;
+struct spinlock all_processes_lock;
 
 extern unsigned char initial_kernel_stack_base[];
 extern unsigned char initial_kernel_stack_top[];
@@ -133,28 +134,28 @@ void process_unref(struct process* process) {
 pid_t process_generate_next_pid(void) { return atomic_fetch_add(&next_pid, 1); }
 
 struct process* process_find_by_pid(pid_t pid) {
-    bool int_flag = push_cli();
+    spinlock_lock(&all_processes_lock);
     struct process* it = all_processes;
-    for (; it; it = it->next_in_all_processes) {
+    for (; it; it = it->all_processes_next) {
         if (it->pid == pid)
             break;
     }
     if (it)
         process_ref(it);
-    pop_cli(int_flag);
+    spinlock_unlock(&all_processes_lock);
     return it;
 }
 
 struct process* process_find_by_ppid(pid_t ppid) {
-    bool int_flag = push_cli();
+    spinlock_lock(&all_processes_lock);
     struct process* it = all_processes;
-    for (; it; it = it->next_in_all_processes) {
+    for (; it; it = it->all_processes_next) {
         if (it->ppid == ppid)
             break;
     }
     if (it)
         process_ref(it);
-    pop_cli(int_flag);
+    spinlock_unlock(&all_processes_lock);
     return it;
 }
 
@@ -166,13 +167,13 @@ static noreturn void die(void) {
     file_descriptor_table_clear(&current->fd_table);
 
     cli();
-    struct process* it = all_processes;
-    while (it) {
+    spinlock_lock(&all_processes_lock);
+    for (struct process* it = all_processes; it; it = it->all_processes_next) {
         // Orphaned child process is adopted by init process.
         if (it->ppid == current->pid)
             it->ppid = 1;
-        it = it->next_in_all_processes;
     }
+    spinlock_unlock(&all_processes_lock);
     current->state = PROCESS_STATE_DEAD;
     scheduler_yield(false);
     UNREACHABLE();
@@ -344,36 +345,32 @@ int process_send_signal_to_one(pid_t pid, int signum) {
 }
 
 int process_send_signal_to_group(pid_t pgid, int signum) {
-    bool int_flag = push_cli();
-    for (struct process* it = all_processes; it;
-         it = it->next_in_all_processes) {
+    int ret = 0;
+    spinlock_lock(&all_processes_lock);
+    for (struct process* it = all_processes; it; it = it->all_processes_next) {
         if (it->pgid != pgid)
             continue;
         process_ref(it);
-        int rc = send_signal(it, signum);
-        if (IS_ERR(rc)) {
-            pop_cli(int_flag);
-            return rc;
-        }
+        ret = send_signal(it, signum);
+        if (IS_ERR(ret))
+            break;
     }
-    pop_cli(int_flag);
-    return 0;
+    spinlock_unlock(&all_processes_lock);
+    return ret;
 }
 
 int process_send_signal_to_all(int signum) {
-    bool int_flag = push_cli();
-    for (struct process* it = all_processes; it;
-         it = it->next_in_all_processes) {
+    int ret = 0;
+    spinlock_lock(&all_processes_lock);
+    for (struct process* it = all_processes; it; it = it->all_processes_next) {
         if (it->pid <= 1)
             continue;
         process_ref(it);
-        int rc = send_signal(it, signum);
-        if (IS_ERR(rc)) {
-            pop_cli(int_flag);
-            return rc;
-        }
+        ret = send_signal(it, signum);
+        if (IS_ERR(ret))
+            break;
     }
-    pop_cli(int_flag);
+    spinlock_unlock(&all_processes_lock);
     return 0;
 }
 

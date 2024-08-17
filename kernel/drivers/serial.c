@@ -115,20 +115,20 @@ static void write_char(uint16_t port, char c) {
     out8(port, c);
 }
 
+static struct spinlock locks[SERIAL_NUM_PORTS];
+
 void serial_write(uint8_t index, const char* s, size_t count) {
     ASSERT(index < SERIAL_NUM_PORTS);
     uint16_t port = ports[index];
+    struct spinlock* lock = &locks[index];
 
     // This function is called by kprintf, which might be used in critical
-    // situations. Thus it is protected by disabling interrupts instead of
-    // a mutex.
-    bool int_flag = push_cli();
-
+    // situations. Thus it is protected with a spinlock instead of a mutex.
+    spinlock_lock(lock);
     for (size_t i = 0; i < count; ++i) {
         if (s[i] == '\n')
             write_char(port, '\r');
         write_char(port, s[i]);
     }
-
-    pop_cli(int_flag);
+    spinlock_unlock(lock);
 }

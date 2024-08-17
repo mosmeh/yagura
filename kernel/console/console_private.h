@@ -30,6 +30,8 @@ struct tty {
 
     pid_t pgid;
     size_t num_columns, num_rows;
+
+    struct spinlock lock;
 };
 
 // Initializes a tty structure in place, with the given minor device number.

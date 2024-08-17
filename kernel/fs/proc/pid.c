@@ -4,7 +4,6 @@
 #include <kernel/containers/vec.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/fs/path.h>
-#include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/safe_string.h>

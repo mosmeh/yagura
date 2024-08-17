@@ -40,14 +40,15 @@ struct process {
 
     uint32_t pending_signals;
 
-    struct process* next_in_all_processes;
-    struct process* next_in_ready_queue;
+    struct process* all_processes_next;
+    struct process* ready_queue_next;
 
     atomic_size_t ref_count;
 };
 
 extern struct process* current;
 extern struct process* all_processes;
+extern struct spinlock all_processes_lock;
 extern struct fpu_state initial_fpu_state;
 
 void process_init(void);

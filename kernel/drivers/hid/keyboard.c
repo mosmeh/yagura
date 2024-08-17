@@ -6,6 +6,7 @@
 #include <kernel/console/console.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
+#include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/scheduler.h>
@@ -245,6 +246,7 @@ static void set_state(uint8_t which, bool pressed) {
 static struct key_event queue[QUEUE_SIZE];
 static size_t queue_read_idx = 0;
 static size_t queue_write_idx = 0;
+static struct spinlock queue_lock;
 
 static ps2_key_event_handler_fn event_handler = NULL;
 
@@ -300,21 +302,25 @@ static void irq_handler(struct registers* reg) {
                                     ? scancode_to_shifted_keycode
                                     : scancode_to_keycode;
 
-    struct key_event* event = queue + queue_write_idx;
-    queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
-
-    event->scancode = ch;
+    struct key_event event = {
+        .scancode = ch,
+        .key = to_key[ch],
+        .keycode = to_keycode[ch],
+        .modifiers = modifiers,
+        .pressed = pressed,
+    };
     if (received_e0)
-        event->scancode |= 0xe000;
-    event->key = to_key[ch];
-    event->keycode = to_keycode[ch];
-    event->modifiers = modifiers;
-    event->pressed = pressed;
+        event.scancode |= 0xe000;
 
     received_e0 = false;
 
     if (event_handler)
-        event_handler(event);
+        event_handler(&event);
+
+    spinlock_lock(&queue_lock);
+    *(queue + queue_write_idx) = event;
+    queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
+    spinlock_unlock(&queue_lock);
 }
 
 void ps2_set_key_event_handler(ps2_key_event_handler_fn handler) {
@@ -322,9 +328,9 @@ void ps2_set_key_event_handler(ps2_key_event_handler_fn handler) {
 }
 
 static bool can_read(void) {
-    bool int_flag = push_cli();
+    spinlock_lock(&queue_lock);
     bool ret = queue_read_idx != queue_write_idx;
-    pop_cli(int_flag);
+    spinlock_unlock(&queue_lock);
     return ret;
 }
 
@@ -340,9 +346,9 @@ static ssize_t ps2_keyboard_device_read(struct file* file, void* buffer,
         if (IS_ERR(rc))
             return rc;
 
-        bool int_flag = push_cli();
+        spinlock_lock(&queue_lock);
         if (queue_read_idx == queue_write_idx) {
-            pop_cli(int_flag);
+            spinlock_unlock(&queue_lock);
             continue;
         }
 
@@ -357,7 +363,7 @@ static ssize_t ps2_keyboard_device_read(struct file* file, void* buffer,
             count -= sizeof(struct key_event);
             queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
         }
-        pop_cli(int_flag);
+        spinlock_unlock(&queue_lock);
         return nread;
     }
 }
