@@ -1,11 +1,11 @@
 #include "fs.h"
 #include <common/extra.h>
+#include <common/string.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/boot_defs.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <string.h>
 
 struct cpio_odc_header {
     char c_magic[6];
@@ -34,16 +34,13 @@ static size_t parse_octal(const char* s, size_t len) {
 #define PARSE(field) parse_octal(field, sizeof(field))
 
 void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
-    uintptr_t map_start = round_down(phys_addr, PAGE_SIZE);
-    size_t map_size = phys_addr + size - map_start;
-    void* map =
-        vm_phys_map(map_start, map_size, VM_READ | VM_WRITE | VM_SHARED);
-    ASSERT_OK(map);
+    void* initrd = vm_phys_map(phys_addr, size, VM_READ | VM_WRITE);
+    ASSERT_OK(initrd);
 
     struct path* root = vfs_get_root();
     ASSERT_OK(root);
 
-    uintptr_t cursor = (uintptr_t)map + phys_addr - map_start;
+    uintptr_t cursor = (uintptr_t)initrd;
     for (;;) {
         const struct cpio_odc_header* header =
             (const struct cpio_odc_header*)cursor;
@@ -83,5 +80,5 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
     }
 
     path_destroy_recursive(root);
-    kfree(map);
+    kfree(initrd);
 }

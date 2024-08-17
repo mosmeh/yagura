@@ -222,6 +222,16 @@ static struct vm* vm_for_addr(void* addr) {
     return current->vm;
 }
 
+static int validate_range(uintptr_t start, size_t size) {
+    if (!start)
+        return -EFAULT;
+    if (size == 0)
+        return -EINVAL;
+    if (start + size < start)
+        return -EINVAL;
+    return 0;
+}
+
 static bool validate_vm_flags(int vm_flags) {
     if ((vm_flags & VM_USER) && (!current || current->vm == kernel_vm)) {
         // kernel_vm does not have user address range
@@ -587,6 +597,16 @@ static int unmap(struct vm* vm, void* virt_addr, size_t size) {
     return 0;
 }
 
+// Aligns the range to the page boundary.  The aligned range encompasses the
+// original range.
+// Returns the aligned start address. The size is updated to the aligned size.
+static uintptr_t page_align_range(uintptr_t start, size_t* size) {
+    uintptr_t aligned_start = round_down(start, PAGE_SIZE);
+    uintptr_t aligned_end = round_up(start + *size, PAGE_SIZE);
+    *size = aligned_end - aligned_start;
+    return aligned_start;
+}
+
 void* vm_alloc(size_t size, int vm_flags) {
     if (size == 0)
         return ERR_PTR(-EINVAL);
@@ -602,111 +622,102 @@ void* vm_alloc(size_t size, int vm_flags) {
 }
 
 void* vm_alloc_at(void* virt_addr, size_t size, int vm_flags) {
-    if (!virt_addr)
-        return ERR_PTR(-EFAULT);
-    if ((uintptr_t)virt_addr % PAGE_SIZE != 0)
-        return ERR_PTR(-EINVAL);
-    if (size == 0)
-        return ERR_PTR(-EINVAL);
+    int rc = validate_range((uintptr_t)virt_addr, size);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
     if (!validate_vm_flags(vm_flags))
         return ERR_PTR(-EINVAL);
     if (is_user_address(virt_addr) && !(vm_flags & VM_USER))
         return false;
-    size = round_up(size, PAGE_SIZE);
 
+    uintptr_t aligned_addr = page_align_range((uintptr_t)virt_addr, &size);
     struct vm* vm = vm_for_flags(vm_flags);
-    uintptr_t addr = (uintptr_t)virt_addr;
-    if (addr < vm->start || vm->end < addr + size)
+    if (aligned_addr < vm->start || vm->end < aligned_addr + size)
         return ERR_PTR(-ERANGE);
 
     mutex_lock(&vm->lock);
-    void* ret = alloc_at(vm, addr, size, vm_flags);
+    unsigned char* addr = alloc_at(vm, aligned_addr, size, vm_flags);
     mutex_unlock(&vm->lock);
-    return ret;
+    if (IS_ERR(addr))
+        return addr;
+    return addr + ((uintptr_t)virt_addr - aligned_addr);
 }
 
 void* vm_phys_map(uintptr_t phys_addr, size_t size, int vm_flags) {
-    if (!phys_addr || phys_addr % PAGE_SIZE != 0)
-        return ERR_PTR(-EINVAL);
-    if (size == 0)
-        return ERR_PTR(-EINVAL);
+    int rc = validate_range(phys_addr, size);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
     if (!validate_vm_flags(vm_flags))
         return ERR_PTR(-EINVAL);
-    size = round_up(size, PAGE_SIZE);
 
+    uintptr_t aligned_addr = page_align_range(phys_addr, &size);
     struct vm* vm = vm_for_flags(vm_flags);
     mutex_lock(&vm->lock);
-    void* addr = phys_map(vm, phys_addr, size, vm_flags);
+    unsigned char* addr = phys_map(vm, aligned_addr, size, vm_flags);
     mutex_unlock(&vm->lock);
-    return addr;
+    if (IS_ERR(addr))
+        return addr;
+    return addr + (phys_addr - aligned_addr);
 }
 
 void* vm_virt_map(void* virt_addr, size_t size, int vm_flags) {
-    if (!virt_addr)
-        return ERR_PTR(-EFAULT);
-    if ((uintptr_t)virt_addr % PAGE_SIZE != 0)
-        return ERR_PTR(-EINVAL);
-    if (size == 0)
-        return ERR_PTR(-EINVAL);
+    int rc = validate_range((uintptr_t)virt_addr, size);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
     if (!validate_vm_flags(vm_flags))
         return ERR_PTR(-EINVAL);
     if (is_user_address(virt_addr) && !(vm_flags & VM_USER))
         return ERR_PTR(-EINVAL);
-    size = round_up(size, PAGE_SIZE);
 
+    uintptr_t aligned_addr = page_align_range((uintptr_t)virt_addr, &size);
     struct vm* vm = vm_for_flags(vm_flags);
     mutex_lock(&vm->lock);
-    void* ret = virt_map(vm, virt_addr, size, vm_flags);
+    unsigned char* addr = virt_map(vm, (void*)aligned_addr, size, vm_flags);
     mutex_unlock(&vm->lock);
-    return ret;
+    if (IS_ERR(addr))
+        return addr;
+    return addr + ((uintptr_t)virt_addr - aligned_addr);
 }
 
 void* vm_resize(void* virt_addr, size_t new_size) {
-    if (!virt_addr)
-        return ERR_PTR(-EFAULT);
-    if ((uintptr_t)virt_addr % PAGE_SIZE != 0)
-        return ERR_PTR(-EINVAL);
-    if (new_size == 0)
-        return ERR_PTR(-EINVAL);
-    new_size = round_up(new_size, PAGE_SIZE);
+    int rc = validate_range((uintptr_t)virt_addr, new_size);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
 
+    uintptr_t aligned_addr = page_align_range((uintptr_t)virt_addr, &new_size);
     struct vm* vm = vm_for_addr(virt_addr);
     mutex_lock(&vm->lock);
-    void* new_addr = resize(vm, virt_addr, new_size);
+    unsigned char* new_addr = resize(vm, (void*)aligned_addr, new_size);
     mutex_unlock(&vm->lock);
-    return new_addr;
+    if (IS_ERR(new_addr))
+        return new_addr;
+    return new_addr + ((uintptr_t)virt_addr - aligned_addr);
 }
 
 int vm_set_flags(void* addr, size_t size, int vm_flags) {
-    if (!addr)
-        return -EFAULT;
-    if ((uintptr_t)addr % PAGE_SIZE != 0)
-        return -EINVAL;
-    if (size == 0)
-        return -EINVAL;
+    int rc = validate_range((uintptr_t)addr, size);
+    if (IS_ERR(rc))
+        return rc;
     if (!validate_vm_flags(vm_flags))
         return -EINVAL;
-    size = round_up(size, PAGE_SIZE);
 
+    uintptr_t aligned_addr = page_align_range((uintptr_t)addr, &size);
     struct vm* vm = vm_for_addr(addr);
     mutex_lock(&vm->lock);
-    int rc = set_flags(vm, addr, size, vm_flags);
+    rc = set_flags(vm, (void*)aligned_addr, size, vm_flags);
     mutex_unlock(&vm->lock);
     return rc;
 }
 
 int vm_unmap(void* addr, size_t size) {
-    if (!addr)
-        return -EFAULT;
-    if ((uintptr_t)addr % PAGE_SIZE != 0)
-        return -EINVAL;
-    if (size == 0)
-        return -EINVAL;
-    size = round_up(size, PAGE_SIZE);
+    int rc = validate_range((uintptr_t)addr, size);
+    if (IS_ERR(rc))
+        return rc;
 
+    uintptr_t aligned_addr = page_align_range((uintptr_t)addr, &size);
     struct vm* vm = vm_for_addr(addr);
     mutex_lock(&vm->lock);
-    int rc = unmap(vm, addr, size);
+    rc = unmap(vm, (void*)aligned_addr, size);
     mutex_unlock(&vm->lock);
     return rc;
 }
@@ -722,7 +733,7 @@ int vm_free(void* addr) {
         mutex_unlock(&vm->lock);
         return -ENOENT;
     }
-    if (region->start != (uintptr_t)addr) {
+    if (region->start != round_down((uintptr_t)addr, PAGE_SIZE)) {
         mutex_unlock(&vm->lock);
         return -EINVAL;
     }
