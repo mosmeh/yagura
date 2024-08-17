@@ -4,7 +4,7 @@
 #include "boot_defs.h"
 #include "cpu.h"
 #include "fs/path.h"
-#include "interrupts.h"
+#include "interrupts/interrupts.h"
 #include "kmsg.h"
 #include "memory/memory.h"
 #include "panic.h"
@@ -12,39 +12,25 @@
 #include <common/string.h>
 #include <stdatomic.h>
 
-struct process* current;
 struct fpu_state initial_fpu_state;
 static atomic_int next_pid = 1;
 
 struct process* all_processes;
 struct spinlock all_processes_lock;
 
-extern unsigned char initial_kernel_stack_base[];
-extern unsigned char initial_kernel_stack_top[];
-
 void process_init(void) {
     __asm__ volatile("fninit");
-    if (cpu_has_feature(X86_FEATURE_FXSR))
+    if (cpu_has_feature(cpu_get_bsp(), X86_FEATURE_FXSR))
         __asm__ volatile("fxsave %0" : "=m"(initial_fpu_state));
     else
         __asm__ volatile("fnsave %0" : "=m"(initial_fpu_state));
+}
 
-    current = kaligned_alloc(alignof(struct process), sizeof(struct process));
-    ASSERT(current);
-    *current = (struct process){.ref_count = 1};
-
-    current->fpu_state = initial_fpu_state;
-    current->state = PROCESS_STATE_RUNNING;
-    strlcpy(current->comm, "kernel_init", sizeof(current->comm));
-    current->vm = kernel_vm;
-    current->kernel_stack_base = (uintptr_t)initial_kernel_stack_base;
-    current->kernel_stack_top = (uintptr_t)initial_kernel_stack_top;
-    gdt_set_kernel_stack(current->kernel_stack_top);
-
-    current->cwd = vfs_get_root();
-    ASSERT_OK(current->cwd);
-
-    ASSERT_OK(file_descriptor_table_init(&current->fd_table));
+struct process* process_get_current(void) {
+    bool int_flag = push_cli();
+    struct process* process = cpu_get_current()->current_process;
+    pop_cli(int_flag);
+    return process;
 }
 
 struct process* process_create(const char* comm, void (*entry_point)(void)) {
@@ -54,9 +40,8 @@ struct process* process_create(const char* comm, void (*entry_point)(void)) {
         return ERR_PTR(-ENOMEM);
     *process = (struct process){.ref_count = 1};
 
-    process->eip = (uintptr_t)entry_point;
     process->fpu_state = initial_fpu_state;
-    process->state = PROCESS_STATE_RUNNABLE;
+    process->state = PROCESS_STATE_RUNNING;
     strlcpy(process->comm, comm, sizeof(process->comm));
 
     int ret = 0;
@@ -84,6 +69,25 @@ struct process* process_create(const char* comm, void (*entry_point)(void)) {
     process->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
     process->esp = process->ebp = process->kernel_stack_top;
 
+    process->eip = (uintptr_t)do_iret;
+
+    // push the argument of do_iret()
+    process->esp -= sizeof(struct registers);
+    *(struct registers*)process->esp = (struct registers){
+        .cs = KERNEL_CS,
+        .ss = KERNEL_DS,
+        .gs = KERNEL_DS,
+        .fs = KERNEL_DS,
+        .es = KERNEL_DS,
+        .ds = KERNEL_DS,
+        .ebp = process->ebp,
+        .esp = process->esp,
+        .eip = (uintptr_t)entry_point,
+        .eflags = 0x202, // Set IF
+        .user_esp = process->esp,
+        .user_ss = KERNEL_DS,
+    };
+
     return process;
 
 fail:
@@ -94,13 +98,12 @@ fail:
     return ERR_PTR(ret);
 }
 
-pid_t process_spawn(const char* comm, void (*entry_point)(void)) {
+struct process* process_spawn(const char* comm, void (*entry_point)(void)) {
     struct process* process = process_create(comm, entry_point);
     if (IS_ERR(process))
-        return PTR_ERR(process);
-    pid_t pid = process->pid;
+        return process;
     scheduler_register(process);
-    return pid;
+    return process;
 }
 
 void process_ref(struct process* process) {

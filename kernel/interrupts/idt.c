@@ -1,12 +1,21 @@
-#include "api/signum.h"
-#include "asm_wrapper.h"
 #include "interrupts.h"
 #include "isr_stubs.h"
-#include "kmsg.h"
-#include "panic.h"
-#include "process.h"
-#include "safe_string.h"
-#include "system.h"
+#include <common/string.h>
+#include <kernel/api/signum.h>
+#include <kernel/asm_wrapper.h>
+#include <kernel/cpu.h>
+#include <kernel/kmsg.h>
+#include <kernel/panic.h>
+#include <kernel/process.h>
+#include <kernel/safe_string.h>
+#include <kernel/syscall/syscall.h>
+#include <kernel/system.h>
+
+#define TASK_GATE 0x5
+#define INTERRUPT_GATE16 0x6
+#define TRAP_GATE16 0x7
+#define INTERRUPT_GATE32 0xe
+#define TRAP_GATE32 0xf
 
 struct idt_gate {
     uint16_t base_lo : 16;
@@ -25,43 +34,50 @@ struct idtr {
 } __attribute__((packed));
 
 #define NUM_IDT_ENTRIES 256
+
 static struct idt_gate idt[NUM_IDT_ENTRIES];
 static struct idtr idtr;
-interrupt_handler_fn interrupt_handlers[NUM_IDT_ENTRIES];
+static interrupt_handler_fn interrupt_handlers[NUM_IDT_ENTRIES];
 
 void idt_set_interrupt_handler(uint8_t num, interrupt_handler_fn handler) {
     interrupt_handlers[num] = handler;
 }
 
 void isr_handler(struct registers* regs) {
-    interrupt_handler_fn handler = interrupt_handlers[regs->num];
-    if (handler) {
-        handler(regs);
-        return;
+    ASSERT(regs->num < NUM_IDT_ENTRIES);
+    if (regs->num != SPURIOUS_VECTOR) {
+        if (regs->num != SYSCALL_VECTOR)
+            lapic_eoi();
+
+        uint32_t irq = regs->num - IRQ(0);
+        if (irq < NUM_IRQS)
+            i8259_eoi(irq);
+
+        interrupt_handler_fn handler = interrupt_handlers[regs->num];
+        if (handler)
+            handler(regs);
     }
 
-    kprintf("Unhandled interrupt: %u\n", regs->num);
-    dump_context(regs);
-    PANIC("Unhandled interrupt");
+    cpu_process_messages();
 }
 
-void idt_set_gate(uint8_t idx, uint32_t base, uint16_t segment_selector,
-                  uint8_t gate_type, uint8_t dpl) {
-    struct idt_gate* entry = idt + idx;
+static void set_gate(uint8_t index, uint32_t base, uint16_t segment_selector,
+                     uint8_t gate_type, uint8_t dpl) {
+    struct idt_gate* entry = idt + index;
+    *entry = (struct idt_gate){
+        .base_lo = base & 0xffff,
+        .base_hi = (base >> 16) & 0xffff,
 
-    entry->base_lo = base & 0xffff;
-    entry->base_hi = (base >> 16) & 0xffff;
-
-    entry->segment_selector = segment_selector;
-    entry->gate_type = gate_type & 0xf;
-    entry->dpl = dpl & 3;
-    entry->present = true;
-
-    entry->reserved1 = entry->reserved2 = 0;
+        .segment_selector = segment_selector,
+        .gate_type = gate_type & 0xf,
+        .dpl = dpl & 3,
+        .present = true,
+    };
 }
 
-void idt_set_gate_user_callable(uint8_t idx) {
-    struct idt_gate* entry = idt + idx;
+void idt_set_gate_user_callable(uint8_t index) {
+    struct idt_gate* entry = idt + index;
+
     entry->gate_type = TRAP_GATE32;
     entry->dpl = 3;
 }
@@ -81,13 +97,13 @@ static noreturn void crash(const struct registers* regs, int signum) {
     __asm__("isr" #num ":\n"                                                   \
             "pushl $0\n"                                                       \
             "pushl $" #num "\n"                                                \
-            "jmp isr_common_stub");
+            "jmp isr_entry");
 
 #define DEFINE_ISR_WITH_ERROR_CODE(num)                                        \
     void isr##num(void);                                                       \
     __asm__("isr" #num ":\n"                                                   \
             "pushl $" #num "\n"                                                \
-            "jmp isr_common_stub");
+            "jmp isr_entry");
 
 #define DEFINE_EXCEPTION(num, msg)                                             \
     static void handle_exception##num(struct registers* regs) {                \
@@ -158,10 +174,10 @@ ENUMERATE_ISR_STUBS(DEFINE_ISR_WITHOUT_ERROR_CODE)
 
 void idt_init(void) {
     idtr.limit = NUM_IDT_ENTRIES * sizeof(struct idt_gate) - 1;
-    idtr.base = (uint32_t)&idt;
+    idtr.base = (uint32_t)idt;
 
 #define REGISTER_ISR(num)                                                      \
-    idt_set_gate(num, (uint32_t)isr##num, 0x8, INTERRUPT_GATE32, 0);
+    set_gate(num, (uint32_t)isr##num, 0x8, INTERRUPT_GATE32, 0);
 
 #define REGISTER_EXCEPTION(num)                                                \
     REGISTER_ISR(num);                                                         \

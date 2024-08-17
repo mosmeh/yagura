@@ -1,5 +1,6 @@
 #include "lock.h"
-#include "interrupts.h"
+#include "cpu.h"
+#include "interrupts/interrupts.h"
 #include "panic.h"
 #include "process.h"
 #include "scheduler.h"
@@ -45,21 +46,26 @@ void mutex_unlock(struct mutex* m) {
 
 #define SPINLOCK_LOCKED 0x1
 #define SPINLOCK_PUSHED_INTERRUPT 0x2
+#define SPINLOCK_CPU_ID_SHIFT 2
 
 void spinlock_lock(struct spinlock* s) {
     unsigned desired = SPINLOCK_LOCKED;
     if (interrupts_enabled())
         desired |= SPINLOCK_PUSHED_INTERRUPT;
     cli();
+    uint8_t cpu_id = lapic_get_id();
+    desired |= (unsigned)cpu_id << SPINLOCK_CPU_ID_SHIFT;
     for (;;) {
         unsigned expected = 0;
         if (atomic_compare_exchange_strong(&s->lock, &expected, desired)) {
             ASSERT(s->level == 0);
             break;
         }
-        if (expected & SPINLOCK_LOCKED)
+        if ((expected >> SPINLOCK_CPU_ID_SHIFT) == cpu_id) {
+            ASSERT(expected & SPINLOCK_LOCKED);
             break;
-        pause();
+        }
+        cpu_pause();
     }
     ++s->level;
 }
@@ -68,6 +74,7 @@ void spinlock_unlock(struct spinlock* s) {
     ASSERT(!interrupts_enabled());
     unsigned v = atomic_load(&s->lock);
     ASSERT(v & SPINLOCK_LOCKED);
+    ASSERT((v >> SPINLOCK_CPU_ID_SHIFT) == lapic_get_id());
     ASSERT(s->level > 0);
     if (--s->level == 0) {
         atomic_store_explicit(&s->lock, 0, memory_order_release);

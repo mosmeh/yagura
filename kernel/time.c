@@ -1,6 +1,6 @@
 #include "api/time.h"
-#include "drivers/pit.h"
 #include "drivers/rtc.h"
+#include "interrupts/interrupts.h"
 #include "lock.h"
 #include "time.h"
 
@@ -39,11 +39,16 @@ int timespec_compare(const struct timespec* a, const struct timespec* b) {
     return 0;
 }
 
-atomic_uint uptime;
+volatile atomic_uint uptime;
 static struct timespec now;
 static struct spinlock now_lock;
 
-static void tick(void) {
+void time_init(void) {
+    now.tv_sec = rtc_now();
+    now.tv_nsec = 0;
+}
+
+void time_tick(void) {
     ++uptime;
 
     spinlock_lock(&now_lock);
@@ -53,12 +58,6 @@ static void tick(void) {
         now.tv_nsec -= NANOS;
     }
     spinlock_unlock(&now_lock);
-}
-
-void time_init(void) {
-    now.tv_sec = rtc_now();
-    now.tv_nsec = 0;
-    pit_set_tick_handler(tick);
 }
 
 void time_now(struct timespec* tp) {

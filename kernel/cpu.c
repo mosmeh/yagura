@@ -1,19 +1,27 @@
 #include "cpu.h"
+#include "acpi.h"
 #include "asm_wrapper.h"
+#include "containers/mpsc.h"
+#include "interrupts/interrupts.h"
+#include "memory/memory.h"
+#include "panic.h"
+#include "system.h"
 
-static struct cpu cpu;
-
-static void set_feature(int feature) {
-    cpu.features[feature >> 5] |= 1 << (feature & 31);
+static void set_feature(struct cpu* cpu, int feature) {
+    cpu->features[feature >> 5] |= 1 << (feature & 31);
 }
 
-static void detect_features(void) {
+bool cpu_has_feature(const struct cpu* cpu, int feature) {
+    return cpu->features[feature >> 5] & (1 << (feature & 31));
+}
+
+static void detect_features(struct cpu* cpu) {
     uint32_t eax;
     uint32_t ebx;
     uint32_t ecx;
     uint32_t edx;
 
-    uint32_t* vendor_id = (uint32_t*)cpu.vendor_id;
+    uint32_t* vendor_id = (uint32_t*)cpu->vendor_id;
     cpuid(0, &eax, vendor_id, vendor_id + 2, vendor_id + 1);
     if (eax < 1) {
         // CPUID is not supported
@@ -21,20 +29,21 @@ static void detect_features(void) {
     }
 
     cpuid(1, &eax, &ebx, &ecx, &edx);
-    cpu.stepping = eax & 0xf;
-    cpu.model = (eax >> 4) & 0xf;
-    cpu.family = (eax >> 8) & 0xf;
-    switch (cpu.family) {
+    cpu->apic_id = ebx >> 24;
+    cpu->stepping = eax & 0xf;
+    cpu->model = (eax >> 4) & 0xf;
+    cpu->family = (eax >> 8) & 0xf;
+    switch (cpu->family) {
     case 0xf:
-        cpu.family += (eax >> 20) & 0xff;
+        cpu->family += (eax >> 20) & 0xff;
     // falls through
     case 0x6:
-        cpu.model += ((eax >> 16) & 0xf) << 4;
+        cpu->model += ((eax >> 16) & 0xf) << 4;
     }
 
 #define F(reg, bit, name)                                                      \
     if ((reg) & (1 << (bit)))                                                  \
-        set_feature(X86_FEATURE_##name);
+        set_feature(cpu, X86_FEATURE_##name);
 
     F(ecx, 0, XMM3)
     F(ecx, 1, PCLMULQDQ)
@@ -226,37 +235,37 @@ static void detect_features(void) {
         F(edx, 31, 3DNOW)
     }
     if (max_ext_func >= 0x80000004) {
-        uint32_t* p = (uint32_t*)cpu.model_name;
+        uint32_t* p = (uint32_t*)cpu->model_name;
         for (int i = 0; i < 3; ++i, p += 4)
             cpuid(0x80000002 + i, p, p + 1, p + 2, p + 3);
     }
     if (max_ext_func >= 0x80000007) {
         cpuid(0x80000007, &eax, &ebx, &ecx, &edx);
         if (edx & (1 << 8)) {
-            set_feature(X86_FEATURE_CONSTANT_TSC);
-            set_feature(X86_FEATURE_NONSTOP_TSC);
+            set_feature(cpu, X86_FEATURE_CONSTANT_TSC);
+            set_feature(cpu, X86_FEATURE_NONSTOP_TSC);
         }
     }
     if (max_ext_func >= 0x80000008) {
         cpuid(0x80000008, &eax, &ebx, &ecx, &edx);
-        cpu.phys_addr_bits = eax & 0xff;
-        cpu.virt_addr_bits = (eax >> 8) & 0xff;
+        cpu->phys_addr_bits = eax & 0xff;
+        cpu->virt_addr_bits = (eax >> 8) & 0xff;
     } else {
-        cpu.phys_addr_bits = cpu_has_feature(X86_FEATURE_PAE) ? 36 : 32;
-        cpu.virt_addr_bits = 32;
+        cpu->phys_addr_bits = cpu_has_feature(cpu, X86_FEATURE_PAE) ? 36 : 32;
+        cpu->virt_addr_bits = 32;
     }
 }
 
-void cpu_init(void) {
-    detect_features();
+static void init_cpu(struct cpu* cpu) {
+    detect_features(cpu);
 
-    if (cpu_has_feature(X86_FEATURE_PGE)) {
+    if (cpu_has_feature(cpu, X86_FEATURE_PGE)) {
         uint32_t cr4 = read_cr4();
         cr4 |= 0x80; // PGE
         write_cr4(cr4);
     }
 
-    if (cpu_has_feature(X86_FEATURE_PAT)) {
+    if (cpu_has_feature(cpu, X86_FEATURE_PAT)) {
         uint64_t pat = rdmsr(0x277);
         pat &= ~((uint64_t)0x7 << 32); // Clear PAT4
         pat |= (uint64_t)1 << 32;      // Set write-combining
@@ -264,8 +273,134 @@ void cpu_init(void) {
     }
 }
 
-struct cpu* cpu_get(void) { return &cpu; }
+static struct cpu bsp;
+size_t num_cpus = 1;
+struct cpu* cpus[MAX_NUM_CPUS] = {&bsp};
+static struct cpu* apic_id_to_cpu[UINT8_MAX + 1];
+static struct mpsc* msg_pool;
 
-bool cpu_has_feature(int feature) {
-    return cpu.features[feature >> 5] & (1 << (feature & 31));
+void cpu_init_bsp(void) {
+    apic_id_to_cpu[lapic_get_id()] = &bsp;
+    init_cpu(&bsp);
+}
+
+void cpu_init_ap(void) { init_cpu(cpu_get_current()); }
+
+void cpu_init_smp(void) {
+    const struct acpi* acpi = acpi_get();
+    ASSERT(acpi);
+    for (const struct local_apic** p = acpi->local_apics; *p; ++p) {
+        if (!((*p)->flags & ACPI_LOCAL_APIC_ENABLED))
+            continue;
+
+        uint8_t apic_id = (*p)->apic_id;
+        if (apic_id == bsp.apic_id)
+            continue;
+
+        for (size_t i = 0; i < num_cpus; ++i)
+            ASSERT(cpus[i]->apic_id != apic_id);
+        ASSERT(num_cpus < ARRAY_SIZE(cpus));
+        struct cpu* cpu = kmalloc(sizeof(struct cpu));
+        ASSERT(cpu);
+        *cpu = (struct cpu){.apic_id = apic_id};
+        cpus[num_cpus++] = cpu;
+        apic_id_to_cpu[apic_id] = cpu;
+    }
+
+    msg_pool = mpsc_create(num_cpus);
+    ASSERT(msg_pool);
+    for (size_t i = 0; i < num_cpus; ++i) {
+        struct cpu* cpu = cpus[i];
+        cpu->msg_queue = mpsc_create(num_cpus);
+        ASSERT(cpu->msg_queue);
+
+        struct ipi_message* msg = kmalloc(sizeof(struct ipi_message));
+        ASSERT(msg);
+        *msg = (struct ipi_message){0};
+        ASSERT(mpsc_enqueue(msg_pool, msg));
+    }
+}
+
+struct cpu* cpu_get_bsp(void) { return &bsp; }
+
+struct cpu* cpu_get_current(void) {
+    ASSERT(!interrupts_enabled());
+    uint8_t apic_id = lapic_get_id();
+    struct cpu* cpu = apic_id_to_cpu[apic_id];
+    ASSERT(cpu);
+    ASSERT(cpu->apic_id == apic_id);
+    return cpu;
+}
+
+void cpu_pause(void) {
+    cpu_process_messages();
+    pause();
+}
+
+void cpu_broadcast_message(struct ipi_message* msg) {
+    bool int_flag = push_cli();
+    uint8_t apic_id = lapic_get_id();
+    for (size_t i = 0; i < num_cpus; ++i) {
+        if (cpus[i]->apic_id == apic_id)
+            continue;
+        while (!mpsc_enqueue(cpus[i]->msg_queue, msg))
+            cpu_pause();
+    }
+    pop_cli(int_flag);
+    lapic_broadcast_ipi();
+}
+
+void cpu_unicast_message(struct cpu* dest, struct ipi_message* msg) {
+    while (!mpsc_enqueue(dest->msg_queue, msg))
+        cpu_pause();
+    lapic_unicast_ipi(dest->apic_id);
+}
+
+struct ipi_message* cpu_alloc_message(void) {
+    for (;;) {
+        struct ipi_message* msg = mpsc_dequeue(msg_pool);
+        if (msg) {
+            ASSERT(msg->ref_count == 0);
+            return msg;
+        }
+        cpu_pause();
+    }
+}
+
+void cpu_free_message(struct ipi_message* msg) {
+    ASSERT(msg);
+    ASSERT(msg->ref_count == 0);
+    while (!mpsc_enqueue(msg_pool, msg))
+        cpu_pause();
+}
+
+void cpu_process_messages(void) {
+    if (!smp_active)
+        return;
+
+    bool int_flag = push_cli();
+    struct cpu* cpu = cpu_get_current();
+    for (;;) {
+        struct ipi_message* msg = mpsc_dequeue(cpu->msg_queue);
+        if (!msg)
+            break;
+        switch (msg->type) {
+        case IPI_MESSAGE_HALT:
+            cli();
+            for (;;)
+                hlt();
+            break;
+        case IPI_MESSAGE_FLUSH_TLB:
+            for (uintptr_t addr = msg->flush_tlb.virt_addr;
+                 addr < msg->flush_tlb.virt_addr + msg->flush_tlb.size;
+                 addr += PAGE_SIZE)
+                flush_tlb_single(addr);
+            break;
+        default:
+            UNREACHABLE();
+        }
+        ASSERT(msg->ref_count);
+        --msg->ref_count;
+    }
+    pop_cli(int_flag);
 }

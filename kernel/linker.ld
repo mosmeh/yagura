@@ -26,6 +26,8 @@ SECTIONS {
         *(.init_bss)
     } :init_bss
 
+    init_end = .;
+
     . += KERNEL_VIRT_ADDR;
 
     .text ALIGN(4K) : AT(ADDR(.text) - KERNEL_VIRT_ADDR) {
@@ -43,7 +45,6 @@ SECTIONS {
     .bss ALIGN(4K) : AT(ADDR(.bss) - KERNEL_VIRT_ADDR) {
         *(COMMON)
         *(.bss)
-        *(.stack)
     } :bss
 
     kernel_end = .;

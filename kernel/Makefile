@@ -6,6 +6,7 @@ LDFLAGS := -Wl,-T$(LINKER_SCRIPT) -Wl,--build-id=none -Wl,-z,noexecstack
 TARGET := kernel
 
 OBJS := \
+	acpi.o \
 	boot.o \
 	cmdline.o \
 	console/console.o \
@@ -47,9 +48,10 @@ OBJS := \
 	fs/tmpfs.o \
 	fs/vfs.o \
 	gdt.o \
-	idt.o \
-	interrupt.o \
-	irq.o \
+	interrupts/apic.o \
+	interrupts/asm.o \
+	interrupts/i8259.o \
+	interrupts/idt.o \
 	kmsg.o \
 	ksyms.o \
 	lock.o \
@@ -64,6 +66,7 @@ OBJS := \
 	random.o \
 	safe_string.o \
 	scheduler.o \
+	smp.o \
 	syscall/clock.o \
 	syscall/fs.o \
 	syscall/mmap.o \

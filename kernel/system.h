@@ -6,11 +6,11 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 #include <stdnoreturn.h>
 
 typedef struct multiboot_info multiboot_info_t;
 
+extern unsigned char init_end[];
 extern unsigned char kernel_end[];
 
 struct registers {
@@ -25,9 +25,6 @@ void dump_context(const struct registers*);
 struct fpu_state {
     alignas(16) unsigned char buffer[512];
 };
-
-void gdt_init(void);
-void gdt_set_kernel_stack(uintptr_t stack_top);
 
 void syscall_init(void);
 
@@ -50,6 +47,11 @@ const struct symbol* ksyms_next(const struct symbol* symbol);
 
 void random_init(void);
 ssize_t random_get(void* buffer, size_t count);
+
+extern atomic_bool smp_active;
+
+void smp_init(void);
+void smp_start(void);
 
 noreturn void reboot(void);
 noreturn void halt(void);

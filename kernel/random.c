@@ -36,7 +36,7 @@ static inline bool rdrand(uint32_t* v) {
 // based on
 // https://github.com/rust-random/getrandom/blob/666b2d4c8352a188da7dbb4a4d6754a6ba2ac3f8/src/rdrand.rs#L46-L101
 NODISCARD static bool rdrand_init(void) {
-    if (!cpu_has_feature(X86_FEATURE_RDRAND))
+    if (!cpu_has_feature(cpu_get_bsp(), X86_FEATURE_RDRAND))
         return false;
 
     // is RDRAND reliable?

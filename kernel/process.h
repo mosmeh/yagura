@@ -1,24 +1,27 @@
 #pragma once
 
 #include "fs/fs.h"
+#include "interrupts/interrupts.h"
 #include "memory/memory.h"
 #include "scheduler.h"
 #include "system.h"
 #include <common/extra.h>
 #include <stdnoreturn.h>
 
+enum {
+    PROCESS_STATE_RUNNING,
+    PROCESS_STATE_BLOCKED,
+    PROCESS_STATE_DYING,
+    PROCESS_STATE_DEAD
+};
+
 struct process {
-    pid_t pid, ppid, pgid;
     uint32_t eip, esp, ebp, ebx, esi, edi;
     struct fpu_state fpu_state;
 
-    enum {
-        PROCESS_STATE_RUNNABLE,
-        PROCESS_STATE_RUNNING,
-        PROCESS_STATE_BLOCKED,
-        PROCESS_STATE_DYING,
-        PROCESS_STATE_DEAD
-    } state;
+    pid_t pid, ppid, pgid;
+
+    atomic_uint state;
     int exit_status;
 
     char comm[16];
@@ -46,15 +49,17 @@ struct process {
     atomic_size_t ref_count;
 };
 
-extern struct process* current;
 extern struct process* all_processes;
 extern struct spinlock all_processes_lock;
 extern struct fpu_state initial_fpu_state;
 
 void process_init(void);
 
+#define current process_get_current()
+struct process* process_get_current(void);
+
 struct process* process_create(const char* comm, void (*entry_point)(void));
-pid_t process_spawn(const char* comm, void (*entry_point)(void));
+struct process* process_spawn(const char* comm, void (*entry_point)(void));
 
 void process_ref(struct process*);
 void process_unref(struct process*);
@@ -67,8 +72,8 @@ int process_user_execve(const char* pathname, const char* const* user_argv,
                         const char* const* user_envp);
 int process_kernel_execve(const char* pathname, const char* const* argv,
                           const char* const* envp);
-noreturn void process_exit(int status);
 
+noreturn void process_exit(int status);
 noreturn void process_crash_in_userland(int signum);
 
 void process_die_if_needed(void);

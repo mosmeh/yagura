@@ -1,9 +1,10 @@
+#include "acpi.h"
 #include "boot_defs.h"
 #include "console/console.h"
 #include "cpu.h"
 #include "drivers/drivers.h"
 #include "drivers/serial.h"
-#include "interrupts.h"
+#include "interrupts/interrupts.h"
 #include "kmsg.h"
 #include "memory/memory.h"
 #include "multiboot.h"
@@ -28,8 +29,12 @@ static noreturn void userland_init(void) {
         }
     }
 
-    static const char* default_init_paths[] = {"/sbin/init", "/etc/init",
-                                               "/bin/init", "/bin/sh"};
+    static const char* default_init_paths[] = {
+        "/sbin/init",
+        "/etc/init",
+        "/bin/init",
+        "/bin/sh",
+    };
     for (size_t i = 0; i < ARRAY_SIZE(default_init_paths); ++i) {
         const char* argv[] = {default_init_paths[i], NULL};
         kprintf("userland_init: run %s as init process\n",
@@ -46,10 +51,10 @@ static noreturn void userland_init(void) {
 }
 
 noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
-    cpu_init();
-    gdt_init();
+    cpu_init_bsp();
+    gdt_init_cpu();
     idt_init();
-    irq_init();
+    i8259_init();
     serial_early_init();
     kprint("\x1b[32mbooted\x1b[m\n");
     sti();
@@ -69,17 +74,20 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     cmdline_init(mb_info);
     memory_init(mb_info);
     ksyms_init();
-    vfs_init(&initrd_mod);
     process_init();
-    scheduler_init();
+    acpi_init();
+    time_init();
     drivers_init(mb_info);
+    smp_init();
+    vfs_init(&initrd_mod);
     random_init();
     console_init();
-    time_init();
     syscall_init();
+    scheduler_init();
+    smp_start();
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
     ASSERT_OK(process_spawn("userland_init", userland_init));
 
-    process_exit(0);
+    scheduler_start();
 }

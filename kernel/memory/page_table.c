@@ -1,31 +1,14 @@
+#include "memory.h"
 #include "memory_private.h"
 #include <common/string.h>
-#include <kernel/interrupts.h>
+#include <kernel/cpu.h>
+#include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 
 #define PTE_FLAGS_MASK 0xfff
-
-typedef union {
-    struct {
-        bool present : 1;
-        bool write : 1;
-        bool user : 1;
-        bool write_through : 1;
-        bool cache_disable : 1;
-        bool accessed : 1;
-        bool ignored1 : 1;
-        bool page_size : 1;
-        uint8_t ignored2 : 4;
-        uint32_t page_table_addr : 20;
-    };
-    uint32_t raw;
-} __attribute__((packed)) page_directory_entry;
-
-struct page_directory {
-    alignas(PAGE_SIZE) page_directory_entry entries[1024];
-};
 
 typedef union {
     struct {
@@ -48,8 +31,14 @@ typedef struct {
     alignas(PAGE_SIZE) page_table_entry entries[1024];
 } page_table;
 
-static struct page_directory* current_page_directory(void) {
-    return current ? current->vm->page_directory : kernel_page_directory;
+struct page_directory* current_page_directory(void) {
+    if (!current)
+        return kernel_page_directory;
+    struct vm* vm = current->vm;
+    ASSERT(vm);
+    struct page_directory* pd = vm->page_directory;
+    ASSERT(pd);
+    return pd;
 }
 
 static volatile page_table* get_page_table_from_index(size_t index) {
@@ -98,7 +87,8 @@ static volatile page_table_entry* get_or_create_pte(uintptr_t virt_addr) {
 uintptr_t virt_to_phys(void* virt_addr) {
     uintptr_t addr = (uintptr_t)virt_addr;
     const volatile page_table_entry* pte = get_pte(addr);
-    ASSERT(pte && pte->present);
+    ASSERT(pte);
+    ASSERT(pte->present);
     return (pte->raw & ~PTE_FLAGS_MASK) | (addr & PTE_FLAGS_MASK);
 }
 
@@ -123,6 +113,62 @@ struct page_directory* page_directory_create(void) {
     return dst;
 }
 
+static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
+    ASSERT((virt_addr % PAGE_SIZE) == 0);
+    ASSERT((size % PAGE_SIZE) == 0);
+
+    bool int_flag = push_cli();
+
+    struct ipi_message* msg = NULL;
+    if (smp_active) {
+        if (is_kernel_address((void*)virt_addr)) {
+            msg = cpu_alloc_message();
+            *msg = (struct ipi_message){
+                .type = IPI_MESSAGE_FLUSH_TLB,
+                .flush_tlb = {.virt_addr = virt_addr, .size = size},
+                .ref_count = num_cpus - 1,
+            };
+            cpu_broadcast_message(msg);
+        } else {
+            ASSERT(is_user_range((void*)virt_addr, size));
+            // If the address is userland, we only need to flush TLBs of CPUs
+            // that is in the same vm as the current process
+            for (size_t i = 0; i < num_cpus; ++i) {
+                struct cpu* cpu = cpus[i];
+                if (cpu->apic_id == lapic_get_id())
+                    continue;
+                struct process* process = cpu->current_process;
+                if (!process)
+                    continue;
+                if (process->vm != current->vm)
+                    continue;
+                if (!msg) {
+                    msg = cpu_alloc_message();
+                    *msg = (struct ipi_message){
+                        .type = IPI_MESSAGE_FLUSH_TLB,
+                        .flush_tlb = {.virt_addr = virt_addr, .size = size},
+                    };
+                }
+                ++msg->ref_count;
+                cpu_unicast_message(cpu, msg);
+            }
+        }
+    }
+
+    // While other CPUs are flushing TLBs, we can flush this CPU's TLB
+    for (uintptr_t addr = virt_addr; addr < virt_addr + size; addr += PAGE_SIZE)
+        flush_tlb_single(addr);
+
+    // Wait for other CPUs to finish flushing TLBs
+    if (msg) {
+        while (msg->ref_count)
+            cpu_pause();
+        cpu_free_message(msg);
+    }
+
+    pop_cli(int_flag);
+}
+
 // quickmap temporarily maps a physical page to the fixed virtual addresses,
 // which are at the last two pages of the kernel page directory
 
@@ -139,7 +185,7 @@ static uintptr_t quickmap(size_t which, uintptr_t phys_addr, uint32_t flags) {
     pte->raw = phys_addr | flags;
     pte->present = true;
     uintptr_t virt_addr = KERNEL_VIRT_ADDR + PAGE_SIZE * which;
-    flush_tlb_single(virt_addr);
+    flush_tlb_range(virt_addr, PAGE_SIZE);
     return virt_addr;
 }
 
@@ -148,7 +194,7 @@ static void unquickmap(size_t which) {
     volatile page_table_entry* pte = pt->entries + which;
     ASSERT(pte->present);
     pte->raw = 0;
-    flush_tlb_single(KERNEL_VIRT_ADDR + PAGE_SIZE * which);
+    flush_tlb_range(KERNEL_VIRT_ADDR + PAGE_SIZE * which, PAGE_SIZE);
 }
 
 static uintptr_t clone_page_table(const volatile page_table* src,
@@ -303,9 +349,9 @@ int page_table_map_anon(uintptr_t virt_addr, uintptr_t size, uint16_t flags) {
 
         pte->raw = phys_addr | flags;
         pte->present = true;
-
-        flush_tlb_single(virt_cursor);
     }
+
+    flush_tlb_range(virt_addr, size);
 
     return 0;
 
@@ -338,9 +384,9 @@ int page_table_map_phys(uintptr_t virt_addr, uintptr_t phys_addr,
 
         pte->raw = phys_cursor | flags;
         pte->present = true;
-        flush_tlb_single(virt_cursor);
     }
 
+    flush_tlb_range(virt_addr, size);
     return 0;
 
 fail:
@@ -376,9 +422,9 @@ int page_table_shallow_copy(uintptr_t to_virt_addr, uintptr_t from_virt_addr,
 
         to_pte->raw = phys_addr | new_flags;
         to_pte->present = true;
-        flush_tlb_single(to_virt_cursor);
     }
 
+    flush_tlb_range(to_virt_addr, size);
     return 0;
 
 fail:
@@ -397,8 +443,8 @@ void page_table_unmap(uintptr_t virt_addr, uintptr_t size) {
         ASSERT(pte && pte->present);
         page_unref(pte->raw & ~PTE_FLAGS_MASK);
         pte->raw = 0;
-        flush_tlb_single(virt_cursor);
     }
+    flush_tlb_range(virt_addr, size);
 }
 
 void page_table_set_flags(uintptr_t virt_addr, uintptr_t size, uint16_t flags) {
@@ -412,6 +458,6 @@ void page_table_set_flags(uintptr_t virt_addr, uintptr_t size, uint16_t flags) {
         ASSERT(pte && pte->present);
         pte->raw = (pte->raw & ~PTE_FLAGS_MASK) | flags;
         pte->present = true;
-        flush_tlb_single(virt_cursor);
     }
+    flush_tlb_range(virt_addr, size);
 }

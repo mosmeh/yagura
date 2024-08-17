@@ -61,8 +61,6 @@ int sys_execve(const char* user_pathname, char* const user_argv[],
                                (const char* const*)user_envp);
 }
 
-void return_to_userland(struct registers);
-
 pid_t sys_fork(struct registers* regs) {
     struct process* process =
         kaligned_alloc(alignof(struct process), sizeof(struct process));
@@ -71,12 +69,12 @@ pid_t sys_fork(struct registers* regs) {
     *process = (struct process){
         .ppid = current->pid,
         .pgid = current->pgid,
-        .eip = (uintptr_t)return_to_userland,
+        .eip = (uintptr_t)do_iret,
         .ebx = current->ebx,
         .esi = current->esi,
         .edi = current->edi,
         .fpu_state = current->fpu_state,
-        .state = PROCESS_STATE_RUNNABLE,
+        .state = PROCESS_STATE_RUNNING,
         .arg_start = current->arg_start,
         .arg_end = current->arg_end,
         .env_start = current->env_start,
@@ -100,7 +98,7 @@ pid_t sys_fork(struct registers* regs) {
     process->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
     process->esp = process->ebp = process->kernel_stack_top;
 
-    // push the argument of return_to_userland()
+    // push the argument of do_iret()
     process->esp -= sizeof(struct registers);
     struct registers* child_regs = (struct registers*)process->esp;
     *child_regs = *regs;

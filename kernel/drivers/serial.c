@@ -1,7 +1,7 @@
 #include "serial.h"
 #include <kernel/console/console.h>
 #include <kernel/fs/fs.h>
-#include <kernel/interrupts.h>
+#include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>

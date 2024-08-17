@@ -1,6 +1,4 @@
-#include "pit.h"
-#include <kernel/interrupts.h>
-#include <kernel/panic.h>
+#include <kernel/interrupts/interrupts.h>
 #include <kernel/scheduler.h>
 #include <kernel/system.h>
 #include <kernel/time.h>
@@ -12,16 +10,13 @@
 #define MODE_SQUARE_WAVE 0x06
 #define BASE_FREQUENCY 1193182
 
-static void (*tick_handler)(void);
+static void tick(struct registers* regs) {
+    time_tick();
 
-static void irq_handler(struct registers* regs) {
-    ASSERT(!interrupts_enabled());
-
-    if (tick_handler)
-        tick_handler();
-
-    bool in_kernel = (regs->cs & 3) == 0;
-    scheduler_tick(in_kernel);
+    // When SMP is active, the scheduler_tick is called from the per-CPU
+    // local APIC timer interrupt handler.
+    if (!smp_active)
+        scheduler_tick(regs);
 }
 
 void pit_init(void) {
@@ -29,7 +24,5 @@ void pit_init(void) {
     out8(PIT_CTL, TIMER0_SELECT | WRITE_WORD | MODE_SQUARE_WAVE);
     out8(TIMER0_CTL, div & 0xff);
     out8(TIMER0_CTL, div >> 8);
-    idt_set_interrupt_handler(IRQ(0), irq_handler);
+    idt_set_interrupt_handler(IRQ(0), tick);
 }
-
-void pit_set_tick_handler(void (*handler)(void)) { tick_handler = handler; }

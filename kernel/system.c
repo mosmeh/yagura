@@ -1,13 +1,14 @@
 #include "system.h"
 #include "asm_wrapper.h"
 #include "boot_defs.h"
+#include "cpu.h"
 #include "drivers/hid/ps2.h"
 #include "kmsg.h"
 #include "panic.h"
 #include "safe_string.h"
 #include <common/stdlib.h>
+#include <common/string.h>
 #include <stdarg.h>
-#include <string.h>
 
 static struct utsname uts = {
     .sysname = "yagura",
@@ -30,6 +31,14 @@ noreturn void reboot(void) {
 
 noreturn void halt(void) {
     cli();
+    if (smp_active) {
+        struct ipi_message* msg = cpu_alloc_message();
+        *msg = (struct ipi_message){
+            .type = IPI_MESSAGE_HALT,
+            .ref_count = num_cpus - 1,
+        };
+        cpu_broadcast_message(msg);
+    }
     for (;;)
         hlt();
 }

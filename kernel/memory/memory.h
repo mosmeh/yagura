@@ -116,3 +116,39 @@ NODISCARD int vm_unmap(void*, size_t);
 // Equivalent to vm_unmap with the start address and size of the region.
 // Fails if the address is not the start of a region.
 NODISCARD int vm_free(void*);
+
+// Page may be written
+#define PTE_WRITE 0x2
+
+// Page may be accessed from userland
+#define PTE_USER 0x4
+
+// Page Attribute Table bit
+// Used to enable write-combining caching.
+#define PTE_PAT 0x80
+
+// Page is global (not flushed from TLB on context switch)
+#define PTE_GLOBAL 0x100
+
+// Flag to indicate that the page is shared between multiple processes
+// The bit is unused by the hardware, so we can use it for our purposes.
+#define PTE_SHARED 0x200
+
+// Allocates free pages and maps them to the virtual address range.
+NODISCARD int page_table_map_anon(uintptr_t virt_addr, uintptr_t size,
+                                  uint16_t flags);
+
+// Maps the physical address range to the virtual address range.
+NODISCARD int page_table_map_phys(uintptr_t virt_addr, uintptr_t phys_addr,
+                                  uintptr_t size, uint16_t flags);
+
+// Copies the page table entries from one virtual address range to another.
+NODISCARD int page_table_shallow_copy(uintptr_t to_virt_addr,
+                                      uintptr_t from_virt_addr, uintptr_t size,
+                                      uint16_t new_flags);
+
+// Unmaps the virtual address range.
+void page_table_unmap(uintptr_t virt_addr, uintptr_t size);
+
+// Changes the page table flags for the virtual address range.
+void page_table_set_flags(uintptr_t virt_addr, uintptr_t size, uint16_t flags);

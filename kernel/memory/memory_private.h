@@ -1,32 +1,37 @@
 #pragma once
 
 #include <common/extra.h>
+#include <kernel/boot_defs.h>
 #include <kernel/lock.h>
+#include <stdalign.h>
 
 struct page_directory;
 typedef struct multiboot_info multiboot_info_t;
+
+typedef union {
+    struct {
+        bool present : 1;
+        bool write : 1;
+        bool user : 1;
+        bool write_through : 1;
+        bool cache_disable : 1;
+        bool accessed : 1;
+        bool ignored1 : 1;
+        bool page_size : 1;
+        uint8_t ignored2 : 4;
+        uint32_t page_table_addr : 20;
+    };
+    uint32_t raw;
+} __attribute__((packed)) page_directory_entry;
+
+struct page_directory {
+    alignas(PAGE_SIZE) page_directory_entry entries[1024];
+};
 
 void page_init(const multiboot_info_t*);
 uintptr_t page_alloc(void);
 void page_ref(uintptr_t phys_addr);
 void page_unref(uintptr_t phys_addr);
-
-// Page may be written
-#define PTE_WRITE 0x2
-
-// Page may be accessed from userland
-#define PTE_USER 0x4
-
-// Page Attribute Table bit
-// Used to enable write-combining caching.
-#define PTE_PAT 0x80
-
-// Page is global (not flushed from TLB on context switch)
-#define PTE_GLOBAL 0x100
-
-// Flag to indicate that the page is shared between multiple processes
-// The bit is unused by the hardware, so we can use it for our purposes.
-#define PTE_SHARED 0x200
 
 // kernel heap starts right after the quickmap page
 #define KERNEL_HEAP_START (KERNEL_VIRT_ADDR + 1024 * PAGE_SIZE)
@@ -35,15 +40,6 @@ void page_unref(uintptr_t phys_addr);
 #define KERNEL_HEAP_END 0xffc00000
 
 void page_table_init(void);
-NODISCARD int page_table_map_anon(uintptr_t virt_addr, uintptr_t size,
-                                  uint16_t flags);
-NODISCARD int page_table_map_phys(uintptr_t virt_addr, uintptr_t phys_addr,
-                                  uintptr_t size, uint16_t flags);
-NODISCARD int page_table_shallow_copy(uintptr_t to_virt_addr,
-                                      uintptr_t from_virt_addr, uintptr_t size,
-                                      uint16_t new_flags);
-void page_table_unmap(uintptr_t virt_addr, uintptr_t size);
-void page_table_set_flags(uintptr_t virt_addr, uintptr_t size, uint16_t flags);
 
 struct page_directory* page_directory_create(void);
 struct page_directory* page_directory_clone_current(void);

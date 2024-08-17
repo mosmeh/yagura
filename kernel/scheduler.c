@@ -1,19 +1,75 @@
 #include "scheduler.h"
 #include "api/errno.h"
 #include "cpu.h"
-#include "interrupts.h"
+#include "interrupts/interrupts.h"
 #include "memory/memory.h"
 #include "panic.h"
 #include "process.h"
 #include "system.h"
+#include <common/stdio.h>
 
 static struct process* ready_queue;
 static struct spinlock ready_queue_lock;
-static struct process* idle;
 atomic_uint idle_ticks;
 
+static noreturn void do_idle(void) {
+    for (;;) {
+        ASSERT(interrupts_enabled());
+        hlt();
+    }
+}
+
+void scheduler_init(void) {
+    for (size_t i = 0; i < num_cpus; ++i) {
+        struct cpu* cpu = cpus[i];
+        char comm[SIZEOF_MEMBER(struct process, comm)];
+        (void)snprintf(comm, sizeof(comm), "idle/%u", i);
+        struct process* idle = process_create(comm, do_idle);
+        ASSERT_OK(idle);
+        cpu->idle_process = idle;
+    }
+}
+
+void enqueue_ready(struct process* process) {
+    ASSERT(process);
+    ASSERT(process->state != PROCESS_STATE_DEAD &&
+           process->state != PROCESS_STATE_BLOCKED);
+
+    process->ready_queue_next = NULL;
+
+    spinlock_lock(&ready_queue_lock);
+    if (ready_queue) {
+        struct process* it = ready_queue;
+        for (;;) {
+            ASSERT(it != process);
+            if (!it->ready_queue_next)
+                break;
+            it = it->ready_queue_next;
+        }
+        it->ready_queue_next = process;
+    } else {
+        ready_queue = process;
+    }
+    spinlock_unlock(&ready_queue_lock);
+}
+
+static struct process* dequeue_ready(void) {
+    spinlock_lock(&ready_queue_lock);
+    if (!ready_queue) {
+        spinlock_unlock(&ready_queue_lock);
+        return cpu_get_current()->idle_process;
+    }
+    struct process* process = ready_queue;
+    ASSERT(process->state != PROCESS_STATE_DEAD);
+    ready_queue = process->ready_queue_next;
+    process->ready_queue_next = NULL;
+    spinlock_unlock(&ready_queue_lock);
+    return process;
+}
+
 void scheduler_register(struct process* process) {
-    ASSERT(process->state == PROCESS_STATE_RUNNABLE);
+    ASSERT(process);
+    ASSERT(process->state == PROCESS_STATE_RUNNING);
     process_ref(process);
 
     spinlock_lock(&all_processes_lock);
@@ -32,50 +88,12 @@ void scheduler_register(struct process* process) {
     }
     spinlock_unlock(&all_processes_lock);
 
-    scheduler_enqueue(process);
-}
-
-void scheduler_enqueue(struct process* process) {
-    ASSERT(process->state != PROCESS_STATE_DEAD &&
-           process->state != PROCESS_STATE_BLOCKED);
-
-    spinlock_lock(&ready_queue_lock);
-
-    process->ready_queue_next = NULL;
-    if (ready_queue) {
-        struct process* it = ready_queue;
-        ASSERT(it != process);
-        while (it->ready_queue_next) {
-            it = it->ready_queue_next;
-            ASSERT(it != process);
-        }
-        it->ready_queue_next = process;
-    } else {
-        ready_queue = process;
-    }
-
-    spinlock_unlock(&ready_queue_lock);
-}
-
-static struct process* scheduler_deque(void) {
-    ASSERT(!interrupts_enabled());
-    spinlock_lock(&ready_queue_lock);
-    if (!ready_queue) {
-        spinlock_unlock(&ready_queue_lock);
-        return idle;
-    }
-    struct process* process = ready_queue;
-    ready_queue = process->ready_queue_next;
-    process->ready_queue_next = NULL;
-    ASSERT(process->state != PROCESS_STATE_DEAD);
-    spinlock_unlock(&ready_queue_lock);
-    return process;
+    enqueue_ready(process);
 }
 
 static void unblock_processes(void) {
-    ASSERT(!interrupts_enabled());
-
     spinlock_lock(&all_processes_lock);
+
     if (!all_processes) {
         spinlock_unlock(&all_processes_lock);
         return;
@@ -95,131 +113,100 @@ static void unblock_processes(void) {
             it->block_was_interrupted = interrupted;
             it->state = PROCESS_STATE_RUNNING;
             process_ref(it);
-            scheduler_enqueue(it);
+            enqueue_ready(it);
         }
     }
 
     spinlock_unlock(&all_processes_lock);
 }
 
-static noreturn void do_idle(void) {
-    for (;;) {
-        ASSERT(interrupts_enabled());
-        hlt();
-        ASSERT(interrupts_enabled());
-        scheduler_yield(false);
-    }
-}
+noreturn void switch_context(void) {
+    cli();
 
-void scheduler_init(void) {
-    idle = process_create("idle", do_idle);
-    ASSERT_OK(idle);
-}
+    struct cpu* cpu = cpu_get_current();
+    struct process* prev_process = cpu->current_process;
+    if (prev_process == cpu->idle_process)
+        prev_process = NULL;
 
-static noreturn void switch_to_next_process(void) {
-    ASSERT(!interrupts_enabled());
     unblock_processes();
 
-    current = scheduler_deque();
-    ASSERT(current);
-    ASSERT(current->state != PROCESS_STATE_DEAD);
+    struct process* process = dequeue_ready();
+    ASSERT(process);
+    ASSERT(process->state != PROCESS_STATE_DEAD);
+    cpu->current_process = process;
 
-    vm_enter(current->vm);
-    gdt_set_kernel_stack(current->kernel_stack_top);
+    vm_enter(process->vm);
+    gdt_set_cpu_kernel_stack(process->kernel_stack_top);
 
     process_handle_pending_signals();
 
-    if (cpu_has_feature(X86_FEATURE_FXSR))
-        __asm__ volatile("fxrstor %0" ::"m"(current->fpu_state));
+    if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
+        __asm__ volatile("fxrstor %0" ::"m"(process->fpu_state));
     else
-        __asm__ volatile("frstor %0" ::"m"(current->fpu_state));
+        __asm__ volatile("frstor %0" ::"m"(process->fpu_state));
 
-    if (current->state == PROCESS_STATE_RUNNABLE) {
-        current->state = PROCESS_STATE_RUNNING;
-
-        // current->eip points to an entry point, so we have to enable
-        // interrupts here
-        __asm__ volatile("mov %%eax, %%ebp\n"
-                         "mov %%ecx, %%esp\n"
-                         "mov $0, %%eax;\n"
-                         "sti\n"
-                         "jmp *%%edx"
-                         :
-                         : "d"(current->eip), "a"(current->ebp),
-                           "c"(current->esp), "b"(current->ebx),
-                           "S"(current->esi), "D"(current->edi));
-    } else {
-        // current->eip points to the read_eip() line in scheduler_yield(),
-        // and pop_cli handles enabling interrupts, so we don't enable
-        // interrupts here
-        __asm__ volatile("mov %%eax, %%ebp\n"
-                         "mov %%ecx, %%esp\n"
-                         "mov $1, %%eax;\n" // read_eip() returns 1
-                         "jmp *%%edx"
-                         :
-                         : "d"(current->eip), "a"(current->ebp),
-                           "c"(current->esp), "b"(current->ebx),
-                           "S"(current->esi), "D"(current->edi));
-    }
+    // Call enqueue_ready(prev_process) after switching to the stack of the next
+    // process to prevent other CPUs from using the stack of prev_process while
+    // we are still using it.
+    __asm__ volatile("movl 0x04(%%ebx), %%esp\n" // esp = process->esp
+                     "movl 0x08(%%ebx), %%ebp\n" // ebp = process->ebp
+                     "test %%eax, %%eax\n"
+                     "jz 1f\n"
+                     "pushl %%eax\n"
+                     "call enqueue_ready\n"
+                     "add $4, %%esp\n"
+                     "1:\n"
+                     "movl %%ebx, %%eax\n"
+                     "movl 0x0c(%%eax), %%ebx\n" // ebx = process->ebx
+                     "movl 0x10(%%eax), %%esi\n" // esi = process->esi
+                     "movl 0x14(%%eax), %%edi\n" // edi = process->edi
+                     "movl (%%eax), %%eax\n"     // eax = process->eip
+                     "jmp *%%eax"
+                     :
+                     : "b"(process), "a"(prev_process));
     UNREACHABLE();
 }
+
+void scheduler_start(void) { switch_context(); }
 
 void scheduler_yield(bool requeue_current) {
     bool int_flag = push_cli();
-    ASSERT(current);
+    struct cpu* cpu = cpu_get_current();
+    struct process* process = cpu->current_process;
+    ASSERT(process);
 
-    if (current == idle) {
-        // because we don't save the context for the idle task, it has to be
-        // launched as a brand new task every time.
-        idle->state = PROCESS_STATE_RUNNABLE;
+    if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
+        __asm__ volatile("fxsave %0" : "=m"(process->fpu_state));
+    else
+        __asm__ volatile("fnsave %0" : "=m"(process->fpu_state));
 
-        // skip saving the context
-        switch_to_next_process();
-        UNREACHABLE();
+    if (process != cpu->idle_process && !requeue_current) {
+        process_unref(process);
+        cpu->current_process = NULL;
     }
 
-    uint32_t eip = read_eip();
-    if (eip == 1) {
-        // we came back from switch_to_next_process()
-        pop_cli(int_flag);
-        return;
-    }
+    __asm__ volatile("movl $1f, (%%eax)\n"       // process->eip
+                     "movl %%esp, 0x04(%%eax)\n" // process->esp
+                     "movl %%ebp, 0x08(%%eax)\n" // process->ebp
+                     "movl %%ebx, 0x0c(%%eax)\n" // process->ebx
+                     "movl %%esi, 0x10(%%eax)\n" // process->esi
+                     "movl %%edi, 0x14(%%eax)\n" // process->edi
+                     "jmp switch_context\n"
+                     "1:" // switch_context() will jump back here
+                     :
+                     : "a"(process)
+                     : "edx", "ecx", "memory");
 
-    uint32_t esp;
-    __asm__ volatile("mov %%esp, %0" : "=m"(esp));
-    uint32_t ebp;
-    __asm__ volatile("mov %%ebp, %0" : "=m"(ebp));
-    uint32_t ebx;
-    __asm__ volatile("mov %%ebx, %0" : "=m"(ebx));
-    uint32_t esi;
-    __asm__ volatile("mov %%esi, %0" : "=m"(esi));
-    uint32_t edi;
-    __asm__ volatile("mov %%edi, %0" : "=m"(edi));
-
-    current->eip = eip;
-    current->esp = esp;
-    current->ebp = ebp;
-    current->ebx = ebx;
-    current->esi = esi;
-    current->edi = edi;
-
-    if (cpu_has_feature(X86_FEATURE_FXSR))
-        __asm__ volatile("fxsave %0" : "=m"(current->fpu_state));
-    else
-        __asm__ volatile("fnsave %0" : "=m"(current->fpu_state));
-
-    if (requeue_current)
-        scheduler_enqueue(current);
-    else
-        process_unref(current);
-
-    switch_to_next_process();
-    UNREACHABLE();
+    pop_cli(int_flag);
 }
 
-void scheduler_tick(bool in_kernel) {
-    if (current == idle)
+void scheduler_tick(struct registers* regs) {
+    ASSERT(!interrupts_enabled());
+    if (!current)
+        return;
+    if (current == cpu_get_current()->idle_process)
         ++idle_ticks;
+    bool in_kernel = (regs->cs & 3) == 0;
     if (!in_kernel)
         process_die_if_needed();
     process_tick(in_kernel);
@@ -237,10 +224,10 @@ int scheduler_block(unblock_fn unblock, void* data, int flags) {
 
     bool int_flag = push_cli();
 
-    current->state = PROCESS_STATE_BLOCKED;
     current->unblock = unblock;
     current->block_data = data;
     current->block_flags = flags;
+    current->state = PROCESS_STATE_BLOCKED;
 
     scheduler_yield(false);
 

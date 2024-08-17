@@ -17,6 +17,7 @@
 
 #define NODISCARD __attribute__((__warn_unused_result__))
 #define NOINLINE __attribute__((noinline))
+#define STATIC_ASSERT(x) _Static_assert(x, "Static assertion failed")
 
 #define PRINTF_LIKE(a, b) __attribute__((format(printf, a, b)))
 
