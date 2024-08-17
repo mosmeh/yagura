@@ -16,6 +16,7 @@ void vm_init(void) {
         .start = KERNEL_HEAP_START,
         .end = KERNEL_HEAP_END,
         .page_directory = kernel_page_directory,
+        .ref_count = 1,
     };
 
     slab_cache_init(&vm_region_cache, sizeof(struct vm_region));
@@ -34,16 +35,26 @@ struct vm* vm_create(void* start, void* end) {
         .start = (uintptr_t)start,
         .end = (uintptr_t)end,
         .page_directory = page_directory,
+        .ref_count = 1,
     };
     return vm;
 }
 
-void vm_destroy(struct vm* vm) {
+void vm_ref(struct vm* vm) {
+    ASSERT(vm);
+    ASSERT(vm != kernel_vm);
+    ++vm->ref_count;
+}
+
+void vm_unref(struct vm* vm) {
     if (!vm)
+        return;
+    ASSERT(vm != kernel_vm);
+    ASSERT(vm->ref_count > 0);
+    if (--vm->ref_count > 0)
         return;
 
     ASSERT(current);
-    ASSERT(vm != kernel_vm);
 
     struct vm* saved_vm = current->vm;
     if (vm != saved_vm)
@@ -99,6 +110,7 @@ struct vm* vm_clone(void) {
         .start = vm->start,
         .end = vm->end,
         .page_directory = page_directory,
+        .ref_count = 1,
     };
 
     struct vm_region* it = vm->regions;
@@ -107,7 +119,7 @@ struct vm* vm_clone(void) {
         struct vm_region* cloned = slab_cache_alloc(&vm_region_cache);
         if (IS_ERR(cloned)) {
             mutex_unlock(&vm->lock);
-            vm_destroy(new_vm);
+            vm_unref(new_vm);
             return ERR_CAST(cloned);
         }
         *cloned = *it;

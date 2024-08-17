@@ -93,7 +93,10 @@ static struct inode* resolve_mounts(struct inode* host) {
 }
 
 int vfs_mount(const char* source, const char* target, const char* type) {
-    return vfs_mount_at(current->cwd, source, target, type);
+    mutex_lock(&current->fs->lock);
+    int ret = vfs_mount_at(current->fs->cwd, source, target, type);
+    mutex_unlock(&current->fs->lock);
+    return ret;
 }
 
 int vfs_mount_at(const struct path* base, const char* source,
@@ -334,7 +337,10 @@ static struct path* resolve_path_at(const struct path* base,
 }
 
 struct path* vfs_resolve_path(const char* pathname, int flags) {
-    return vfs_resolve_path_at(current->cwd, pathname, flags);
+    mutex_lock(&current->fs->lock);
+    struct path* ret = vfs_resolve_path_at(current->fs->cwd, pathname, flags);
+    mutex_unlock(&current->fs->lock);
+    return ret;
 }
 
 struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
@@ -409,7 +415,10 @@ static struct path* create_at(const struct path* base, const char* pathname,
 }
 
 struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
-    return vfs_open_at(current->cwd, pathname, flags, mode);
+    mutex_lock(&current->fs->lock);
+    struct file* ret = vfs_open_at(current->fs->cwd, pathname, flags, mode);
+    mutex_unlock(&current->fs->lock);
+    return ret;
 }
 
 struct file* vfs_open_at(const struct path* base, const char* pathname,
@@ -431,7 +440,10 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
 }
 
 int vfs_stat(const char* pathname, struct stat* buf, int flags) {
-    return vfs_stat_at(current->cwd, pathname, buf, flags);
+    mutex_lock(&current->fs->lock);
+    int ret = vfs_stat_at(current->fs->cwd, pathname, buf, flags);
+    mutex_unlock(&current->fs->lock);
+    return ret;
 }
 
 int vfs_stat_at(const struct path* base, const char* pathname, struct stat* buf,
@@ -445,7 +457,10 @@ int vfs_stat_at(const struct path* base, const char* pathname, struct stat* buf,
 }
 
 struct inode* vfs_create(const char* pathname, mode_t mode) {
-    return vfs_create_at(current->cwd, pathname, mode);
+    mutex_lock(&current->fs->lock);
+    struct inode* ret = vfs_create_at(current->fs->cwd, pathname, mode);
+    mutex_unlock(&current->fs->lock);
+    return ret;
 }
 
 struct inode* vfs_create_at(const struct path* base, const char* pathname,

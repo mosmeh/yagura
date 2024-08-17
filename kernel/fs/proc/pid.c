@@ -74,7 +74,9 @@ static int populate_cwd(struct file* file, struct vec* vec) {
     if (!task)
         return -ENOENT;
 
-    char* cwd = path_to_string(task->cwd);
+    mutex_lock(&task->fs->lock);
+    char* cwd = path_to_string(task->fs->cwd);
+    mutex_unlock(&task->fs->lock);
     if (!cwd) {
         task_unref(task);
         return -ENOMEM;

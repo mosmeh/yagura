@@ -18,6 +18,93 @@ static atomic_int next_pid = 1;
 struct task* all_tasks;
 struct spinlock all_tasks_lock;
 
+static struct fs* fs_create(void) {
+    struct fs* fs = kmalloc(sizeof(struct fs));
+    if (!fs)
+        return ERR_PTR(-ENOMEM);
+    *fs = (struct fs){.ref_count = 1};
+    fs->cwd = vfs_get_root();
+    if (IS_ERR(fs->cwd)) {
+        kfree(fs);
+        return ERR_CAST(fs->cwd);
+    }
+    return fs;
+}
+
+struct fs* fs_clone(struct fs* fs) {
+    struct fs* new_fs = kmalloc(sizeof(struct fs));
+    if (!new_fs)
+        return ERR_PTR(-ENOMEM);
+    *new_fs = (struct fs){.ref_count = 1};
+    mutex_lock(&fs->lock);
+    new_fs->cwd = path_dup(fs->cwd);
+    mutex_unlock(&fs->lock);
+    if (IS_ERR(new_fs->cwd)) {
+        kfree(new_fs);
+        return ERR_CAST(new_fs->cwd);
+    }
+    return new_fs;
+}
+
+void fs_ref(struct fs* fs) {
+    ASSERT(fs);
+    ++fs->ref_count;
+}
+
+void fs_unref(struct fs* fs) {
+    if (!fs)
+        return;
+    ASSERT(fs->ref_count > 0);
+    if (--fs->ref_count > 0)
+        return;
+    path_destroy_recursive(fs->cwd);
+    kfree(fs);
+}
+
+static struct files* files_create(void) {
+    struct files* files = kmalloc(sizeof(struct files));
+    if (!files)
+        return ERR_PTR(-ENOMEM);
+    *files = (struct files){.ref_count = 1};
+    return files;
+}
+
+struct files* files_clone(struct files* files) {
+    struct files* new_files = files_create();
+    if (IS_ERR(new_files))
+        return new_files;
+
+    mutex_lock(&files->lock);
+    memcpy(new_files->entries, files->entries, sizeof(files->entries));
+    for (size_t i = 0; i < OPEN_MAX; ++i) {
+        if (files->entries[i])
+            ++files->entries[i]->ref_count;
+    }
+    mutex_unlock(&files->lock);
+
+    return new_files;
+}
+
+void files_ref(struct files* files) {
+    ASSERT(files);
+    ++files->ref_count;
+}
+
+void files_unref(struct files* files) {
+    if (!files)
+        return;
+    ASSERT(files->ref_count > 0);
+    if (--files->ref_count > 0)
+        return;
+    for (size_t i = 0; i < OPEN_MAX; ++i) {
+        if (files->entries[i]) {
+            file_close(files->entries[i]);
+            files->entries[i] = NULL;
+        }
+    }
+    kfree(files);
+}
+
 void task_init(void) {
     __asm__ volatile("fninit");
     if (cpu_has_feature(cpu_get_bsp(), X86_FEATURE_FXSR))
@@ -47,16 +134,19 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
     int ret = 0;
     void* stack = NULL;
 
-    task->cwd = vfs_get_root();
-    if (IS_ERR(task->cwd)) {
-        ret = PTR_ERR(task->cwd);
-        task->cwd = NULL;
+    task->fs = fs_create();
+    if (IS_ERR(task->fs)) {
+        ret = PTR_ERR(task->fs);
+        task->fs = NULL;
         goto fail;
     }
 
-    ret = file_descriptor_table_init(&task->fd_table);
-    if (IS_ERR(ret))
+    task->files = files_create();
+    if (IS_ERR(task->files)) {
+        ret = PTR_ERR(task->files);
+        task->files = NULL;
         goto fail;
+    }
 
     task->vm = kernel_vm;
 
@@ -92,8 +182,8 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
 
 fail:
     kfree(stack);
-    file_descriptor_table_destroy(&task->fd_table);
-    path_destroy_recursive(task->cwd);
+    files_unref(task->files);
+    fs_unref(task->fs);
     kfree(task);
     return ERR_PTR(ret);
 }
@@ -127,9 +217,9 @@ void task_unref(struct task* task) {
     ASSERT(task != current);
 
     if (task->vm != kernel_vm)
-        vm_destroy(task->vm);
-    file_descriptor_table_destroy(&task->fd_table);
-    path_destroy_recursive(task->cwd);
+        vm_unref(task->vm);
+    files_unref(task->files);
+    fs_unref(task->fs);
     kfree((void*)task->kernel_stack_base);
     kfree(task);
 }
@@ -154,7 +244,10 @@ static noreturn void die(void) {
         PANIC("init task exited");
 
     sti();
-    file_descriptor_table_clear(&current->fd_table);
+    files_unref(current->files);
+    current->files = NULL;
+    fs_unref(current->fs);
+    current->fs = NULL;
 
     cli();
     spinlock_lock(&all_tasks_lock);
@@ -207,32 +300,47 @@ int task_alloc_file_descriptor(int fd, struct file* file) {
     if (fd >= OPEN_MAX)
         return -EBADF;
 
+    int ret = 0;
+    mutex_lock(&current->files->lock);
+
     if (fd >= 0) {
-        struct file** entry = current->fd_table.entries + fd;
-        if (*entry)
-            return -EEXIST;
+        struct file** entry = current->files->entries + fd;
+        if (*entry) {
+            ret = -EEXIST;
+            goto done;
+        }
         *entry = file;
-        return fd;
+        ret = fd;
+        goto done;
     }
 
-    struct file** it = current->fd_table.entries;
+    ret = -EMFILE;
+    struct file** it = current->files->entries;
     for (int i = 0; i < OPEN_MAX; ++i, ++it) {
         if (*it)
             continue;
         *it = file;
-        return i;
+        ret = i;
+        goto done;
     }
-    return -EMFILE;
+
+done:
+    mutex_unlock(&current->files->lock);
+    return ret;
 }
 
 int task_free_file_descriptor(int fd) {
     if (fd < 0 || OPEN_MAX <= fd)
         return -EBADF;
 
-    struct file** file = current->fd_table.entries + fd;
-    if (!*file)
+    mutex_lock(&current->files->lock);
+    struct file** file = current->files->entries + fd;
+    if (!*file) {
+        mutex_unlock(&current->files->lock);
         return -EBADF;
+    }
     *file = NULL;
+    mutex_unlock(&current->files->lock);
     return 0;
 }
 
@@ -240,10 +348,11 @@ struct file* task_get_file(int fd) {
     if (fd < 0 || OPEN_MAX <= fd)
         return ERR_PTR(-EBADF);
 
-    struct file* file = current->fd_table.entries[fd];
+    mutex_lock(&current->files->lock);
+    struct file* file = current->files->entries[fd];
+    mutex_unlock(&current->files->lock);
     if (!file)
         return ERR_PTR(-EBADF);
-
     return file;
 }
 

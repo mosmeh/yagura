@@ -1,5 +1,6 @@
 #pragma once
 
+#include "api/sys/limits.h"
 #include "fs/fs.h"
 #include "memory/memory.h"
 #include "scheduler.h"
@@ -30,8 +31,8 @@ struct task {
     uintptr_t kernel_stack_base, kernel_stack_top;
     uintptr_t arg_start, arg_end, env_start, env_end;
 
-    struct path* cwd;
-    file_descriptor_table fd_table;
+    struct fs* fs;
+    struct files* files;
 
     unblock_fn unblock;
     void* block_data;
@@ -47,6 +48,26 @@ struct task {
 
     atomic_size_t ref_count;
 };
+
+struct fs {
+    struct path* cwd;
+    struct mutex lock;
+    atomic_size_t ref_count;
+};
+
+struct fs* fs_clone(struct fs*);
+void fs_ref(struct fs*);
+void fs_unref(struct fs*);
+
+struct files {
+    struct file* entries[OPEN_MAX];
+    struct mutex lock;
+    atomic_size_t ref_count;
+};
+
+struct files* files_clone(struct files*);
+void files_ref(struct files*);
+void files_unref(struct files*);
 
 extern struct task* all_tasks;
 extern struct spinlock all_tasks_lock;

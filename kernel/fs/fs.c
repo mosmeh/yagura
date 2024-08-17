@@ -1,5 +1,4 @@
 #include "fs.h"
-#include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/stdio.h>
@@ -10,48 +9,6 @@
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
-
-int file_descriptor_table_init(file_descriptor_table* table) {
-    table->entries = kmalloc(OPEN_MAX * sizeof(struct file*));
-    if (!table->entries)
-        return -ENOMEM;
-
-    for (size_t i = 0; i < OPEN_MAX; ++i)
-        table->entries[i] = NULL;
-    return 0;
-}
-
-void file_descriptor_table_destroy(file_descriptor_table* table) {
-    if (!table || !table->entries)
-        return;
-    file_descriptor_table_clear(table);
-    kfree(table->entries);
-}
-
-void file_descriptor_table_clear(file_descriptor_table* table) {
-    struct file** it = table->entries;
-    for (int i = 0; i < OPEN_MAX; ++i, ++it) {
-        if (*it) {
-            file_close(*it);
-            *it = NULL;
-        }
-    }
-}
-
-int file_descriptor_table_clone_from(file_descriptor_table* to,
-                                     const file_descriptor_table* from) {
-    to->entries = kmalloc(OPEN_MAX * sizeof(struct file*));
-    if (!to->entries)
-        return -ENOMEM;
-
-    memcpy(to->entries, from->entries, OPEN_MAX * sizeof(struct file*));
-
-    for (size_t i = 0; i < OPEN_MAX; ++i) {
-        if (from->entries[i])
-            ++from->entries[i]->ref_count;
-    }
-    return 0;
-}
 
 void inode_ref(struct inode* inode) {
     ASSERT(inode);

@@ -105,16 +105,6 @@ pid_t sys_fork(struct registers* regs) {
     *child_regs = *regs;
     child_regs->eax = 0; // fork() returns 0 in the child
 
-    task->cwd = path_dup(current->cwd);
-    if (!task->cwd) {
-        rc = -ENOMEM;
-        goto fail;
-    }
-
-    rc = file_descriptor_table_clone_from(&task->fd_table, &current->fd_table);
-    if (IS_ERR(rc))
-        goto fail;
-
     task->vm = vm_clone();
     if (IS_ERR(task->vm)) {
         rc = PTR_ERR(task->vm);
@@ -122,13 +112,27 @@ pid_t sys_fork(struct registers* regs) {
         goto fail;
     }
 
+    task->fs = fs_clone(current->fs);
+    if (IS_ERR(task->fs)) {
+        rc = PTR_ERR(task->fs);
+        task->fs = NULL;
+        goto fail;
+    }
+
+    task->files = files_clone(current->files);
+    if (IS_ERR(task->files)) {
+        rc = PTR_ERR(task->files);
+        task->files = NULL;
+        goto fail;
+    }
+
     scheduler_register(task);
     return pid;
 
 fail:
-    vm_destroy(task->vm);
-    file_descriptor_table_destroy(&task->fd_table);
-    path_destroy_recursive(task->cwd);
+    files_unref(task->files);
+    fs_unref(task->fs);
+    vm_unref(task->vm);
     kfree(stack);
     kfree(task);
     return rc;
@@ -250,7 +254,9 @@ char* sys_getcwd(char* user_buf, size_t size) {
     if (!user_buf || size == 0)
         return ERR_PTR(-EINVAL);
 
-    char* cwd_str = path_to_string(current->cwd);
+    mutex_lock(&current->fs->lock);
+    char* cwd_str = path_to_string(current->fs->cwd);
+    mutex_unlock(&current->fs->lock);
     if (!cwd_str)
         return ERR_PTR(-ENOMEM);
 
@@ -276,17 +282,23 @@ int sys_chdir(const char* user_path) {
     if (path_len >= PATH_MAX)
         return -ENAMETOOLONG;
 
-    struct path* new_cwd = vfs_resolve_path_at(current->cwd, path, 0);
-    if (IS_ERR(new_cwd))
+    mutex_lock(&current->fs->lock);
+
+    struct path* new_cwd = vfs_resolve_path_at(current->fs->cwd, path, 0);
+    if (IS_ERR(new_cwd)) {
+        mutex_unlock(&current->fs->lock);
         return PTR_ERR(new_cwd);
+    }
 
     if (!S_ISDIR(new_cwd->inode->mode)) {
         path_destroy_recursive(new_cwd);
+        mutex_unlock(&current->fs->lock);
         return -ENOTDIR;
     }
 
-    path_destroy_recursive(current->cwd);
-    current->cwd = new_cwd;
+    path_destroy_recursive(current->fs->cwd);
+    current->fs->cwd = new_cwd;
 
+    mutex_unlock(&current->fs->lock);
     return 0;
 }

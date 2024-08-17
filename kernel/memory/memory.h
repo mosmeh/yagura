@@ -67,6 +67,7 @@ struct vm {
     struct page_directory* page_directory;
     struct mutex lock;
     struct vm_region* regions;
+    atomic_size_t ref_count;
 };
 
 struct vm_region {
@@ -80,7 +81,8 @@ struct vm_region {
 extern struct vm* kernel_vm;
 
 struct vm* vm_create(void* start, void* end);
-void vm_destroy(struct vm*);
+void vm_ref(struct vm*);
+void vm_unref(struct vm*);
 
 // Switches to the virtual memory space.
 void vm_enter(struct vm*);

@@ -165,7 +165,9 @@ static int execve(const char* pathname, struct string_vec* argv,
     struct file* file = NULL;
 
     struct stat stat;
-    ret = vfs_stat_at(current->cwd, pathname, &stat, 0);
+    mutex_lock(&current->fs->lock);
+    ret = vfs_stat_at(current->fs->cwd, pathname, &stat, 0);
+    mutex_unlock(&current->fs->lock);
     if (IS_ERR(ret))
         goto fail_exe;
     if (!S_ISREG(stat.st_mode)) {
@@ -334,7 +336,7 @@ static int execve(const char* pathname, struct string_vec* argv,
         goto fail_vm;
 
     if (prev_vm != kernel_vm)
-        vm_destroy(prev_vm);
+        vm_unref(prev_vm);
 
     cli();
     struct task* task = current;
@@ -375,7 +377,7 @@ static int execve(const char* pathname, struct string_vec* argv,
 fail_vm:
     ptr_vec_destroy(&envp_ptrs);
     ptr_vec_destroy(&argv_ptrs);
-    vm_destroy(vm);
+    vm_unref(vm);
     vm_enter(prev_vm);
 
 fail_exe:
