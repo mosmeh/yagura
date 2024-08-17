@@ -3,9 +3,9 @@
 #include <kernel/api/signum.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/poll.h>
+#include <kernel/containers/ring_buf.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
-#include <kernel/ring_buf.h>
 
 struct fifo {
     struct inode inode;

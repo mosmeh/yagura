@@ -1,8 +1,8 @@
 #pragma once
 
 #include <kernel/api/termios.h>
+#include <kernel/containers/ring_buf.h>
 #include <kernel/fs/fs.h>
-#include <kernel/ring_buf.h>
 
 struct screen;
 

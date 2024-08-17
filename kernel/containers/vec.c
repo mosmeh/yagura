@@ -1,10 +1,8 @@
 #include "vec.h"
-#include "api/err.h"
-#include "boot_defs.h"
-#include "memory/memory.h"
-#include "panic.h"
-#include <stdio.h>
-#include <string.h>
+#include <common/stdio.h>
+#include <common/string.h>
+#include <kernel/memory/memory.h>
+#include <kernel/panic.h>
 
 void vec_destroy(struct vec* vec) { kfree(vec->data); }
 

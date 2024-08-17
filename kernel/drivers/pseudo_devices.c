@@ -1,12 +1,12 @@
+#include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/containers/vec.h>
 #include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
-#include <kernel/vec.h>
-#include <string.h>
 
 static ssize_t read_nothing(struct file* file, void* buffer, size_t count) {
     (void)file;

@@ -18,6 +18,7 @@ OBJS := \
 	console/tty.o \
 	console/virtual_console.o \
 	console/vt.o \
+	containers/vec.o \
 	cpu.o \
 	drivers/ac97.o \
 	drivers/drivers.o \
@@ -61,7 +62,6 @@ OBJS := \
 	memory/vm.o \
 	process.o \
 	random.o \
-	ring_buf.o \
 	safe_string.o \
 	scheduler.o \
 	syscall/clock.o \
@@ -74,7 +74,6 @@ OBJS := \
 	system.o \
 	time.o \
 	unix_socket.o \
-	vec.o \
 	../common/libgen.o \
 	../common/math.o \
 	../common/string.o \

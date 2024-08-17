@@ -3,6 +3,7 @@
 #include <common/stdlib.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/containers/vec.h>
 #include <kernel/cpu.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/interrupts.h>
@@ -12,7 +13,6 @@
 #include <kernel/scheduler.h>
 #include <kernel/system.h>
 #include <kernel/time.h>
-#include <kernel/vec.h>
 
 static int populate_cmdline(struct file* file, struct vec* vec) {
     (void)file;

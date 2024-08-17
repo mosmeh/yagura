@@ -1,13 +1,13 @@
 #include "proc_private.h"
 #include <common/string.h>
 #include <kernel/api/sys/limits.h>
+#include <kernel/containers/vec.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/fs/path.h>
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/safe_string.h>
-#include <kernel/vec.h>
 
 static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
                                size_t size) {
