@@ -1,14 +1,22 @@
 #include "dirent.h"
 #include "errno.h"
+#include "fcntl.h"
+#include "private.h"
 #include "stdlib.h"
-#include "sys/fcntl.h"
 #include "unistd.h"
+#include <common/extra.h>
+#include <common/string.h>
+
+static long getdents(int fd, struct linux_dirent* dirp, size_t count) {
+    RETURN_WITH_ERRNO(long, SYSCALL3(getdents, fd, dirp, count));
+}
 
 typedef struct __DIR {
     int fd;
-    unsigned char* buf;
+    struct linux_dirent* buf;
     size_t buf_capacity, buf_size;
     size_t buf_cursor;
+    struct dirent dent;
 } DIR;
 
 DIR* opendir(const char* name) {
@@ -36,7 +44,8 @@ struct dirent* readdir(DIR* dirp) {
     if (dirp->buf_cursor >= dirp->buf_size) {
         int saved_errno = errno;
         for (;;) {
-            unsigned char* new_buf = realloc(dirp->buf, dirp->buf_capacity);
+            struct linux_dirent* new_buf =
+                realloc(dirp->buf, dirp->buf_capacity);
             if (!new_buf)
                 return NULL;
             dirp->buf = new_buf;
@@ -57,7 +66,18 @@ struct dirent* readdir(DIR* dirp) {
         errno = saved_errno;
         dirp->buf_cursor = 0;
     }
-    struct dirent* dent = (struct dirent*)(dirp->buf + dirp->buf_cursor);
-    dirp->buf_cursor += dent->d_reclen;
-    return dent;
+
+    const struct linux_dirent* src =
+        (struct linux_dirent*)((unsigned char*)dirp->buf + dirp->buf_cursor);
+    struct dirent* dest = &dirp->dent;
+    dest->d_ino = src->d_ino;
+    dest->d_off = src->d_off;
+    dest->d_reclen = sizeof(struct dirent);
+    size_t name_size =
+        src->d_reclen - 2 - offsetof(struct linux_dirent, d_name);
+    name_size = MIN(name_size, sizeof(dest->d_name));
+    strlcpy(dest->d_name, src->d_name, name_size);
+    dest->d_type = *(src->d_name + name_size + 2);
+    dirp->buf_cursor += src->d_reclen;
+    return dest;
 }

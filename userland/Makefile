@@ -70,12 +70,22 @@ LIB_OBJS := \
 	lib/crt0.o \
 	lib/dirent.o \
 	lib/errno.o \
+	lib/fcntl.o \
 	lib/panic.o \
+	lib/sched.o \
+	lib/signal.o \
 	lib/stdio.o \
 	lib/stdlib.o \
 	lib/string.o \
+	lib/sys/ioctl.o \
+	lib/sys/mman.o \
+	lib/sys/mount.o \
+	lib/sys/poll.o \
+	lib/sys/socket.o \
 	lib/sys/stat.o \
-	lib/syscall.o \
+	lib/sys/times.o \
+	lib/sys/utsname.o \
+	lib/sys/wait.o \
 	lib/termios.o \
 	lib/time.o \
 	lib/unistd.o

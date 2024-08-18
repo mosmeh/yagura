@@ -10,44 +10,42 @@
 #include <kernel/safe_string.h>
 #include <kernel/task.h>
 
-void* sys_mmap(const struct mmap_params* user_params) {
-    struct mmap_params params;
-    if (copy_from_user(&params, user_params, sizeof(struct mmap_params)))
+void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd,
+               off_t offset) {
+    (void)addr;
+
+    if (length == 0 || offset < 0 || (offset % PAGE_SIZE) ||
+        !((flags & MAP_PRIVATE) ^ (flags & MAP_SHARED)))
         return ERR_PTR(-EINVAL);
 
-    if (params.length == 0 || params.offset < 0 ||
-        (params.offset % PAGE_SIZE) ||
-        !((params.flags & MAP_PRIVATE) ^ (params.flags & MAP_SHARED)))
-        return ERR_PTR(-EINVAL);
-
-    if (params.flags & MAP_FIXED)
+    if (flags & MAP_FIXED)
         return ERR_PTR(-ENOTSUP);
-    if ((params.flags & MAP_ANONYMOUS) && (params.offset != 0))
+    if ((flags & MAP_ANONYMOUS) && (offset != 0))
         return ERR_PTR(-ENOTSUP);
 
-    int flags = VM_USER;
-    if (params.prot & PROT_READ)
-        flags |= VM_READ;
-    if (params.prot & PROT_WRITE)
-        flags |= VM_WRITE;
-    if (params.flags & MAP_SHARED)
-        flags |= VM_SHARED;
+    int vm_flags = VM_USER;
+    if (prot & PROT_READ)
+        vm_flags |= VM_READ;
+    if (prot & PROT_WRITE)
+        vm_flags |= VM_WRITE;
+    if (flags & MAP_SHARED)
+        vm_flags |= VM_SHARED;
 
-    if (params.flags & MAP_ANONYMOUS) {
-        void* addr = vm_alloc(params.length, flags);
-        if (IS_ERR(addr))
-            return addr;
-        memset(addr, 0, params.length);
-        return addr;
+    if (flags & MAP_ANONYMOUS) {
+        void* mapped_addr = vm_alloc(length, vm_flags);
+        if (IS_ERR(mapped_addr))
+            return mapped_addr;
+        memset(mapped_addr, 0, length);
+        return mapped_addr;
     }
 
-    struct file* file = task_get_file(params.fd);
+    struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return file;
     if (S_ISDIR(file->inode->mode))
         return ERR_PTR(-ENODEV);
 
-    return file_mmap(file, params.length, params.offset, flags);
+    return file_mmap(file, length, offset, vm_flags);
 }
 
 int sys_munmap(void* addr, size_t length) {

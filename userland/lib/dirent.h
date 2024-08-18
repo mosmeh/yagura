@@ -1,12 +1,19 @@
 #pragma once
 
 #include <kernel/api/dirent.h>
+#include <kernel/api/sys/types.h>
 #include <stddef.h>
 
 typedef struct __DIR DIR;
 
+struct dirent {
+    ino_t d_ino; // Inode number
+    off_t d_off;
+    unsigned short d_reclen; // Length of this record
+    unsigned char d_type;    // Type of file
+    char d_name[256];        // Null-terminated filename
+};
+
 DIR* opendir(const char* name);
 int closedir(DIR* dirp);
 struct dirent* readdir(DIR* dirp);
-
-long getdents(int fd, void* dirp, size_t count);

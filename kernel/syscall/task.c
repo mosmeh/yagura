@@ -283,35 +283,41 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
 }
 
 clock_t sys_times(struct tms* user_buf) {
-    struct tms buf = {.tms_utime = current->user_ticks,
-                      .tms_stime = current->kernel_ticks};
-    if (copy_to_user(user_buf, &buf, sizeof(struct tms)))
-        return -EFAULT;
+    if (user_buf) {
+        struct tms buf = {
+            .tms_utime = current->user_ticks,
+            .tms_stime = current->kernel_ticks,
+        };
+        if (copy_to_user(user_buf, &buf, sizeof(struct tms)))
+            return -EFAULT;
+    }
     return uptime;
 }
 
-char* sys_getcwd(char* user_buf, size_t size) {
-    if (!user_buf || size == 0)
-        return ERR_PTR(-EINVAL);
+int sys_getcwd(char* user_buf, size_t size) {
+    if (!user_buf)
+        return -EINVAL;
+    if (size <= 1)
+        return -ERANGE;
 
     mutex_lock(&current->fs->lock);
     char* cwd_str = path_to_string(current->fs->cwd);
     mutex_unlock(&current->fs->lock);
     if (!cwd_str)
-        return ERR_PTR(-ENOMEM);
+        return -ENOMEM;
 
     size_t len = strlen(cwd_str) + 1;
     if (size < len) {
         kfree(cwd_str);
-        return ERR_PTR(-ERANGE);
+        return -ERANGE;
     }
     if (copy_to_user(user_buf, cwd_str, len)) {
         kfree(cwd_str);
-        return ERR_PTR(-EFAULT);
+        return -EFAULT;
     }
 
     kfree(cwd_str);
-    return user_buf;
+    return len;
 }
 
 int sys_chdir(const char* user_path) {

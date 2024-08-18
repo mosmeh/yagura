@@ -73,8 +73,10 @@ int sys_listen(int sockfd, int backlog) {
     return unix_socket_listen(socket, backlog);
 }
 
-int sys_accept(int sockfd, struct sockaddr* user_addr,
-               socklen_t* user_addrlen) {
+int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
+                int flags) {
+    (void)flags;
+
     struct file* file = task_get_file(sockfd);
     if (IS_ERR(file))
         return PTR_ERR(file);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "api/time.h"
+#include <common/extra.h>
 #include <stdatomic.h>
 
 #define CLK_TCK 250
@@ -14,4 +16,4 @@ int timespec_compare(const struct timespec*, const struct timespec*);
 
 void time_init(void);
 void time_tick(void);
-void time_now(struct timespec*);
+NODISCARD int time_now(clockid_t, struct timespec*);

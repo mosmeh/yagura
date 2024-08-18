@@ -1,5 +1,6 @@
 #include "stdio.h"
 #include "errno.h"
+#include "private.h"
 #include "string.h"
 #include "unistd.h"
 
@@ -62,4 +63,8 @@ int remove(const char* pathname) {
     if (errno == EISDIR)
         return rmdir(pathname);
     return -1;
+}
+
+int dbgprint(const char* str) {
+    RETURN_WITH_ERRNO(int, SYSCALL1(dbgprint, str));
 }

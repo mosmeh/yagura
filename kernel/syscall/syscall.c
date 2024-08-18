@@ -1,6 +1,7 @@
 #include "syscall.h"
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/reboot.h>
+#include <kernel/api/sys/syscall.h>
 #include <kernel/api/unistd.h>
 #include <kernel/boot_defs.h>
 #include <kernel/interrupts/interrupts.h>
@@ -10,19 +11,40 @@
 #include <kernel/task.h>
 #include <kernel/time.h>
 
-int sys_reboot(int howto) {
-    switch (howto) {
-    case RB_AUTOBOOT:
+int sys_reboot(int magic, int magic2, int op, void* user_arg) {
+    if ((unsigned)magic != LINUX_REBOOT_MAGIC1)
+        return -EINVAL;
+    switch (magic2) {
+    case LINUX_REBOOT_MAGIC2:
+    case LINUX_REBOOT_MAGIC2A:
+    case LINUX_REBOOT_MAGIC2B:
+    case LINUX_REBOOT_MAGIC2C:
+        break;
+    default:
+        return -EINVAL;
+    }
+
+    switch (op) {
+    case LINUX_REBOOT_CMD_RESTART:
         kprint("Restarting system.\n");
         reboot();
-    case RB_HALT:
+    case LINUX_REBOOT_CMD_RESTART2: {
+        char arg[1024] = {0};
+        int rc = strncpy_from_user(arg, user_arg, sizeof(arg));
+        if (IS_ERR(rc))
+            return rc;
+        arg[sizeof(arg) - 1] = 0;
+        kprintf("Restarting system with command '%s'", arg);
+        reboot();
+    }
+    case LINUX_REBOOT_CMD_HALT:
         kprint("System halted.\n");
         halt();
-    case RB_POWEROFF:
+    case LINUX_REBOOT_CMD_POWER_OFF:
         kprint("Power down.\n");
         poweroff();
     default:
-        return -1;
+        return -EINVAL;
     }
 }
 
@@ -61,29 +83,31 @@ int sys_dbgprint(const char* user_str) {
     return kprint(user_str);
 }
 
-typedef uintptr_t (*syscall_handler_fn)(uintptr_t arg1, uintptr_t arg2,
-                                        uintptr_t arg3, uintptr_t arg4);
-
-static syscall_handler_fn syscall_handlers[NUM_SYSCALLS] = {
-#define ENUM_ITEM(name) (syscall_handler_fn)(uintptr_t) sys_##name,
-    ENUMERATE_SYSCALLS(ENUM_ITEM)
-#undef ENUM_ITEM
+static uintptr_t handlers[] = {
+#define F(name) [SYS_##name] = (uintptr_t)sys_##name,
+    ENUMERATE_SYSCALLS(F)
+#undef F
 };
 
 static int do_syscall(struct registers* regs) {
-    if (regs->eax >= NUM_SYSCALLS)
+    if (regs->eax >= ARRAY_SIZE(handlers))
         return -ENOSYS;
 
-    syscall_handler_fn handler = syscall_handlers[regs->eax];
-    ASSERT(handler);
+    uintptr_t handler = handlers[regs->eax];
+    if (!handler)
+        return -ENOSYS;
+
+    typedef int (*regs_fn)(struct registers*, int, int, int, int, int, int);
+    typedef int (*no_regs_fn)(int, int, int, int, int, int);
 
     switch (regs->eax) {
     case SYS_fork:
-        return sys_fork(regs);
     case SYS_clone:
-        return sys_clone(regs, regs->ebx, (void*)regs->ecx);
+        return ((regs_fn)handler)(regs, regs->ebx, regs->ecx, regs->edx,
+                                  regs->esi, regs->edi, regs->ebp);
     }
-    return handler(regs->edx, regs->ecx, regs->ebx, regs->esi);
+    return ((no_regs_fn)handler)(regs->ebx, regs->ecx, regs->edx, regs->esi,
+                                 regs->edi, regs->ebp);
 }
 
 static void syscall_handler(struct registers* regs) {

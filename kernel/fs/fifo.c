@@ -23,20 +23,30 @@ static void fifo_destroy_inode(struct inode* inode) {
 
 static bool unblock_open(struct file* file) {
     const struct fifo* fifo = (const struct fifo*)file->inode;
-    return (file->flags & O_RDONLY) ? fifo->num_writers > 0
-                                    : fifo->num_readers > 0;
+    switch (file->flags & O_ACCMODE) {
+    case O_RDONLY:
+        return fifo->num_writers > 0;
+    case O_WRONLY:
+        return fifo->num_readers > 0;
+    default:
+        UNREACHABLE();
+    }
 }
 
 static int fifo_open(struct file* file, mode_t mode) {
     (void)mode;
-    if ((file->flags & O_RDONLY) && (file->flags & O_WRONLY))
-        return -EINVAL;
 
     struct fifo* fifo = (struct fifo*)file->inode;
-    if (file->flags & O_RDONLY)
+    switch (file->flags & O_ACCMODE) {
+    case O_RDONLY:
         ++fifo->num_readers;
-    if (file->flags & O_WRONLY)
+        break;
+    case O_WRONLY:
         ++fifo->num_writers;
+        break;
+    default:
+        return -EINVAL;
+    }
 
     if (file->inode->dev == 0) {
         // This is a fifo created by pipe syscall.
@@ -45,18 +55,23 @@ static int fifo_open(struct file* file, mode_t mode) {
     }
 
     int rc = file_block(file, unblock_open, 0);
-    if (rc == -EAGAIN && (file->flags & O_WRONLY))
+    if (rc == -EAGAIN && (file->flags & O_ACCMODE) == O_WRONLY)
         return -ENXIO;
     return rc;
 }
 
 static int fifo_close(struct file* file) {
-    ASSERT(!((file->flags & O_RDONLY) && (file->flags & O_WRONLY)));
     struct fifo* fifo = (struct fifo*)file->inode;
-    if (file->flags & O_RDONLY)
+    switch (file->flags & O_ACCMODE) {
+    case O_RDONLY:
         --fifo->num_readers;
-    if (file->flags & O_WRONLY)
+        break;
+    case O_WRONLY:
         --fifo->num_writers;
+        break;
+    default:
+        UNREACHABLE();
+    }
     return 0;
 }
 
@@ -130,10 +145,18 @@ static short fifo_poll(struct file* file, short events) {
         revents |= POLLIN;
     if ((events & POLLOUT) && !ring_buf_is_full(&fifo->buf))
         revents |= POLLOUT;
-    if ((file->flags & O_RDONLY) && (fifo->num_writers == 0))
-        revents |= POLLHUP;
-    if ((file->flags & O_WRONLY) && (fifo->num_readers == 0))
-        revents |= POLLERR;
+    switch (file->flags & O_ACCMODE) {
+    case O_RDONLY:
+        if (fifo->num_writers == 0)
+            revents |= POLLHUP;
+        break;
+    case O_WRONLY:
+        if (fifo->num_readers == 0)
+            revents |= POLLERR;
+        break;
+    default:
+        UNREACHABLE();
+    }
     return revents;
 }
 

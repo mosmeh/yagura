@@ -56,12 +56,13 @@ static bool complete_entries_in_dir(struct line_editor* ed, const char* word,
 
     struct dirent* dent;
     while ((dent = readdir(dirp))) {
-        if (dent->d_namlen <= word_len)
+        size_t name_len = strnlen(dent->d_name, sizeof(dent->d_name));
+        if (name_len <= word_len)
             continue;
-        if (!starts_with(dent->d_name, dent->d_namlen, word, word_len))
+        if (!starts_with(dent->d_name, name_len, word, word_len))
             continue;
 
-        size_t completed_len = dent->d_namlen - word_len;
+        size_t completed_len = name_len - word_len;
         memmove(ed->input_buf + ed->cursor + completed_len,
                 ed->input_buf + ed->cursor, ed->input_len - ed->cursor);
         memcpy(ed->input_buf + ed->cursor, dent->d_name + word_len,

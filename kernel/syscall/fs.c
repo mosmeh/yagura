@@ -112,7 +112,29 @@ off_t sys_lseek(int fd, off_t offset, int whence) {
     return file_seek(file, offset, whence);
 }
 
-int sys_lstat(const char* user_pathname, struct stat* user_buf) {
+static void stat_to_linux_stat(const struct stat* stat,
+                               struct linux_stat* linux_stat) {
+    *linux_stat = (struct linux_stat){
+        .st_dev = stat->st_dev,
+        .st_ino = stat->st_ino,
+        .st_mode = stat->st_mode,
+        .st_nlink = stat->st_nlink,
+        .st_uid = stat->st_uid,
+        .st_gid = stat->st_gid,
+        .st_rdev = stat->st_rdev,
+        .st_size = stat->st_size,
+        .st_blksize = stat->st_blksize,
+        .st_blocks = stat->st_blocks,
+        .st_atime = stat->st_atim.tv_sec,
+        .st_atime_nsec = stat->st_atim.tv_nsec,
+        .st_mtime = stat->st_mtim.tv_sec,
+        .st_mtime_nsec = stat->st_mtim.tv_nsec,
+        .st_ctime = stat->st_ctim.tv_sec,
+        .st_ctime_nsec = stat->st_ctim.tv_nsec,
+    };
+}
+
+int sys_lstat(const char* user_pathname, struct linux_stat* user_buf) {
     char pathname[PATH_MAX];
     int rc = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(rc))
@@ -121,12 +143,14 @@ int sys_lstat(const char* user_pathname, struct stat* user_buf) {
     rc = vfs_stat(pathname, &buf, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
     if (IS_ERR(rc))
         return rc;
-    if (copy_to_user(user_buf, &buf, sizeof(struct stat)))
+    struct linux_stat linux_stat;
+    stat_to_linux_stat(&buf, &linux_stat);
+    if (copy_to_user(user_buf, &linux_stat, sizeof(struct linux_stat)))
         return -EFAULT;
     return 0;
 }
 
-int sys_stat(const char* user_pathname, struct stat* user_buf) {
+int sys_stat(const char* user_pathname, struct linux_stat* user_buf) {
     char pathname[PATH_MAX];
     int rc = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(rc))
@@ -135,7 +159,9 @@ int sys_stat(const char* user_pathname, struct stat* user_buf) {
     rc = vfs_stat(pathname, &buf, 0);
     if (IS_ERR(rc))
         return rc;
-    if (copy_to_user(user_buf, &buf, sizeof(struct stat)))
+    struct linux_stat linux_stat;
+    stat_to_linux_stat(&buf, &linux_stat);
+    if (copy_to_user(user_buf, &linux_stat, sizeof(struct linux_stat)))
         return -EFAULT;
     return 0;
 }
@@ -214,24 +240,25 @@ int sys_mknod(const char* user_pathname, mode_t mode, dev_t dev) {
     return 0;
 }
 
-int sys_mount(const struct mount_params* user_params) {
-    struct mount_params params;
-    if (copy_from_user(&params, user_params, sizeof(struct mount_params)))
-        return -EFAULT;
+int sys_mount(const char* user_source, const char* user_target,
+              const char* user_filesystemtype, unsigned long mountflags,
+              const void* data) {
+    (void)mountflags;
+    (void)data;
 
     char source[PATH_MAX];
-    int rc = copy_pathname_from_user(source, params.source);
+    int rc = copy_pathname_from_user(source, user_source);
     if (IS_ERR(rc))
         return rc;
 
     char target[PATH_MAX];
-    rc = copy_pathname_from_user(target, params.target);
+    rc = copy_pathname_from_user(target, user_target);
     if (IS_ERR(rc))
         return rc;
 
     char fs_type[SIZEOF_FIELD(struct file_system, name)];
     ssize_t fs_type_len =
-        strncpy_from_user(fs_type, params.filesystemtype, sizeof(fs_type));
+        strncpy_from_user(fs_type, user_filesystemtype, sizeof(fs_type));
     if (IS_ERR(fs_type_len))
         return fs_type_len;
     if ((size_t)fs_type_len >= sizeof(fs_type)) {
@@ -423,7 +450,7 @@ int sys_rmdir(const char* user_pathname) {
 }
 
 struct fill_dir_ctx {
-    unsigned char* user_dirp;
+    struct linux_dirent* user_dirp;
     unsigned remaining_count;
     long nwritten;
     int rc;
@@ -433,40 +460,49 @@ static bool fill_dir(const char* name, uint8_t type, void* raw_ctx) {
     struct fill_dir_ctx* ctx = (struct fill_dir_ctx*)raw_ctx;
     size_t name_len = strlen(name);
     size_t name_size = name_len + 1;
-    size_t size = offsetof(struct dirent, d_name) + name_size;
-    if (ctx->remaining_count < size) {
+    size_t rec_len = offsetof(struct linux_dirent, d_name) //
+                     + name_size                           // d_name
+                     + sizeof(char)                        // pad
+                     + sizeof(char);                       // d_type
+    rec_len = round_up(rec_len, alignof(struct linux_dirent));
+    if (ctx->remaining_count < rec_len) {
         if (ctx->nwritten == 0)
             ctx->rc = -EINVAL;
         return false;
     }
 
-    struct dirent dent = {
-        .d_reclen = size, .d_type = type, .d_namlen = name_len};
-    struct dirent* user_dent = (struct dirent*)ctx->user_dirp;
-    if (copy_to_user(user_dent, &dent, sizeof(struct dirent))) {
+    struct linux_dirent* user_dent = ctx->user_dirp;
+    struct linux_dirent dent = {.d_reclen = rec_len};
+    if (copy_to_user(user_dent, &dent, offsetof(struct linux_dirent, d_name))) {
         ctx->rc = -EFAULT;
         return false;
     }
-    if (copy_to_user(user_dent->d_name, name, name_len)) {
+    if (copy_to_user(user_dent->d_name, name, name_size)) {
+        ctx->rc = -EFAULT;
+        return false;
+    }
+    if (copy_to_user(user_dent->d_name + name_size + sizeof(char), &type,
+                     sizeof(char))) {
         ctx->rc = -EFAULT;
         return false;
     }
 
-    ctx->user_dirp += size;
-    ctx->remaining_count -= size;
-    ctx->nwritten += size;
+    ctx->user_dirp =
+        (struct linux_dirent*)((unsigned char*)user_dent + rec_len);
+    ctx->remaining_count -= rec_len;
+    ctx->nwritten += rec_len;
     return true;
 }
 
-long sys_getdents(int fd, void* user_dirp, size_t count) {
+long sys_getdents(int fd, struct linux_dirent* user_dirp, size_t count) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
-    struct fill_dir_ctx ctx = {.user_dirp = user_dirp,
-                               .remaining_count = count,
-                               .nwritten = 0,
-                               .rc = 0};
+    struct fill_dir_ctx ctx = {
+        .user_dirp = user_dirp,
+        .remaining_count = count,
+    };
     int rc = file_getdents(file, fill_dir, &ctx);
     if (IS_ERR(rc))
         return rc;

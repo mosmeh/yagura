@@ -1,6 +1,7 @@
 #include "stdlib.h"
 #include "errno.h"
 #include "panic.h"
+#include "private.h"
 #include "signal.h"
 #include "signum.h"
 #include "string.h"
@@ -9,6 +10,11 @@
 #include <extra.h>
 #include <stdalign.h>
 #include <stddef.h>
+
+noreturn void exit(int status) {
+    SYSCALL1(exit_group, status);
+    __builtin_unreachable();
+}
 
 noreturn void abort(void) {
     kill(getpid(), SIGABRT);

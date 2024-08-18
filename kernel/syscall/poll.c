@@ -17,7 +17,7 @@ struct poll_blocker {
 static bool unblock_poll(struct poll_blocker* blocker) {
     if (blocker->has_timeout) {
         struct timespec now;
-        time_now(&now);
+        ASSERT_OK(time_now(CLOCK_MONOTONIC, &now));
         if (timespec_compare(&now, &blocker->deadline) >= 0)
             return true;
     }
@@ -79,9 +79,9 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
 
     if (timeout > 0) {
         struct timespec deadline;
-        time_now(&deadline);
+        ASSERT_OK(time_now(CLOCK_MONOTONIC, &deadline));
         struct timespec delta = {.tv_sec = timeout / 1000,
-                                 .tv_nsec = (timeout % 1000) * 1000000};
+                                 .tv_nsec = (timeout % 1000) * 1000000ULL};
         timespec_add(&deadline, &delta);
         blocker.has_timeout = true;
         blocker.deadline = deadline;

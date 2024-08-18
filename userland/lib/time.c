@@ -1,5 +1,6 @@
 #include "time.h"
 #include "errno.h"
+#include "private.h"
 #include "stdio.h"
 #include "sys/times.h"
 #include <calendar.h>
@@ -74,10 +75,24 @@ char* asctime_r(const struct tm* time_ptr, char* buf) {
 }
 
 int nanosleep(const struct timespec* req, struct timespec* rem) {
-    int rc = clock_nanosleep(CLOCK_REALTIME, 0, req, rem);
+    int rc = clock_nanosleep(CLOCK_MONOTONIC, 0, req, rem);
     if (rc > 0) {
         errno = -rc;
         return -1;
     }
+    return 0;
+}
+
+int clock_gettime(clockid_t clk_id, struct timespec* tp) {
+    RETURN_WITH_ERRNO(int, SYSCALL2(clock_gettime, clk_id, tp));
+}
+
+int clock_nanosleep(clockid_t clockid, int flags,
+                    const struct timespec* request, struct timespec* remain) {
+    int rc = SYSCALL4(clock_nanosleep, clockid, flags, request, remain);
+    // unlike other syscall wrappers, clock_nanosleep returns the error value
+    // instead of returning -1 and setting errno
+    if (IS_ERR(rc))
+        return -rc;
     return 0;
 }

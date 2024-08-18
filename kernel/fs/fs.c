@@ -77,9 +77,19 @@ int inode_unlink_child(struct inode* inode, const char* name) {
 }
 
 struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
-    if (S_ISDIR(inode->mode) && (flags & O_WRONLY)) {
+    switch (flags & O_ACCMODE) {
+    case O_RDONLY:
+        break;
+    case O_WRONLY:
+    case O_RDWR:
+        if (S_ISDIR(inode->mode)) {
+            inode_unref(inode);
+            return ERR_PTR(-EISDIR);
+        }
+        break;
+    default:
         inode_unref(inode);
-        return ERR_PTR(-EISDIR);
+        return ERR_PTR(-EINVAL);
     }
 
     struct file* file = kmalloc(sizeof(struct file));
@@ -104,6 +114,7 @@ struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
 }
 
 int inode_stat(struct inode* inode, struct stat* buf) {
+    *buf = (struct stat){0};
     buf->st_dev = inode->dev;
     buf->st_mode = inode->mode;
     buf->st_nlink = inode->num_links;
@@ -135,7 +146,7 @@ ssize_t file_read(struct file* file, void* buffer, size_t count) {
         return -EISDIR;
     if (!inode->fops->read)
         return -EINVAL;
-    if (!(file->flags & O_RDONLY))
+    if ((file->flags & O_ACCMODE) == O_WRONLY)
         return -EBADF;
     return inode->fops->read(file, buffer, count);
 }
@@ -160,7 +171,7 @@ ssize_t file_write(struct file* file, const void* buffer, size_t count) {
         return -EISDIR;
     if (!inode->fops->write)
         return -EINVAL;
-    if (!(file->flags & O_WRONLY))
+    if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EBADF;
     return inode->fops->write(file, buffer, count);
 }
@@ -183,10 +194,10 @@ void* file_mmap(struct file* file, size_t length, off_t offset, int flags) {
     struct inode* inode = file->inode;
     if (!inode->fops->mmap)
         return ERR_PTR(-ENODEV);
-    if (!(file->flags & O_RDONLY))
+    if ((file->flags & O_ACCMODE) == O_WRONLY)
         return ERR_PTR(-EACCES);
     if ((flags & VM_SHARED) && (flags & VM_WRITE) &&
-        ((file->flags & O_RDWR) != O_RDWR))
+        ((file->flags & O_ACCMODE) != O_RDWR))
         return ERR_PTR(-EACCES);
     return inode->fops->mmap(file, length, offset, flags);
 }
@@ -197,7 +208,7 @@ int file_truncate(struct file* file, off_t length) {
         return -EISDIR;
     if (!inode->fops->truncate)
         return -EROFS;
-    if (!(file->flags & O_WRONLY))
+    if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EBADF;
     return inode->fops->truncate(file, length);
 }

@@ -4,7 +4,7 @@
 #include <unistd.h>
 
 int main(void) {
-    if (reboot(RB_HALT) < 0)
+    if (reboot(RB_HALT_SYSTEM) < 0)
         perror("reboot");
     return EXIT_FAILURE;
 }

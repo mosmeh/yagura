@@ -2,12 +2,12 @@
 #include "isr_stubs.h"
 #include <common/string.h>
 #include <kernel/api/signum.h>
+#include <kernel/api/sys/syscall.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/cpu.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
-#include <kernel/syscall/syscall.h>
 #include <kernel/system.h>
 #include <kernel/task.h>
 

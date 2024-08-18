@@ -43,10 +43,7 @@ volatile atomic_uint uptime;
 static struct timespec now;
 static struct spinlock now_lock;
 
-void time_init(void) {
-    now.tv_sec = rtc_now();
-    now.tv_nsec = 0;
-}
+void time_init(void) { now.tv_sec = rtc_now(); }
 
 void time_tick(void) {
     ++uptime;
@@ -60,8 +57,21 @@ void time_tick(void) {
     spinlock_unlock(&now_lock);
 }
 
-void time_now(struct timespec* tp) {
-    spinlock_lock(&now_lock);
-    *tp = now;
-    spinlock_unlock(&now_lock);
+int time_now(clockid_t clock_id, struct timespec* tp) {
+    switch (clock_id) {
+    case CLOCK_REALTIME:
+        spinlock_lock(&now_lock);
+        *tp = now;
+        spinlock_unlock(&now_lock);
+        break;
+    case CLOCK_MONOTONIC: {
+        unsigned t = uptime;
+        tp->tv_sec = t / CLK_TCK;
+        tp->tv_nsec = (t - tp->tv_sec * CLK_TCK) * NANOS / CLK_TCK;
+        break;
+    }
+    default:
+        return -EINVAL;
+    }
+    return 0;
 }

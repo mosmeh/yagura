@@ -1,6 +1,6 @@
 #pragma once
 
-#include "types.h"
+#include <stdint.h>
 
 #define S_IFMT 0170000
 #define S_IFDIR 0040000
@@ -35,10 +35,23 @@
 #define S_ISLNK(m) (((m) & S_IFMT) == S_IFLNK)
 #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
 
-struct stat {
-    dev_t st_dev;     /* ID of device containing file */
-    mode_t st_mode;   /* File type and mode */
-    nlink_t st_nlink; /* Number of hard links */
-    dev_t st_rdev;    /* Device ID (if special file) */
-    off_t st_size;    /* Total size, in bytes */
+struct linux_stat {
+    uint32_t st_dev;
+    uint32_t st_ino;
+    uint16_t st_mode;
+    uint16_t st_nlink;
+    uint16_t st_uid;
+    uint16_t st_gid;
+    uint32_t st_rdev;
+    uint32_t st_size;
+    uint32_t st_blksize;
+    uint32_t st_blocks;
+    uint32_t st_atime;
+    uint32_t st_atime_nsec;
+    uint32_t st_mtime;
+    uint32_t st_mtime_nsec;
+    uint32_t st_ctime;
+    uint32_t st_ctime_nsec;
+    uint32_t __unused4;
+    uint32_t __unused5;
 };

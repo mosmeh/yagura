@@ -43,6 +43,6 @@ int main(void) {
     ASSERT_OK(spawn("/bin/usertests"));
     ASSERT_OK(spawn("/bin/xv6-usertests"));
 
-    reboot(RB_POWEROFF);
+    reboot(RB_POWER_OFF);
     UNREACHABLE();
 }
