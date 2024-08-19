@@ -5,6 +5,8 @@ set -eo pipefail
 KERNEL='kernel/kernel'
 INITRD='initrd'
 CMDLINE=()
+#CMDLINE=(ni_syscall_log syscall_log)
+#CMDLINE=(ni_syscall_log)
 NUM_CPUS=1
 
 case "$1" in
@@ -48,7 +50,6 @@ QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
     -append "${CMDLINE[*]}" \
     -d guest_errors \
     "${QEMU_DISPLAY_ARGS[@]}" \
-    -device ac97 \
     -chardev stdio,mux=on,id=char0 \
     -serial chardev:char0 \
     -mon char0,mode=readline \
