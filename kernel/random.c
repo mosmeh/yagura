@@ -40,7 +40,7 @@ NODISCARD static bool rdrand_init(void) {
         return false;
 
     // is RDRAND reliable?
-    uint32_t prev = !0;
+    uint32_t prev = UINT32_MAX;
     unsigned fails = 0;
     for (unsigned i = 0; i < 8; ++i) {
         uint32_t v = 0;
