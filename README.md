@@ -6,7 +6,7 @@ A Unix-like operating system for x86
 
 ![](imgs/screenshot.png)
 
-See [Gallery](gallery.md) for more screenshots.
+See [Gallery](docs/gallery.md) for more screenshots.
 
 ## How to run
 
