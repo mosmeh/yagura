@@ -3,7 +3,6 @@
 #include "multiboot.h"
 #include "system.h"
 #include <common/string.h>
-#include <string.h>
 
 #define MAX_CMDLINE_LEN 1024
 #define MAX_NUM_KEYS 1024
@@ -57,8 +56,6 @@ void cmdline_init(const multiboot_info_t* mb_info) {
 const char* cmdline_get_raw(void) { return raw; }
 
 const char* cmdline_lookup(const char* key) {
-    if (num_keys == 0)
-        return NULL;
     for (size_t i = 0; i < num_keys; ++i) {
         if (!strcmp(keys[i], key))
             return values[i];
@@ -67,8 +64,6 @@ const char* cmdline_lookup(const char* key) {
 }
 
 bool cmdline_contains(const char* key) {
-    if (num_keys == 0)
-        return false;
     for (size_t i = 0; i < num_keys; ++i) {
         if (!strcmp(keys[i], key))
             return true;

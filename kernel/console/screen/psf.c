@@ -1,12 +1,12 @@
 #include "psf.h"
 #include <common/extra.h>
+#include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/stdio.h>
 #include <kernel/fs/fs.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
-#include <string.h>
 
 static struct font* load_psf1(struct file* file) {
     struct psf1_header header;
