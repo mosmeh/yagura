@@ -63,6 +63,13 @@ int clock_nanosleep(clockid_t clockid, int flags,
     return 0;
 }
 
+int __clone(int (*fn)(void*), void* stack, int flags, void* arg);
+
+int clone(int (*fn)(void*), void* stack, int flags, void* arg, ...) {
+    int rc = __clone(fn, stack, flags, arg);
+    RETURN_WITH_ERRNO(rc, int)
+}
+
 int close(int fd) {
     int rc = syscall(SYS_close, fd, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, int)
@@ -90,7 +97,7 @@ int execve(const char* pathname, char* const argv[], char* const envp[]) {
 }
 
 noreturn void exit(int status) {
-    syscall(SYS_exit, status, 0, 0, 0);
+    syscall(SYS_exit_group, status, 0, 0, 0);
     __builtin_unreachable();
 }
 
@@ -134,6 +141,11 @@ pid_t getpgid(pid_t pid) {
 
 pid_t getpid(void) {
     int rc = syscall(SYS_getpid, 0, 0, 0, 0);
+    RETURN_WITH_ERRNO(rc, pid_t)
+}
+
+pid_t gettid(void) {
+    int rc = syscall(SYS_gettid, 0, 0, 0, 0);
     RETURN_WITH_ERRNO(rc, pid_t)
 }
 

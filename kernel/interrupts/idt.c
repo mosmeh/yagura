@@ -89,7 +89,11 @@ static noreturn void crash(const struct registers* regs, int signum) {
 
     if ((regs->cs & 3) != 3)
         PANIC("Kernel crashed");
-    task_crash_in_userland(signum);
+
+    ASSERT_OK(
+        task_send_signal(current->tgid, signum, SIGNAL_DEST_THREAD_GROUP));
+    task_die_if_needed();
+    UNREACHABLE();
 }
 
 #define DEFINE_ISR_WITHOUT_ERROR_CODE(num)                                     \

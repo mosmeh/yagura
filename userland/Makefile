@@ -3,7 +3,7 @@ CFLAGS += \
 	-isystem.. \
 	-isystem../common \
 	-isystem../kernel/api
-LDFLAGS := -L.
+LDFLAGS += -L.
 
 BIN_TARGET_NAMES := \
 	cal \
@@ -66,6 +66,7 @@ LIB_OBJS := \
 	../common/strings.o \
  	../common/stdio.o \
  	../common/stdlib.o \
+	lib/asm.o \
 	lib/crt0.o \
 	lib/dirent.o \
 	lib/errno.o \
@@ -95,6 +96,10 @@ $(LIB_TARGET): $(LIB_OBJS)
 
 .c.o:
 	@echo "[CC] $<"
+	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+
+.S.o:
+	@echo "[AS] $<"
 	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 clean:

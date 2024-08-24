@@ -17,12 +17,14 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec* tp);
 int sys_clock_nanosleep(clockid_t clockid, int flags,
                         const struct timespec* request,
                         struct timespec* remain);
+int sys_clone(struct registers*, unsigned long flags, void* stack);
 int sys_close(int fd);
 int sys_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
 int sys_dbgprint(const char* str);
 int sys_dup2(int oldfd, int newfd);
 int sys_execve(const char* pathname, char* const argv[], char* const envp[]);
 void sys_exit(int status);
+void sys_exit_group(int status);
 int sys_fcntl(int fd, int cmd, uintptr_t arg);
 pid_t sys_fork(struct registers*);
 int sys_ftruncate(int fd, off_t length);
@@ -30,6 +32,7 @@ char* sys_getcwd(char* buf, size_t size);
 long sys_getdents(int fd, void* dirp, size_t count);
 pid_t sys_getpgid(pid_t pid);
 pid_t sys_getpid(void);
+pid_t sys_gettid(void);
 int sys_ioctl(int fd, int request, void* argp);
 int sys_kill(pid_t pid, int sig);
 int sys_link(const char* oldpath, const char* newpath);

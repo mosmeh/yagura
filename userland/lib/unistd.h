@@ -7,6 +7,7 @@
 extern char** environ;
 
 pid_t getpid(void);
+pid_t gettid(void);
 int setpgid(pid_t pid, pid_t pgid);
 pid_t getpgid(pid_t pid);
 

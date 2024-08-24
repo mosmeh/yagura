@@ -1,9 +1,11 @@
 #pragma once
 
+#define SYSCALL_VECTOR 0x81
+
+#ifndef ASM_FILE
+
 #include "types.h"
 #include <stddef.h>
-
-#define SYSCALL_VECTOR 0x81
 
 #define ENUMERATE_SYSCALLS(F)                                                  \
     F(accept)                                                                  \
@@ -11,12 +13,14 @@
     F(chdir)                                                                   \
     F(clock_gettime)                                                           \
     F(clock_nanosleep)                                                         \
+    F(clone)                                                                   \
     F(close)                                                                   \
     F(connect)                                                                 \
     F(dbgprint)                                                                \
     F(dup2)                                                                    \
     F(execve)                                                                  \
     F(exit)                                                                    \
+    F(exit_group)                                                              \
     F(fcntl)                                                                   \
     F(fork)                                                                    \
     F(ftruncate)                                                               \
@@ -24,6 +28,7 @@
     F(getdents)                                                                \
     F(getpgid)                                                                 \
     F(getpid)                                                                  \
+    F(gettid)                                                                  \
     F(ioctl)                                                                   \
     F(kill)                                                                    \
     F(link)                                                                    \
@@ -79,3 +84,5 @@ struct mount_params {
     unsigned long mountflags;
     const void* data;
 };
+
+#endif

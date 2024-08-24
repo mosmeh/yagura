@@ -1,5 +1,7 @@
 #include "syscall.h"
 #include <common/string.h>
+#include <kernel/api/sched.h>
+#include <kernel/api/signum.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/times.h>
 #include <kernel/api/sys/wait.h>
@@ -14,18 +16,28 @@
 
 void sys_exit(int status) { task_exit(status); }
 
-pid_t sys_getpid(void) { return current->pid; }
+void sys_exit_group(int status) {
+    int rc = task_send_signal(current->tgid, SIGKILL,
+                              SIGNAL_DEST_THREAD_GROUP |
+                                  SIGNAL_DEST_EXCLUDE_CURRENT);
+    ASSERT(IS_OK(rc) || rc == -ESRCH);
+    task_exit(status);
+}
+
+pid_t sys_getpid(void) { return current->tgid; }
+
+pid_t sys_gettid(void) { return current->tid; }
 
 int sys_setpgid(pid_t pid, pid_t pgid) {
     if (pgid < 0)
         return -EINVAL;
 
-    pid_t target_pid = pid ? pid : current->pid;
-    struct task* target = task_find_by_pid(target_pid);
+    pid_t target_tgid = pid ? pid : current->tgid;
+    struct task* target = task_find_by_tid(target_tgid);
     if (!target)
         return -ESRCH;
 
-    target->pgid = pgid ? pgid : target_pid;
+    target->pgid = pgid ? pgid : target_tgid;
     task_unref(target);
     return 0;
 }
@@ -33,7 +45,7 @@ int sys_setpgid(pid_t pid, pid_t pgid) {
 pid_t sys_getpgid(pid_t pid) {
     if (pid == 0)
         return current->pgid;
-    struct task* task = task_find_by_pid(pid);
+    struct task* task = task_find_by_tid(pid);
     if (!task)
         return -ESRCH;
     pid_t pgid = task->pgid;
@@ -62,13 +74,14 @@ int sys_execve(const char* user_pathname, char* const user_argv[],
                             (const char* const*)user_envp);
 }
 
-pid_t sys_fork(struct registers* regs) {
+pid_t sys_fork(struct registers* regs) { return sys_clone(regs, 0, NULL); }
+
+int sys_clone(struct registers* regs, unsigned long flags, void* user_stack) {
     struct task* task =
         kaligned_alloc(alignof(struct task), sizeof(struct task));
     if (!task)
         return -ENOMEM;
     *task = (struct task){
-        .ppid = current->pid,
         .pgid = current->pgid,
         .eip = (uintptr_t)do_iret,
         .ebx = current->ebx,
@@ -85,8 +98,16 @@ pid_t sys_fork(struct registers* regs) {
         .ref_count = 1,
     };
 
-    pid_t pid = task_generate_next_pid();
-    task->pid = pid;
+    pid_t tid = task_generate_next_tid();
+    task->tid = tid;
+    if (flags & CLONE_THREAD) {
+        task->tgid = current->tgid;
+        task->ppid = current->ppid;
+    } else {
+        task->tgid = tid;
+        task->ppid = current->tgid;
+    }
+
     strlcpy(task->comm, current->comm, sizeof(task->comm));
 
     int rc = 0;
@@ -103,31 +124,49 @@ pid_t sys_fork(struct registers* regs) {
     task->esp -= sizeof(struct registers);
     struct registers* child_regs = (struct registers*)task->esp;
     *child_regs = *regs;
-    child_regs->eax = 0; // fork() returns 0 in the child
+    child_regs->eax = 0; // returns 0 in the child
 
-    task->vm = vm_clone();
-    if (IS_ERR(task->vm)) {
-        rc = PTR_ERR(task->vm);
-        task->vm = NULL;
-        goto fail;
+    if (user_stack)
+        child_regs->user_esp = (uintptr_t)user_stack;
+
+    if (flags & CLONE_VM) {
+        task->vm = current->vm;
+        vm_ref(task->vm);
+    } else {
+        task->vm = vm_clone();
+        if (IS_ERR(task->vm)) {
+            rc = PTR_ERR(task->vm);
+            task->vm = NULL;
+            goto fail;
+        }
     }
 
-    task->fs = fs_clone(current->fs);
-    if (IS_ERR(task->fs)) {
-        rc = PTR_ERR(task->fs);
-        task->fs = NULL;
-        goto fail;
+    if (flags & CLONE_FS) {
+        task->fs = current->fs;
+        fs_ref(task->fs);
+    } else {
+        task->fs = fs_clone(current->fs);
+        if (IS_ERR(task->fs)) {
+            rc = PTR_ERR(task->fs);
+            task->fs = NULL;
+            goto fail;
+        }
     }
 
-    task->files = files_clone(current->files);
-    if (IS_ERR(task->files)) {
-        rc = PTR_ERR(task->files);
-        task->files = NULL;
-        goto fail;
+    if (flags & CLONE_FILES) {
+        task->files = current->files;
+        files_ref(task->files);
+    } else {
+        task->files = files_clone(current->files);
+        if (IS_ERR(task->files)) {
+            rc = PTR_ERR(task->files);
+            task->files = NULL;
+            goto fail;
+        }
     }
 
     scheduler_register(task);
-    return pid;
+    return tid;
 
 fail:
     files_unref(task->files);
@@ -140,17 +179,18 @@ fail:
 
 int sys_kill(pid_t pid, int sig) {
     if (pid > 0)
-        return task_send_signal_to_one(pid, sig);
+        return task_send_signal(pid, sig, SIGNAL_DEST_THREAD_GROUP);
     if (pid == 0)
-        return task_send_signal_to_group(current->pgid, sig);
+        return task_send_signal(current->pgid, sig, SIGNAL_DEST_PROCESS_GROUP);
     if (pid == -1)
-        return task_send_signal_to_all(sig);
-    return task_send_signal_to_group(-pid, sig);
+        return task_send_signal(
+            0, sig, SIGNAL_DEST_ALL_USER_TASKS | SIGNAL_DEST_EXCLUDE_CURRENT);
+    return task_send_signal(-pid, sig, SIGNAL_DEST_PROCESS_GROUP);
 }
 
 struct waitpid_blocker {
     pid_t param_pid;
-    pid_t current_pid, current_pgid;
+    pid_t current_tgid, current_pgid;
     struct task* waited_task;
 };
 
@@ -167,13 +207,13 @@ static bool unblock_waitpid(struct waitpid_blocker* blocker) {
             if (it->pgid == -blocker->param_pid)
                 is_target = true;
         } else if (blocker->param_pid == -1) {
-            if (it->ppid == blocker->current_pid)
+            if (it->ppid == blocker->current_tgid)
                 is_target = true;
         } else if (blocker->param_pid == 0) {
             if (it->pgid == blocker->current_pgid)
                 is_target = true;
         } else {
-            if (it->pid == blocker->param_pid)
+            if (it->tgid == blocker->param_pid)
                 is_target = true;
         }
         any_target_exists |= is_target;
@@ -208,7 +248,7 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
 
     struct waitpid_blocker blocker = {
         .param_pid = pid,
-        .current_pid = current->pid,
+        .current_tgid = current->tgid,
         .current_pgid = current->pgid,
         .waited_task = NULL,
     };
@@ -230,7 +270,7 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
     if (!waited_task)
         return -ECHILD;
 
-    pid_t result = waited_task->pid;
+    pid_t result = waited_task->tid;
     int wstatus = waited_task->exit_status;
     task_unref(waited_task);
 

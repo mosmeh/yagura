@@ -113,7 +113,7 @@ static int populate_meminfo(struct file* file, struct vec* vec) {
 
 static int populate_self(struct file* file, struct vec* vec) {
     (void)file;
-    return vec_printf(vec, "%d", current->pid);
+    return vec_printf(vec, "%d", current->tgid);
 }
 
 NODISCARD static int sprintf_ticks(struct vec* vec, int64_t ticks) {
@@ -194,7 +194,7 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
 
     pid_t offset_pid = (pid_t)(file->offset - NUM_ITEMS);
     struct task* it = all_tasks;
-    while (it->pid <= offset_pid) {
+    while (it->tid <= offset_pid) {
         it = it->all_tasks_next;
         if (!it)
             break;
@@ -202,10 +202,10 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
 
     while (it) {
         char name[16];
-        (void)snprintf(name, sizeof(name), "%d", it->pid);
+        (void)snprintf(name, sizeof(name), "%d", it->tid);
         if (!callback(name, DT_DIR, ctx))
             break;
-        file->offset = it->pid + NUM_ITEMS;
+        file->offset = it->tid + NUM_ITEMS;
         it = it->all_tasks_next;
     }
 

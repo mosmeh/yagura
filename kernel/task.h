@@ -20,7 +20,7 @@ struct task {
     uint32_t eip, esp, ebp, ebx, esi, edi;
     struct fpu_state fpu_state;
 
-    pid_t pid, ppid, pgid;
+    pid_t tid, tgid, pgid, ppid;
 
     atomic_uint state;
     int exit_status;
@@ -84,8 +84,8 @@ struct task* task_spawn(const char* comm, void (*entry_point)(void));
 void task_ref(struct task*);
 void task_unref(struct task*);
 
-pid_t task_generate_next_pid(void);
-struct task* task_find_by_pid(pid_t);
+pid_t task_generate_next_tid(void);
+struct task* task_find_by_tid(pid_t);
 
 int task_user_execve(const char* pathname, const char* const* user_argv,
                      const char* const* user_envp);
@@ -93,7 +93,6 @@ int task_kernel_execve(const char* pathname, const char* const* argv,
                        const char* const* envp);
 
 noreturn void task_exit(int status);
-noreturn void task_crash_in_userland(int signum);
 
 void task_die_if_needed(void);
 void task_tick(bool in_kernel);
@@ -104,7 +103,15 @@ NODISCARD int task_alloc_file_descriptor(int fd, struct file*);
 int task_free_file_descriptor(int fd);
 struct file* task_get_file(int fd);
 
-NODISCARD int task_send_signal_to_one(pid_t pid, int signum);
-NODISCARD int task_send_signal_to_group(pid_t pgid, int signum);
-NODISCARD int task_send_signal_to_all(int signum);
+// Send to all tasks with tid > 1. pid_t argument is ignored.
+#define SIGNAL_DEST_ALL_USER_TASKS 0x1
+// Send to all tasks with given tgid
+#define SIGNAL_DEST_THREAD_GROUP 0x2
+// Send to all tasks with given pgid
+#define SIGNAL_DEST_PROCESS_GROUP 0x4
+// Don't send to the current task
+#define SIGNAL_DEST_EXCLUDE_CURRENT 0x8
+
+NODISCARD int task_send_signal(pid_t, int signum, int flags);
+
 void task_handle_pending_signals(void);

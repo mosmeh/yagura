@@ -99,7 +99,8 @@ static ssize_t unix_socket_write(struct file* file, const void* buffer,
             return rc;
 
         if (!is_connector(file) && !socket->is_open_for_writing_to_connector) {
-            int rc = task_send_signal_to_one(current->pid, SIGPIPE);
+            int rc = task_send_signal(current->tgid, SIGPIPE,
+                                      SIGNAL_DEST_THREAD_GROUP);
             if (IS_ERR(rc))
                 return rc;
             return -EPIPE;

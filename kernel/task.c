@@ -13,7 +13,7 @@
 #include <stdatomic.h>
 
 struct fpu_state initial_fpu_state;
-static atomic_int next_pid = 1;
+static atomic_int next_tid = 1;
 
 struct task* all_tasks;
 struct spinlock all_tasks_lock;
@@ -208,7 +208,7 @@ void task_unref(struct task* task) {
     if (--task->ref_count > 0)
         return;
 
-    if (task->pid == 0) {
+    if (task->tid == 0) {
         // struct task is usually freed in a context of its parent task,
         // but the initial task is not a child of any task. Just leak it.
         return;
@@ -224,13 +224,13 @@ void task_unref(struct task* task) {
     kfree(task);
 }
 
-pid_t task_generate_next_pid(void) { return atomic_fetch_add(&next_pid, 1); }
+pid_t task_generate_next_tid(void) { return atomic_fetch_add(&next_tid, 1); }
 
-struct task* task_find_by_pid(pid_t pid) {
+struct task* task_find_by_tid(pid_t tid) {
     spinlock_lock(&all_tasks_lock);
     struct task* it = all_tasks;
     for (; it; it = it->all_tasks_next) {
-        if (it->pid == pid)
+        if (it->tid == tid)
             break;
     }
     if (it)
@@ -240,7 +240,7 @@ struct task* task_find_by_pid(pid_t pid) {
 }
 
 static noreturn void die(void) {
-    if (current->pid == 1)
+    if (current->tid == 1)
         PANIC("init task exited");
 
     sti();
@@ -253,7 +253,7 @@ static noreturn void die(void) {
     spinlock_lock(&all_tasks_lock);
     for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
         // Orphaned child task is adopted by init task.
-        if (it->ppid == current->pid)
+        if (it->ppid == current->tgid)
             it->ppid = 1;
     }
     spinlock_unlock(&all_tasks_lock);
@@ -269,22 +269,15 @@ void task_die_if_needed(void) {
 
 noreturn void task_exit(int status) {
     if (status != 0)
-        kprintf("\x1b[31mTask %d exited with status %d\x1b[m\n", current->pid,
+        kprintf("\x1b[31mTask %d exited with status %d\x1b[m\n", current->tid,
                 status);
     current->exit_status = (status & 0xff) << 8;
     die();
 }
 
-noreturn void task_crash_in_userland(int signum) {
-    kprintf("\x1b[31mTask %d crashed with signal %d\x1b[m\n", current->pid,
-            signum);
-    current->exit_status = signum & 0xff;
-    die();
-}
-
 static void terminate_with_signal(int signum) {
     kprintf("\x1b[31mTask %d was terminated with signal %d\x1b[m\n",
-            current->pid, signum);
+            current->tid, signum);
     current->exit_status = signum & 0xff;
     current->state = TASK_DYING;
 }
@@ -407,76 +400,59 @@ static int get_default_disposition_for_signal(int signum) {
     }
 }
 
-static int send_signal(struct task* task, int signum) {
-    int ret = 0;
-    if (signum < 0 || NSIG <= signum) {
-        ret = -EINVAL;
-        goto done;
-    }
+int task_send_signal(pid_t pid, int signum, int flags) {
+    ASSERT(pid >= 0);
+    unsigned num_group_flags = (bool)(flags & SIGNAL_DEST_ALL_USER_TASKS) +
+                               (bool)(flags & SIGNAL_DEST_THREAD_GROUP) +
+                               (bool)(flags & SIGNAL_DEST_PROCESS_GROUP);
+    ASSERT(num_group_flags <= 1);
+    if (signum < 0 || signum >= NSIG)
+        return -EINVAL;
 
-    int disp = get_default_disposition_for_signal(signum);
-    switch (disp) {
-    case DISP_TERM:
-    case DISP_CORE:
-        break;
-    case DISP_IGN:
-        goto done;
-    case DISP_STOP:
-    case DISP_CONT:
-        UNIMPLEMENTED();
-    }
-
-    task->pending_signals |= 1 << signum;
-
-    if (task == current)
-        task_handle_pending_signals();
-
-done:
-    task_unref(task);
-    return ret;
-}
-
-int task_send_signal_to_one(pid_t pid, int signum) {
-    struct task* task = task_find_by_pid(pid);
-    if (!task)
-        return -ESRCH;
-    return send_signal(task, signum);
-}
-
-int task_send_signal_to_group(pid_t pgid, int signum) {
-    int ret = 0;
+    bool found_dest = false;
     spinlock_lock(&all_tasks_lock);
     for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
-        if (it->pgid != pgid)
+        if (flags & SIGNAL_DEST_ALL_USER_TASKS) {
+            if (it->tid <= 1)
+                continue;
+        } else if (flags & SIGNAL_DEST_THREAD_GROUP) {
+            if (it->tgid != pid)
+                continue;
+        } else if (flags & SIGNAL_DEST_PROCESS_GROUP) {
+            if (it->pgid != pid)
+                continue;
+        } else if (it->tid != pid) {
             continue;
-        task_ref(it);
-        ret = send_signal(it, signum);
-        if (IS_ERR(ret))
-            break;
-    }
-    spinlock_unlock(&all_tasks_lock);
-    return ret;
-}
+        }
+        if (flags & SIGNAL_DEST_EXCLUDE_CURRENT) {
+            if (it == current)
+                continue;
+        }
+        found_dest = true;
 
-int task_send_signal_to_all(int signum) {
-    int ret = 0;
-    spinlock_lock(&all_tasks_lock);
-    for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
-        if (it->pid <= 1)
-            continue;
-        task_ref(it);
-        ret = send_signal(it, signum);
-        if (IS_ERR(ret))
+        int disp = get_default_disposition_for_signal(signum);
+        switch (disp) {
+        case DISP_TERM:
+        case DISP_CORE:
             break;
+        case DISP_IGN:
+            continue;
+        case DISP_STOP:
+        case DISP_CONT:
+            UNIMPLEMENTED();
+        }
+
+        it->pending_signals |= 1 << signum;
+
+        if (it == current)
+            task_handle_pending_signals();
     }
     spinlock_unlock(&all_tasks_lock);
-    return 0;
+
+    return found_dest ? 0 : -ESRCH;
 }
 
 void task_handle_pending_signals(void) {
-    if (!current->pending_signals)
-        return;
-
     while (current->pending_signals) {
         int b = __builtin_ffs(current->pending_signals);
         ASSERT(b > 0);

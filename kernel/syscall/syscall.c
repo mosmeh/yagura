@@ -64,11 +64,27 @@ int sys_dbgprint(const char* user_str) {
 typedef uintptr_t (*syscall_handler_fn)(uintptr_t arg1, uintptr_t arg2,
                                         uintptr_t arg3, uintptr_t arg4);
 
-static syscall_handler_fn syscall_handlers[NUM_SYSCALLS + 1] = {
+static syscall_handler_fn syscall_handlers[NUM_SYSCALLS] = {
 #define ENUM_ITEM(name) (syscall_handler_fn)(uintptr_t) sys_##name,
     ENUMERATE_SYSCALLS(ENUM_ITEM)
 #undef ENUM_ITEM
-        NULL};
+};
+
+static int do_syscall(struct registers* regs) {
+    if (regs->eax >= NUM_SYSCALLS)
+        return -ENOSYS;
+
+    syscall_handler_fn handler = syscall_handlers[regs->eax];
+    ASSERT(handler);
+
+    switch (regs->eax) {
+    case SYS_fork:
+        return sys_fork(regs);
+    case SYS_clone:
+        return sys_clone(regs, regs->ebx, (void*)regs->ecx);
+    }
+    return handler(regs->edx, regs->ecx, regs->ebx, regs->esi);
+}
 
 static void syscall_handler(struct registers* regs) {
     ASSERT((regs->cs & 3) == 3);
@@ -80,20 +96,7 @@ static void syscall_handler(struct registers* regs) {
     ASSERT(interrupts_enabled());
 
     task_die_if_needed();
-
-    if (regs->eax >= NUM_SYSCALLS) {
-        regs->eax = -ENOSYS;
-        return;
-    }
-
-    syscall_handler_fn handler = syscall_handlers[regs->eax];
-    ASSERT(handler);
-
-    if (regs->eax == SYS_fork)
-        regs->eax = handler((uintptr_t)regs, 0, 0, 0);
-    else
-        regs->eax = handler(regs->edx, regs->ecx, regs->ebx, regs->esi);
-
+    regs->eax = do_syscall(regs);
     task_die_if_needed();
 }
 

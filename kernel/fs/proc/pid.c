@@ -24,7 +24,7 @@ typedef struct {
 
 static int populate_cmdline(struct file* file, struct vec* vec) {
     proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
-    struct task* task = task_find_by_pid(node->pid);
+    struct task* task = task_find_by_tid(node->pid);
     if (!task)
         return -ENOENT;
 
@@ -56,7 +56,7 @@ done:
 
 static int populate_comm(struct file* file, struct vec* vec) {
     proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
-    struct task* task = task_find_by_pid(node->pid);
+    struct task* task = task_find_by_tid(node->pid);
     if (!task)
         return -ENOENT;
 
@@ -70,7 +70,7 @@ static int populate_comm(struct file* file, struct vec* vec) {
 
 static int populate_cwd(struct file* file, struct vec* vec) {
     proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
-    struct task* task = task_find_by_pid(node->pid);
+    struct task* task = task_find_by_tid(node->pid);
     if (!task)
         return -ENOENT;
 
@@ -90,7 +90,7 @@ static int populate_cwd(struct file* file, struct vec* vec) {
 
 static int populate_environ(struct file* file, struct vec* vec) {
     proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
-    struct task* task = task_find_by_pid(node->pid);
+    struct task* task = task_find_by_tid(node->pid);
     if (!task)
         return -ENOENT;
 
@@ -122,7 +122,7 @@ done:
 
 static int populate_maps(struct file* file, struct vec* vec) {
     proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
-    struct task* task = task_find_by_pid(node->pid);
+    struct task* task = task_find_by_tid(node->pid);
     if (!task)
         return -ENOENT;
 
@@ -176,7 +176,7 @@ static proc_item_def pid_items[] = {
 };
 
 struct inode* proc_pid_dir_inode_create(proc_dir_inode* parent, pid_t pid) {
-    struct task* task = task_find_by_pid(pid);
+    struct task* task = task_find_by_tid(pid);
     if (!task)
         return ERR_PTR(-ENOENT);
     task_unref(task);

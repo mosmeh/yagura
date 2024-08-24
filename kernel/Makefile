@@ -1,7 +1,7 @@
 CFLAGS += -isystem..
 
 LINKER_SCRIPT := linker.ld
-LDFLAGS := -Wl,-T$(LINKER_SCRIPT) -Wl,--build-id=none -Wl,-z,noexecstack
+LDFLAGS += -Wl,-T$(LINKER_SCRIPT)
 
 TARGET := kernel
 

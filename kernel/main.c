@@ -14,7 +14,7 @@
 #include "time.h"
 
 static noreturn void userland_init(void) {
-    current->pid = current->pgid = task_generate_next_pid();
+    current->tid = current->tgid = current->pgid = task_generate_next_tid();
 
     static const char* envp[] = {NULL};
 

@@ -73,7 +73,7 @@ void scheduler_register(struct task* task) {
     spinlock_lock(&all_tasks_lock);
     struct task* prev = NULL;
     struct task* it = all_tasks;
-    while (it && it->pid < task->pid) {
+    while (it && it->tid < task->tid) {
         prev = it;
         it = it->all_tasks_next;
     }

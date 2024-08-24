@@ -181,7 +181,7 @@ int tty_init(struct tty* tty, uint8_t minor) {
     };
     memcpy(tty->termios.c_cc, ttydefchars, sizeof(tty->termios.c_cc));
 
-    ASSERT(PAGE_SIZE % sizeof(struct attr_char) == 0);
+    STATIC_ASSERT(PAGE_SIZE % sizeof(struct attr_char) == 0);
     int rc = ring_buf_init(&tty->input_buf, PAGE_SIZE);
     if (IS_ERR(rc))
         return rc;
@@ -232,11 +232,14 @@ NODISCARD static int on_char(struct tty* tty, char ch) {
 
     if (termios->c_lflag & ISIG) {
         if ((cc_t)ch == termios->c_cc[VINTR])
-            return task_send_signal_to_group(tty->pgid, SIGINT);
+            return task_send_signal(tty->pgid, SIGINT,
+                                    SIGNAL_DEST_PROCESS_GROUP);
         if ((cc_t)ch == termios->c_cc[VQUIT])
-            return task_send_signal_to_group(tty->pgid, SIGQUIT);
+            return task_send_signal(tty->pgid, SIGQUIT,
+                                    SIGNAL_DEST_PROCESS_GROUP);
         if ((cc_t)ch == termios->c_cc[VSUSP])
-            return task_send_signal_to_group(tty->pgid, SIGTSTP);
+            return task_send_signal(tty->pgid, SIGTSTP,
+                                    SIGNAL_DEST_PROCESS_GROUP);
     }
 
     if (ch == '\r' && (termios->c_iflag & ICRNL))
