@@ -229,7 +229,7 @@ int sys_mount(const struct mount_params* user_params) {
     if (IS_ERR(rc))
         return rc;
 
-    char fs_type[SIZEOF_MEMBER(struct file_system, name)];
+    char fs_type[SIZEOF_FIELD(struct file_system, name)];
     ssize_t fs_type_len =
         strncpy_from_user(fs_type, params.filesystemtype, sizeof(fs_type));
     if (IS_ERR(fs_type_len))

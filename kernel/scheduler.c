@@ -22,7 +22,7 @@ static noreturn void do_idle(void) {
 void scheduler_init(void) {
     for (size_t i = 0; i < num_cpus; ++i) {
         struct cpu* cpu = cpus[i];
-        char comm[SIZEOF_MEMBER(struct task, comm)];
+        char comm[SIZEOF_FIELD(struct task, comm)];
         (void)snprintf(comm, sizeof(comm), "idle/%u", i);
         struct task* idle = task_create(comm, do_idle);
         ASSERT_OK(idle);
