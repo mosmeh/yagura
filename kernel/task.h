@@ -37,8 +37,8 @@ struct task {
     void* block_data;
     bool block_was_interrupted;
 
-    size_t user_ticks;
-    size_t kernel_ticks;
+    atomic_size_t user_ticks;
+    atomic_size_t kernel_ticks;
 
     uint32_t pending_signals;
 

@@ -10,7 +10,6 @@
 
 static struct task* ready_queue;
 static struct spinlock ready_queue_lock;
-atomic_uint idle_ticks;
 
 static noreturn void do_idle(void) {
     for (;;) {
@@ -203,8 +202,7 @@ void scheduler_tick(struct registers* regs) {
     ASSERT(!interrupts_enabled());
     if (!current)
         return;
-    if (current == cpu_get_current()->idle_task)
-        ++idle_ticks;
+
     bool in_kernel = (regs->cs & 3) == 0;
     if (!in_kernel)
         task_die_if_needed();

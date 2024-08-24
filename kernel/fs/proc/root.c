@@ -125,15 +125,24 @@ NODISCARD static int sprintf_ticks(struct vec* vec, int64_t ticks) {
 
 static int populate_uptime(struct file* file, struct vec* vec) {
     (void)file;
+
     int rc = sprintf_ticks(vec, uptime);
     if (IS_ERR(rc))
         return rc;
     rc = vec_append(vec, " ", 1);
     if (IS_ERR(rc))
         return rc;
+
+    size_t idle_ticks = 0;
+    for (size_t i = 0; i < num_cpus; ++i) {
+        struct task* task = cpus[i]->idle_task;
+        idle_ticks += task->kernel_ticks;
+        ASSERT(task->user_ticks == 0);
+    }
     rc = sprintf_ticks(vec, idle_ticks);
     if (IS_ERR(rc))
         return rc;
+
     return vec_append(vec, "\n", 1);
 }
 

@@ -9,8 +9,6 @@ struct cpu;
 struct task;
 struct registers;
 
-extern atomic_uint idle_ticks;
-
 void scheduler_init(void);
 
 // Registers a task to be scheduled.
