@@ -8,8 +8,8 @@
 #include <kernel/boot_defs.h>
 #include <kernel/gdt.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
 #include <kernel/safe_string.h>
+#include <kernel/task.h>
 
 struct string_vec {
     size_t count;
@@ -337,18 +337,18 @@ static int execve(const char* pathname, struct string_vec* argv,
         vm_destroy(prev_vm);
 
     cli();
-    struct process* process = current;
+    struct task* task = current;
 
-    process->eip = entry_point;
-    process->esp = process->ebp = sp;
-    process->ebx = process->esi = process->edi = 0;
-    process->fpu_state = initial_fpu_state;
+    task->eip = entry_point;
+    task->esp = task->ebp = sp;
+    task->ebx = task->esi = task->edi = 0;
+    task->fpu_state = initial_fpu_state;
 
-    strlcpy(process->comm, comm, sizeof(process->comm));
-    process->arg_start = arg_start;
-    process->arg_end = arg_end;
-    process->env_start = env_start;
-    process->env_end = env_end;
+    strlcpy(task->comm, comm, sizeof(task->comm));
+    task->arg_start = arg_start;
+    task->arg_end = arg_end;
+    task->env_start = env_start;
+    task->env_end = env_end;
 
     // enter userland
     __asm__ volatile("movw %[user_ds], %%ax\n"
@@ -388,8 +388,8 @@ fail_exe:
     return ret;
 }
 
-int process_user_execve(const char* pathname, const char* const* user_argv,
-                        const char* const* user_envp) {
+int task_user_execve(const char* pathname, const char* const* user_argv,
+                     const char* const* user_envp) {
     if (!pathname || !user_argv || !user_envp)
         return -EFAULT;
 
@@ -408,8 +408,8 @@ int process_user_execve(const char* pathname, const char* const* user_argv,
     return execve(pathname, &argv, &envp);
 }
 
-int process_kernel_execve(const char* pathname, const char* const* argv,
-                          const char* const* envp) {
+int task_kernel_execve(const char* pathname, const char* const* argv,
+                       const char* const* envp) {
     struct string_vec argv_vec = (struct string_vec){0};
     string_vec_borrow_from_kernel(&argv_vec, argv);
 

@@ -9,8 +9,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/multiboot.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
-#include <string.h>
+#include <kernel/task.h>
 
 static struct inode* root;
 
@@ -396,7 +395,7 @@ static struct path* create_at(const struct path* base, const char* pathname,
         inode = inode_create_child(path->parent->inode, path->basename, mode);
         if (IS_OK(inode) || PTR_ERR(inode) != -EEXIST || exclusive)
             break;
-        // Another process is creating the same file. Look up the created file.
+        // Another task is creating the same file. Look up the created file.
 
         inode_ref(path->parent->inode);
         inode = inode_lookup_child(path->parent->inode, path->basename);

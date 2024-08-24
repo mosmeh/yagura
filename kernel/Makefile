@@ -62,7 +62,6 @@ OBJS := \
 	memory/page.o \
 	memory/slab.o \
 	memory/vm.o \
-	process.o \
 	random.o \
 	safe_string.o \
 	scheduler.o \
@@ -71,10 +70,11 @@ OBJS := \
 	syscall/fs.o \
 	syscall/mmap.o \
 	syscall/poll.o \
-	syscall/process.o \
 	syscall/socket.o \
 	syscall/syscall.o \
+	syscall/task.o \
 	system.o \
+	task.o \
 	time.o \
 	unix_socket.o \
 	../common/libgen.o \

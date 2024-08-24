@@ -1,8 +1,8 @@
 #include "syscall.h"
 #include <kernel/panic.h>
-#include <kernel/process.h>
 #include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
+#include <kernel/task.h>
 #include <kernel/time.h>
 
 struct poll_blocker {
@@ -67,7 +67,7 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
             blocker.files[i] = NULL;
             if (fd->fd < 0)
                 continue;
-            struct file* file = process_get_file(fd->fd);
+            struct file* file = task_get_file(fd->fd);
             if (IS_ERR(file)) {
                 fd->revents = POLLNVAL;
                 ++blocker.num_events;

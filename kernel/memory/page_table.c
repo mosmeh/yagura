@@ -6,7 +6,7 @@
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
+#include <kernel/task.h>
 
 #define PTE_FLAGS_MASK 0xfff
 
@@ -132,15 +132,15 @@ static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
         } else {
             ASSERT(is_user_range((void*)virt_addr, size));
             // If the address is userland, we only need to flush TLBs of CPUs
-            // that is in the same vm as the current process
+            // that is in the same vm as the current task
             for (size_t i = 0; i < num_cpus; ++i) {
                 struct cpu* cpu = cpus[i];
                 if (cpu->apic_id == lapic_get_id())
                     continue;
-                struct process* process = cpu->current_process;
-                if (!process)
+                struct task* task = cpu->current_task;
+                if (!task)
                     continue;
-                if (process->vm != current->vm)
+                if (task->vm != current->vm)
                     continue;
                 if (!msg) {
                     msg = cpu_alloc_message();
@@ -318,7 +318,7 @@ void page_table_init(void) {
     kprintf("page_table: kernel page directory is at P%#x\n",
             (uintptr_t)kernel_page_directory_start);
 
-    // Populate page directory entries for kernel space so that all processes
+    // Populate page directory entries for kernel space so that all vm instances
     // share the same kernel space
     for (size_t virt_addr = KERNEL_HEAP_START; virt_addr < KERNEL_HEAP_END;
          virt_addr += 1024 * PAGE_SIZE)

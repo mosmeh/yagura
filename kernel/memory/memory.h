@@ -55,7 +55,7 @@ uintptr_t virt_to_phys(void*);
 // Region may be accessed from userland
 #define VM_USER 0x4
 
-// Region is shared between multiple processes
+// Region is shared between multiple vm instances
 #define VM_SHARED 0x8
 
 // Write-combining is enabled for the region
@@ -130,7 +130,7 @@ NODISCARD int vm_free(void*);
 // Page is global (not flushed from TLB on context switch)
 #define PTE_GLOBAL 0x100
 
-// Flag to indicate that the page is shared between multiple processes
+// Flag to indicate that the page is shared between multiple vm instances.
 // The bit is unused by the hardware, so we can use it for our purposes.
 #define PTE_SHARED 0x200
 

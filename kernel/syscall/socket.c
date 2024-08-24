@@ -1,12 +1,12 @@
 #include "syscall.h"
+#include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/socket.h>
 #include <kernel/api/sys/un.h>
-#include <kernel/process.h>
 #include <kernel/safe_string.h>
 #include <kernel/socket.h>
-#include <string.h>
+#include <kernel/task.h>
 
 int sys_socket(int domain, int type, int protocol) {
     (void)protocol;
@@ -19,14 +19,14 @@ int sys_socket(int domain, int type, int protocol) {
     struct file* file = inode_open((struct inode*)socket, O_RDWR, 0);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    int fd = process_alloc_file_descriptor(-1, file);
+    int fd = task_alloc_file_descriptor(-1, file);
     if (IS_ERR(fd))
         file_close(file);
     return fd;
 }
 
 int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
-    struct file* file = process_get_file(sockfd);
+    struct file* file = task_get_file(sockfd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
@@ -63,7 +63,7 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
 }
 
 int sys_listen(int sockfd, int backlog) {
-    struct file* file = process_get_file(sockfd);
+    struct file* file = task_get_file(sockfd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
@@ -75,7 +75,7 @@ int sys_listen(int sockfd, int backlog) {
 
 int sys_accept(int sockfd, struct sockaddr* user_addr,
                socklen_t* user_addrlen) {
-    struct file* file = process_get_file(sockfd);
+    struct file* file = task_get_file(sockfd);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -104,7 +104,7 @@ int sys_accept(int sockfd, struct sockaddr* user_addr,
     if (IS_ERR(connector_file))
         return PTR_ERR(connector_file);
 
-    int fd = process_alloc_file_descriptor(-1, connector_file);
+    int fd = task_alloc_file_descriptor(-1, connector_file);
     if (IS_ERR(fd)) {
         file_close(connector_file);
         return fd;
@@ -115,7 +115,7 @@ int sys_accept(int sockfd, struct sockaddr* user_addr,
 
 int sys_connect(int sockfd, const struct sockaddr* user_addr,
                 socklen_t addrlen) {
-    struct file* file = process_get_file(sockfd);
+    struct file* file = task_get_file(sockfd);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -140,7 +140,7 @@ int sys_connect(int sockfd, const struct sockaddr* user_addr,
 }
 
 int sys_shutdown(int sockfd, int how) {
-    struct file* file = process_get_file(sockfd);
+    struct file* file = task_get_file(sockfd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     return unix_socket_shutdown(file, how);

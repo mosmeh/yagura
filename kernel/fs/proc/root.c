@@ -7,9 +7,9 @@
 #include <kernel/cpu.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
 #include <kernel/scheduler.h>
 #include <kernel/system.h>
+#include <kernel/task.h>
 #include <kernel/time.h>
 
 static int populate_cmdline(struct file* file, struct vec* vec) {
@@ -181,12 +181,12 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
         return 0;
     }
 
-    spinlock_lock(&all_processes_lock);
+    spinlock_lock(&all_tasks_lock);
 
     pid_t offset_pid = (pid_t)(file->offset - NUM_ITEMS);
-    struct process* it = all_processes;
+    struct task* it = all_tasks;
     while (it->pid <= offset_pid) {
-        it = it->all_processes_next;
+        it = it->all_tasks_next;
         if (!it)
             break;
     }
@@ -197,10 +197,10 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
         if (!callback(name, DT_DIR, ctx))
             break;
         file->offset = it->pid + NUM_ITEMS;
-        it = it->all_processes_next;
+        it = it->all_tasks_next;
     }
 
-    spinlock_unlock(&all_processes_lock);
+    spinlock_unlock(&all_tasks_lock);
     mutex_unlock(&file->offset_lock);
     return 0;
 }

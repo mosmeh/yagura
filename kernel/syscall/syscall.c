@@ -6,8 +6,8 @@
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
 #include <kernel/safe_string.h>
+#include <kernel/task.h>
 #include <kernel/time.h>
 
 int sys_reboot(int howto) {
@@ -79,7 +79,7 @@ static void syscall_handler(struct registers* regs) {
     ASSERT((regs->user_ss & 3) == 3);
     ASSERT(interrupts_enabled());
 
-    process_die_if_needed();
+    task_die_if_needed();
 
     if (regs->eax >= NUM_SYSCALLS) {
         regs->eax = -ENOSYS;
@@ -94,7 +94,7 @@ static void syscall_handler(struct registers* regs) {
     else
         regs->eax = handler(regs->edx, regs->ecx, regs->ebx, regs->esi);
 
-    process_die_if_needed();
+    task_die_if_needed();
 }
 
 void syscall_init(void) {

@@ -3,8 +3,8 @@
 #include "api/sys/socket.h"
 #include "memory/memory.h"
 #include "panic.h"
-#include "process.h"
 #include "socket.h"
+#include "task.h"
 
 static void unix_socket_destroy_inode(struct inode* inode) {
     struct unix_socket* socket = (struct unix_socket*)inode;
@@ -99,7 +99,7 @@ static ssize_t unix_socket_write(struct file* file, const void* buffer,
             return rc;
 
         if (!is_connector(file) && !socket->is_open_for_writing_to_connector) {
-            int rc = process_send_signal_to_one(current->pid, SIGPIPE);
+            int rc = task_send_signal_to_one(current->pid, SIGPIPE);
             if (IS_ERR(rc))
                 return rc;
             return -EPIPE;

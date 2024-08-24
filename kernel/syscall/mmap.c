@@ -1,14 +1,14 @@
 #include "syscall.h"
 #include <common/extra.h>
+#include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/sys/mman.h>
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/syscall.h>
 #include <kernel/boot_defs.h>
 #include <kernel/memory/memory.h>
-#include <kernel/process.h>
 #include <kernel/safe_string.h>
-#include <string.h>
+#include <kernel/task.h>
 
 void* sys_mmap(const struct mmap_params* user_params) {
     struct mmap_params params;
@@ -41,7 +41,7 @@ void* sys_mmap(const struct mmap_params* user_params) {
         return addr;
     }
 
-    struct file* file = process_get_file(params.fd);
+    struct file* file = task_get_file(params.fd);
     if (IS_ERR(file))
         return file;
     if (S_ISDIR(file->inode->mode))

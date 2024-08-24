@@ -7,8 +7,8 @@
 #include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
 #include <kernel/safe_string.h>
+#include <kernel/task.h>
 
 static int copy_pathname_from_user(char* dest, const char* user_src) {
     ssize_t pathname_len = strncpy_from_user(dest, user_src, PATH_MAX);
@@ -28,14 +28,14 @@ int sys_open(const char* user_pathname, int flags, unsigned mode) {
     struct file* file = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    rc = process_alloc_file_descriptor(-1, file);
+    rc = task_alloc_file_descriptor(-1, file);
     if (IS_ERR(rc))
         file_close(file);
     return rc;
 }
 
 int sys_close(int fd) {
-    struct file* file = process_get_file(fd);
+    struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -43,13 +43,13 @@ int sys_close(int fd) {
     if (IS_ERR(rc))
         return rc;
 
-    return process_free_file_descriptor(fd);
+    return task_free_file_descriptor(fd);
 }
 
 ssize_t sys_read(int fd, void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    struct file* file = process_get_file(fd);
+    struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_read(file, user_buf, count);
@@ -92,21 +92,21 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
 ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    struct file* file = process_get_file(fd);
+    struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_write(file, user_buf, count);
 }
 
 int sys_ftruncate(int fd, off_t length) {
-    struct file* file = process_get_file(fd);
+    struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_truncate(file, length);
 }
 
 off_t sys_lseek(int fd, off_t offset, int whence) {
-    struct file* file = process_get_file(fd);
+    struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_seek(file, offset, whence);
@@ -171,7 +171,7 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
 int sys_ioctl(int fd, int request, void* user_argp) {
     if (!is_user_address(user_argp))
         return -EFAULT;
-    struct file* file = process_get_file(fd);
+    struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_ioctl(file, request, user_argp);
@@ -459,7 +459,7 @@ static bool fill_dir(const char* name, uint8_t type, void* raw_ctx) {
 }
 
 long sys_getdents(int fd, void* user_dirp, size_t count) {
-    struct file* file = process_get_file(fd);
+    struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -476,12 +476,12 @@ long sys_getdents(int fd, void* user_dirp, size_t count) {
 }
 
 int sys_fcntl(int fd, int cmd, uintptr_t arg) {
-    struct file* file = process_get_file(fd);
+    struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     switch (cmd) {
     case F_DUPFD: {
-        int ret = process_alloc_file_descriptor(-1, file);
+        int ret = task_alloc_file_descriptor(-1, file);
         if (IS_ERR(ret))
             return ret;
         ++file->ref_count;
@@ -498,21 +498,21 @@ int sys_fcntl(int fd, int cmd, uintptr_t arg) {
 }
 
 int sys_dup2(int oldfd, int newfd) {
-    struct file* oldfd_file = process_get_file(oldfd);
+    struct file* oldfd_file = task_get_file(oldfd);
     if (IS_ERR(oldfd_file))
         return PTR_ERR(oldfd_file);
     if (oldfd == newfd)
         return oldfd;
-    struct file* newfd_file = process_get_file(newfd);
+    struct file* newfd_file = task_get_file(newfd);
     if (IS_OK(newfd_file)) {
         int rc = file_close(newfd_file);
         if (IS_ERR(rc))
             return rc;
-        rc = process_free_file_descriptor(newfd);
+        rc = task_free_file_descriptor(newfd);
         if (IS_ERR(rc))
             return rc;
     }
-    int ret = process_alloc_file_descriptor(newfd, oldfd_file);
+    int ret = task_alloc_file_descriptor(newfd, oldfd_file);
     if (IS_ERR(ret))
         return ret;
     ++oldfd_file->ref_count;
@@ -540,13 +540,13 @@ int sys_pipe(int user_fifofd[2]) {
     int rc = 0;
     int writer_fd = -1;
 
-    int reader_fd = process_alloc_file_descriptor(-1, reader_file);
+    int reader_fd = task_alloc_file_descriptor(-1, reader_file);
     if (IS_ERR(reader_fd)) {
         rc = reader_fd;
         goto fail;
     }
 
-    writer_fd = process_alloc_file_descriptor(-1, writer_file);
+    writer_fd = task_alloc_file_descriptor(-1, writer_file);
     if (IS_ERR(writer_fd)) {
         rc = writer_fd;
         goto fail;
@@ -564,9 +564,9 @@ int sys_pipe(int user_fifofd[2]) {
 fail:
     ASSERT(IS_ERR(rc));
     if (IS_OK(reader_fd))
-        process_free_file_descriptor(reader_fd);
+        task_free_file_descriptor(reader_fd);
     if (IS_OK(writer_fd))
-        process_free_file_descriptor(writer_fd);
+        task_free_file_descriptor(writer_fd);
     file_close(reader_file);
     file_close(writer_file);
     return rc;

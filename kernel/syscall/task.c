@@ -5,13 +5,14 @@
 #include <kernel/api/sys/wait.h>
 #include <kernel/boot_defs.h>
 #include <kernel/fs/path.h>
+#include <kernel/interrupts/interrupts.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
 #include <kernel/safe_string.h>
 #include <kernel/scheduler.h>
+#include <kernel/task.h>
 #include <kernel/time.h>
 
-void sys_exit(int status) { process_exit(status); }
+void sys_exit(int status) { task_exit(status); }
 
 pid_t sys_getpid(void) { return current->pid; }
 
@@ -20,23 +21,23 @@ int sys_setpgid(pid_t pid, pid_t pgid) {
         return -EINVAL;
 
     pid_t target_pid = pid ? pid : current->pid;
-    struct process* target = process_find_by_pid(target_pid);
+    struct task* target = task_find_by_pid(target_pid);
     if (!target)
         return -ESRCH;
 
     target->pgid = pgid ? pgid : target_pid;
-    process_unref(target);
+    task_unref(target);
     return 0;
 }
 
 pid_t sys_getpgid(pid_t pid) {
     if (pid == 0)
         return current->pgid;
-    struct process* process = process_find_by_pid(pid);
-    if (!process)
+    struct task* task = task_find_by_pid(pid);
+    if (!task)
         return -ESRCH;
-    pid_t pgid = process->pgid;
-    process_unref(process);
+    pid_t pgid = task->pgid;
+    task_unref(task);
     return pgid;
 }
 
@@ -57,16 +58,16 @@ int sys_execve(const char* user_pathname, char* const user_argv[],
     if (pathname_len >= PATH_MAX)
         return -ENAMETOOLONG;
 
-    return process_user_execve(pathname, (const char* const*)user_argv,
-                               (const char* const*)user_envp);
+    return task_user_execve(pathname, (const char* const*)user_argv,
+                            (const char* const*)user_envp);
 }
 
 pid_t sys_fork(struct registers* regs) {
-    struct process* process =
-        kaligned_alloc(alignof(struct process), sizeof(struct process));
-    if (!process)
+    struct task* task =
+        kaligned_alloc(alignof(struct task), sizeof(struct task));
+    if (!task)
         return -ENOMEM;
-    *process = (struct process){
+    *task = (struct task){
         .ppid = current->pid,
         .pgid = current->pgid,
         .eip = (uintptr_t)do_iret,
@@ -74,7 +75,7 @@ pid_t sys_fork(struct registers* regs) {
         .esi = current->esi,
         .edi = current->edi,
         .fpu_state = current->fpu_state,
-        .state = PROCESS_STATE_RUNNING,
+        .state = TASK_RUNNING,
         .arg_start = current->arg_start,
         .arg_end = current->arg_end,
         .env_start = current->env_start,
@@ -84,9 +85,9 @@ pid_t sys_fork(struct registers* regs) {
         .ref_count = 1,
     };
 
-    pid_t pid = process_generate_next_pid();
-    process->pid = pid;
-    strlcpy(process->comm, current->comm, sizeof(process->comm));
+    pid_t pid = task_generate_next_pid();
+    task->pid = pid;
+    strlcpy(task->comm, current->comm, sizeof(task->comm));
 
     int rc = 0;
     void* stack = kmalloc(STACK_SIZE);
@@ -94,67 +95,66 @@ pid_t sys_fork(struct registers* regs) {
         rc = -ENOMEM;
         goto fail;
     }
-    process->kernel_stack_base = (uintptr_t)stack;
-    process->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
-    process->esp = process->ebp = process->kernel_stack_top;
+    task->kernel_stack_base = (uintptr_t)stack;
+    task->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
+    task->esp = task->ebp = task->kernel_stack_top;
 
     // push the argument of do_iret()
-    process->esp -= sizeof(struct registers);
-    struct registers* child_regs = (struct registers*)process->esp;
+    task->esp -= sizeof(struct registers);
+    struct registers* child_regs = (struct registers*)task->esp;
     *child_regs = *regs;
     child_regs->eax = 0; // fork() returns 0 in the child
 
-    process->cwd = path_dup(current->cwd);
-    if (!process->cwd) {
+    task->cwd = path_dup(current->cwd);
+    if (!task->cwd) {
         rc = -ENOMEM;
         goto fail;
     }
 
-    rc = file_descriptor_table_clone_from(&process->fd_table,
-                                          &current->fd_table);
+    rc = file_descriptor_table_clone_from(&task->fd_table, &current->fd_table);
     if (IS_ERR(rc))
         goto fail;
 
-    process->vm = vm_clone();
-    if (IS_ERR(process->vm)) {
-        rc = PTR_ERR(process->vm);
-        process->vm = NULL;
+    task->vm = vm_clone();
+    if (IS_ERR(task->vm)) {
+        rc = PTR_ERR(task->vm);
+        task->vm = NULL;
         goto fail;
     }
 
-    scheduler_register(process);
+    scheduler_register(task);
     return pid;
 
 fail:
-    vm_destroy(process->vm);
-    file_descriptor_table_destroy(&process->fd_table);
-    path_destroy_recursive(process->cwd);
+    vm_destroy(task->vm);
+    file_descriptor_table_destroy(&task->fd_table);
+    path_destroy_recursive(task->cwd);
     kfree(stack);
-    kfree(process);
+    kfree(task);
     return rc;
 }
 
 int sys_kill(pid_t pid, int sig) {
     if (pid > 0)
-        return process_send_signal_to_one(pid, sig);
+        return task_send_signal_to_one(pid, sig);
     if (pid == 0)
-        return process_send_signal_to_group(current->pgid, sig);
+        return task_send_signal_to_group(current->pgid, sig);
     if (pid == -1)
-        return process_send_signal_to_all(sig);
-    return process_send_signal_to_group(-pid, sig);
+        return task_send_signal_to_all(sig);
+    return task_send_signal_to_group(-pid, sig);
 }
 
 struct waitpid_blocker {
     pid_t param_pid;
     pid_t current_pid, current_pgid;
-    struct process* waited_process;
+    struct task* waited_task;
 };
 
 static bool unblock_waitpid(struct waitpid_blocker* blocker) {
-    spinlock_lock(&all_processes_lock);
+    spinlock_lock(&all_tasks_lock);
 
-    struct process* prev = NULL;
-    struct process* it = all_processes;
+    struct task* prev = NULL;
+    struct task* it = all_tasks;
     bool any_target_exists = false;
 
     while (it) {
@@ -173,28 +173,28 @@ static bool unblock_waitpid(struct waitpid_blocker* blocker) {
                 is_target = true;
         }
         any_target_exists |= is_target;
-        if (is_target && it->state == PROCESS_STATE_DEAD)
+        if (is_target && it->state == TASK_DEAD)
             break;
 
         prev = it;
-        it = it->all_processes_next;
+        it = it->all_tasks_next;
     }
     if (!it) {
-        spinlock_unlock(&all_processes_lock);
+        spinlock_unlock(&all_tasks_lock);
         if (!any_target_exists) {
-            blocker->waited_process = NULL;
+            blocker->waited_task = NULL;
             return true;
         }
         return false;
     }
 
     if (prev)
-        prev->all_processes_next = it->all_processes_next;
+        prev->all_tasks_next = it->all_tasks_next;
     else
-        all_processes = it->all_processes_next;
-    blocker->waited_process = it;
+        all_tasks = it->all_tasks_next;
+    blocker->waited_task = it;
 
-    spinlock_unlock(&all_processes_lock);
+    spinlock_unlock(&all_tasks_lock);
     return true;
 }
 
@@ -206,12 +206,12 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
         .param_pid = pid,
         .current_pid = current->pid,
         .current_pgid = current->pgid,
-        .waited_process = NULL,
+        .waited_task = NULL,
     };
     if (options & WNOHANG) {
         if (!unblock_waitpid(&blocker)) {
-            if (blocker.waited_process) {
-                process_unref(blocker.waited_process);
+            if (blocker.waited_task) {
+                task_unref(blocker.waited_task);
                 return 0;
             }
             return -ECHILD;
@@ -222,13 +222,13 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
             return rc;
     }
 
-    struct process* waited_process = blocker.waited_process;
-    if (!waited_process)
+    struct task* waited_task = blocker.waited_task;
+    if (!waited_task)
         return -ECHILD;
 
-    pid_t result = waited_process->pid;
-    int wstatus = waited_process->exit_status;
-    process_unref(waited_process);
+    pid_t result = waited_task->pid;
+    int wstatus = waited_task->exit_status;
+    task_unref(waited_task);
 
     if (user_wstatus) {
         if (copy_to_user(user_wstatus, &wstatus, sizeof(int)))

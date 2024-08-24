@@ -3,7 +3,7 @@
 #include <kernel/drivers/graphics/graphics.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
+#include <kernel/task.h>
 
 static const uint32_t palette[] = {
     0x191919, // black
@@ -97,7 +97,7 @@ struct screen* fb_screen_init(void) {
 
     int rc = fb_get()->get_info(&fb_info);
     if (IS_ERR(rc)) {
-        kprintf("fb_screen: failed to get framebuffer info\n");
+        kprint("fb_screen: failed to get framebuffer info\n");
         return ERR_PTR(rc);
     }
     if (fb_info.bpp != 32) {
@@ -118,7 +118,7 @@ struct screen* fb_screen_init(void) {
     size_t fb_size = fb_info.pitch * fb_info.height;
     fb = fb_get()->mmap(fb_size, 0, VM_READ | VM_WRITE | VM_SHARED);
     if (IS_ERR(fb)) {
-        kprintf("fb_screen: failed to mmap framebuffer\n");
+        kprint("fb_screen: failed to mmap framebuffer\n");
         return ERR_CAST(fb);
     }
 

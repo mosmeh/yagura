@@ -6,10 +6,10 @@
 #include <kernel/cpu.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
 #include <kernel/safe_string.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/system.h>
+#include <kernel/task.h>
 
 #define TASK_GATE 0x5
 #define INTERRUPT_GATE16 0x6
@@ -89,7 +89,7 @@ static noreturn void crash(const struct registers* regs, int signum) {
 
     if ((regs->cs & 3) != 3)
         PANIC("Kernel crashed");
-    process_crash_in_userland(signum);
+    task_crash_in_userland(signum);
 }
 
 #define DEFINE_ISR_WITHOUT_ERROR_CODE(num)                                     \

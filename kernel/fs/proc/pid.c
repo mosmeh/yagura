@@ -5,8 +5,8 @@
 #include <kernel/fs/dentry.h>
 #include <kernel/fs/path.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
 #include <kernel/safe_string.h>
+#include <kernel/task.h>
 
 static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
                                size_t size) {
@@ -24,14 +24,14 @@ typedef struct {
 
 static int populate_cmdline(struct file* file, struct vec* vec) {
     proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
-    struct process* process = process_find_by_pid(node->pid);
-    if (!process)
+    struct task* task = task_find_by_pid(node->pid);
+    if (!task)
         return -ENOENT;
 
     int ret = 0;
     char* buf = NULL;
 
-    size_t len = process->arg_end - process->arg_start;
+    size_t len = task->arg_end - task->arg_start;
     if (!len)
         goto done;
 
@@ -41,7 +41,7 @@ static int populate_cmdline(struct file* file, struct vec* vec) {
         goto done;
     }
 
-    if (copy_from_remote_vm(process->vm, buf, (void*)process->arg_start, len)) {
+    if (copy_from_remote_vm(task->vm, buf, (void*)task->arg_start, len)) {
         ret = -EFAULT;
         goto done;
     }
@@ -50,52 +50,52 @@ static int populate_cmdline(struct file* file, struct vec* vec) {
 
 done:
     kfree(buf);
-    process_unref(process);
+    task_unref(task);
     return ret;
 }
 
 static int populate_comm(struct file* file, struct vec* vec) {
     proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
-    struct process* process = process_find_by_pid(node->pid);
-    if (!process)
+    struct task* task = task_find_by_pid(node->pid);
+    if (!task)
         return -ENOENT;
 
-    char comm[sizeof(process->comm)];
-    strlcpy(comm, process->comm, sizeof(process->comm));
+    char comm[sizeof(task->comm)];
+    strlcpy(comm, task->comm, sizeof(task->comm));
 
-    process_unref(process);
+    task_unref(task);
 
     return vec_printf(vec, "%s\n", comm);
 }
 
 static int populate_cwd(struct file* file, struct vec* vec) {
     proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
-    struct process* process = process_find_by_pid(node->pid);
-    if (!process)
+    struct task* task = task_find_by_pid(node->pid);
+    if (!task)
         return -ENOENT;
 
-    char* cwd = path_to_string(process->cwd);
+    char* cwd = path_to_string(task->cwd);
     if (!cwd) {
-        process_unref(process);
+        task_unref(task);
         return -ENOMEM;
     }
 
     int rc = vec_printf(vec, "%s", cwd);
     kfree(cwd);
-    process_unref(process);
+    task_unref(task);
     return rc;
 }
 
 static int populate_environ(struct file* file, struct vec* vec) {
     proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
-    struct process* process = process_find_by_pid(node->pid);
-    if (!process)
+    struct task* task = task_find_by_pid(node->pid);
+    if (!task)
         return -ENOENT;
 
     int ret = 0;
     char* buf = NULL;
 
-    size_t len = process->env_end - process->env_start;
+    size_t len = task->env_end - task->env_start;
     if (!len)
         goto done;
 
@@ -105,7 +105,7 @@ static int populate_environ(struct file* file, struct vec* vec) {
         goto done;
     }
 
-    if (copy_from_remote_vm(process->vm, buf, (void*)process->env_start, len)) {
+    if (copy_from_remote_vm(task->vm, buf, (void*)task->env_start, len)) {
         ret = -EFAULT;
         goto done;
     }
@@ -114,18 +114,18 @@ static int populate_environ(struct file* file, struct vec* vec) {
 
 done:
     kfree(buf);
-    process_unref(process);
+    task_unref(task);
     return ret;
 }
 
 static int populate_maps(struct file* file, struct vec* vec) {
     proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
-    struct process* process = process_find_by_pid(node->pid);
-    if (!process)
+    struct task* task = task_find_by_pid(node->pid);
+    if (!task)
         return -ENOENT;
 
     int ret = 0;
-    struct vm* vm = process->vm;
+    struct vm* vm = task->vm;
     mutex_lock(&vm->lock);
     struct vm_region* region = vm->regions;
     while (region) {
@@ -138,7 +138,7 @@ static int populate_maps(struct file* file, struct vec* vec) {
         region = region->next;
     }
     mutex_unlock(&vm->lock);
-    process_unref(process);
+    task_unref(task);
     return ret;
 }
 
@@ -174,10 +174,10 @@ static proc_item_def pid_items[] = {
 };
 
 struct inode* proc_pid_dir_inode_create(proc_dir_inode* parent, pid_t pid) {
-    struct process* process = process_find_by_pid(pid);
-    if (!process)
+    struct task* task = task_find_by_pid(pid);
+    if (!task)
         return ERR_PTR(-ENOENT);
-    process_unref(process);
+    task_unref(task);
 
     proc_dir_inode* node = kmalloc(sizeof(proc_dir_inode));
     if (!node)

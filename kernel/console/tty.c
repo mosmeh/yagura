@@ -6,8 +6,8 @@
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/api/termios.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
 #include <kernel/safe_string.h>
+#include <kernel/task.h>
 
 static bool can_read(struct tty* tty) {
     return !ring_buf_is_empty(&tty->input_buf);
@@ -232,11 +232,11 @@ NODISCARD static int on_char(struct tty* tty, char ch) {
 
     if (termios->c_lflag & ISIG) {
         if ((cc_t)ch == termios->c_cc[VINTR])
-            return process_send_signal_to_group(tty->pgid, SIGINT);
+            return task_send_signal_to_group(tty->pgid, SIGINT);
         if ((cc_t)ch == termios->c_cc[VQUIT])
-            return process_send_signal_to_group(tty->pgid, SIGQUIT);
+            return task_send_signal_to_group(tty->pgid, SIGQUIT);
         if ((cc_t)ch == termios->c_cc[VSUSP])
-            return process_send_signal_to_group(tty->pgid, SIGTSTP);
+            return task_send_signal_to_group(tty->pgid, SIGTSTP);
     }
 
     if (ch == '\r' && (termios->c_iflag & ICRNL))

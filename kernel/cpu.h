@@ -217,8 +217,8 @@ struct cpu {
     struct tss tss;
     struct gdtr gdtr;
 
-    struct process* current_process;
-    struct process* idle_process;
+    struct task* current_task;
+    struct task* idle_task;
 
     struct mpsc* msg_queue;
 };

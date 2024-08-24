@@ -5,7 +5,7 @@
 #include <kernel/api/sys/poll.h>
 #include <kernel/containers/ring_buf.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
+#include <kernel/task.h>
 
 struct fifo {
     struct inode inode;
@@ -105,7 +105,7 @@ static ssize_t fifo_write(struct file* file, const void* buffer, size_t count) {
         mutex_lock(&fifo->lock);
         if (fifo->num_readers == 0) {
             mutex_unlock(&fifo->lock);
-            int rc = process_send_signal_to_one(current->pid, SIGPIPE);
+            int rc = task_send_signal_to_one(current->pid, SIGPIPE);
             if (IS_ERR(rc))
                 return rc;
             return -EPIPE;

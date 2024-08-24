@@ -2,8 +2,8 @@
 #include "cpu.h"
 #include "interrupts/interrupts.h"
 #include "panic.h"
-#include "process.h"
 #include "scheduler.h"
+#include "task.h"
 
 void mutex_lock(struct mutex* m) {
     ASSERT(interrupts_enabled());

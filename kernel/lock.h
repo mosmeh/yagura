@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 struct mutex {
-    volatile struct process* holder;
+    volatile struct task* holder;
     volatile uint32_t level;
     volatile atomic_bool lock;
 };

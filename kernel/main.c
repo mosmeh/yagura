@@ -9,12 +9,12 @@
 #include "memory/memory.h"
 #include "multiboot.h"
 #include "panic.h"
-#include "process.h"
 #include "scheduler.h"
+#include "task.h"
 #include "time.h"
 
 static noreturn void userland_init(void) {
-    current->pid = current->pgid = process_generate_next_pid();
+    current->pid = current->pgid = task_generate_next_pid();
 
     static const char* envp[] = {NULL};
 
@@ -22,7 +22,7 @@ static noreturn void userland_init(void) {
     if (init_path) {
         const char* argv[] = {init_path, NULL};
         kprintf("userland_init: run %s as init process\n", init_path);
-        int rc = process_kernel_execve(init_path, argv, envp);
+        int rc = task_kernel_execve(init_path, argv, envp);
         if (IS_ERR(rc)) {
             kprintf("userland_init: requested init %s failed (error %d)\n",
                     init_path, rc);
@@ -39,7 +39,7 @@ static noreturn void userland_init(void) {
         const char* argv[] = {default_init_paths[i], NULL};
         kprintf("userland_init: run %s as init process\n",
                 default_init_paths[i]);
-        int rc = process_kernel_execve(default_init_paths[i], argv, envp);
+        int rc = task_kernel_execve(default_init_paths[i], argv, envp);
         if (rc != -ENOENT) {
             kprintf(
                 "userland_init: %s exists but couldn't execute it (error %d)\n",
@@ -74,7 +74,7 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     cmdline_init(mb_info);
     memory_init(mb_info);
     ksyms_init();
-    process_init();
+    task_init();
     acpi_init();
     time_init();
     drivers_init(mb_info);
@@ -87,7 +87,7 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     smp_start();
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
-    ASSERT_OK(process_spawn("userland_init", userland_init));
+    ASSERT_OK(task_spawn("userland_init", userland_init));
 
     scheduler_start();
 }

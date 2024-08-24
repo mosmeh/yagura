@@ -3,7 +3,7 @@
 #include <common/string.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
-#include <kernel/process.h>
+#include <kernel/task.h>
 
 struct vm* kernel_vm;
 

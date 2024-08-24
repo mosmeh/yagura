@@ -1,4 +1,4 @@
-#include "process.h"
+#include "task.h"
 #include "api/signum.h"
 #include "api/sys/limits.h"
 #include "boot_defs.h"
@@ -15,10 +15,10 @@
 struct fpu_state initial_fpu_state;
 static atomic_int next_pid = 1;
 
-struct process* all_processes;
-struct spinlock all_processes_lock;
+struct task* all_tasks;
+struct spinlock all_tasks_lock;
 
-void process_init(void) {
+void task_init(void) {
     __asm__ volatile("fninit");
     if (cpu_has_feature(cpu_get_bsp(), X86_FEATURE_FXSR))
         __asm__ volatile("fxsave %0" : "=m"(initial_fpu_state));
@@ -26,197 +26,184 @@ void process_init(void) {
         __asm__ volatile("fnsave %0" : "=m"(initial_fpu_state));
 }
 
-struct process* process_get_current(void) {
+struct task* task_get_current(void) {
     bool int_flag = push_cli();
-    struct process* process = cpu_get_current()->current_process;
+    struct task* task = cpu_get_current()->current_task;
     pop_cli(int_flag);
-    return process;
+    return task;
 }
 
-struct process* process_create(const char* comm, void (*entry_point)(void)) {
-    struct process* process =
-        kaligned_alloc(alignof(struct process), sizeof(struct process));
-    if (!process)
+struct task* task_create(const char* comm, void (*entry_point)(void)) {
+    struct task* task =
+        kaligned_alloc(alignof(struct task), sizeof(struct task));
+    if (!task)
         return ERR_PTR(-ENOMEM);
-    *process = (struct process){.ref_count = 1};
+    *task = (struct task){.ref_count = 1};
 
-    process->fpu_state = initial_fpu_state;
-    process->state = PROCESS_STATE_RUNNING;
-    strlcpy(process->comm, comm, sizeof(process->comm));
+    task->fpu_state = initial_fpu_state;
+    task->state = TASK_RUNNING;
+    strlcpy(task->comm, comm, sizeof(task->comm));
 
     int ret = 0;
     void* stack = NULL;
 
-    process->cwd = vfs_get_root();
-    if (IS_ERR(process->cwd)) {
-        ret = PTR_ERR(process->cwd);
-        process->cwd = NULL;
+    task->cwd = vfs_get_root();
+    if (IS_ERR(task->cwd)) {
+        ret = PTR_ERR(task->cwd);
+        task->cwd = NULL;
         goto fail;
     }
 
-    ret = file_descriptor_table_init(&process->fd_table);
+    ret = file_descriptor_table_init(&task->fd_table);
     if (IS_ERR(ret))
         goto fail;
 
-    process->vm = kernel_vm;
+    task->vm = kernel_vm;
 
     stack = kmalloc(STACK_SIZE);
     if (!stack) {
         ret = -ENOMEM;
         goto fail;
     }
-    process->kernel_stack_base = (uintptr_t)stack;
-    process->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
-    process->esp = process->ebp = process->kernel_stack_top;
+    task->kernel_stack_base = (uintptr_t)stack;
+    task->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
+    task->esp = task->ebp = task->kernel_stack_top;
 
-    process->eip = (uintptr_t)do_iret;
+    task->eip = (uintptr_t)do_iret;
 
     // push the argument of do_iret()
-    process->esp -= sizeof(struct registers);
-    *(struct registers*)process->esp = (struct registers){
+    task->esp -= sizeof(struct registers);
+    *(struct registers*)task->esp = (struct registers){
         .cs = KERNEL_CS,
         .ss = KERNEL_DS,
         .gs = KERNEL_DS,
         .fs = KERNEL_DS,
         .es = KERNEL_DS,
         .ds = KERNEL_DS,
-        .ebp = process->ebp,
-        .esp = process->esp,
+        .ebp = task->ebp,
+        .esp = task->esp,
         .eip = (uintptr_t)entry_point,
         .eflags = 0x202, // Set IF
-        .user_esp = process->esp,
+        .user_esp = task->esp,
         .user_ss = KERNEL_DS,
     };
 
-    return process;
+    return task;
 
 fail:
     kfree(stack);
-    file_descriptor_table_destroy(&process->fd_table);
-    path_destroy_recursive(process->cwd);
-    kfree(process);
+    file_descriptor_table_destroy(&task->fd_table);
+    path_destroy_recursive(task->cwd);
+    kfree(task);
     return ERR_PTR(ret);
 }
 
-struct process* process_spawn(const char* comm, void (*entry_point)(void)) {
-    struct process* process = process_create(comm, entry_point);
-    if (IS_ERR(process))
-        return process;
-    scheduler_register(process);
-    return process;
+struct task* task_spawn(const char* comm, void (*entry_point)(void)) {
+    struct task* task = task_create(comm, entry_point);
+    if (IS_ERR(task))
+        return task;
+    scheduler_register(task);
+    return task;
 }
 
-void process_ref(struct process* process) {
-    ASSERT(process);
-    ++process->ref_count;
+void task_ref(struct task* task) {
+    ASSERT(task);
+    ++task->ref_count;
 }
 
-void process_unref(struct process* process) {
-    if (!process)
+void task_unref(struct task* task) {
+    if (!task)
         return;
-    ASSERT(process->ref_count > 0);
-    if (--process->ref_count > 0)
+    ASSERT(task->ref_count > 0);
+    if (--task->ref_count > 0)
         return;
 
-    if (process->pid == 0) {
-        // struct process is usually freed in a context of its parent process,
-        // but the initial process is not a child of any process. Just leak it.
+    if (task->pid == 0) {
+        // struct task is usually freed in a context of its parent task,
+        // but the initial task is not a child of any task. Just leak it.
         return;
     }
 
-    ASSERT(process != current);
+    ASSERT(task != current);
 
-    if (process->vm != kernel_vm)
-        vm_destroy(process->vm);
-    file_descriptor_table_destroy(&process->fd_table);
-    path_destroy_recursive(process->cwd);
-    kfree((void*)process->kernel_stack_base);
-    kfree(process);
+    if (task->vm != kernel_vm)
+        vm_destroy(task->vm);
+    file_descriptor_table_destroy(&task->fd_table);
+    path_destroy_recursive(task->cwd);
+    kfree((void*)task->kernel_stack_base);
+    kfree(task);
 }
 
-pid_t process_generate_next_pid(void) { return atomic_fetch_add(&next_pid, 1); }
+pid_t task_generate_next_pid(void) { return atomic_fetch_add(&next_pid, 1); }
 
-struct process* process_find_by_pid(pid_t pid) {
-    spinlock_lock(&all_processes_lock);
-    struct process* it = all_processes;
-    for (; it; it = it->all_processes_next) {
+struct task* task_find_by_pid(pid_t pid) {
+    spinlock_lock(&all_tasks_lock);
+    struct task* it = all_tasks;
+    for (; it; it = it->all_tasks_next) {
         if (it->pid == pid)
             break;
     }
     if (it)
-        process_ref(it);
-    spinlock_unlock(&all_processes_lock);
-    return it;
-}
-
-struct process* process_find_by_ppid(pid_t ppid) {
-    spinlock_lock(&all_processes_lock);
-    struct process* it = all_processes;
-    for (; it; it = it->all_processes_next) {
-        if (it->ppid == ppid)
-            break;
-    }
-    if (it)
-        process_ref(it);
-    spinlock_unlock(&all_processes_lock);
+        task_ref(it);
+    spinlock_unlock(&all_tasks_lock);
     return it;
 }
 
 static noreturn void die(void) {
     if (current->pid == 1)
-        PANIC("init process exited");
+        PANIC("init task exited");
 
     sti();
     file_descriptor_table_clear(&current->fd_table);
 
     cli();
-    spinlock_lock(&all_processes_lock);
-    for (struct process* it = all_processes; it; it = it->all_processes_next) {
-        // Orphaned child process is adopted by init process.
+    spinlock_lock(&all_tasks_lock);
+    for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
+        // Orphaned child task is adopted by init task.
         if (it->ppid == current->pid)
             it->ppid = 1;
     }
-    spinlock_unlock(&all_processes_lock);
-    current->state = PROCESS_STATE_DEAD;
+    spinlock_unlock(&all_tasks_lock);
+    current->state = TASK_DEAD;
     scheduler_yield(false);
     UNREACHABLE();
 }
 
-void process_die_if_needed(void) {
-    if (current->state == PROCESS_STATE_DYING)
+void task_die_if_needed(void) {
+    if (current->state == TASK_DYING)
         die();
 }
 
-noreturn void process_exit(int status) {
+noreturn void task_exit(int status) {
     if (status != 0)
-        kprintf("\x1b[31mProcess %d exited with status %d\x1b[m\n",
-                current->pid, status);
+        kprintf("\x1b[31mTask %d exited with status %d\x1b[m\n", current->pid,
+                status);
     current->exit_status = (status & 0xff) << 8;
     die();
 }
 
-noreturn void process_crash_in_userland(int signum) {
-    kprintf("\x1b[31mProcess %d crashed with signal %d\x1b[m\n", current->pid,
+noreturn void task_crash_in_userland(int signum) {
+    kprintf("\x1b[31mTask %d crashed with signal %d\x1b[m\n", current->pid,
             signum);
     current->exit_status = signum & 0xff;
     die();
 }
 
 static void terminate_with_signal(int signum) {
-    kprintf("\x1b[31mProcess %d was terminated with signal %d\x1b[m\n",
+    kprintf("\x1b[31mTask %d was terminated with signal %d\x1b[m\n",
             current->pid, signum);
     current->exit_status = signum & 0xff;
-    current->state = PROCESS_STATE_DYING;
+    current->state = TASK_DYING;
 }
 
-void process_tick(bool in_kernel) {
+void task_tick(bool in_kernel) {
     if (in_kernel)
         ++current->kernel_ticks;
     else
         ++current->user_ticks;
 }
 
-int process_alloc_file_descriptor(int fd, struct file* file) {
+int task_alloc_file_descriptor(int fd, struct file* file) {
     if (fd >= OPEN_MAX)
         return -EBADF;
 
@@ -238,7 +225,7 @@ int process_alloc_file_descriptor(int fd, struct file* file) {
     return -EMFILE;
 }
 
-int process_free_file_descriptor(int fd) {
+int task_free_file_descriptor(int fd) {
     if (fd < 0 || OPEN_MAX <= fd)
         return -EBADF;
 
@@ -249,7 +236,7 @@ int process_free_file_descriptor(int fd) {
     return 0;
 }
 
-struct file* process_get_file(int fd) {
+struct file* task_get_file(int fd) {
     if (fd < 0 || OPEN_MAX <= fd)
         return ERR_PTR(-EBADF);
 
@@ -311,7 +298,7 @@ static int get_default_disposition_for_signal(int signum) {
     }
 }
 
-static int send_signal(struct process* process, int signum) {
+static int send_signal(struct task* task, int signum) {
     int ret = 0;
     if (signum < 0 || NSIG <= signum) {
         ret = -EINVAL;
@@ -330,54 +317,54 @@ static int send_signal(struct process* process, int signum) {
         UNIMPLEMENTED();
     }
 
-    process->pending_signals |= 1 << signum;
+    task->pending_signals |= 1 << signum;
 
-    if (process == current)
-        process_handle_pending_signals();
+    if (task == current)
+        task_handle_pending_signals();
 
 done:
-    process_unref(process);
+    task_unref(task);
     return ret;
 }
 
-int process_send_signal_to_one(pid_t pid, int signum) {
-    struct process* process = process_find_by_pid(pid);
-    if (!process)
+int task_send_signal_to_one(pid_t pid, int signum) {
+    struct task* task = task_find_by_pid(pid);
+    if (!task)
         return -ESRCH;
-    return send_signal(process, signum);
+    return send_signal(task, signum);
 }
 
-int process_send_signal_to_group(pid_t pgid, int signum) {
+int task_send_signal_to_group(pid_t pgid, int signum) {
     int ret = 0;
-    spinlock_lock(&all_processes_lock);
-    for (struct process* it = all_processes; it; it = it->all_processes_next) {
+    spinlock_lock(&all_tasks_lock);
+    for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
         if (it->pgid != pgid)
             continue;
-        process_ref(it);
+        task_ref(it);
         ret = send_signal(it, signum);
         if (IS_ERR(ret))
             break;
     }
-    spinlock_unlock(&all_processes_lock);
+    spinlock_unlock(&all_tasks_lock);
     return ret;
 }
 
-int process_send_signal_to_all(int signum) {
+int task_send_signal_to_all(int signum) {
     int ret = 0;
-    spinlock_lock(&all_processes_lock);
-    for (struct process* it = all_processes; it; it = it->all_processes_next) {
+    spinlock_lock(&all_tasks_lock);
+    for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
         if (it->pid <= 1)
             continue;
-        process_ref(it);
+        task_ref(it);
         ret = send_signal(it, signum);
         if (IS_ERR(ret))
             break;
     }
-    spinlock_unlock(&all_processes_lock);
+    spinlock_unlock(&all_tasks_lock);
     return 0;
 }
 
-void process_handle_pending_signals(void) {
+void task_handle_pending_signals(void) {
     if (!current->pending_signals)
         return;
 
