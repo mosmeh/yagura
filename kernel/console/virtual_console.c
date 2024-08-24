@@ -1,4 +1,4 @@
-#include "console_private.h"
+#include "private.h"
 #include "screen/screen.h"
 #include <common/stdio.h>
 #include <common/string.h>

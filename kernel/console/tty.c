@@ -1,4 +1,4 @@
-#include "console_private.h"
+#include "private.h"
 #include <common/string.h>
 #include <kernel/api/signum.h>
 #include <kernel/api/sys/ioctl.h>

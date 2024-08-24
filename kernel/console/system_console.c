@@ -1,4 +1,4 @@
-#include "console_private.h"
+#include "private.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>

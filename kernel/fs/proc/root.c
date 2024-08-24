@@ -1,4 +1,4 @@
-#include "proc_private.h"
+#include "private.h"
 #include <common/stdio.h>
 #include <common/stdlib.h>
 #include <kernel/api/dirent.h>

@@ -1,4 +1,4 @@
-#include "console_private.h"
+#include "private.h"
 #include <common/stdio.h>
 #include <kernel/drivers/serial.h>
 #include <kernel/memory/memory.h>

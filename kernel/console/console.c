@@ -1,5 +1,5 @@
 #include "console.h"
-#include "console_private.h"
+#include "private.h"
 #include "screen/screen.h"
 #include <kernel/panic.h>
 

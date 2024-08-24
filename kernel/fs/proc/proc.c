@@ -1,4 +1,4 @@
-#include "proc_private.h"
+#include "private.h"
 #include <kernel/containers/vec.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/memory/memory.h>

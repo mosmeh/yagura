@@ -1,5 +1,5 @@
 #include "memory.h"
-#include "memory_private.h"
+#include "private.h"
 #include <common/string.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>

@@ -1,4 +1,4 @@
-#include "proc_private.h"
+#include "private.h"
 #include <common/string.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/containers/vec.h>

@@ -1,5 +1,5 @@
 #include "memory.h"
-#include "memory_private.h"
+#include "private.h"
 
 void memory_init(const multiboot_info_t* mb_info) {
     page_init(mb_info);

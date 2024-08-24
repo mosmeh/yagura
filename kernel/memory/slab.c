@@ -1,5 +1,5 @@
 #include "memory.h"
-#include "memory_private.h"
+#include "private.h"
 #include <kernel/panic.h>
 
 void slab_cache_init(struct slab_cache* cache, size_t obj_size) {
