@@ -43,7 +43,7 @@ pid_t sys_getpgid(pid_t pid) {
 }
 
 int sys_sched_yield(void) {
-    scheduler_yield(true);
+    sched_yield(true);
     return 0;
 }
 
@@ -189,7 +189,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack) {
     }
     ++task->thread_group->num_running;
 
-    scheduler_register(task);
+    sched_register(task);
     return tid;
 
 fail:
@@ -276,7 +276,7 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
             return -ECHILD;
         }
     } else {
-        int rc = scheduler_block((unblock_fn)unblock_waitpid, &blocker, 0);
+        int rc = sched_block((unblock_fn)unblock_waitpid, &blocker, 0);
         if (rc == -EINTR)
             return -ERESTARTSYS;
         if (IS_ERR(rc))

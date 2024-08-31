@@ -90,7 +90,7 @@ int sys_sigsuspend(const sigset_t* user_mask) {
         return -EFAULT;
     sigset_t old_mask = current->blocked_signals;
     current->blocked_signals = mask;
-    int rc = scheduler_block(unblock_suspend, NULL, 0);
+    int rc = sched_block(unblock_suspend, NULL, 0);
     current->blocked_signals = old_mask;
     return rc;
 }

@@ -4,7 +4,7 @@
 #include <kernel/api/time.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
-#include <kernel/scheduler.h>
+#include <kernel/sched.h>
 #include <kernel/time.h>
 
 int sys_clock_gettime(clockid_t clk_id, struct timespec* user_tp) {
@@ -53,7 +53,7 @@ int sys_clock_nanosleep(clockid_t clockid, int flags,
     }
 
     struct sleep_blocker blocker = {.clock_id = clockid, .deadline = deadline};
-    rc = scheduler_block((unblock_fn)unblock_sleep, &blocker, 0);
+    rc = sched_block((unblock_fn)unblock_sleep, &blocker, 0);
     if (IS_ERR(rc))
         return rc;
     if (user_remain && flags != TIMER_ABSTIME) {

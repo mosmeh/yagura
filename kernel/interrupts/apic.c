@@ -3,7 +3,7 @@
 #include <kernel/cpu.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
-#include <kernel/scheduler.h>
+#include <kernel/sched.h>
 #include <kernel/time.h>
 
 #define LAPIC_ID 0x0020      // ID
@@ -43,7 +43,7 @@ void lapic_init(void) {
     lapic = vm_phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE);
     ASSERT(lapic);
 
-    idt_set_interrupt_handler(LAPIC_TIMER_VECTOR, scheduler_tick);
+    idt_set_interrupt_handler(LAPIC_TIMER_VECTOR, sched_tick);
 }
 
 static uint32_t lapic_read(uint32_t reg) {

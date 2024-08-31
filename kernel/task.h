@@ -4,7 +4,7 @@
 #include "api/sys/limits.h"
 #include "fs/fs.h"
 #include "memory/memory.h"
-#include "scheduler.h"
+#include "sched.h"
 #include "system.h"
 #include <common/extra.h>
 #include <stdnoreturn.h>
@@ -119,8 +119,6 @@ struct task* task_find_by_tid(pid_t);
 noreturn void task_exit(int status);
 noreturn void task_exit_thread_group(int status);
 noreturn void task_crash(int signum);
-
-void task_tick(bool in_kernel);
 
 int task_user_execve(const char* pathname, const char* const* user_argv,
                      const char* const* user_envp);

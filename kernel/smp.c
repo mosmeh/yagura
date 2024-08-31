@@ -4,7 +4,7 @@
 #include "kmsg.h"
 #include "memory/memory.h"
 #include "panic.h"
-#include "scheduler.h"
+#include "sched.h"
 #include "system.h"
 #include <common/string.h>
 
@@ -132,5 +132,5 @@ noreturn void ap_start(void) {
         pause();
     flush_tlb();
 
-    scheduler_start();
+    sched_start();
 }

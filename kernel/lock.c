@@ -2,7 +2,7 @@
 #include "cpu.h"
 #include "interrupts/interrupts.h"
 #include "panic.h"
-#include "scheduler.h"
+#include "sched.h"
 #include "task.h"
 
 void mutex_lock(struct mutex* m) {
@@ -21,7 +21,7 @@ void mutex_lock(struct mutex* m) {
             }
             atomic_store_explicit(&m->lock, false, memory_order_release);
         }
-        scheduler_yield(true);
+        sched_yield(true);
     }
 }
 
@@ -40,7 +40,7 @@ void mutex_unlock(struct mutex* m) {
             atomic_store_explicit(&m->lock, false, memory_order_release);
             return;
         }
-        scheduler_yield(true);
+        sched_yield(true);
     }
 }
 

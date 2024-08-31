@@ -8,7 +8,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
-#include <kernel/scheduler.h>
+#include <kernel/sched.h>
 
 void inode_ref(struct inode* inode) {
     ASSERT(inode);
@@ -286,5 +286,5 @@ short file_poll(struct file* file, short events) {
 int file_block(struct file* file, bool (*unblock)(struct file*), int flags) {
     if ((file->flags & O_NONBLOCK) && !unblock(file))
         return -EAGAIN;
-    return scheduler_block((unblock_fn)unblock, file, flags);
+    return sched_block((unblock_fn)unblock, file, flags);
 }

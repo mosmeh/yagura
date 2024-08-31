@@ -8,7 +8,7 @@
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/scheduler.h>
+#include <kernel/sched.h>
 #include <kernel/system.h>
 
 // virtio spec: https://docs.oasis-open.org/virtio/virtio/v1.3/virtio-v1.3.html
@@ -154,8 +154,8 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
     if (!(virtq->used->flags & VIRTQ_USED_F_NO_NOTIFY))
         *virtq->notify = virtq->index;
 
-    int rc = scheduler_block((unblock_fn)virtq_is_ready, virtq,
-                             BLOCK_UNINTERRUPTIBLE);
+    int rc =
+        sched_block((unblock_fn)virtq_is_ready, virtq, BLOCK_UNINTERRUPTIBLE);
     full_memory_barrier();
 
     // Return the descriptors to the free list.

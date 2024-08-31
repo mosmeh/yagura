@@ -64,7 +64,7 @@ OBJS := \
 	memory/vm.o \
 	random.o \
 	safe_string.o \
-	scheduler.o \
+	sched.o \
 	smp.o \
 	syscall/clock.o \
 	syscall/fs.o \

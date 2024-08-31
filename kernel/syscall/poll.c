@@ -1,7 +1,6 @@
 #include "syscall.h"
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
-#include <kernel/scheduler.h>
 #include <kernel/task.h>
 #include <kernel/time.h>
 
@@ -87,7 +86,7 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
         blocker.deadline = deadline;
     }
 
-    ret = scheduler_block((unblock_fn)unblock_poll, &blocker, 0);
+    ret = sched_block((unblock_fn)unblock_poll, &blocker, 0);
     if (IS_ERR(ret))
         goto exit;
 

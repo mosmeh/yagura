@@ -7,7 +7,7 @@
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/scheduler.h>
+#include <kernel/sched.h>
 
 #define SECTOR_SIZE 512
 

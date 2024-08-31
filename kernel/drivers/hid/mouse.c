@@ -6,7 +6,6 @@
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/scheduler.h>
 
 static void write_mouse(uint8_t data) {
     ps2_write(PS2_COMMAND, 0xd4);

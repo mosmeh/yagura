@@ -10,7 +10,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
-#include <kernel/scheduler.h>
+#include <kernel/sched.h>
 #include <kernel/system.h>
 
 #define PCI_CLASS_MULTIMEDIA 4

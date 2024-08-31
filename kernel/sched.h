@@ -8,19 +8,19 @@
 struct task;
 struct registers;
 
-void scheduler_init(void);
+void sched_init(void);
 
 // Registers a task to be scheduled.
-void scheduler_register(struct task*);
+void sched_register(struct task*);
 
 // Starts the scheduler on the current CPU.
-noreturn void scheduler_start(void);
+noreturn void sched_start(void);
 
 // Yields the current CPU to other tasks.
-void scheduler_yield(bool requeue_current);
+void sched_yield(bool requeue_current);
 
 // Should be called on every timer tick.
-void scheduler_tick(struct registers*);
+void sched_tick(struct registers*);
 
 #define BLOCK_UNINTERRUPTIBLE 1
 
@@ -29,4 +29,4 @@ typedef bool (*unblock_fn)(void*);
 
 // Blocks the current task until the unblock function returns true.
 // Returns -EINTR if the task was interrupted.
-NODISCARD int scheduler_block(unblock_fn, void* data, int flags);
+NODISCARD int sched_block(unblock_fn, void* data, int flags);

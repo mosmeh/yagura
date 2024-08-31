@@ -8,7 +8,6 @@
 #include "memory/memory.h"
 #include "panic.h"
 #include "safe_string.h"
-#include "scheduler.h"
 #include <common/string.h>
 #include <stdatomic.h>
 
@@ -263,7 +262,7 @@ struct task* task_spawn(const char* comm, void (*entry_point)(void)) {
     struct task* task = task_create(comm, entry_point);
     if (IS_ERR(task))
         return task;
-    scheduler_register(task);
+    sched_register(task);
     return task;
 }
 
@@ -345,7 +344,7 @@ static noreturn void exit(int exit_status) {
     }
     spinlock_unlock(&all_tasks_lock);
     current->state = TASK_DEAD;
-    scheduler_yield(false);
+    sched_yield(false);
     UNREACHABLE();
 }
 
@@ -368,13 +367,6 @@ void task_crash(int signum) {
     kprintf("Task crashed: tid=%d tgid=%d signal=%d\n", current->tid,
             current->tgid, signum);
     do_exit_thread_group(signum);
-}
-
-void task_tick(bool in_kernel) {
-    if (in_kernel)
-        ++current->kernel_ticks;
-    else
-        ++current->user_ticks;
 }
 
 int task_alloc_file_descriptor(int fd, struct file* file) {

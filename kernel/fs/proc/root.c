@@ -7,7 +7,6 @@
 #include <kernel/cpu.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/panic.h>
-#include <kernel/scheduler.h>
 #include <kernel/system.h>
 #include <kernel/task.h>
 #include <kernel/time.h>

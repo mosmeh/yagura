@@ -1,4 +1,4 @@
-#include "scheduler.h"
+#include "sched.h"
 #include "cpu.h"
 #include "interrupts/interrupts.h"
 #include "memory/memory.h"
@@ -17,7 +17,7 @@ static noreturn void do_idle(void) {
     }
 }
 
-void scheduler_init(void) {
+void sched_init(void) {
     for (size_t i = 0; i < num_cpus; ++i) {
         struct cpu* cpu = cpus[i];
         char comm[SIZEOF_FIELD(struct task, comm)];
@@ -64,7 +64,7 @@ static struct task* dequeue_ready(void) {
     return task;
 }
 
-void scheduler_register(struct task* task) {
+void sched_register(struct task* task) {
     ASSERT(task);
     ASSERT(task->state == TASK_RUNNING);
     task_ref(task);
@@ -162,9 +162,9 @@ noreturn void switch_context(void) {
     UNREACHABLE();
 }
 
-void scheduler_start(void) { switch_context(); }
+void sched_start(void) { switch_context(); }
 
-void scheduler_yield(bool requeue_current) {
+void sched_yield(bool requeue_current) {
     bool int_flag = push_cli();
     struct cpu* cpu = cpu_get_current();
     struct task* task = cpu->current_task;
@@ -195,15 +195,20 @@ void scheduler_yield(bool requeue_current) {
     pop_cli(int_flag);
 }
 
-void scheduler_tick(struct registers* regs) {
+void sched_tick(struct registers* regs) {
     ASSERT(!interrupts_enabled());
     if (!current)
         return;
 
-    bool in_kernel = (regs->cs & 3) == 0;
-    task_tick(in_kernel);
-    scheduler_yield(true);
-    if (in_kernel)
+    bool preempted_in_kernel = (regs->cs & 3) == 0;
+    if (preempted_in_kernel)
+        ++current->kernel_ticks;
+    else
+        ++current->user_ticks;
+
+    sched_yield(true);
+
+    if (preempted_in_kernel)
         return;
 
     struct sigaction act;
@@ -213,7 +218,7 @@ void scheduler_tick(struct registers* regs) {
         task_handle_signal(regs, signum, &act);
 }
 
-int scheduler_block(unblock_fn unblock, void* data, int flags) {
+int sched_block(unblock_fn unblock, void* data, int flags) {
     ASSERT(!current->unblock);
     ASSERT(!current->block_data);
     current->interrupted = false;
@@ -228,7 +233,7 @@ int scheduler_block(unblock_fn unblock, void* data, int flags) {
     current->state = (flags & BLOCK_UNINTERRUPTIBLE) ? TASK_UNINTERRUPTIBLE
                                                      : TASK_INTERRUPTIBLE;
 
-    scheduler_yield(false);
+    sched_yield(false);
 
     pop_cli(int_flag);
 

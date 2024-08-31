@@ -9,7 +9,6 @@
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/scheduler.h>
 
 #define QUEUE_SIZE 128
 

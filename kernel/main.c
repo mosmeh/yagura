@@ -8,7 +8,7 @@
 #include "memory/memory.h"
 #include "multiboot.h"
 #include "panic.h"
-#include "scheduler.h"
+#include "sched.h"
 #include "task.h"
 #include "time.h"
 
@@ -82,11 +82,11 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     random_init();
     console_init();
     syscall_init();
-    scheduler_init();
+    sched_init();
     smp_start();
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
     ASSERT_OK(task_spawn("userland_init", userland_init));
 
-    scheduler_start();
+    sched_start();
 }
