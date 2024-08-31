@@ -1,6 +1,8 @@
-#include "boot_defs.h"
 #define ASM_FILE
 #include "multiboot.h"
+#include "api/asm/processor-flags.h"
+#include "system.h"
+#include "memory/memory.h"
 
 #define FLAGS (MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE)
 #define CHECKSUM -(MULTIBOOT_HEADER_MAGIC + FLAGS)
@@ -30,7 +32,7 @@ _start:
     cli
 
     # fill page table
-    movl $0x103, %esi # P | RW | G
+    movl $(PTE_PRESENT | PTE_WRITE | PTE_GLOBAL), %esi
     movl $kernel_page_table_start, %edi
     movl $1022, %ecx # last two pages are for quickmap
 1:
@@ -40,21 +42,20 @@ _start:
     loop 1b
 
     movl $kernel_page_table_start, %edx
-    orl $3, %edx # P | RW
+    orl $(PTE_PRESENT | PTE_WRITE), %edx
     movl %edx, kernel_page_directory_start # identity mapping
     movl %edx, kernel_page_directory_start + KERNEL_PDE_IDX * 4
 
     # recursive
     movl $kernel_page_directory_start, %edx
-    orl $3, %edx # P | RW
+    orl $(PTE_PRESENT | PTE_WRITE), %edx
     movl %edx, kernel_page_directory_start + 1023 * 4
 
     movl $kernel_page_directory_start, %edx
     movl %edx, %cr3
 
-    # set PG | WP
     movl %cr0, %edx
-    orl $0x80010000, %edx
+    orl $(X86_CR0_PG | X86_CR0_WP), %edx
     movl %edx, %cr0
 
     lea paging_enabled, %edx
@@ -103,7 +104,7 @@ ap_trampoline_start:
     lgdtl ap_initial_gdtr - ap_trampoline_start + AP_TRAMPOLINE_ADDR
 
     movl %cr0, %eax
-    orl $1, %eax # PE
+    orl $X86_CR0_PE, %eax
     movl %eax, %cr0
 
     movw $0x10, %ax
@@ -130,7 +131,7 @@ ap_trampoline_start32:
     movl %eax, %cr3
 
     movl %cr0, %eax
-    orl $0x80010000, %eax # PG | WP
+    orl $(X86_CR0_PG | X86_CR0_WP), %eax
     movl %eax, %cr0
 
     # ebx = atomic_fetch_add(&ap_id, 1)

@@ -1,5 +1,4 @@
 #include "acpi.h"
-#include "boot_defs.h"
 #include "console/console.h"
 #include "cpu.h"
 #include "drivers/drivers.h"

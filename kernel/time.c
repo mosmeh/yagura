@@ -1,6 +1,6 @@
 #include "api/time.h"
+#include "api/errno.h"
 #include "drivers/rtc.h"
-#include "interrupts/interrupts.h"
 #include "lock.h"
 #include "time.h"
 

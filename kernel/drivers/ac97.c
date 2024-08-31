@@ -4,7 +4,6 @@
 #include <kernel/api/sound.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
-#include <kernel/boot_defs.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>

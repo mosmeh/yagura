@@ -1,7 +1,33 @@
 #pragma once
 
+#define PAGE_SIZE 4096
+
+#define KERNEL_VIRT_ADDR 0xc0000000
+#define KERNEL_PDE_IDX (KERNEL_VIRT_ADDR >> 22)
+
+// Page is mapped
+#define PTE_PRESENT 0x1
+
+// Page may be written
+#define PTE_WRITE 0x2
+
+// Page may be accessed from userland
+#define PTE_USER 0x4
+
+// Page Attribute Table bit
+// Used to enable write-combining caching.
+#define PTE_PAT 0x80
+
+// Page is global (not flushed from TLB on context switch)
+#define PTE_GLOBAL 0x100
+
+// Flag to indicate that the page is shared between multiple vm instances.
+// The bit is unused by the hardware, so we can use it for our purposes.
+#define PTE_SHARED 0x200
+
+#ifndef ASM_FILE
+
 #include <common/extra.h>
-#include <kernel/boot_defs.h>
 #include <kernel/lock.h>
 
 extern struct page_directory* kernel_page_directory;
@@ -119,23 +145,6 @@ NODISCARD int vm_unmap(void*, size_t);
 // Fails if the address is not the start of a region.
 NODISCARD int vm_free(void*);
 
-// Page may be written
-#define PTE_WRITE 0x2
-
-// Page may be accessed from userland
-#define PTE_USER 0x4
-
-// Page Attribute Table bit
-// Used to enable write-combining caching.
-#define PTE_PAT 0x80
-
-// Page is global (not flushed from TLB on context switch)
-#define PTE_GLOBAL 0x100
-
-// Flag to indicate that the page is shared between multiple vm instances.
-// The bit is unused by the hardware, so we can use it for our purposes.
-#define PTE_SHARED 0x200
-
 // Allocates free pages and maps them to the virtual address range.
 NODISCARD int page_table_map_anon(uintptr_t virt_addr, uintptr_t size,
                                   uint16_t flags);
@@ -154,3 +163,5 @@ void page_table_unmap(uintptr_t virt_addr, uintptr_t size);
 
 // Changes the page table flags for the virtual address range.
 void page_table_set_flags(uintptr_t virt_addr, uintptr_t size, uint16_t flags);
+
+#endif

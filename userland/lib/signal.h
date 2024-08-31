@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/api/sys/types.h>
+#include <sys/types.h>
 
 extern const char* const sys_signame[];
 extern const char* const sys_siglist[];

@@ -1,7 +1,6 @@
 #include "task.h"
 #include "api/signum.h"
 #include "api/sys/limits.h"
-#include "boot_defs.h"
 #include "cpu.h"
 #include "fs/path.h"
 #include "interrupts/interrupts.h"
@@ -173,7 +172,7 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
         .ebp = task->ebp,
         .esp = task->esp,
         .eip = (uintptr_t)entry_point,
-        .eflags = 0x202, // Set IF
+        .eflags = X86_EFLAGS_IF | X86_EFLAGS_FIXED,
         .user_esp = task->esp,
         .user_ss = KERNEL_DS,
     };

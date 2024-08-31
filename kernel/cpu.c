@@ -1,5 +1,6 @@
 #include "cpu.h"
 #include "acpi.h"
+#include "api/asm/processor-flags.h"
 #include "asm_wrapper.h"
 #include "containers/mpsc.h"
 #include "interrupts/interrupts.h"
@@ -261,7 +262,7 @@ static void init_cpu(struct cpu* cpu) {
 
     if (cpu_has_feature(cpu, X86_FEATURE_PGE)) {
         uint32_t cr4 = read_cr4();
-        cr4 |= 0x80; // PGE
+        cr4 |= X86_CR4_PGE;
         write_cr4(cr4);
     }
 

@@ -479,7 +479,7 @@ void vfs_init(const multiboot_module_t* initrd_mod) {
     tmpfs_init();
     proc_init();
 
-    kprintf("vfs: mounting root filesystem\n");
+    kprint("vfs: mounting root filesystem\n");
     struct file_system* fs = find_file_system("tmpfs");
     ASSERT(fs);
     root = fs->mount(NULL);

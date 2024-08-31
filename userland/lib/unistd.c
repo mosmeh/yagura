@@ -9,6 +9,7 @@
 #include "sys/reboot.h"
 #include "time.h"
 #include <private.h>
+#include <sys/limits.h>
 
 char** environ;
 

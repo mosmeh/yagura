@@ -1,5 +1,10 @@
 #pragma once
 
+#define AP_TRAMPOLINE_ADDR 0x8000
+#define STACK_SIZE 0x4000
+
+#ifndef ASM_FILE
+
 #include "api/sys/types.h"
 #include "api/sys/utsname.h"
 #include <stdalign.h>
@@ -16,7 +21,7 @@ extern unsigned char kernel_end[];
 struct registers {
     uint32_t ss, gs, fs, es, ds;
     uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
-    uint32_t num, err_code;
+    uint32_t interrupt_num, error_code;
     uint32_t eip, cs, eflags, user_esp, user_ss;
 } __attribute__((packed));
 
@@ -58,3 +63,5 @@ noreturn void halt(void);
 noreturn void poweroff(void);
 
 void handle_sysrq(char);
+
+#endif

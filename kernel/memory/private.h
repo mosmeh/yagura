@@ -1,7 +1,7 @@
 #pragma once
 
+#include "memory.h"
 #include <common/extra.h>
-#include <kernel/boot_defs.h>
 #include <kernel/lock.h>
 #include <stdalign.h>
 

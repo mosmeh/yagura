@@ -5,7 +5,6 @@
 #include <kernel/api/sys/mman.h>
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/syscall.h>
-#include <kernel/boot_defs.h>
 #include <kernel/memory/memory.h>
 #include <kernel/safe_string.h>
 #include <kernel/task.h>

@@ -1,15 +1,16 @@
+#include "api/asm/processor-flags.h"
+#include "api/elf.h"
+#include "api/fcntl.h"
+#include "api/sys/limits.h"
+#include "asm_wrapper.h"
+#include "gdt.h"
+#include "panic.h"
+#include "safe_string.h"
+#include "task.h"
+#include "time.h"
 #include <common/extra.h>
 #include <common/libgen.h>
 #include <common/string.h>
-#include <kernel/api/elf.h>
-#include <kernel/api/fcntl.h>
-#include <kernel/api/sys/limits.h>
-#include <kernel/asm_wrapper.h>
-#include <kernel/boot_defs.h>
-#include <kernel/gdt.h>
-#include <kernel/panic.h>
-#include <kernel/safe_string.h>
-#include <kernel/task.h>
 
 struct string_vec {
     size_t count;
@@ -363,14 +364,15 @@ static int execve(const char* pathname, struct string_vec* argv,
                      "pushl %[sp]\n"
                      "pushf\n"
                      "popl %%eax\n"
-                     "orl $0x200, %%eax\n" // set IF
+                     "orl %[eflags_if], %%eax\n"
                      "pushl %%eax\n"
                      "pushl %[user_cs]\n"
                      "push %[entry_point]\n"
                      "iret"
                      :
                      : [user_cs] "i"(USER_CS | 3), [user_ds] "i"(USER_DS | 3),
-                       [sp] "r"(sp), [entry_point] "r"(entry_point)
+                       [eflags_if] "i"(X86_EFLAGS_IF), [sp] "r"(sp),
+                       [entry_point] "r"(entry_point)
                      : "eax");
     UNREACHABLE();
 

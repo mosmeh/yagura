@@ -1,7 +1,0 @@
-#pragma once
-
-#define PAGE_SIZE 4096
-#define KERNEL_VIRT_ADDR 0xc0000000
-#define KERNEL_PDE_IDX (KERNEL_VIRT_ADDR >> 22)
-#define AP_TRAMPOLINE_ADDR 0x8000
-#define STACK_SIZE 0x4000

@@ -5,7 +5,6 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/times.h>
 #include <kernel/api/sys/wait.h>
-#include <kernel/boot_defs.h>
 #include <kernel/fs/path.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/panic.h>

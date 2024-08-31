@@ -1,7 +1,6 @@
 #include "memory.h"
 #include <common/extra.h>
 #include <kernel/api/sys/types.h>
-#include <kernel/boot_defs.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>
 #include <kernel/multiboot.h>

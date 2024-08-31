@@ -2,7 +2,6 @@
 #include <common/extra.h>
 #include <common/string.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/boot_defs.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>

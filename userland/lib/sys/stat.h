@@ -1,7 +1,7 @@
 #pragma once
 
 #include <kernel/api/sys/stat.h>
-#include <kernel/api/time.h>
+#include <time.h>
 
 struct stat {
     dev_t st_dev;         /* ID of device containing file */

@@ -44,16 +44,16 @@ void idt_set_interrupt_handler(uint8_t num, interrupt_handler_fn handler) {
 }
 
 void isr_handler(struct registers* regs) {
-    ASSERT(regs->num < NUM_IDT_ENTRIES);
-    if (regs->num != SPURIOUS_VECTOR) {
-        if (regs->num != SYSCALL_VECTOR)
+    ASSERT(regs->interrupt_num < NUM_IDT_ENTRIES);
+    if (regs->interrupt_num != SPURIOUS_VECTOR) {
+        if (regs->interrupt_num != SYSCALL_VECTOR)
             lapic_eoi();
 
-        uint32_t irq = regs->num - IRQ(0);
+        uint32_t irq = regs->interrupt_num - IRQ(0);
         if (irq < NUM_IRQS)
             i8259_eoi(irq);
 
-        interrupt_handler_fn handler = interrupt_handlers[regs->num];
+        interrupt_handler_fn handler = interrupt_handlers[regs->interrupt_num];
         if (handler)
             handler(regs);
     }
@@ -160,9 +160,9 @@ static void handle_exception14(struct registers* regs) {
     if (safe_string_handle_page_fault(regs))
         return;
 
-    bool present = regs->err_code & 0x1;
-    bool write = regs->err_code & 0x2;
-    bool user = regs->err_code & 0x4;
+    bool present = regs->error_code & 0x1;
+    bool write = regs->error_code & 0x2;
+    bool user = regs->error_code & 0x4;
 
     kprintf("Page fault (%s%s%s) at %p\n",
             present ? "page-protection " : "non-present ",

@@ -5,7 +5,6 @@
 #include <stdbool.h>
 #include <stdnoreturn.h>
 
-struct cpu;
 struct task;
 struct registers;
 

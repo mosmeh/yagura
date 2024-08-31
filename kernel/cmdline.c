@@ -1,5 +1,5 @@
-#include "boot_defs.h"
 #include "kmsg.h"
+#include "memory/memory.h"
 #include "multiboot.h"
 #include "system.h"
 #include <common/string.h>

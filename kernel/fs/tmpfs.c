@@ -1,7 +1,7 @@
 #include "dentry.h"
+#include "fs.h"
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
-#include <kernel/fs/fs.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 

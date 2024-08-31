@@ -3,7 +3,6 @@
 #include <kernel/api/sys/reboot.h>
 #include <kernel/api/sys/syscall.h>
 #include <kernel/api/unistd.h>
-#include <kernel/boot_defs.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>

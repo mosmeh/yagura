@@ -2,8 +2,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <string.h>
+#include "stdio.h"
+#include "string.h"
 
 int sprintf(char* buffer, const char* format, ...) {
     va_list args;

@@ -1,4 +1,4 @@
-#include <kernel/api/sys/syscall.h>
+#include <sys/syscall.h>
 
     .text
 // int syscall(int num, int, int, int, int, int, int);

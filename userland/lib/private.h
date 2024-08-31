@@ -1,8 +1,8 @@
 #pragma once
 
 #include "errno.h"
-#include <kernel/api/err.h>
-#include <kernel/api/sys/syscall.h>
+#include <err.h>
+#include <syscall.h>
 
 int syscall(int num, int, int, int, int, int, int);
 

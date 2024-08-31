@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kernel/api/asm/processor-flags.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/panic.h>
 
@@ -47,7 +48,9 @@ void lapic_unicast_ipi(uint8_t apic_id);
 
 void io_apic_init(void);
 
-static inline bool interrupts_enabled(void) { return read_eflags() & 0x200; }
+static inline bool interrupts_enabled(void) {
+    return read_eflags() & X86_EFLAGS_IF;
+}
 
 static inline bool push_cli(void) {
     bool enabled = interrupts_enabled();

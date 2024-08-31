@@ -3,9 +3,9 @@
 #include "fcntl.h"
 #include "private.h"
 #include "stdlib.h"
+#include "string.h"
 #include "unistd.h"
-#include <common/extra.h>
-#include <common/string.h>
+#include <extra.h>
 
 static long getdents(int fd, struct linux_dirent* dirp, size_t count) {
     RETURN_WITH_ERRNO(long, SYSCALL3(getdents, fd, dirp, count));

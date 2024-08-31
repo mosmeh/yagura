@@ -1,8 +1,8 @@
 #pragma once
 
 #include <kernel/api/dirent.h>
-#include <kernel/api/sys/types.h>
 #include <stddef.h>
+#include <sys/types.h>
 
 typedef struct __DIR DIR;
 
