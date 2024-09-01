@@ -73,7 +73,6 @@
     F(listen, 0)                                                               \
     F(accept4, 0)                                                              \
     F(shutdown, 0)                                                             \
-    F(sysconf, 0)                                                              \
     F(dbgprint, 0)
 
 struct registers;
@@ -145,5 +144,4 @@ int sys_listen(int sockfd, int backlog);
 int sys_accept4(int sockfd, struct sockaddr* addr, socklen_t* addrlen,
                 int flags);
 int sys_shutdown(int sockfd, int how);
-long sys_sysconf(int name);
 int sys_dbgprint(const char* str);

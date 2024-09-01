@@ -2,6 +2,8 @@
 
 #include <kernel/api/time.h>
 
+#define CLOCKS_PER_SEC 1000000
+
 struct tm {
     int tm_sec;
     int tm_min;

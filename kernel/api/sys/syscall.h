@@ -60,6 +60,5 @@
 #define SYS_accept4 364
 #define SYS_shutdown 373
 
-// Custom syscalls
-#define SYS_sysconf 1024
-#define SYS_dbgprint 1025
+// Custom syscall
+#define SYS_dbgprint 1024

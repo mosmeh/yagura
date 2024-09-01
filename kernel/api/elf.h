@@ -69,3 +69,27 @@ typedef struct {
 #define PF_X 0x1
 #define PF_W 0x2
 #define PF_R 0x4
+
+typedef struct {
+    uint32_t a_type;
+    union {
+        uint32_t a_val;
+    } a_un;
+} Elf32_auxv_t;
+
+#define AT_NULL 0    // End of vector
+#define AT_IGNORE 1  // Entry should be ignored
+#define AT_PHDR 3    // Program headers for program
+#define AT_PHENT 4   // Size of program header entry
+#define AT_PHNUM 5   // Number of program headers
+#define AT_PAGESZ 6  // System page size
+#define AT_ENTRY 9   // Entry point of program
+#define AT_UID 11    // Real uid
+#define AT_EUID 12   // Effective uid
+#define AT_GID 13    // Real gid
+#define AT_EGID 14   // Effective gid
+#define AT_HWCAP 16  // Machine-dependent hints about processor capabilities.
+#define AT_CLKTCK 17 // Frequency of times()
+#define AT_SECURE 23 // Boolean, was exec setuid-like?
+#define AT_RANDOM 25 // Address of 16 random bytes.
+#define AT_EXECFN 31 // Filename of executable.

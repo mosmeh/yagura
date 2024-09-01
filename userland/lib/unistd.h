@@ -43,4 +43,14 @@ int usleep(useconds_t usec);
 
 int reboot(int howto);
 
+enum {
+    _SC_ARG_MAX,
+    _SC_CLK_TCK,
+    _SC_MONOTONIC_CLOCK,
+    _SC_OPEN_MAX,
+    _SC_PAGESIZE,
+    _SC_PAGE_SIZE = _SC_PAGESIZE,
+    _SC_SYMLOOP_MAX,
+};
+
 long sysconf(int name);

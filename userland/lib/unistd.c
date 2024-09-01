@@ -1,10 +1,10 @@
 #include "unistd.h"
-#include "errno.h"
 #include "fcntl.h"
 #include "panic.h"
 #include "stdio.h"
 #include "stdlib.h"
 #include "string.h"
+#include "sys/auxv.h"
 #include "sys/ioctl.h"
 #include "sys/reboot.h"
 #include "time.h"
@@ -153,4 +153,21 @@ int reboot(int howto) {
                                     LINUX_REBOOT_MAGIC2, howto, NULL));
 }
 
-long sysconf(int name) { RETURN_WITH_ERRNO(long, SYSCALL1(sysconf, name)); }
+long sysconf(int name) {
+    switch (name) {
+    case _SC_ARG_MAX:
+        return ARG_MAX;
+    case _SC_CLK_TCK:
+        return getauxval(AT_CLKTCK);
+    case _SC_MONOTONIC_CLOCK:
+        return 1;
+    case _SC_OPEN_MAX:
+        return OPEN_MAX;
+    case _SC_PAGESIZE:
+        return getauxval(AT_PAGESZ);
+    case _SC_SYMLOOP_MAX:
+        return SYMLOOP_MAX;
+    default:
+        return -EINVAL;
+    }
+}

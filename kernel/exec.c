@@ -3,6 +3,7 @@
 #include "api/fcntl.h"
 #include "api/sys/limits.h"
 #include "asm_wrapper.h"
+#include "cpu.h"
 #include "gdt.h"
 #include "panic.h"
 #include "safe_string.h"
@@ -111,10 +112,11 @@ static void ptr_vec_destroy(struct ptr_vec* ptrs) {
 
 NODISCARD static int push_value(uintptr_t* sp, uintptr_t stack_base,
                                 uintptr_t value) {
-    if (*sp - sizeof(uintptr_t) < stack_base)
+    uintptr_t new_sp = *sp - sizeof(uintptr_t);
+    if (new_sp < stack_base)
         return -E2BIG;
-    *sp -= sizeof(uintptr_t);
-    *(uintptr_t*)*sp = value;
+    *sp = new_sp;
+    *(uintptr_t*)new_sp = value;
     return 0;
 }
 
@@ -136,14 +138,15 @@ NODISCARD static int push_strings(uintptr_t* sp, uintptr_t stack_base,
         const char* str = strings->is_owned ? strings->owned.elements[i]
                                             : strings->borrowed.elements[i];
         size_t size = strlen(str) + 1;
-        if (*sp - size < stack_base) {
+        uintptr_t new_sp = *sp - next_power_of_two(size);
+        if (new_sp < stack_base) {
             kfree(ptrs->elements);
             ptrs->elements = NULL;
             return -E2BIG;
         }
-        *sp -= next_power_of_two(size);
-        strncpy((char*)*sp, str, size);
-        ptrs->elements[ptrs->count - i - 1] = *sp;
+        *sp = new_sp;
+        strncpy((char*)new_sp, str, size);
+        ptrs->elements[ptrs->count - i - 1] = new_sp;
     }
 
     return 0;
@@ -231,6 +234,7 @@ static int execve(const char* pathname, struct string_vec* argv,
     struct ptr_vec envp_ptrs = (struct ptr_vec){0};
     struct ptr_vec argv_ptrs = (struct ptr_vec){0};
 
+    uintptr_t phdr_virt_addr = 0;
     Elf32_Phdr* phdr = (Elf32_Phdr*)(exe_buf + ehdr->e_phoff);
     for (size_t i = 0; i < ehdr->e_phnum; ++i, ++phdr) {
         if (phdr->p_type != PT_LOAD)
@@ -239,6 +243,10 @@ static int execve(const char* pathname, struct string_vec* argv,
             ret = -ENOEXEC;
             goto fail_vm;
         }
+
+        if (phdr->p_offset <= ehdr->e_phoff &&
+            ehdr->e_phoff < phdr->p_offset + phdr->p_filesz)
+            phdr_virt_addr = ehdr->e_phoff - phdr->p_offset + phdr->p_vaddr;
 
         uintptr_t region_start = round_down(phdr->p_vaddr, PAGE_SIZE);
         uintptr_t region_end =
@@ -264,10 +272,6 @@ static int execve(const char* pathname, struct string_vec* argv,
         }
     }
 
-    uint32_t entry_point = ehdr->e_entry;
-    kfree(exe_buf);
-    exe_buf = NULL;
-
     void* stack_region =
         vm_alloc(2 * PAGE_SIZE + STACK_SIZE, VM_READ | VM_WRITE | VM_USER);
     if (IS_ERR(stack_region)) {
@@ -289,6 +293,10 @@ static int execve(const char* pathname, struct string_vec* argv,
     uintptr_t sp = stack_base + STACK_SIZE;
     memset((void*)stack_base, 0, STACK_SIZE);
 
+    ret = push_value(&sp, stack_base, 0); // Sentinel
+    if (IS_ERR(ret))
+        goto fail_vm;
+
     uintptr_t env_end = sp;
     ret = push_strings(&sp, stack_base, &envp_ptrs, envp);
     string_vec_destroy(envp);
@@ -303,7 +311,54 @@ static int execve(const char* pathname, struct string_vec* argv,
         goto fail_vm;
     uintptr_t arg_start = sp;
 
-    ret = push_value(&sp, stack_base, 0);
+    uint32_t random[4];
+    nread = random_get(random, sizeof(random));
+    if (IS_ERR(nread)) {
+        ret = nread;
+        goto fail_vm;
+    }
+    for (size_t i = 0; i < ARRAY_SIZE(random); ++i) {
+        ret = push_value(&sp, stack_base, random[i]);
+        if (IS_ERR(ret))
+            goto fail_vm;
+    }
+    uintptr_t random_ptr = sp;
+
+    uintptr_t entry_point = ehdr->e_entry;
+    Elf32_auxv_t auxv[] = {
+        {AT_PHDR, {phdr_virt_addr}},
+        {AT_PHENT, {ehdr->e_phentsize}},
+        {AT_PHNUM, {ehdr->e_phnum}},
+        {AT_PAGESZ, {PAGE_SIZE}},
+        {AT_ENTRY, {entry_point}},
+        {AT_UID, {0}},
+        {AT_EUID, {0}},
+        {AT_GID, {0}},
+        {AT_EGID, {0}},
+        {AT_HWCAP, {cpu_get_bsp()->features[0]}},
+        {AT_CLKTCK, {CLK_TCK}},
+        {AT_SECURE, {0}},
+        {AT_RANDOM, {random_ptr}},
+        {AT_EXECFN, {arg_start}},
+        {AT_NULL, {0}},
+    };
+
+    kfree(exe_buf);
+    exe_buf = NULL;
+
+    sp = round_down(sp, 16);
+
+    for (ssize_t i = ARRAY_SIZE(auxv) - 1; i >= 0; --i) {
+        Elf32_auxv_t* aux = auxv + i;
+        ret = push_value(&sp, stack_base, aux->a_un.a_val);
+        if (IS_ERR(ret))
+            goto fail_vm;
+        ret = push_value(&sp, stack_base, aux->a_type);
+        if (IS_ERR(ret))
+            goto fail_vm;
+    }
+
+    ret = push_value(&sp, stack_base, 0); // Sentinel
     if (IS_ERR(ret))
         goto fail_vm;
     ret = push_ptrs(&sp, stack_base, &envp_ptrs);
@@ -312,7 +367,7 @@ static int execve(const char* pathname, struct string_vec* argv,
     uintptr_t user_envp = sp;
     ptr_vec_destroy(&envp_ptrs);
 
-    ret = push_value(&sp, stack_base, 0);
+    ret = push_value(&sp, stack_base, 0); // Sentinel
     if (IS_ERR(ret))
         goto fail_vm;
     ret = push_ptrs(&sp, stack_base, &argv_ptrs);
@@ -321,15 +376,18 @@ static int execve(const char* pathname, struct string_vec* argv,
     uintptr_t user_argv = sp;
     ptr_vec_destroy(&argv_ptrs);
 
-    sp = round_down(sp, 16);
-
-    ret = push_value(&sp, stack_base, user_envp);
-    if (IS_ERR(ret))
-        goto fail_vm;
-    ret = push_value(&sp, stack_base, user_argv);
-    if (IS_ERR(ret))
-        goto fail_vm;
     ret = push_value(&sp, stack_base, argv->count);
+    if (IS_ERR(ret))
+        goto fail_vm;
+
+    // Arguments of the entry point
+    ret = push_value(&sp, stack_base, user_envp); // envp
+    if (IS_ERR(ret))
+        goto fail_vm;
+    ret = push_value(&sp, stack_base, user_argv); // argv
+    if (IS_ERR(ret))
+        goto fail_vm;
+    ret = push_value(&sp, stack_base, argv->count); // argc
     if (IS_ERR(ret))
         goto fail_vm;
     ret = push_value(&sp, stack_base, 0); // fake return address

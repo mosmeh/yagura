@@ -21,22 +21,17 @@ static uint32_t memoized_recursion(uint32_t n) {
     return memo[n] = memoized_recursion(n - 1) + memoized_recursion(n - 2);
 }
 
-static int clk_tck;
-
 static void measure_and_report(uint32_t (*func)(uint32_t)) {
     for (size_t i = 30; i <= MAX_N; ++i) {
         clock_t start = clock();
         uint32_t res = func(i);
         clock_t end = clock();
-        double elapsed = (double)((end - start) * 1000) / clk_tck;
+        double elapsed = (double)((end - start) * 1000) / CLOCKS_PER_SEC;
         printf("%u%6u ms: %u\n", i, (unsigned)elapsed, res);
     }
 }
 
 int main(void) {
-    clk_tck = sysconf(_SC_CLK_TCK);
-    ASSERT(clk_tck > 0);
-
     puts("memoized recursion:");
     measure_and_report(memoized_recursion);
 

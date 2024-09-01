@@ -2,13 +2,15 @@
 #include "errno.h"
 #include "private.h"
 #include "stdio.h"
+#include "sys/auxv.h"
 #include "sys/times.h"
 #include <calendar.h>
 
 clock_t clock(void) {
     struct tms tms;
     times(&tms);
-    return tms.tms_utime + tms.tms_stime;
+    uint64_t ticks = (uint64_t)tms.tms_utime + tms.tms_stime;
+    return divmodi64(ticks * CLOCKS_PER_SEC, getauxval(AT_CLKTCK), NULL);
 }
 
 time_t time(time_t* tloc) {

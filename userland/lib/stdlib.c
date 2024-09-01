@@ -4,6 +4,7 @@
 #include "private.h"
 #include "signal.h"
 #include "string.h"
+#include "sys/auxv.h"
 #include "sys/mman.h"
 #include "unistd.h"
 #include <extra.h>
@@ -40,16 +41,11 @@ struct malloc_header {
     unsigned char data[];
 };
 
-static size_t page_size;
-
 void* aligned_alloc(size_t alignment, size_t size) {
     if (size == 0)
         return NULL;
 
-    if (!page_size)
-        page_size = sysconf(_SC_PAGESIZE);
-
-    ASSERT(alignment <= page_size);
+    ASSERT(alignment <= getauxval(AT_PAGESZ));
 
     size_t data_offset =
         round_up(offsetof(struct malloc_header, data), alignment);
@@ -82,7 +78,7 @@ void* calloc(size_t num, size_t size) {
 }
 
 static struct malloc_header* header_from_ptr(void* ptr) {
-    ASSERT(page_size);
+    size_t page_size = getauxval(AT_PAGESZ);
     uintptr_t addr = round_down((uintptr_t)ptr, page_size);
     if ((uintptr_t)ptr - addr < sizeof(struct malloc_header))
         addr -= page_size;

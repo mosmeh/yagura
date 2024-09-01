@@ -67,7 +67,8 @@ static inline int32_t divmodi64(int64_t a, int32_t b, int32_t* rem) {
             : "=a"(q), "=d"(r)
             : "d"((int32_t)(a >> 32)),
               "a"((int32_t)(a & 0xffffffff)), [b] "rm"(b));
-    *rem = r;
+    if (rem)
+        *rem = r;
     return q;
 }
 

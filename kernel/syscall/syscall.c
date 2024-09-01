@@ -1,5 +1,4 @@
 #include "syscall.h"
-#include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/reboot.h>
 #include <kernel/api/sys/syscall.h>
 #include <kernel/api/unistd.h>
@@ -42,25 +41,6 @@ int sys_reboot(int magic, int magic2, int op, void* user_arg) {
     case LINUX_REBOOT_CMD_POWER_OFF:
         kprint("Power down.\n");
         poweroff();
-    default:
-        return -EINVAL;
-    }
-}
-
-long sys_sysconf(int name) {
-    switch (name) {
-    case _SC_ARG_MAX:
-        return ARG_MAX;
-    case _SC_CLK_TCK:
-        return CLK_TCK;
-    case _SC_MONOTONIC_CLOCK:
-        return 1;
-    case _SC_OPEN_MAX:
-        return OPEN_MAX;
-    case _SC_PAGESIZE:
-        return PAGE_SIZE;
-    case _SC_SYMLOOP_MAX:
-        return SYMLOOP_MAX;
     default:
         return -EINVAL;
     }
