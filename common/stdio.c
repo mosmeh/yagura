@@ -1,9 +1,8 @@
+#include "stdio.h"
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include "stdio.h"
-#include "string.h"
 
 int sprintf(char* buffer, const char* format, ...) {
     va_list args;
@@ -25,22 +24,13 @@ int vsprintf(char* buffer, const char* format, va_list args) {
     return vsnprintf(buffer, SIZE_MAX, format, args);
 }
 
-static void itoa(int value, char* str, int radix) {
+static size_t utoa(unsigned value, char* str, unsigned radix) {
     char* c = str;
-    unsigned uvalue = value;
-
-    if (radix == 10 && value < 0) {
-        *c++ = '-';
-        str++;
-        uvalue = -value;
-    }
-
     do {
-        unsigned mod = uvalue % radix;
+        unsigned mod = value % radix;
         *c++ = (mod < 10) ? mod + '0' : mod - 10 + 'a';
-    } while (uvalue /= radix);
-
-    *c = 0;
+    } while (value /= radix);
+    size_t n = c - str;
 
     char* p1 = str;
     char* p2 = c - 1;
@@ -51,6 +41,8 @@ static void itoa(int value, char* str, int radix) {
         p1++;
         p2--;
     }
+
+    return n;
 }
 
 // NOLINTNEXTLINE(readability-non-const-parameter)
@@ -103,6 +95,17 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
             ch = *format++;
         }
 
+        char num_buf[20];
+        size_t num_len = 0;
+
+#define PUT_NUM_PREFIX(c)                                                      \
+    if (pad0) {                                                                \
+        PUT(c);                                                                \
+        --pad_len;                                                             \
+    } else {                                                                   \
+        num_buf[num_len++] = c;                                                \
+    }
+
         switch (ch) {
         case 'c':
             PUT((char)va_arg(args, int));
@@ -110,30 +113,30 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
         case 'p':
         case 'x':
             if (alternative_form || ch == 'p') {
-                PUT('0');
-                if (pad_len > 0)
-                    --pad_len;
-                PUT('x');
-                if (pad_len > 0)
-                    --pad_len;
+                PUT_NUM_PREFIX('0');
+                PUT_NUM_PREFIX('x');
             }
             // falls through
         case 'd':
         case 'i':
         case 'u': {
-            char num_buf[20];
-            int radix = (ch == 'x' || ch == 'p') ? 16 : 10;
-            itoa(va_arg(args, int), num_buf, radix);
+            int value = va_arg(args, int);
+            unsigned uvalue = value;
+            if ((ch == 'd' || ch == 'i') && value < 0) {
+                PUT_NUM_PREFIX('-');
+                uvalue = -value;
+            }
+            unsigned radix = (ch == 'x' || ch == 'p') ? 16 : 10;
+            num_len += utoa(uvalue, num_buf + num_len, radix);
 
-            size_t len = strlen(num_buf);
-            if (!left_justify && pad_len > len) {
-                for (size_t i = 0; i < pad_len - len; ++i)
+            if (!left_justify && pad_len > num_len) {
+                for (size_t i = 0; i < pad_len - num_len; ++i)
                     PUT(pad0 ? '0' : ' ');
             }
-            for (size_t i = 0; i < len; ++i)
+            for (size_t i = 0; i < num_len; ++i)
                 PUT(num_buf[i]);
-            if (left_justify && pad_len > len) {
-                for (size_t i = 0; i < pad_len - len; ++i)
+            if (left_justify && pad_len > num_len) {
+                for (size_t i = 0; i < pad_len - num_len; ++i)
                     PUT(' ');
             }
 
