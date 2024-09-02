@@ -1,6 +1,6 @@
 #include "private.h"
 #include <common/string.h>
-#include <kernel/api/signum.h>
+#include <kernel/api/signal.h>
 #include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>

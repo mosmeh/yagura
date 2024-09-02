@@ -1,4 +1,4 @@
-#include "api/signum.h"
+#include "api/signal.h"
 #include "api/sys/poll.h"
 #include "api/sys/socket.h"
 #include "memory/memory.h"
@@ -99,8 +99,7 @@ static ssize_t unix_socket_write(struct file* file, const void* buffer,
             return rc;
 
         if (!is_connector(file) && !socket->is_open_for_writing_to_connector) {
-            int rc = task_send_signal(current->tgid, SIGPIPE,
-                                      SIGNAL_DEST_THREAD_GROUP);
+            int rc = task_send_signal(current->tid, SIGPIPE, 0);
             if (IS_ERR(rc))
                 return rc;
             return -EPIPE;

@@ -156,6 +156,8 @@ ssize_t file_read_to_end(struct file* file, void* buffer, size_t count) {
     while (cursor < count) {
         ssize_t nread =
             file_read(file, (unsigned char*)buffer + cursor, count - cursor);
+        if (nread == -EINTR)
+            continue;
         if (IS_ERR(nread))
             return nread;
         if (nread == 0)
@@ -181,6 +183,8 @@ ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
     while (cursor < count) {
         ssize_t nwritten =
             file_write(file, (unsigned char*)buffer + cursor, count - cursor);
+        if (nwritten == -EINTR)
+            continue;
         if (IS_ERR(nwritten))
             return nwritten;
         if (nwritten == 0)

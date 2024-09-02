@@ -52,7 +52,10 @@ ssize_t sys_read(int fd, void* user_buf, size_t count) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    return file_read(file, user_buf, count);
+    int rc = file_read(file, user_buf, count);
+    if (rc == -EINTR)
+        return -ERESTARTSYS;
+    return rc;
 }
 
 ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
@@ -95,7 +98,10 @@ ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    return file_write(file, user_buf, count);
+    int rc = file_write(file, user_buf, count);
+    if (rc == -EINTR)
+        return -ERESTARTSYS;
+    return rc;
 }
 
 int sys_ftruncate(int fd, off_t length) {

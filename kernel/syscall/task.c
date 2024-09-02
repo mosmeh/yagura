@@ -1,27 +1,17 @@
 #include "syscall.h"
 #include <common/string.h>
 #include <kernel/api/sched.h>
-#include <kernel/api/signum.h>
-#include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/times.h>
 #include <kernel/api/sys/wait.h>
 #include <kernel/fs/path.h>
 #include <kernel/interrupts/interrupts.h>
-#include <kernel/panic.h>
 #include <kernel/safe_string.h>
-#include <kernel/scheduler.h>
 #include <kernel/task.h>
 #include <kernel/time.h>
 
 void sys_exit(int status) { task_exit(status); }
 
-void sys_exit_group(int status) {
-    int rc = task_send_signal(current->tgid, SIGKILL,
-                              SIGNAL_DEST_THREAD_GROUP |
-                                  SIGNAL_DEST_EXCLUDE_CURRENT);
-    ASSERT(IS_OK(rc) || rc == -ESRCH);
-    task_exit(status);
-}
+void sys_exit_group(int status) { task_exit_thread_group(status); }
 
 pid_t sys_getpid(void) { return current->tgid; }
 
@@ -73,9 +63,16 @@ int sys_execve(const char* user_pathname, char* const user_argv[],
                             (const char* const*)user_envp);
 }
 
-pid_t sys_fork(struct registers* regs) { return sys_clone(regs, 0, NULL); }
+pid_t sys_fork(struct registers* regs) {
+    return sys_clone(regs, SIGCHLD, NULL);
+}
 
 int sys_clone(struct registers* regs, unsigned long flags, void* user_stack) {
+    if ((flags & CLONE_SIGHAND) && !(flags & CLONE_VM))
+        return -EINVAL;
+    if ((flags & CLONE_THREAD) && !(flags & CLONE_SIGHAND))
+        return -EINVAL;
+
     struct task* task =
         kaligned_alloc(alignof(struct task), sizeof(struct task));
     if (!task)
@@ -92,6 +89,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack) {
         .arg_end = current->arg_end,
         .env_start = current->env_start,
         .env_end = current->env_end,
+        .blocked_signals = current->blocked_signals,
         .user_ticks = current->user_ticks,
         .kernel_ticks = current->kernel_ticks,
         .ref_count = 1,
@@ -164,27 +162,45 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack) {
         }
     }
 
+    if (flags & CLONE_SIGHAND) {
+        task->sighand = current->sighand;
+        sighand_ref(task->sighand);
+    } else {
+        task->sighand = sighand_clone(current->sighand);
+        if (IS_ERR(task->sighand)) {
+            rc = PTR_ERR(task->sighand);
+            task->sighand = NULL;
+            goto fail;
+        }
+    }
+
+    if (flags & CLONE_THREAD) {
+        task->thread_group = current->thread_group;
+        thread_group_ref(task->thread_group);
+    } else {
+        task->thread_group = thread_group_create();
+        if (IS_ERR(task->thread_group)) {
+            rc = PTR_ERR(task->thread_group);
+            task->thread_group = NULL;
+            goto fail;
+        }
+
+        task->exit_signal = flags & 0xff;
+    }
+    ++task->thread_group->num_running;
+
     scheduler_register(task);
     return tid;
 
 fail:
+    thread_group_unref(task->thread_group);
+    sighand_unref(task->sighand);
     files_unref(task->files);
     fs_unref(task->fs);
     vm_unref(task->vm);
     kfree(stack);
     kfree(task);
     return rc;
-}
-
-int sys_kill(pid_t pid, int sig) {
-    if (pid > 0)
-        return task_send_signal(pid, sig, SIGNAL_DEST_THREAD_GROUP);
-    if (pid == 0)
-        return task_send_signal(current->pgid, sig, SIGNAL_DEST_PROCESS_GROUP);
-    if (pid == -1)
-        return task_send_signal(
-            0, sig, SIGNAL_DEST_ALL_USER_TASKS | SIGNAL_DEST_EXCLUDE_CURRENT);
-    return task_send_signal(-pid, sig, SIGNAL_DEST_PROCESS_GROUP);
 }
 
 struct waitpid_blocker {
@@ -261,6 +277,8 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
         }
     } else {
         int rc = scheduler_block((unblock_fn)unblock_waitpid, &blocker, 0);
+        if (rc == -EINTR)
+            return -ERESTARTSYS;
         if (IS_ERR(rc))
             return rc;
     }

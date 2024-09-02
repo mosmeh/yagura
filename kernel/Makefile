@@ -70,6 +70,7 @@ OBJS := \
 	syscall/fs.o \
 	syscall/mmap.o \
 	syscall/poll.o \
+	syscall/signal.o \
 	syscall/socket.o \
 	syscall/syscall.o \
 	syscall/task.o \

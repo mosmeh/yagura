@@ -1,5 +1,5 @@
 #include "task.h"
-#include "api/signum.h"
+#include "api/signal.h"
 #include "api/sys/limits.h"
 #include "cpu.h"
 #include "fs/path.h"
@@ -7,6 +7,7 @@
 #include "kmsg.h"
 #include "memory/memory.h"
 #include "panic.h"
+#include "safe_string.h"
 #include "scheduler.h"
 #include <common/string.h>
 #include <stdatomic.h>
@@ -104,6 +105,60 @@ void files_unref(struct files* files) {
     kfree(files);
 }
 
+static struct sighand* sighand_create(void) {
+    struct sighand* sighand = kmalloc(sizeof(struct sighand));
+    if (!sighand)
+        return ERR_PTR(-ENOMEM);
+    *sighand = (struct sighand){.ref_count = 1};
+    return sighand;
+}
+
+struct sighand* sighand_clone(struct sighand* sighand) {
+    struct sighand* new_sighand = sighand_create();
+    if (IS_ERR(new_sighand))
+        return new_sighand;
+    spinlock_lock(&sighand->lock);
+    memcpy(new_sighand->actions, sighand->actions, sizeof(sighand->actions));
+    spinlock_unlock(&sighand->lock);
+    return new_sighand;
+}
+
+void sighand_ref(struct sighand* sighand) {
+    ASSERT(sighand);
+    ++sighand->ref_count;
+}
+
+void sighand_unref(struct sighand* sighand) {
+    if (!sighand)
+        return;
+    ASSERT(sighand->ref_count > 0);
+    if (--sighand->ref_count > 0)
+        return;
+    kfree(sighand);
+}
+
+struct thread_group* thread_group_create(void) {
+    struct thread_group* tg = kmalloc(sizeof(struct thread_group));
+    if (!tg)
+        return ERR_PTR(-ENOMEM);
+    *tg = (struct thread_group){.ref_count = 1};
+    return tg;
+}
+
+void thread_group_ref(struct thread_group* tg) {
+    ASSERT(tg);
+    ++tg->ref_count;
+}
+
+void thread_group_unref(struct thread_group* tg) {
+    if (!tg)
+        return;
+    ASSERT(tg->ref_count > 0);
+    if (--tg->ref_count > 0)
+        return;
+    kfree(tg);
+}
+
 void task_init(void) {
     __asm__ volatile("fninit");
     if (cpu_has_feature(cpu_get_bsp(), X86_FEATURE_FXSR))
@@ -147,6 +202,21 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
         goto fail;
     }
 
+    task->sighand = sighand_create();
+    if (IS_ERR(task->sighand)) {
+        ret = PTR_ERR(task->sighand);
+        task->sighand = NULL;
+        goto fail;
+    }
+
+    task->thread_group = thread_group_create();
+    if (IS_ERR(task->thread_group)) {
+        ret = PTR_ERR(task->thread_group);
+        task->thread_group = NULL;
+        goto fail;
+    }
+    task->thread_group->num_running = 1;
+
     task->vm = kernel_vm;
 
     stack = kmalloc(STACK_SIZE);
@@ -181,6 +251,8 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
 
 fail:
     kfree(stack);
+    thread_group_unref(task->thread_group);
+    sighand_unref(task->sighand);
     files_unref(task->files);
     fs_unref(task->fs);
     kfree(task);
@@ -215,10 +287,14 @@ void task_unref(struct task* task) {
 
     ASSERT(task != current);
 
-    if (task->vm != kernel_vm)
-        vm_unref(task->vm);
+    thread_group_unref(task->thread_group);
+    sighand_unref(task->sighand);
     files_unref(task->files);
     fs_unref(task->fs);
+
+    if (task->vm != kernel_vm)
+        vm_unref(task->vm);
+
     kfree((void*)task->kernel_stack_base);
     kfree(task);
 }
@@ -238,11 +314,23 @@ struct task* task_find_by_tid(pid_t tid) {
     return it;
 }
 
-static noreturn void die(void) {
+static noreturn void exit(int exit_status) {
     if (current->tid == 1)
         PANIC("init task exited");
 
+    current->exit_status = exit_status;
+
+    ASSERT(current->thread_group->num_running > 0);
+    if (--current->thread_group->num_running == 0) {
+        if (current->ppid && current->exit_signal)
+            ASSERT_OK(task_send_signal(current->ppid, current->exit_signal, 0));
+    }
+
     sti();
+    thread_group_unref(current->thread_group);
+    current->thread_group = NULL;
+    sighand_unref(current->sighand);
+    current->sighand = NULL;
     files_unref(current->files);
     current->files = NULL;
     fs_unref(current->fs);
@@ -261,24 +349,25 @@ static noreturn void die(void) {
     UNREACHABLE();
 }
 
-void task_die_if_needed(void) {
-    if (current->state == TASK_DYING)
-        die();
+void task_exit(int status) { exit((status & 0xff) << 8); }
+
+static noreturn void do_exit_thread_group(int exit_status) {
+    int rc = task_send_signal(current->tgid, SIGKILL,
+                              SIGNAL_DEST_THREAD_GROUP |
+                                  SIGNAL_DEST_EXCLUDE_CURRENT);
+    ASSERT(IS_OK(rc) || rc == -ESRCH);
+    exit(exit_status);
 }
 
-noreturn void task_exit(int status) {
-    if (status != 0)
-        kprintf("\x1b[31mTask %d exited with status %d\x1b[m\n", current->tid,
-                status);
-    current->exit_status = (status & 0xff) << 8;
-    die();
+void task_exit_thread_group(int status) {
+    do_exit_thread_group((status & 0xff) << 8);
 }
 
-static void terminate_with_signal(int signum) {
-    kprintf("\x1b[31mTask %d was terminated with signal %d\x1b[m\n",
-            current->tid, signum);
-    current->exit_status = signum & 0xff;
-    current->state = TASK_DYING;
+void task_crash(int signum) {
+    ASSERT(0 < signum && signum < NSIG);
+    kprintf("Task crashed: tid=%d tgid=%d signal=%d\n", current->tid,
+            current->tgid, signum);
+    do_exit_thread_group(signum);
 }
 
 void task_tick(bool in_kernel) {
@@ -348,55 +437,59 @@ struct file* task_get_file(int fd) {
     return file;
 }
 
-enum {
+static enum {
     DISP_TERM,
     DISP_IGN,
     DISP_CORE,
     DISP_STOP,
     DISP_CONT,
+} default_dispositions[] = {
+    [SIGABRT] = DISP_CORE,   [SIGALRM] = DISP_TERM,   [SIGBUS] = DISP_CORE,
+    [SIGCHLD] = DISP_IGN,    [SIGCONT] = DISP_CONT,   [SIGFPE] = DISP_CORE,
+    [SIGHUP] = DISP_TERM,    [SIGILL] = DISP_CORE,    [SIGINT] = DISP_TERM,
+    [SIGIO] = DISP_TERM,     [SIGKILL] = DISP_TERM,   [SIGPIPE] = DISP_TERM,
+    [SIGPROF] = DISP_TERM,   [SIGPWR] = DISP_TERM,    [SIGQUIT] = DISP_CORE,
+    [SIGSEGV] = DISP_CORE,   [SIGSTKFLT] = DISP_TERM, [SIGSTOP] = DISP_STOP,
+    [SIGTSTP] = DISP_STOP,   [SIGSYS] = DISP_CORE,    [SIGTERM] = DISP_TERM,
+    [SIGTRAP] = DISP_CORE,   [SIGTTIN] = DISP_STOP,   [SIGTTOU] = DISP_STOP,
+    [SIGURG] = DISP_IGN,     [SIGUSR1] = DISP_TERM,   [SIGUSR2] = DISP_TERM,
+    [SIGVTALRM] = DISP_TERM, [SIGXCPU] = DISP_CORE,   [SIGXFSZ] = DISP_CORE,
+    [SIGWINCH] = DISP_IGN,
 };
 
-static int get_default_disposition_for_signal(int signum) {
-    switch (signum) {
-    case SIGHUP:
-    case SIGINT:
-    case SIGKILL:
-    case SIGPIPE:
-    case SIGALRM:
-    case SIGUSR1:
-    case SIGUSR2:
-    case SIGVTALRM:
-    case SIGSTKFLT:
-    case SIGIO:
-    case SIGPROF:
-    case SIGPWR:
-    case SIGTERM:
-        return DISP_TERM;
-    case SIGCHLD:
-    case SIGURG:
-    case SIGWINCH:
-        return DISP_IGN;
-    case SIGQUIT:
-    case SIGILL:
-    case SIGTRAP:
-    case SIGABRT:
-    case SIGBUS:
-    case SIGFPE:
-    case SIGSEGV:
-    case SIGXCPU:
-    case SIGXFSZ:
-    case SIGSYS:
-        return DISP_CORE;
-    case SIGSTOP:
-    case SIGTSTP:
-    case SIGTTIN:
-    case SIGTTOU:
-        return DISP_STOP;
-    case SIGCONT:
-        return DISP_CONT;
-    default:
-        UNREACHABLE();
+STATIC_ASSERT(ARRAY_SIZE(default_dispositions) == NSIG);
+
+static void do_send_signal(struct task* task, int signum) {
+    if (!task->sighand) {
+        // The task is already dead.
+        return;
     }
+
+    int default_disposition = default_dispositions[signum];
+
+    sigset_t cleared_signals = sigmask(signum);
+    switch (default_disposition) {
+    case DISP_CONT:
+        cleared_signals |= sigmask(SIGSTOP) | sigmask(SIGTSTP) |
+                           sigmask(SIGTTIN) | sigmask(SIGTTOU);
+        break;
+    case DISP_STOP:
+        cleared_signals |= sigmask(SIGCONT);
+        break;
+    default:
+        break;
+    }
+    task->pending_signals &= ~cleared_signals;
+
+    struct sighand* sighand = task->sighand;
+    spinlock_lock(&sighand->lock);
+    sighandler_t handler = sighand->actions[signum - 1].sa_handler;
+    spinlock_unlock(&sighand->lock);
+
+    bool ignored = (handler == SIG_IGN) ||
+                   (handler == SIG_DFL && default_disposition == DISP_IGN);
+    if (!ignored)
+        task->pending_signals |= sigmask(signum);
 }
 
 int task_send_signal(pid_t pid, int signum, int flags) {
@@ -429,45 +522,94 @@ int task_send_signal(pid_t pid, int signum, int flags) {
         }
         found_dest = true;
 
-        int disp = get_default_disposition_for_signal(signum);
-        switch (disp) {
-        case DISP_TERM:
-        case DISP_CORE:
-            break;
-        case DISP_IGN:
+        if (signum == 0) {
+            // signum == 0 is used to check if the task exists.
             continue;
-        case DISP_STOP:
-        case DISP_CONT:
-            UNIMPLEMENTED();
         }
 
-        it->pending_signals |= 1 << signum;
-
-        if (it == current)
-            task_handle_pending_signals();
+        do_send_signal(it, signum);
     }
     spinlock_unlock(&all_tasks_lock);
 
     return found_dest ? 0 : -ESRCH;
 }
 
-void task_handle_pending_signals(void) {
-    while (current->pending_signals) {
-        int b = __builtin_ffs(current->pending_signals);
-        ASSERT(b > 0);
-        int signum = b - 1;
-        current->pending_signals &= ~(1 << signum);
-        int disp = get_default_disposition_for_signal(signum);
-        switch (disp) {
+int task_pop_signal(struct sigaction* out_action) {
+    struct sighand* sighand = current->sighand;
+    spinlock_lock(&sighand->lock);
+    for (;;) {
+        int signum =
+            __builtin_ffs(current->pending_signals & ~current->blocked_signals);
+        if (!signum)
+            break;
+        current->pending_signals &= ~sigmask(signum);
+
+        struct sigaction* action = &sighand->actions[signum - 1];
+        if (action->sa_handler == SIG_IGN)
+            continue;
+
+        if (action->sa_handler != SIG_DFL) {
+            if (out_action)
+                *out_action = *action;
+            if (action->sa_flags & SA_RESETHAND)
+                action->sa_handler = SIG_DFL;
+            spinlock_unlock(&sighand->lock);
+            return signum;
+        }
+
+        switch (default_dispositions[signum]) {
         case DISP_TERM:
         case DISP_CORE:
-            terminate_with_signal(signum);
-            break;
+            spinlock_unlock(&sighand->lock);
+            do_exit_thread_group(signum);
         case DISP_IGN:
-            continue;
-        case DISP_STOP:
         case DISP_CONT:
+            break;
+        case DISP_STOP:
             UNIMPLEMENTED();
         }
     }
+    spinlock_unlock(&sighand->lock);
+    return 0;
+}
+
+void task_handle_signal(struct registers* regs, int signum,
+                        const struct sigaction* action) {
+    ASSERT(0 < signum && signum < NSIG);
+    ASSERT(action->sa_flags & SA_RESTORER);
+
+    uintptr_t esp = round_down(regs->user_esp, 16);
+
+    // Push the context of the interrupted task
+    struct sigcontext ctx = {
+        .regs = *regs,
+        .blocked_signals = current->blocked_signals,
+    };
+    esp -= sizeof(struct sigcontext);
+    if (copy_to_user((void*)esp, &ctx, sizeof(struct sigcontext)))
+        goto fail;
+
+    // Push the argument of the signal handler
+    esp -= sizeof(int);
+    if (copy_to_user((void*)esp, &signum, sizeof(int)))
+        goto fail;
+
+    // Push the return address of the signal handler
+    esp -= sizeof(uintptr_t);
+    if (copy_to_user((void*)esp, &action->sa_restorer, sizeof(uintptr_t)))
+        goto fail;
+
+    regs->user_esp = esp;
+    regs->eip = (uintptr_t)action->sa_handler;
+
+    sigset_t new_blocked = current->blocked_signals | action->sa_mask;
+    if (!(action->sa_flags & SA_NODEFER))
+        new_blocked |= sigmask(signum);
+    new_blocked &= ~(sigmask(SIGKILL) | sigmask(SIGSTOP));
+    current->blocked_signals = new_blocked;
+
+    return;
+
+fail:
+    task_crash(SIGSEGV);
 }

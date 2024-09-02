@@ -1,5 +1,4 @@
 #include "scheduler.h"
-#include "api/errno.h"
 #include "cpu.h"
 #include "interrupts/interrupts.h"
 #include "memory/memory.h"
@@ -31,7 +30,7 @@ void scheduler_init(void) {
 
 void enqueue_ready(struct task* task) {
     ASSERT(task);
-    ASSERT(task->state == TASK_RUNNING || task->state == TASK_DYING);
+    ASSERT(task->state == TASK_RUNNING);
 
     task->ready_queue_next = NULL;
 
@@ -103,12 +102,12 @@ static void unblock_tasks(void) {
             continue;
 
         ASSERT(it->unblock);
-        bool interrupted =
-            it->pending_signals && it->state == TASK_INTERRUPTIBLE;
+        bool interrupted = it->state == TASK_INTERRUPTIBLE &&
+                           (it->pending_signals & ~it->blocked_signals);
         if (interrupted || it->unblock(it->block_data)) {
             it->unblock = NULL;
             it->block_data = NULL;
-            it->block_was_interrupted = interrupted;
+            it->interrupted = interrupted;
             it->state = TASK_RUNNING;
             task_ref(it);
             enqueue_ready(it);
@@ -130,13 +129,11 @@ noreturn void switch_context(void) {
 
     struct task* task = dequeue_ready();
     ASSERT(task);
-    ASSERT(task->state != TASK_DEAD);
+    ASSERT(task->state == TASK_RUNNING);
     cpu->current_task = task;
 
     vm_enter(task->vm);
     gdt_set_cpu_kernel_stack(task->kernel_stack_top);
-
-    task_handle_pending_signals();
 
     if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
         __asm__ volatile("fxrstor %0" ::"m"(task->fpu_state));
@@ -204,16 +201,22 @@ void scheduler_tick(struct registers* regs) {
         return;
 
     bool in_kernel = (regs->cs & 3) == 0;
-    if (!in_kernel)
-        task_die_if_needed();
     task_tick(in_kernel);
     scheduler_yield(true);
+    if (in_kernel)
+        return;
+
+    struct sigaction act;
+    int signum = task_pop_signal(&act);
+    ASSERT_OK(signum);
+    if (signum > 0)
+        task_handle_signal(regs, signum, &act);
 }
 
 int scheduler_block(unblock_fn unblock, void* data, int flags) {
     ASSERT(!current->unblock);
     ASSERT(!current->block_data);
-    current->block_was_interrupted = false;
+    current->interrupted = false;
 
     if (unblock(data))
         return 0;
@@ -229,5 +232,5 @@ int scheduler_block(unblock_fn unblock, void* data, int flags) {
 
     pop_cli(int_flag);
 
-    return current->block_was_interrupted ? -EINTR : 0;
+    return current->interrupted ? -EINTR : 0;
 }

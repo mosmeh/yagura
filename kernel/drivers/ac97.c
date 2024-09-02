@@ -10,6 +10,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
+#include <kernel/scheduler.h>
 #include <kernel/system.h>
 
 #define PCI_CLASS_MULTIMEDIA 4
@@ -138,7 +139,7 @@ static int write_single_buffer(struct file* file, const void* buffer,
             break;
 
         buffer_descriptor_list_is_full = true;
-        int rc = file_block(file, unblock_write, 0);
+        int rc = file_block(file, unblock_write, BLOCK_UNINTERRUPTIBLE);
         if (IS_ERR(rc))
             return rc;
     } while (dma_is_running);

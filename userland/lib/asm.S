@@ -56,3 +56,12 @@ child:
     movl $SYS_exit, %eax
     int $SYSCALL_VECTOR   // exit(fn(arg))
     ud2
+
+// void __sa_restorer(void);
+    .globl __sa_restorer
+    .hidden __sa_restorer
+    .type __sa_restorer, @object
+__sa_restorer:
+    movl $SYS_sigreturn, %eax
+    int $SYSCALL_VECTOR
+    ud2

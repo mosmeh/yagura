@@ -3,7 +3,6 @@
 #include "panic.h"
 #include "private.h"
 #include "signal.h"
-#include "signum.h"
 #include "string.h"
 #include "sys/mman.h"
 #include "unistd.h"
@@ -17,8 +16,20 @@ noreturn void exit(int status) {
 }
 
 noreturn void abort(void) {
-    kill(getpid(), SIGABRT);
-    UNREACHABLE();
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGABRT);
+    sigprocmask(SIG_UNBLOCK, &set, NULL);
+    (void)raise(SIGABRT);
+
+    // If SIGABRT was caught, retry after removing the handler
+    struct sigaction act = {.sa_handler = SIG_DFL};
+    sigaction(SIGABRT, &act, NULL);
+    (void)raise(SIGABRT);
+
+    // If it's still not terminated, raise SIGKILL
+    (void)raise(SIGKILL);
+    __builtin_unreachable();
 }
 
 #define MALLOC_MAGIC 0xab4fde8d

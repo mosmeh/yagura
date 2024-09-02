@@ -1,5 +1,38 @@
 #pragma once
 
+#include "sys/types.h"
+
+typedef void (*sighandler_t)(int);
+typedef uint32_t sigset_t;
+
+#define sigmask(sig) (1 << ((sig) - 1))
+
+#define SIG_ERR ((sighandler_t)(-1)) // Error return.
+#define SIG_DFL ((sighandler_t)0)    // Default action.
+#define SIG_IGN ((sighandler_t)1)    // Ignore signal.
+
+#define SA_RESTORER 0x04000000
+
+// Restart syscall on signal return.
+#define SA_RESTART 0x10000000
+
+// Don't automatically block the signal when its handler is being executed.
+#define SA_NODEFER 0x40000000
+
+// Reset to SIG_DFL on entry to handler.
+#define SA_RESETHAND 0x80000000
+
+struct sigaction {
+    sighandler_t sa_handler;
+    sigset_t sa_mask;
+    int sa_flags;
+    void (*sa_restorer)(void);
+};
+
+#define SIG_BLOCK 0   // Block signals.
+#define SIG_UNBLOCK 1 // Unblock signals.
+#define SIG_SETMASK 2 // Set the set of blocked signals.
+
 #define ENUMERATE_SIGNALS(F)                                                   \
     F(SIGINVALID, "Invalid signal")                                            \
     F(SIGHUP, "Hangup")                                                        \

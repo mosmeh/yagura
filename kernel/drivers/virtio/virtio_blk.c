@@ -7,6 +7,7 @@
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
+#include <kernel/scheduler.h>
 
 #define SECTOR_SIZE 512
 
@@ -41,7 +42,7 @@ static int submit_request(struct file* file, void* buffer, size_t count,
 
     int rc;
 retry:
-    rc = file_block(file, unblock_request, 0);
+    rc = file_block(file, unblock_request, BLOCK_UNINTERRUPTIBLE);
     if (IS_ERR(rc))
         return rc;
 

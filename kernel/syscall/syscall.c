@@ -82,31 +82,42 @@ int sys_dbgprint(const char* user_str) {
     return kprint(user_str);
 }
 
-static uintptr_t handlers[] = {
-#define F(name) [SYS_##name] = (uintptr_t)sys_##name,
+struct syscall {
+    uintptr_t handler;
+    unsigned flags;
+};
+
+static struct syscall syscalls[] = {
+#define F(name, flags)                                                         \
+    [SYS_##name] = {                                                           \
+        (uintptr_t)sys_##name,                                                 \
+        (flags),                                                               \
+    },
     ENUMERATE_SYSCALLS(F)
 #undef F
 };
 
-static int do_syscall(struct registers* regs) {
-    if (regs->eax >= ARRAY_SIZE(handlers))
+static int do_syscall(struct registers* regs, unsigned* out_flags) {
+    if (regs->eax >= ARRAY_SIZE(syscalls))
         return -ENOSYS;
 
-    uintptr_t handler = handlers[regs->eax];
-    if (!handler)
+    struct syscall* syscall = syscalls + regs->eax;
+    if (!syscall->handler)
         return -ENOSYS;
+
+    if (out_flags)
+        *out_flags = syscall->flags;
 
     typedef int (*regs_fn)(struct registers*, int, int, int, int, int, int);
     typedef int (*no_regs_fn)(int, int, int, int, int, int);
 
-    switch (regs->eax) {
-    case SYS_fork:
-    case SYS_clone:
-        return ((regs_fn)handler)(regs, regs->ebx, regs->ecx, regs->edx,
-                                  regs->esi, regs->edi, regs->ebp);
-    }
-    return ((no_regs_fn)handler)(regs->ebx, regs->ecx, regs->edx, regs->esi,
-                                 regs->edi, regs->ebp);
+    if (syscall->flags & SYSCALL_RAW_REGISTERS)
+        return ((regs_fn)syscall->handler)(regs, regs->ebx, regs->ecx,
+                                           regs->edx, regs->esi, regs->edi,
+                                           regs->ebp);
+
+    return ((no_regs_fn)syscall->handler)(regs->ebx, regs->ecx, regs->edx,
+                                          regs->esi, regs->edi, regs->ebp);
 }
 
 static void syscall_handler(struct registers* regs) {
@@ -118,9 +129,41 @@ static void syscall_handler(struct registers* regs) {
     ASSERT((regs->user_ss & 3) == 3);
     ASSERT(interrupts_enabled());
 
-    task_die_if_needed();
-    regs->eax = do_syscall(regs);
-    task_die_if_needed();
+    unsigned flags = 0;
+    int ret = do_syscall(regs, &flags);
+
+    struct sigaction act;
+    int signum = task_pop_signal(&act);
+    ASSERT_OK(signum);
+
+    if (flags & SYSCALL_NO_ERROR) {
+        regs->eax = ret;
+    } else {
+        switch (ret) {
+        case -ERESTARTSYS:
+            if (signum && (act.sa_flags & SA_RESTART)) {
+                // If the syscall was interrupted by a signal with a sigaction
+                // that has SA_RESTART set, re-execute int instruction to
+                // restart the syscall.
+                regs->eip -= 2;
+            } else {
+                // Otherwise, tell the userland that the syscall was
+                // interrupted.
+                regs->eax = -EINTR;
+            }
+            break;
+        default:
+            if (IS_ERR(ret)) {
+                // Ensure we don't return kernel internal errors to userland
+                ASSERT(ret > -EMAXERRNO);
+            }
+            regs->eax = ret;
+            break;
+        }
+    }
+
+    if (signum)
+        task_handle_signal(regs, signum, &act);
 }
 
 void syscall_init(void) {

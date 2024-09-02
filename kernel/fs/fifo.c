@@ -1,6 +1,6 @@
 #include "fs.h"
 #include <kernel/api/fcntl.h>
-#include <kernel/api/signum.h>
+#include <kernel/api/signal.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/containers/ring_buf.h>
@@ -120,8 +120,7 @@ static ssize_t fifo_write(struct file* file, const void* buffer, size_t count) {
         mutex_lock(&fifo->lock);
         if (fifo->num_readers == 0) {
             mutex_unlock(&fifo->lock);
-            int rc = task_send_signal(current->tgid, SIGPIPE,
-                                      SIGNAL_DEST_THREAD_GROUP);
+            int rc = task_send_signal(current->tid, SIGPIPE, 0);
             if (IS_ERR(rc))
                 return rc;
             return -EPIPE;

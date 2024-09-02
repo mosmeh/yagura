@@ -1,7 +1,7 @@
 #include "interrupts.h"
 #include "isr_stubs.h"
 #include <common/string.h>
-#include <kernel/api/signum.h>
+#include <kernel/api/signal.h>
 #include <kernel/api/sys/syscall.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/cpu.h>
@@ -90,10 +90,7 @@ static noreturn void crash(const struct registers* regs, int signum) {
     if ((regs->cs & 3) != 3)
         PANIC("Kernel crashed");
 
-    ASSERT_OK(
-        task_send_signal(current->tgid, signum, SIGNAL_DEST_THREAD_GROUP));
-    task_die_if_needed();
-    UNREACHABLE();
+    task_crash(signum);
 }
 
 #define DEFINE_ISR_WITHOUT_ERROR_CODE(num)                                     \

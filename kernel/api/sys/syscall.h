@@ -29,6 +29,9 @@
 #define SYS_fcntl 55
 #define SYS_setpgid 57
 #define SYS_dup2 63
+#define SYS_sigaction 67
+#define SYS_sigsuspend 72
+#define SYS_sigpending 73
 #define SYS_symlink 83
 #define SYS_readlink 85
 #define SYS_reboot 88
@@ -37,7 +40,9 @@
 #define SYS_stat 106
 #define SYS_lstat 107
 #define SYS_uname 109
+#define SYS_sigreturn 119
 #define SYS_clone 120
+#define SYS_sigprocmask 126
 #define SYS_getpgid 132
 #define SYS_getdents 141
 #define SYS_sched_yield 158
