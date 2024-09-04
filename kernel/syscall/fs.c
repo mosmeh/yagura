@@ -140,7 +140,7 @@ static void stat_to_linux_stat(const struct stat* stat,
     };
 }
 
-int sys_lstat(const char* user_pathname, struct linux_stat* user_buf) {
+int sys_newlstat(const char* user_pathname, struct linux_stat* user_buf) {
     char pathname[PATH_MAX];
     int rc = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(rc))
@@ -156,7 +156,7 @@ int sys_lstat(const char* user_pathname, struct linux_stat* user_buf) {
     return 0;
 }
 
-int sys_stat(const char* user_pathname, struct linux_stat* user_buf) {
+int sys_newstat(const char* user_pathname, struct linux_stat* user_buf) {
     char pathname[PATH_MAX];
     int rc = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(rc))

@@ -8,4 +8,5 @@ struct utsname {
     char release[UTSNAME_LENGTH];
     char version[UTSNAME_LENGTH];
     char machine[UTSNAME_LENGTH];
+    char domainname[UTSNAME_LENGTH];
 };

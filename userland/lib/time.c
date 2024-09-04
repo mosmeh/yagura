@@ -86,12 +86,12 @@ int nanosleep(const struct timespec* req, struct timespec* rem) {
 }
 
 int clock_gettime(clockid_t clk_id, struct timespec* tp) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(clock_gettime, clk_id, tp));
+    RETURN_WITH_ERRNO(int, SYSCALL2(clock_gettime64, clk_id, tp));
 }
 
 int clock_nanosleep(clockid_t clockid, int flags,
                     const struct timespec* request, struct timespec* remain) {
-    int rc = SYSCALL4(clock_nanosleep, clockid, flags, request, remain);
+    int rc = SYSCALL4(clock_nanosleep_time64, clockid, flags, request, remain);
     // unlike other syscall wrappers, clock_nanosleep returns the error value
     // instead of returning -1 and setting errno
     if (IS_ERR(rc))

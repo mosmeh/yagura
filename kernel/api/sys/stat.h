@@ -36,22 +36,22 @@
 #define S_ISSOCK(m) (((m) & S_IFMT) == S_IFSOCK)
 
 struct linux_stat {
-    uint32_t st_dev;
-    uint32_t st_ino;
-    uint16_t st_mode;
-    uint16_t st_nlink;
-    uint16_t st_uid;
-    uint16_t st_gid;
-    uint32_t st_rdev;
-    uint32_t st_size;
-    uint32_t st_blksize;
-    uint32_t st_blocks;
-    uint32_t st_atime;
-    uint32_t st_atime_nsec;
-    uint32_t st_mtime;
-    uint32_t st_mtime_nsec;
-    uint32_t st_ctime;
-    uint32_t st_ctime_nsec;
-    uint32_t __unused4;
-    uint32_t __unused5;
+    unsigned long st_dev;
+    unsigned long st_ino;
+    unsigned short st_mode;
+    unsigned short st_nlink;
+    unsigned short st_uid;
+    unsigned short st_gid;
+    unsigned long st_rdev;
+    unsigned long st_size;
+    unsigned long st_blksize;
+    unsigned long st_blocks;
+    unsigned long st_atime;
+    unsigned long st_atime_nsec;
+    unsigned long st_mtime;
+    unsigned long st_mtime_nsec;
+    unsigned long st_ctime;
+    unsigned long st_ctime_nsec;
+    unsigned long __unused4;
+    unsigned long __unused5;
 };

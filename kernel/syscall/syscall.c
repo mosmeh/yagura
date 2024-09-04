@@ -46,7 +46,7 @@ int sys_reboot(int magic, int magic2, int op, void* user_arg) {
     }
 }
 
-int sys_uname(struct utsname* user_buf) {
+int sys_newuname(struct utsname* user_buf) {
     if (copy_to_user(user_buf, utsname(), sizeof(struct utsname)))
         return -EFAULT;
     return 0;
@@ -68,9 +68,9 @@ struct syscall {
 };
 
 static struct syscall syscalls[] = {
-#define F(name, flags)                                                         \
+#define F(name, handler, flags)                                                \
     [SYS_##name] = {                                                           \
-        (uintptr_t)sys_##name,                                                 \
+        (uintptr_t)(handler),                                                  \
         (flags),                                                               \
     },
     ENUMERATE_SYSCALLS(F)

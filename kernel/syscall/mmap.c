@@ -9,17 +9,16 @@
 #include <kernel/safe_string.h>
 #include <kernel/task.h>
 
-void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd,
-               off_t offset) {
+void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
+                     unsigned long pgoff) {
     (void)addr;
 
-    if (length == 0 || offset < 0 || (offset % PAGE_SIZE) ||
-        !((flags & MAP_PRIVATE) ^ (flags & MAP_SHARED)))
+    if (length == 0 || !((flags & MAP_PRIVATE) ^ (flags & MAP_SHARED)))
         return ERR_PTR(-EINVAL);
 
     if (flags & MAP_FIXED)
         return ERR_PTR(-ENOTSUP);
-    if ((flags & MAP_ANONYMOUS) && (offset != 0))
+    if ((flags & MAP_ANONYMOUS) && pgoff)
         return ERR_PTR(-ENOTSUP);
 
     int vm_flags = VM_USER;
@@ -44,7 +43,7 @@ void* sys_mmap(void* addr, size_t length, int prot, int flags, int fd,
     if (S_ISDIR(file->inode->mode))
         return ERR_PTR(-ENODEV);
 
-    return file_mmap(file, length, offset, vm_flags);
+    return file_mmap(file, length, pgoff * PAGE_SIZE, vm_flags);
 }
 
 int sys_munmap(void* addr, size_t length) {

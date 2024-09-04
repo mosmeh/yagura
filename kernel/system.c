@@ -20,6 +20,7 @@ static struct utsname uts = {
     .version = "unknown",
 #endif
     .machine = "i686",
+    .domainname = "(none)",
 };
 
 const struct utsname* utsname(void) { return &uts; }
