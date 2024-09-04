@@ -25,7 +25,11 @@ typedef uint16_t Elf32_Half;
 
 #define ELFCLASS32 1
 #define ELFDATA2LSB 1
-#define ELFOSABI_SYSV 0
+
+#define ELFOSABI_NONE 0             // UNIX System V ABI
+#define ELFOSABI_SYSV ELFOSABI_NONE // Alias.
+#define ELFOSABI_GNU 3              // Object uses GNU ELF extensions.
+#define ELFOSABI_LINUX ELFOSABI_GNU // Compatibility alias.
 
 #define IS_ELF(ehdr)                                                           \
     ((ehdr).e_ident[EI_MAG0] == ELFMAG0 &&                                     \

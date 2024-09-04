@@ -214,9 +214,16 @@ static int execve(const char* pathname, struct string_vec* argv,
     if (!IS_ELF(*ehdr) || ehdr->e_ident[EI_CLASS] != ELFCLASS32 ||
         ehdr->e_ident[EI_DATA] != ELFDATA2LSB ||
         ehdr->e_ident[EI_VERSION] != EV_CURRENT ||
-        ehdr->e_ident[EI_OSABI] != ELFOSABI_SYSV ||
         ehdr->e_ident[EI_ABIVERSION] != 0 || ehdr->e_machine != EM_386 ||
         ehdr->e_type != ET_EXEC || ehdr->e_version != EV_CURRENT) {
+        ret = -ENOEXEC;
+        goto fail_exe;
+    }
+    switch (ehdr->e_ident[EI_OSABI]) {
+    case ELFOSABI_NONE:
+    case ELFOSABI_GNU:
+        break;
+    default:
         ret = -ENOEXEC;
         goto fail_exe;
     }
