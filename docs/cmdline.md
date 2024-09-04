@@ -15,3 +15,4 @@ The kernel command-line parameters are in the form of `key=value`, where the `=v
 - `console=<device>`: The device to use as the system console `/dev/console`. The default is `tty1`.
 - `nosmp`: Disables symmetric multiprocessing.
 - `font=<path>`: The path to the PSF font file to use for the framebuffer console. The default is `/usr/share/fonts/default.psf`.
+- `ni_syscall_log`: Log a message when an unimplemented system call is invoked.

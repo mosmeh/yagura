@@ -1,4 +1,5 @@
 #include "syscall.h"
+#include "unimplemented.h"
 #include <kernel/api/sys/reboot.h>
 #include <kernel/api/sys/syscall.h>
 #include <kernel/api/unistd.h>
@@ -62,18 +63,38 @@ int sys_dbgprint(const char* user_str) {
     return kprint(user_str);
 }
 
+#define F(name)                                                                \
+    static int sys_ni_##name(struct registers* regs) {                         \
+        if (cmdline_contains("ni_syscall_log"))                                \
+            kprintf("syscall: unimplemented syscall " #name                    \
+                    "(%#x, %#x, %#x, %#x, %#x, %#x)\n",                        \
+                    regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi,     \
+                    regs->ebp);                                                \
+        return -ENOSYS;                                                        \
+    }
+ENUMERATE_UNIMPLEMENTED_SYSCALLS(F)
+#undef F
+
 struct syscall {
     uintptr_t handler;
     unsigned flags;
 };
 
 static struct syscall syscalls[] = {
+#define F(name)                                                                \
+    [SYS_##name] = {                                                           \
+        (uintptr_t)sys_ni_##name,                                              \
+        SYSCALL_RAW_REGISTERS,                                                 \
+    },
+    ENUMERATE_UNIMPLEMENTED_SYSCALLS(F)
+#undef F
+
 #define F(name, handler, flags)                                                \
     [SYS_##name] = {                                                           \
         (uintptr_t)(handler),                                                  \
         (flags),                                                               \
     },
-    ENUMERATE_SYSCALLS(F)
+        ENUMERATE_SYSCALLS(F)
 #undef F
 };
 
