@@ -362,35 +362,19 @@ static int execve(const char* pathname, struct string_vec* argv,
     if (IS_ERR(ret))
         goto fail_vm;
     ret = push_ptrs(&sp, stack_base, &envp_ptrs);
+    ptr_vec_destroy(&envp_ptrs);
     if (IS_ERR(ret))
         goto fail_vm;
-    uintptr_t user_envp = sp;
-    ptr_vec_destroy(&envp_ptrs);
 
     ret = push_value(&sp, stack_base, 0); // Sentinel
     if (IS_ERR(ret))
         goto fail_vm;
     ret = push_ptrs(&sp, stack_base, &argv_ptrs);
+    ptr_vec_destroy(&argv_ptrs);
     if (IS_ERR(ret))
         goto fail_vm;
-    uintptr_t user_argv = sp;
-    ptr_vec_destroy(&argv_ptrs);
 
     ret = push_value(&sp, stack_base, argv->count);
-    if (IS_ERR(ret))
-        goto fail_vm;
-
-    // Arguments of the entry point
-    ret = push_value(&sp, stack_base, user_envp); // envp
-    if (IS_ERR(ret))
-        goto fail_vm;
-    ret = push_value(&sp, stack_base, user_argv); // argv
-    if (IS_ERR(ret))
-        goto fail_vm;
-    ret = push_value(&sp, stack_base, argv->count); // argc
-    if (IS_ERR(ret))
-        goto fail_vm;
-    ret = push_value(&sp, stack_base, 0); // fake return address
     if (IS_ERR(ret))
         goto fail_vm;
 

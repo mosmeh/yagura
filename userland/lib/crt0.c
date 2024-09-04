@@ -16,8 +16,10 @@ unsigned long getauxval(unsigned long type) {
 
 int main(int argc, char* const argv[], char* const envp[]);
 
-void _start(int argc, char* const argv[], char* const envp[]) {
-    environ = (char**)envp;
+void __start(unsigned long* args) {
+    int argc = args[0];
+    char** argv = (char**)(args + 1);
+    environ = argv + argc + 1;
 
     char** p = environ;
     while (*p++)
@@ -27,5 +29,5 @@ void _start(int argc, char* const argv[], char* const envp[]) {
             auxv[aux->a_type] = aux->a_un.a_val;
     }
 
-    exit(main(argc, argv, envp));
+    exit(main(argc, argv, environ));
 }

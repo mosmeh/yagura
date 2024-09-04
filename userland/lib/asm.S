@@ -1,6 +1,12 @@
 #include <sys/syscall.h>
 
     .text
+    .global _start
+_start:
+    pushl %esp
+    call __start // __start(&argc)
+    ud2
+
 // int syscall(int num, int, int, int, int, int, int);
     .global syscall
     .hidden syscall
