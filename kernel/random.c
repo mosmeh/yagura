@@ -2,6 +2,7 @@
 #include "cpu.h"
 #include "drivers/rtc.h"
 #include "kmsg.h"
+#include "lock.h"
 #include <common/extra.h>
 #include <stdalign.h>
 
@@ -69,8 +70,11 @@ static inline uint32_t rotl(const uint32_t x, int k) {
 }
 
 static uint32_t s[4];
+static struct mutex lock;
 
 static uint32_t xoshiro128plusplus_next(void) {
+    mutex_lock(&lock);
+
     const uint32_t result = rotl(s[0] + s[3], 7) + s[0];
     const uint32_t t = s[1] << 9;
 
@@ -82,6 +86,8 @@ static uint32_t xoshiro128plusplus_next(void) {
     s[2] ^= t;
 
     s[3] = rotl(s[3], 11);
+
+    mutex_unlock(&lock);
     return result;
 }
 
