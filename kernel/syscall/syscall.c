@@ -156,7 +156,7 @@ static void syscall_handler(struct registers* regs) {
         default:
             if (IS_ERR(ret)) {
                 // Ensure we don't return kernel internal errors to userland
-                ASSERT(ret > -EMAXERRNO);
+                ASSERT(ret >= -EMAXERRNO);
             }
             regs->eax = ret;
             break;
