@@ -229,6 +229,28 @@ static void handle_csi_cub(struct vt* vt) {
         set_cursor(vt, vt->cursor_x - dx, vt->cursor_y);
 }
 
+// Cursor Next Line
+static void handle_csi_cnl(struct vt* vt) {
+    unsigned dy = atoi(vt->param_buf);
+    if (dy == 0)
+        dy = 1;
+    if (dy + vt->cursor_y >= vt->num_rows)
+        set_cursor(vt, 0, vt->num_rows - 1);
+    else
+        set_cursor(vt, 0, vt->cursor_y + dy);
+}
+
+// Cursor Previous Line
+static void handle_csi_cpl(struct vt* vt) {
+    unsigned dy = atoi(vt->param_buf);
+    if (dy == 0)
+        dy = 1;
+    if (dy > vt->cursor_y)
+        set_cursor(vt, 0, 0);
+    else
+        set_cursor(vt, 0, vt->cursor_y - dy);
+}
+
 // Cursor Horizontal Absolute
 static void handle_csi_cha(struct vt* vt) {
     unsigned x = atoi(vt->param_buf);
@@ -388,6 +410,12 @@ static void handle_state_csi(struct vt* vt, char c) {
         break;
     case 'D':
         handle_csi_cub(vt);
+        break;
+    case 'E':
+        handle_csi_cnl(vt);
+        break;
+    case 'F':
+        handle_csi_cpl(vt);
         break;
     case 'G':
         handle_csi_cha(vt);
