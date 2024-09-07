@@ -12,7 +12,8 @@ export CFLAGS := \
 	-U_FORTIFY_SOURCE \
 	-Wall -Wextra -pedantic \
 	-O2 -g \
-	$(if $(GIT_HASH),-DYAGURA_VERSION=\"$(GIT_HASH)\")
+	$(if $(GIT_HASH),-DYAGURA_VERSION=\"$(GIT_HASH)\") \
+	$(EXTRA_CFLAGS)
 
 export LDFLAGS := \
 	-Wl,--build-id=none \
