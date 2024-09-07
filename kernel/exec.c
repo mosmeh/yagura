@@ -402,6 +402,8 @@ static int execve(const char* pathname, struct string_vec* argv,
     task->env_start = env_start;
     task->env_end = env_end;
 
+    memset(task->tls, 0, sizeof(task->tls));
+
     // enter userland
     __asm__ volatile("movw %[user_ds], %%ax\n"
                      "movw %%ax, %%ds\n"

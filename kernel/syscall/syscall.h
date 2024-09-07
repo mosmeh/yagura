@@ -64,6 +64,8 @@
     F(getcwd, sys_getcwd, 0)                                                   \
     F(mmap2, sys_mmap_pgoff, 0)                                                \
     F(gettid, sys_gettid, 0)                                                   \
+    F(set_thread_area, sys_set_thread_area, 0)                                 \
+    F(get_thread_area, sys_get_thread_area, 0)                                 \
     F(exit_group, sys_exit_group, 0)                                           \
     F(socket, sys_socket, 0)                                                   \
     F(bind, sys_bind, 0)                                                       \
@@ -78,6 +80,7 @@
 struct registers;
 struct sigaction;
 struct tms;
+struct user_desc;
 struct utsname;
 struct linux_dirent;
 struct linux_stat;
@@ -121,7 +124,8 @@ int sys_ftruncate(int fd, off_t length);
 int sys_newstat(const char* pathname, struct linux_stat* buf);
 int sys_newlstat(const char* pathname, struct linux_stat* buf);
 int sys_sigreturn(struct registers*);
-int sys_clone(struct registers*, unsigned long flags, void* stack);
+int sys_clone(struct registers*, unsigned long flags, void* stack,
+              pid_t* parent_tid, pid_t* child_tid, void* tls);
 int sys_newuname(struct utsname* buf);
 int sys_sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
 pid_t sys_getpgid(pid_t pid);
@@ -132,6 +136,8 @@ int sys_getcwd(char* buf, size_t size);
 void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
                      unsigned long pgoff);
 pid_t sys_gettid(void);
+int sys_get_thread_area(struct user_desc* u_info);
+int sys_set_thread_area(struct user_desc* u_info);
 void sys_exit_group(int status);
 int sys_socket(int domain, int type, int protocol);
 int sys_bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen);

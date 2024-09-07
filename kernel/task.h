@@ -3,6 +3,7 @@
 #include "api/signal.h"
 #include "api/sys/limits.h"
 #include "fs/fs.h"
+#include "gdt.h"
 #include "memory/memory.h"
 #include "sched.h"
 #include "system.h"
@@ -30,6 +31,8 @@ struct task {
     struct vm* vm;
     uintptr_t kernel_stack_base, kernel_stack_top;
     uintptr_t arg_start, arg_end, env_start, env_end;
+
+    struct gdt_segment tls[NUM_GDT_TLS_ENTRIES];
 
     struct fs* fs;
     struct files* files;

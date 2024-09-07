@@ -68,7 +68,9 @@ typedef struct {
     Elf32_Word p_align;
 } Elf32_Phdr;
 
-#define PT_LOAD 1
+#define PT_NULL 0 // Program header table entry unused
+#define PT_LOAD 1 // Loadable program segment
+#define PT_TLS 7  // Thread-local storage segment
 
 #define PF_X 0x1
 #define PF_W 0x2

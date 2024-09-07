@@ -2,4 +2,4 @@
 
 #include <kernel/api/errno.h>
 
-extern int errno;
+extern _Thread_local int errno;

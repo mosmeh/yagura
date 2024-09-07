@@ -7,17 +7,15 @@ static void gdt_set_segment(struct gdt_segment* gdt, size_t index,
                             uint8_t flags) {
     ASSERT(index < NUM_GDT_ENTRIES);
     struct gdt_segment* s = gdt + index;
-    *s = (struct gdt_segment){
-        .base_lo = base & 0xffff,
-        .base_mid = (base >> 16) & 0xff,
-        .base_hi = (base >> 24) & 0xff,
+    s->base_lo = base & 0xffff;
+    s->base_mid = (base >> 16) & 0xff;
+    s->base_hi = (base >> 24) & 0xff;
 
-        .limit_lo = limit & 0xffff,
-        .limit_hi = (limit >> 16) & 0xf,
+    s->limit_lo = limit & 0xffff;
+    s->limit_hi = (limit >> 16) & 0xf;
 
-        .access = access,
-        .flags = flags & 0xf,
-    };
+    s->access = access;
+    s->flags = flags & 0xf;
 }
 
 void gdt_init_cpu(void) {
@@ -32,12 +30,15 @@ void gdt_init_cpu(void) {
     };
 
     gdt_set_segment(gdt, 0, 0, 0, 0, 0);
-    gdt_set_segment(gdt, 1, 0, 0xfffff, 0x9a, 0xc); // KERNEL_CS
-    gdt_set_segment(gdt, 2, 0, 0xfffff, 0x92, 0xc); // KERNEL_DS
-    gdt_set_segment(gdt, 3, 0, 0xfffff, 0xfa, 0xc); // USER_CS
-    gdt_set_segment(gdt, 4, 0, 0xfffff, 0xf2, 0xc); // USER_DS
-    gdt_set_segment(gdt, 5, (uint32_t)tss, sizeof(struct tss) - 1, 0x89,
-                    0); // TSS
+    gdt_set_segment(gdt, GDT_ENTRY_KERNEL_CS, 0, 0xfffff, 0x9a, 0xc);
+    gdt_set_segment(gdt, GDT_ENTRY_KERNEL_DS, 0, 0xfffff, 0x92, 0xc);
+    gdt_set_segment(gdt, GDT_ENTRY_USER_CS, 0, 0xfffff, 0xfa, 0xc);
+    gdt_set_segment(gdt, GDT_ENTRY_USER_DS, 0, 0xfffff, 0xf2, 0xc);
+    gdt_set_segment(gdt, GDT_ENTRY_TSS, (uint32_t)tss, sizeof(struct tss) - 1,
+                    0x89, 0);
+
+    for (size_t i = 0; i < NUM_GDT_TLS_ENTRIES; ++i)
+        gdt_set_segment(gdt, GDT_ENTRY_TLS_MIN + i, 0, 0, 0, 0);
 
     *tss = (struct tss){
         .ss0 = KERNEL_DS,

@@ -35,24 +35,32 @@ syscall:
 // Thus, we have to keep the fn and arg on the new stack so that the child can
 // call fn(arg) after the clone.
 
-// int __clone(int (*fn)(void*), void* stack, int flags, void* arg);
+// int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
+//             pid_t* parent_tid, void* tls, pid_t* child_tid);
     .globl __clone
     .hidden __clone
     .type __clone, @function
 __clone:
     pushl %ebx
-    movl 12(%esp), %ecx   // ecx = new stack
+    pushl %esi
+    pushl %edi
+    movl 20(%esp), %ecx   // ecx = new stack
     andl $-16, %ecx       // align the stack to 16 bytes boundary
     subl $8, %ecx         // reserve space for fn and arg
-    movl 20(%esp), %eax
+    movl 28(%esp), %eax
     movl %eax, 4(%ecx)    // push arg to the new stack
-    movl 8(%esp), %eax
+    movl 16(%esp), %eax
     movl %eax, (%ecx)     // push fn to the new stack
-    movl 16(%esp), %ebx   // ebx = flags
+    movl 24(%esp), %ebx   // ebx = flags
+    movl 32(%esp), %edx   // edx = parent_tid
+    movl 40(%esp), %esi   // esi = child_tid
+    movl 36(%esp), %edi   // edi = tls
     movl $SYS_clone, %eax
-    int $SYSCALL_VECTOR   // clone(flags, stack)
+    int $SYSCALL_VECTOR   // clone(flags, stack, parent_tid, child_tid, tls)
     testl %eax, %eax
     jz child
+    popl %edi
+    popl %esi
     popl %ebx
     ret
 child:

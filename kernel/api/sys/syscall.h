@@ -50,6 +50,8 @@
 #define SYS_getcwd 183
 #define SYS_mmap2 192
 #define SYS_gettid 224
+#define SYS_set_thread_area 243
+#define SYS_get_thread_area 244
 #define SYS_exit_group 252
 #define SYS_socket 359
 #define SYS_bind 361

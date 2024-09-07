@@ -4,6 +4,9 @@
 #include <err.h>
 #include <syscall.h>
 
+extern size_t __tls_size;
+void* __init_tls(void* tls);
+
 int syscall(int num, int, int, int, int, int, int);
 
 #define SYSCALL0(name) SYSCALL1(name, 0)

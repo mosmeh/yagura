@@ -1,8 +1,10 @@
 #include "syscall.h"
 #include <common/string.h>
+#include <kernel/api/asm/ldt.h>
 #include <kernel/api/sched.h>
 #include <kernel/api/sys/times.h>
 #include <kernel/api/sys/wait.h>
+#include <kernel/cpu.h>
 #include <kernel/fs/path.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/safe_string.h>
@@ -63,11 +65,86 @@ int sys_execve(const char* user_pathname, char* const user_argv[],
                             (const char* const*)user_envp);
 }
 
-pid_t sys_fork(struct registers* regs) {
-    return sys_clone(regs, SIGCHLD, NULL);
+static int get_tls_entry(struct user_desc* inout_u_info) {
+    struct user_desc* u = inout_u_info;
+    int index = u->entry_number;
+    if (index < GDT_ENTRY_TLS_MIN ||
+        GDT_ENTRY_TLS_MIN + NUM_GDT_TLS_ENTRIES <= index)
+        return -EINVAL;
+
+    const struct gdt_segment* s = current->tls + (index - GDT_ENTRY_TLS_MIN);
+    u->base_addr = s->base_lo | (s->base_mid << 16) | (s->base_hi << 24);
+    u->limit = s->limit_lo | (s->limit_hi << 16);
+    u->seg_32bit = s->db;
+    u->contents = s->type >> 2;
+    u->read_exec_only = !(s->type & 2);
+    u->limit_in_pages = s->g;
+    u->seg_not_present = !s->p;
+    u->useable = s->avl;
+    return 0;
 }
 
-int sys_clone(struct registers* regs, unsigned long flags, void* user_stack) {
+static bool is_user_desc_empty(const struct user_desc* u) {
+    if (u->base_addr || u->limit || u->seg_32bit || u->contents ||
+        u->limit_in_pages || u->useable)
+        return false;
+    if (!u->read_exec_only && !u->seg_not_present)
+        return true;
+    if (u->read_exec_only && u->seg_not_present)
+        return true;
+    return false;
+}
+
+static bool is_user_desc_valid(const struct user_desc* u) {
+    if (is_user_desc_empty(u))
+        return true;
+    if (!u->seg_32bit)
+        return false;
+    if (u->contents > 1)
+        return false;
+    if (u->seg_not_present)
+        return false;
+    return true;
+}
+
+static int set_tls_entry(struct task* task, const struct user_desc* u) {
+    int index = u->entry_number;
+    if (index < GDT_ENTRY_TLS_MIN ||
+        GDT_ENTRY_TLS_MIN + NUM_GDT_TLS_ENTRIES <= index)
+        return -EINVAL;
+
+    struct gdt_segment* s = task->tls + (index - GDT_ENTRY_TLS_MIN);
+    if (is_user_desc_empty(u)) {
+        *s = (struct gdt_segment){0};
+        return 0;
+    }
+
+    s->base_lo = u->base_addr & 0xffff;
+    s->base_mid = (u->base_addr >> 16) & 0xff;
+    s->base_hi = (u->base_addr >> 24) & 0xff;
+    s->limit_lo = u->limit & 0xffff;
+    s->limit_hi = (u->limit >> 16) & 0xf;
+
+    s->type = (!u->read_exec_only << 1) | (u->contents << 2) | 1;
+    s->s = 1;
+    s->dpl = 3;
+    s->p = !u->seg_not_present;
+    s->avl = u->useable;
+    s->l = 0;
+    s->db = u->seg_32bit;
+    s->g = u->limit_in_pages;
+
+    return 0;
+}
+
+pid_t sys_fork(struct registers* regs) {
+    return sys_clone(regs, SIGCHLD, NULL, NULL, NULL, NULL);
+}
+
+int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
+              pid_t* user_parent_tid, pid_t* user_child_tid, void* user_tls) {
+    (void)user_child_tid;
+
     if ((flags & CLONE_SIGHAND) && !(flags & CLONE_VM))
         return -EINVAL;
     if ((flags & CLONE_THREAD) && !(flags & CLONE_SIGHAND))
@@ -187,6 +264,31 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack) {
 
         task->exit_signal = flags & 0xff;
     }
+
+    memcpy(task->tls, current->tls, sizeof(current->tls));
+
+    if (flags & CLONE_SETTLS) {
+        struct user_desc u_info;
+        if (copy_from_user(&u_info, user_tls, sizeof(struct user_desc))) {
+            rc = -EFAULT;
+            goto fail;
+        }
+        if (!is_user_desc_valid(&u_info)) {
+            rc = -EINVAL;
+            goto fail;
+        }
+        rc = set_tls_entry(task, &u_info);
+        if (IS_ERR(rc))
+            goto fail;
+    }
+
+    if (flags & CLONE_PARENT_SETTID) {
+        if (copy_to_user(user_parent_tid, &tid, sizeof(pid_t))) {
+            rc = -EFAULT;
+            goto fail;
+        }
+    }
+
     ++task->thread_group->num_running;
 
     sched_register(task);
@@ -201,6 +303,68 @@ fail:
     kfree(stack);
     kfree(task);
     return rc;
+}
+
+int sys_get_thread_area(struct user_desc* user_u_info) {
+    struct user_desc u_info;
+    if (copy_from_user(&u_info, user_u_info, sizeof(struct user_desc)))
+        return -EFAULT;
+    int rc = get_tls_entry(&u_info);
+    if (IS_ERR(rc))
+        return rc;
+    if (copy_to_user(user_u_info, &u_info, sizeof(struct user_desc)))
+        return -EFAULT;
+    return 0;
+}
+
+static int find_free_tls_entry(void) {
+    for (size_t i = 0; i < ARRAY_SIZE(current->tls); ++i) {
+        const struct gdt_segment* s = current->tls + i;
+        if (s->base_lo || s->base_mid || s->base_hi || s->limit_lo ||
+            s->limit_hi || s->access || s->flags)
+            continue;
+        return i + GDT_ENTRY_TLS_MIN;
+    }
+    return -ESRCH;
+}
+
+int sys_set_thread_area(struct user_desc* user_u_info) {
+    struct user_desc u_info;
+    if (copy_from_user(&u_info, user_u_info, sizeof(struct user_desc)))
+        return -EFAULT;
+
+    if (!is_user_desc_valid(&u_info))
+        return -EINVAL;
+
+    int index = u_info.entry_number;
+    bool should_alloc = index == -1;
+    if (should_alloc) {
+        index = find_free_tls_entry();
+        if (IS_ERR(index))
+            return index;
+    }
+    u_info.entry_number = index;
+
+    bool int_flag = push_cli();
+
+    int rc = set_tls_entry(current, &u_info);
+    if (IS_ERR(rc)) {
+        pop_cli(int_flag);
+        return rc;
+    }
+
+    memcpy(cpu_get_current()->gdt + GDT_ENTRY_TLS_MIN, current->tls,
+           sizeof(current->tls));
+
+    pop_cli(int_flag);
+
+    if (should_alloc) {
+        if (copy_to_user(user_u_info + offsetof(struct user_desc, entry_number),
+                         &u_info.entry_number, sizeof(u_info.entry_number)))
+            return -EFAULT;
+    }
+
+    return 0;
 }
 
 struct waitpid_blocker {

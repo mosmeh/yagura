@@ -6,6 +6,7 @@
 #include "system.h"
 #include "task.h"
 #include <common/stdio.h>
+#include <common/string.h>
 
 static struct task* ready_queue;
 static struct spinlock ready_queue_lock;
@@ -134,6 +135,8 @@ noreturn void switch_context(void) {
 
     vm_enter(task->vm);
     gdt_set_cpu_kernel_stack(task->kernel_stack_top);
+    memcpy(cpu_get_current()->gdt + GDT_ENTRY_TLS_MIN, current->tls,
+           sizeof(current->tls));
 
     if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
         __asm__ volatile("fxrstor %0" ::"m"(task->fpu_state));
