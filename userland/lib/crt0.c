@@ -33,15 +33,17 @@ static const Elf32_Phdr* find_tls_phdr(void) {
 
 size_t __tls_size;
 
-void* __init_tls(void* tls) {
+struct pthread* __init_tls(void* tls) {
     memset(tls, 0, __tls_size);
 
-    uintptr_t p = (uintptr_t)tls + __tls_size - sizeof(void*);
+    uintptr_t p = (uintptr_t)tls + __tls_size - sizeof(struct pthread);
     p = round_down((uintptr_t)p, tls_phdr->p_align);
     memcpy((unsigned char*)p - tls_phdr->p_memsz, (void*)tls_phdr->p_vaddr,
            tls_phdr->p_filesz);
-    *(void**)p = (void*)p;
-    return (void*)p;
+
+    struct pthread* pth = (struct pthread*)p;
+    pth->self = pth;
+    return pth;
 }
 
 static void set_thread_area(void* addr) {
@@ -76,7 +78,7 @@ void __start(unsigned long* args) {
     // Initialize TLS
     tls_phdr = find_tls_phdr();
     ASSERT(tls_phdr);
-    __tls_size = tls_phdr->p_memsz + tls_phdr->p_align + sizeof(void*);
+    __tls_size = tls_phdr->p_memsz + tls_phdr->p_align + sizeof(struct pthread);
 
     // Initialize TLS for the main thread
     unsigned char* tls = malloc(__tls_size);

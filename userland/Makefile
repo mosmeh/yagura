@@ -72,6 +72,7 @@ LIB_OBJS := \
 	lib/errno.o \
 	lib/fcntl.o \
 	lib/panic.o \
+	lib/pthread.o \
 	lib/sched.o \
 	lib/signal.o \
 	lib/stdio.o \

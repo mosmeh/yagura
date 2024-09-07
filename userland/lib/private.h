@@ -2,10 +2,21 @@
 
 #include "errno.h"
 #include <err.h>
+#include <sys/types.h>
 #include <syscall.h>
 
 extern size_t __tls_size;
-void* __init_tls(void* tls);
+struct pthread* __init_tls(void* tls);
+
+struct pthread {
+    struct pthread* self;
+    volatile atomic_uint state;
+    void* alloc_base;
+    void* (*fn)(void*);
+    void* arg;
+    pid_t tid;
+    void* retval;
+};
 
 int syscall(int num, int, int, int, int, int, int);
 
@@ -29,4 +40,7 @@ int syscall(int num, int, int, int, int, int, int);
             return (type)(-1);                                                 \
         }                                                                      \
         return (type)(_rc);                                                    \
-    } while (0);
+    } while (0)
+
+int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
+            pid_t* parent_tid, void* tls, pid_t* child_tid);

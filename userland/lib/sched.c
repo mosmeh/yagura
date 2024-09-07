@@ -3,9 +3,6 @@
 #include <stdarg.h>
 #include <sys/types.h>
 
-int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
-            pid_t* parent_tid, void* tls, pid_t* child_tid);
-
 int clone(int (*fn)(void*), void* stack, int flags, void* arg, ...) {
     if (!fn || !stack)
         return -EINVAL;
