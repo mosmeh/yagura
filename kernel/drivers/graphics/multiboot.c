@@ -33,10 +33,13 @@ struct fb* multiboot_fb_init(const multiboot_info_t* mb_info) {
         return NULL;
 
     phys_addr = mb_info->framebuffer_addr;
-    info.width = mb_info->framebuffer_width;
-    info.height = mb_info->framebuffer_height;
-    info.pitch = mb_info->framebuffer_pitch;
-    info.bpp = mb_info->framebuffer_bpp;
+    info = (struct fb_info){
+        .id = "multiboot",
+        .width = mb_info->framebuffer_width,
+        .height = mb_info->framebuffer_height,
+        .pitch = mb_info->framebuffer_pitch,
+        .bpp = mb_info->framebuffer_bpp,
+    };
     kprintf("multiboot_fb: found framebuffer at P%#x\n", phys_addr);
 
     static struct fb fb = {

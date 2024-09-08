@@ -1,8 +1,8 @@
 #include "moused.h"
 #include <errno.h>
 #include <extra.h>
-#include <fb.h>
 #include <fcntl.h>
+#include <linux/fb.h>
 #include <panic.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -13,11 +13,11 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-static bool get_fb_info(struct fb_info* out_fb_info) {
+static bool get_fb_info(struct fb_var_screeninfo* out_fb_var) {
     int fd = open("/dev/fb0", 0);
     if (fd < 0)
         return false;
-    if (ioctl(fd, FBIOGET_INFO, out_fb_info) < 0) {
+    if (ioctl(fd, FBIOGET_VSCREENINFO, out_fb_var) < 0) {
         close(fd);
         return false;
     }
@@ -112,10 +112,10 @@ int main(void) {
     if (set_non_blocking(mouse_fd) < 0)
         goto fail;
 
-    struct fb_info fb_info;
-    if (get_fb_info(&fb_info)) {
-        width = fb_info.width;
-        height = fb_info.height;
+    struct fb_var_screeninfo fb_var;
+    if (get_fb_info(&fb_var)) {
+        width = fb_var.xres;
+        height = fb_var.yres;
         cursor_x = width / 2;
         cursor_y = height / 2;
     }

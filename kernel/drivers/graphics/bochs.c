@@ -25,7 +25,9 @@
 #define VBE_DISPI_LFB_ENABLED 0x40
 
 static uintptr_t phys_addr;
-static struct fb_info info;
+static struct fb_info info = {
+    .id = "bochs",
+};
 static struct mutex lock;
 
 static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,

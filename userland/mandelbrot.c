@@ -1,6 +1,6 @@
 #include <errno.h>
-#include <fb.h>
 #include <fcntl.h>
+#include <linux/fb.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,19 +102,25 @@ int main(void) {
             perror("open");
         return EXIT_FAILURE;
     }
-    struct fb_info fb_info;
-    if (ioctl(fd, FBIOGET_INFO, &fb_info) < 0) {
+    struct fb_fix_screeninfo fb_fix;
+    if (ioctl(fd, FBIOGET_FSCREENINFO, &fb_fix) < 0) {
         perror("ioctl");
         close(fd);
         return EXIT_FAILURE;
     }
-    if (fb_info.bpp != 32) {
+    struct fb_var_screeninfo fb_var;
+    if (ioctl(fd, FBIOGET_VSCREENINFO, &fb_var) < 0) {
+        perror("ioctl");
+        close(fd);
+        return EXIT_FAILURE;
+    }
+    if (fb_var.bits_per_pixel != 32) {
         dprintf(STDERR_FILENO, "Unsupported bit depth\n");
         close(fd);
         return EXIT_FAILURE;
     }
-    void* fb = mmap(NULL, fb_info.pitch * fb_info.height,
-                    PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    void* fb =
+        mmap(NULL, fb_fix.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (fb == MAP_FAILED) {
         perror("mmap");
         close(fd);
@@ -123,21 +129,21 @@ int main(void) {
     close(fd);
 
     double width = VIEW_WIDTH;
-    double height = width * fb_info.height / fb_info.width;
+    double height = width * fb_var.yres / fb_var.xres;
     double left = (CENTER_X - width) / 2;
     double top = (CENTER_Y - height) / 2;
 
     uintptr_t row_addr = (uintptr_t)fb;
-    for (size_t y = 0; y < fb_info.height; ++y) {
-        double y0 = y * height / fb_info.height + top;
+    for (size_t y = 0; y < fb_var.yres; ++y) {
+        double y0 = y * height / fb_var.yres + top;
 
         uint32_t* pixel = (uint32_t*)row_addr;
-        for (size_t x = 0; x < fb_info.width; ++x) {
-            double x0 = x * width / fb_info.width + left;
+        for (size_t x = 0; x < fb_var.xres; ++x) {
+            double x0 = x * width / fb_var.xres + left;
             *pixel++ = calc_pixel_value(x0, y0);
         }
 
-        row_addr += fb_info.pitch;
+        row_addr += fb_fix.line_length;
     }
 
     (void)getchar();

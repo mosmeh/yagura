@@ -1,8 +1,8 @@
 #include "moused.h"
 #include <errno.h>
 #include <extra.h>
-#include <fb.h>
 #include <fcntl.h>
+#include <linux/fb.h>
 #include <math.h>
 #include <panic.h>
 #include <stdio.h>
@@ -14,7 +14,8 @@
 #include <unistd.h>
 
 static uint32_t* fb;
-static struct fb_info fb_info;
+static struct fb_fix_screeninfo fb_fix;
+static struct fb_var_screeninfo fb_var;
 
 // based on "A Fast Bresenham Type Algorithm For Drawing Ellipses"
 // https://dai.fmph.uniba.sk/upload/0/01/Ellipse.pdf
@@ -23,8 +24,8 @@ static void draw_ellipse_part(uint32_t cx, uint32_t cy, uint32_t x, uint32_t y,
                               uint32_t color) {
     unsigned char* s = (unsigned char*)(fb + cx - x);
     size_t n = 2 * x + 1;
-    memset32((uint32_t*)(s + fb_info.pitch * (cy - y)), color, n);
-    memset32((uint32_t*)(s + fb_info.pitch * (cy + y)), color, n);
+    memset32((uint32_t*)(s + fb_fix.line_length * (cy - y)), color, n);
+    memset32((uint32_t*)(s + fb_fix.line_length * (cy + y)), color, n);
 }
 
 static void fill_ellipse(uint32_t cx, uint32_t cy, uint32_t x_radius,
@@ -76,8 +77,8 @@ static void fill_ellipse(uint32_t cx, uint32_t cy, uint32_t x_radius,
 }
 
 static void draw_eyeball(unsigned i, uint32_t mouse_x, uint32_t mouse_y) {
-    uint32_t eye_width = fb_info.width / 2;
-    uint32_t eye_height = fb_info.height;
+    uint32_t eye_width = fb_var.xres / 2;
+    uint32_t eye_height = fb_var.yres;
     uint32_t eye_x = eye_width * i;
     uint32_t eye_y = 0;
 
@@ -140,17 +141,22 @@ int main(void) {
         perror("open");
         return EXIT_FAILURE;
     }
-    if (ioctl(fb_fd, FBIOGET_INFO, &fb_info) < 0) {
+    if (ioctl(fb_fd, FBIOGET_FSCREENINFO, &fb_fix) < 0) {
         perror("ioctl");
         close(fb_fd);
         return EXIT_FAILURE;
     }
-    if (fb_info.bpp != 32) {
+    if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &fb_var) < 0) {
+        perror("ioctl");
+        close(fb_fd);
+        return EXIT_FAILURE;
+    }
+    if (fb_var.bits_per_pixel != 32) {
         dprintf(STDERR_FILENO, "Unsupported bpp\n");
         return EXIT_FAILURE;
     }
-    fb = mmap(NULL, fb_info.pitch * fb_info.height, PROT_READ | PROT_WRITE,
-              MAP_SHARED, fb_fd, 0);
+    fb = mmap(NULL, fb_fix.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED, fb_fd,
+              0);
     if (fb == MAP_FAILED) {
         perror("mmap");
         close(fb_fd);
@@ -171,8 +177,10 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    struct moused_event event = {.x = fb_info.width / 2,
-                                 .y = fb_info.height / 2};
+    struct moused_event event = {
+        .x = fb_var.xres / 2,
+        .y = fb_var.yres / 2,
+    };
     for (;;) {
         draw(event.x, event.y);
 

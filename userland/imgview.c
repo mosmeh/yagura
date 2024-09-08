@@ -1,7 +1,7 @@
 #include <errno.h>
 #include <extra.h>
-#include <fb.h>
 #include <fcntl.h>
+#include <linux/fb.h>
 #include <panic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -117,31 +117,31 @@ int main(int argc, char* const argv[]) {
             perror("open");
         return EXIT_FAILURE;
     }
-    struct fb_info fb_info;
-    if (ioctl(fb_fd, FBIOGET_INFO, &fb_info) < 0) {
+    struct fb_fix_screeninfo fb_fix;
+    if (ioctl(fb_fd, FBIOGET_FSCREENINFO, &fb_fix) < 0) {
         perror("ioctl");
-        close(fb_fd);
-        free(bytes);
-        return EXIT_FAILURE;
+        goto fail;
     }
-    if (fb_info.bpp != 32) {
+    struct fb_var_screeninfo fb_var;
+    if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &fb_var) < 0) {
+        perror("ioctl");
+        goto fail;
+    }
+    if (fb_var.bits_per_pixel != 32) {
         dprintf(STDERR_FILENO, "Unsupported bit depth\n");
-        close(fb_fd);
-        free(bytes);
-        return EXIT_FAILURE;
+        goto fail;
     }
-    void* fb = mmap(NULL, fb_info.pitch * fb_info.height,
-                    PROT_READ | PROT_WRITE, MAP_SHARED, fb_fd, 0);
+    void* fb = mmap(NULL, fb_fix.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED,
+                    fb_fd, 0);
     if (fb == MAP_FAILED) {
         perror("mmap");
-        close(fb_fd);
-        free(bytes);
-        return EXIT_FAILURE;
+        goto fail;
     }
     close(fb_fd);
+    fb_fd = -1;
 
-    size_t visible_width = MIN(width, fb_info.width);
-    size_t visible_height = MIN(height, fb_info.height);
+    size_t visible_width = MIN(width, fb_var.xres);
+    size_t visible_height = MIN(height, fb_var.yres);
 
     qoi_rgba_t index[64];
     memset(index, 0, sizeof(index));
@@ -202,7 +202,7 @@ int main(int argc, char* const argv[]) {
                 *pixel++ = (px.rgba.r << 16) | (px.rgba.g << 8) | px.rgba.b;
         }
 
-        fb_row_addr += fb_info.pitch;
+        fb_row_addr += fb_fix.line_length;
     }
 
     free(bytes);
@@ -210,4 +210,10 @@ int main(int argc, char* const argv[]) {
     (void)getchar();
 
     return EXIT_SUCCESS;
+
+fail:
+    if (fb_fd >= 0)
+        close(fb_fd);
+    free(bytes);
+    return EXIT_FAILURE;
 }

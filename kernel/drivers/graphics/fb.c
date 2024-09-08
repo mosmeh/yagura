@@ -1,4 +1,6 @@
 #include "graphics.h"
+#include <common/string.h>
+#include <kernel/api/linux/fb.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
 #include <kernel/memory/memory.h>
@@ -28,29 +30,58 @@ static void* fb_device_mmap(struct file* file, size_t length, off_t offset,
 static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
     (void)file;
 
-    struct fb_info info;
     switch (request) {
-    case FBIOGET_INFO: {
+    case FBIOGET_FSCREENINFO: {
+        struct fb_info info;
         int rc = fb->get_info(&info);
         if (IS_ERR(rc))
             return rc;
-        break;
-    }
-    case FBIOSET_INFO: {
-        if (copy_from_user(&info, user_argp, sizeof(struct fb_info)))
+        struct fb_fix_screeninfo fix = {
+            .smem_len = info.pitch * info.height,
+            .type = FB_TYPE_PACKED_PIXELS,
+            .visual = FB_VISUAL_TRUECOLOR,
+            .line_length = info.pitch,
+        };
+        strlcpy(fix.id, info.id, sizeof(fix.id));
+        if (copy_to_user(user_argp, &fix, sizeof(struct fb_fix_screeninfo)))
             return -EFAULT;
-        int rc = fb->set_info(&info);
+        return 0;
+    }
+    case FBIOGET_VSCREENINFO: {
+        struct fb_info info;
+        int rc = fb->get_info(&info);
         if (IS_ERR(rc))
             return rc;
-        break;
+        struct fb_var_screeninfo var = {
+            .xres = info.width,
+            .yres = info.height,
+            .xres_virtual = info.width,
+            .yres_virtual = info.height,
+            .bits_per_pixel = info.bpp,
+            .red = {.offset = 16, .length = 8},
+            .green = {.offset = 8, .length = 8},
+            .blue = {.offset = 0, .length = 8},
+        };
+        if (copy_to_user(user_argp, &var, sizeof(struct fb_var_screeninfo)))
+            return -EFAULT;
+        return 0;
     }
-    default:
-        return -EINVAL;
+    case FBIOPUT_VSCREENINFO: {
+        struct fb_var_screeninfo var;
+        if (copy_from_user(&var, user_argp, sizeof(struct fb_var_screeninfo)))
+            return -EFAULT;
+        struct fb_info info;
+        int rc = fb->get_info(&info);
+        if (IS_ERR(rc))
+            return rc;
+        info.width = var.xres;
+        info.height = var.yres;
+        info.bpp = var.bits_per_pixel;
+        return fb->set_info(&info);
+    }
     }
 
-    if (copy_to_user(user_argp, &info, sizeof(struct fb_info)))
-        return -EFAULT;
-    return 0;
+    return -EINVAL;
 }
 
 static struct inode* fb_device_get(void) {

@@ -1,7 +1,15 @@
 #pragma once
 
-#include <kernel/api/fb.h>
 #include <kernel/api/sys/types.h>
+#include <stddef.h>
+
+struct fb_info {
+    char id[16];
+    size_t width;
+    size_t height;
+    size_t pitch;
+    size_t bpp;
+};
 
 struct fb {
     int (*get_info)(struct fb_info* out_info);

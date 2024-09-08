@@ -1,7 +1,7 @@
 #include <errno.h>
 #include <extra.h>
-#include <fb.h>
 #include <fcntl.h>
+#include <linux/fb.h>
 #include <panic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -488,19 +488,21 @@ static void test_framebuffer(void) {
         return;
     }
 
-    struct fb_info fb_info;
-    ASSERT_OK(ioctl(fd, FBIOGET_INFO, &fb_info));
+    struct fb_fix_screeninfo fix;
+    ASSERT_OK(ioctl(fd, FBIOGET_FSCREENINFO, &fix));
+    struct fb_var_screeninfo var;
+    ASSERT_OK(ioctl(fd, FBIOGET_VSCREENINFO, &var));
 
-    size_t size = fb_info.pitch * fb_info.height;
-    void* fb = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    void* fb =
+        mmap(NULL, fix.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     ASSERT_OK(close(fd));
     ASSERT(fb != MAP_FAILED);
-    void* buf = malloc(size);
+    void* buf = malloc(fix.smem_len);
     ASSERT(buf);
-    memcpy(buf, fb, size);
-    memcpy(fb, buf, size);
+    memcpy(buf, fb, fix.smem_len);
+    memcpy(fb, buf, fix.smem_len);
     free(buf);
-    ASSERT_OK(munmap(fb, size));
+    ASSERT_OK(munmap(fb, fix.smem_len));
 }
 
 static void test_malloc(void) {
