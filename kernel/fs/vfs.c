@@ -390,9 +390,12 @@ static struct path* create_at(const struct path* base, const char* pathname,
     if (IS_ERR(path))
         return ERR_CAST(path);
 
-    if (exclusive && path->inode) {
-        path_destroy_recursive(path);
-        return ERR_PTR(-EEXIST);
+    if (path->inode) {
+        if (exclusive) {
+            path_destroy_recursive(path);
+            return ERR_PTR(-EEXIST);
+        }
+        return path;
     }
 
     struct inode* inode = NULL;
@@ -408,6 +411,10 @@ static struct path* create_at(const struct path* base, const char* pathname,
         if (IS_OK(inode) || PTR_ERR(inode) != -ENOENT)
             break;
         // The file was removed before we could look it up. Retry creating it.
+    }
+    if (IS_ERR(inode)) {
+        path_destroy_recursive(path);
+        return ERR_CAST(inode);
     }
 
     path->inode = inode;

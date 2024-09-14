@@ -110,6 +110,20 @@ struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
             return ERR_PTR(rc);
         }
     }
+
+    if (flags & O_TRUNC) {
+        if (S_ISDIR(inode->mode))
+            return ERR_PTR(-EISDIR);
+        // Truncation is performed even with O_RDONLY.
+        if (inode->fops->truncate) {
+            int rc = inode->fops->truncate(file, 0);
+            if (IS_ERR(rc)) {
+                file_close(file);
+                return ERR_PTR(rc);
+            }
+        }
+    }
+
     return file;
 }
 
@@ -211,9 +225,9 @@ int file_truncate(struct file* file, off_t length) {
     if (S_ISDIR(inode->mode))
         return -EISDIR;
     if (!inode->fops->truncate)
-        return -EROFS;
+        return -EINVAL;
     if ((file->flags & O_ACCMODE) == O_RDONLY)
-        return -EBADF;
+        return -EINVAL;
     return inode->fops->truncate(file, length);
 }
 

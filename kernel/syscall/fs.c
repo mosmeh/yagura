@@ -186,17 +186,12 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
     if (IS_ERR(rc))
         return rc;
 
-    struct inode* inode = vfs_create(linkpath, S_IFLNK);
-    if (IS_ERR(inode))
-        return PTR_ERR(inode);
-
-    struct file* file = inode_open(inode, O_WRONLY, 0);
+    struct file* file =
+        vfs_open(linkpath, O_CREAT | O_EXCL | O_WRONLY, S_IFLNK);
     if (IS_ERR(file))
         return PTR_ERR(file);
     rc = file_write_all(file, target, target_len);
-
     file_close(file);
-    inode_unref(inode);
     return rc;
 }
 

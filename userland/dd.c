@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
         if (v) {
             if (output_fd != STDOUT_FILENO)
                 close(output_fd);
-            output_fd = open(v, O_WRONLY | O_CREAT, 0);
+            output_fd = open(v, O_WRONLY | O_CREAT | O_TRUNC, 0);
             if (output_fd < 0) {
                 perror("open");
                 return 1;

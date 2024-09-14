@@ -887,7 +887,7 @@ static int run_pipe(const struct pipe_node* node, struct run_context ctx) {
 
 static int run_redirect(const struct redirect_node* node,
                         struct run_context ctx) {
-    int flags = node->is_write ? (O_WRONLY | O_CREAT) : O_RDONLY;
+    int flags = node->is_write ? (O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY;
     int redirected_fd = node->fd;
     if (redirected_fd < 0)
         redirected_fd = node->is_write ? STDOUT_FILENO : STDIN_FILENO;
