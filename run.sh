@@ -5,6 +5,7 @@ set -eo pipefail
 KERNEL='kernel/kernel'
 INITRD='initrd'
 CMDLINE=()
+NUM_CPUS=1
 
 case "$1" in
     shell) # Serial console
@@ -52,4 +53,5 @@ QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
     -serial chardev:char0 \
     -mon char0,mode=readline \
     -m 512M \
+    -smp "sockets=1,cores=${NUM_CPUS},threads=1" \
     "${QEMU_VIRT_TECH_ARGS[@]}"

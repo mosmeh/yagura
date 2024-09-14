@@ -228,10 +228,10 @@ struct cpu {
 extern size_t num_cpus;
 extern struct cpu* cpus[MAX_NUM_CPUS];
 
-void cpu_init_bsp(void);
-void cpu_init_ap(void);
+void cpu_init(void);
 void cpu_init_smp(void);
 
+uint8_t cpu_get_id(void);
 struct cpu* cpu_get_bsp(void);
 struct cpu* cpu_get_current(void);
 bool cpu_has_feature(const struct cpu*, int feature);

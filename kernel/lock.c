@@ -53,7 +53,7 @@ void spinlock_lock(struct spinlock* s) {
     if (interrupts_enabled())
         desired |= SPINLOCK_PUSHED_INTERRUPT;
     cli();
-    uint8_t cpu_id = lapic_get_id();
+    uint8_t cpu_id = cpu_get_id();
     desired |= (unsigned)cpu_id << SPINLOCK_CPU_ID_SHIFT;
     for (;;) {
         unsigned expected = 0;
@@ -74,7 +74,7 @@ void spinlock_unlock(struct spinlock* s) {
     ASSERT(!interrupts_enabled());
     unsigned v = atomic_load(&s->lock);
     ASSERT(v & SPINLOCK_LOCKED);
-    ASSERT((v >> SPINLOCK_CPU_ID_SHIFT) == lapic_get_id());
+    ASSERT((v >> SPINLOCK_CPU_ID_SHIFT) == cpu_get_id());
     ASSERT(s->level > 0);
     if (--s->level == 0) {
         atomic_store_explicit(&s->lock, 0, memory_order_release);

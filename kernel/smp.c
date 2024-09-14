@@ -122,8 +122,8 @@ void smp_start(void) {
 }
 
 noreturn void ap_start(void) {
-    cpu_init_ap();
     gdt_init_cpu();
+    cpu_init();
     idt_flush();
     lapic_init_cpu();
 

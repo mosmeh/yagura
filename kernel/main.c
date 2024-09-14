@@ -50,8 +50,8 @@ static noreturn void userland_init(void) {
 }
 
 noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
-    cpu_init_bsp();
     gdt_init_cpu();
+    cpu_init();
     idt_init();
     i8259_init();
     serial_early_init();

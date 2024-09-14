@@ -277,15 +277,9 @@ static void init_cpu(struct cpu* cpu) {
 static struct cpu bsp;
 size_t num_cpus = 1;
 struct cpu* cpus[MAX_NUM_CPUS] = {&bsp};
-static struct cpu* apic_id_to_cpu[UINT8_MAX + 1];
 static struct mpsc* msg_pool;
 
-void cpu_init_bsp(void) {
-    apic_id_to_cpu[lapic_get_id()] = &bsp;
-    init_cpu(&bsp);
-}
-
-void cpu_init_ap(void) { init_cpu(cpu_get_current()); }
+void cpu_init(void) { init_cpu(cpu_get_current()); }
 
 void cpu_init_smp(void) {
     const struct acpi* acpi = acpi_get();
@@ -301,11 +295,11 @@ void cpu_init_smp(void) {
         for (size_t i = 0; i < num_cpus; ++i)
             ASSERT(cpus[i]->apic_id != apic_id);
         ASSERT(num_cpus < ARRAY_SIZE(cpus));
+
         struct cpu* cpu = kmalloc(sizeof(struct cpu));
         ASSERT(cpu);
         *cpu = (struct cpu){.apic_id = apic_id};
         cpus[num_cpus++] = cpu;
-        apic_id_to_cpu[apic_id] = cpu;
     }
 
     msg_pool = mpsc_create(num_cpus);
@@ -322,14 +316,21 @@ void cpu_init_smp(void) {
     }
 }
 
+uint8_t cpu_get_id(void) {
+    uint32_t id;
+    __asm__ volatile("lsl %[selector], %[id]"
+                     : [id] "=r"(id)
+                     : [selector] "r"(CPU_ID_SELECTOR));
+    ASSERT(id < num_cpus);
+    return id;
+}
+
 struct cpu* cpu_get_bsp(void) { return &bsp; }
 
 struct cpu* cpu_get_current(void) {
     ASSERT(!interrupts_enabled());
-    uint8_t apic_id = lapic_get_id();
-    struct cpu* cpu = apic_id_to_cpu[apic_id];
+    struct cpu* cpu = cpus[cpu_get_id()];
     ASSERT(cpu);
-    ASSERT(cpu->apic_id == apic_id);
     return cpu;
 }
 
@@ -340,9 +341,9 @@ void cpu_pause(void) {
 
 void cpu_broadcast_message(struct ipi_message* msg) {
     bool int_flag = push_cli();
-    uint8_t apic_id = lapic_get_id();
+    uint8_t cpu_id = cpu_get_id();
     for (size_t i = 0; i < num_cpus; ++i) {
-        if (cpus[i]->apic_id == apic_id)
+        if (i == cpu_id)
             continue;
         while (!mpsc_enqueue(cpus[i]->msg_queue, msg))
             cpu_pause();

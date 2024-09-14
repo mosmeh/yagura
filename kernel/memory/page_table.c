@@ -131,12 +131,14 @@ static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
             cpu_broadcast_message(msg);
         } else {
             ASSERT(is_user_range((void*)virt_addr, size));
+            uint8_t cpu_id = cpu_get_id();
+
             // If the address is userland, we only need to flush TLBs of CPUs
             // that is in the same vm as the current task
             for (size_t i = 0; i < num_cpus; ++i) {
-                struct cpu* cpu = cpus[i];
-                if (cpu->apic_id == lapic_get_id())
+                if (i == cpu_id)
                     continue;
+                struct cpu* cpu = cpus[i];
                 struct task* task = cpu->current_task;
                 if (!task)
                     continue;

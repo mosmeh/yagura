@@ -19,7 +19,18 @@ static void gdt_set_segment(struct gdt_segment* gdt, size_t index,
 }
 
 void gdt_init_cpu(void) {
-    struct cpu* cpu = cpu_get_current();
+    // Avoid using cpu_get_current() here, as it relies on GDT_ENTRY_CPU_ID
+    struct cpu* cpu = NULL;
+    size_t cpu_id = 0;
+    uint8_t apic_id = lapic_get_id();
+    for (; cpu_id < num_cpus; ++cpu_id) {
+        if (cpus[cpu_id]->apic_id == apic_id) {
+            cpu = cpus[cpu_id];
+            break;
+        }
+    }
+    ASSERT(cpu);
+
     struct gdtr* gdtr = &cpu->gdtr;
     struct gdt_segment* gdt = cpu->gdt;
     struct tss* tss = &cpu->tss;
@@ -39,6 +50,8 @@ void gdt_init_cpu(void) {
 
     for (size_t i = 0; i < NUM_GDT_TLS_ENTRIES; ++i)
         gdt_set_segment(gdt, GDT_ENTRY_TLS_MIN + i, 0, 0, 0, 0);
+
+    gdt_set_segment(gdt, GDT_ENTRY_CPU_ID, 0, cpu_id, 0x95, 0x4);
 
     *tss = (struct tss){
         .ss0 = KERNEL_DS,
