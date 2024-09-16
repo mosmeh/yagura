@@ -9,8 +9,8 @@
 
 #define PTHREAD_RETURN(rc)                                                     \
     do {                                                                       \
-        int _rc = (rc);                                                        \
-        return IS_ERR(_rc) ? -_rc : 0;                                         \
+        int __rc = (rc);                                                       \
+        return IS_ERR(__rc) ? -__rc : 0;                                       \
     } while (0)
 
 enum {

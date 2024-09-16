@@ -3,6 +3,7 @@
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/limits.h>
+#include <kernel/api/unistd.h>
 #include <kernel/fs/fs.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
@@ -10,12 +11,26 @@
 #include <kernel/safe_string.h>
 #include <kernel/task.h>
 
-static int copy_pathname_from_user(char* dest, const char* user_src) {
+NODISCARD static int copy_pathname_from_user(char* dest, const char* user_src) {
     ssize_t pathname_len = strncpy_from_user(dest, user_src, PATH_MAX);
     if (IS_ERR(pathname_len))
         return pathname_len;
     if (pathname_len >= PATH_MAX)
         return -ENAMETOOLONG;
+    return 0;
+}
+
+int sys_access(const char* user_pathname, int mode) {
+    (void)mode; // File permissions are not implemented in this system.
+
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
+    struct path* path = vfs_resolve_path(pathname, 0);
+    if (IS_ERR(path))
+        return PTR_ERR(path);
+    path_destroy_recursive(path);
     return 0;
 }
 
@@ -32,6 +47,10 @@ int sys_open(const char* user_pathname, int flags, unsigned mode) {
     if (IS_ERR(rc))
         file_close(file);
     return rc;
+}
+
+int sys_creat(const char* user_pathname, mode_t mode) {
+    return sys_open(user_pathname, O_CREAT | O_WRONLY | O_TRUNC, mode);
 }
 
 int sys_close(int fd) {
@@ -104,6 +123,19 @@ ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     return rc;
 }
 
+int sys_truncate(const char* user_path, off_t length) {
+    char path[PATH_MAX];
+    int rc = copy_pathname_from_user(path, user_path);
+    if (IS_ERR(rc))
+        return rc;
+    struct file* file = vfs_open(path, O_WRONLY, 0);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    rc = file_truncate(file, length);
+    file_close(file);
+    return rc;
+}
+
 int sys_ftruncate(int fd, off_t length) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
@@ -118,9 +150,88 @@ off_t sys_lseek(int fd, off_t offset, int whence) {
     return file_seek(file, offset, whence);
 }
 
-static void stat_to_linux_stat(const struct stat* stat,
-                               struct linux_stat* linux_stat) {
-    *linux_stat = (struct linux_stat){
+NODISCARD static int stat(const char* user_pathname, struct kstat* buf) {
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
+    rc = vfs_stat(pathname, buf, 0);
+    if (IS_ERR(rc))
+        return rc;
+    return 0;
+}
+
+NODISCARD static int lstat(const char* user_pathname, struct kstat* buf) {
+    char pathname[PATH_MAX];
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
+    rc = vfs_stat(pathname, buf, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
+    if (IS_ERR(rc))
+        return rc;
+    return 0;
+}
+
+NODISCARD static int fstat(int fd, struct kstat* buf) {
+    struct file* file = task_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return inode_stat(file->inode, buf);
+}
+
+NODISCARD static int copy_stat_to_user_old(const struct kstat* stat,
+                                           struct linux_old_stat* user_buf) {
+    struct linux_old_stat old_stat = {
+        .st_dev = stat->st_dev,
+        .st_ino = stat->st_ino,
+        .st_mode = stat->st_mode,
+        .st_nlink = stat->st_nlink,
+        .st_uid = stat->st_uid,
+        .st_gid = stat->st_gid,
+        .st_rdev = stat->st_rdev,
+        .st_size = stat->st_size,
+        .st_atime = stat->st_atim.tv_sec,
+        .st_mtime = stat->st_mtim.tv_sec,
+        .st_ctime = stat->st_ctim.tv_sec,
+    };
+
+    if (old_stat.st_ino != stat->st_ino)
+        return -EOVERFLOW;
+    if (old_stat.st_nlink != stat->st_nlink)
+        return -EOVERFLOW;
+
+    if (copy_to_user(user_buf, &old_stat, sizeof(struct linux_old_stat)))
+        return -EFAULT;
+    return 0;
+}
+
+int sys_stat(const char* user_pathname, struct linux_old_stat* user_buf) {
+    struct kstat buf;
+    int rc = stat(user_pathname, &buf);
+    if (IS_ERR(rc))
+        return rc;
+    return copy_stat_to_user_old(&buf, user_buf);
+}
+
+int sys_lstat(const char* user_pathname, struct linux_old_stat* user_buf) {
+    struct kstat buf;
+    int rc = lstat(user_pathname, &buf);
+    if (IS_ERR(rc))
+        return rc;
+    return copy_stat_to_user_old(&buf, user_buf);
+}
+
+int sys_fstat(int fd, struct linux_old_stat* user_buf) {
+    struct kstat buf;
+    int rc = fstat(fd, &buf);
+    if (IS_ERR(rc))
+        return rc;
+    return copy_stat_to_user_old(&buf, user_buf);
+}
+
+NODISCARD static int copy_stat_to_user(const struct kstat* stat,
+                                       struct linux_stat* user_buf) {
+    struct linux_stat linux_stat = {
         .st_dev = stat->st_dev,
         .st_ino = stat->st_ino,
         .st_mode = stat->st_mode,
@@ -138,38 +249,87 @@ static void stat_to_linux_stat(const struct stat* stat,
         .st_ctime = stat->st_ctim.tv_sec,
         .st_ctime_nsec = stat->st_ctim.tv_nsec,
     };
-}
 
-int sys_newlstat(const char* user_pathname, struct linux_stat* user_buf) {
-    char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
-    struct stat buf;
-    rc = vfs_stat(pathname, &buf, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
-    if (IS_ERR(rc))
-        return rc;
-    struct linux_stat linux_stat;
-    stat_to_linux_stat(&buf, &linux_stat);
+    if (linux_stat.st_nlink != stat->st_nlink)
+        return -EOVERFLOW;
+
     if (copy_to_user(user_buf, &linux_stat, sizeof(struct linux_stat)))
         return -EFAULT;
     return 0;
 }
 
 int sys_newstat(const char* user_pathname, struct linux_stat* user_buf) {
-    char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
+    struct kstat buf;
+    int rc = stat(user_pathname, &buf);
     if (IS_ERR(rc))
         return rc;
-    struct stat buf;
-    rc = vfs_stat(pathname, &buf, 0);
+    return copy_stat_to_user(&buf, user_buf);
+}
+
+int sys_newlstat(const char* user_pathname, struct linux_stat* user_buf) {
+    struct kstat buf;
+    int rc = lstat(user_pathname, &buf);
     if (IS_ERR(rc))
         return rc;
-    struct linux_stat linux_stat;
-    stat_to_linux_stat(&buf, &linux_stat);
-    if (copy_to_user(user_buf, &linux_stat, sizeof(struct linux_stat)))
+    return copy_stat_to_user(&buf, user_buf);
+}
+
+int sys_newfstat(int fd, struct linux_stat* user_buf) {
+    struct kstat buf;
+    int rc = fstat(fd, &buf);
+    if (IS_ERR(rc))
+        return rc;
+    return copy_stat_to_user(&buf, user_buf);
+}
+
+NODISCARD static int copy_stat_to_user64(const struct kstat* stat,
+                                         struct linux_stat64* user_buf) {
+    struct linux_stat64 stat64 = {
+        .st_dev = stat->st_dev,
+        .st_ino = stat->st_ino,
+        .__st_ino = stat->st_ino,
+        .st_mode = stat->st_mode,
+        .st_nlink = stat->st_nlink,
+        .st_uid = stat->st_uid,
+        .st_gid = stat->st_gid,
+        .st_rdev = stat->st_rdev,
+        .st_size = stat->st_size,
+        .st_blksize = stat->st_blksize,
+        .st_blocks = stat->st_blocks,
+        .st_atime = stat->st_atim.tv_sec,
+        .st_atime_nsec = stat->st_atim.tv_nsec,
+        .st_mtime = stat->st_mtim.tv_sec,
+        .st_mtime_nsec = stat->st_mtim.tv_nsec,
+        .st_ctime = stat->st_ctim.tv_sec,
+        .st_ctime_nsec = stat->st_ctim.tv_nsec,
+    };
+    if (copy_to_user(user_buf, &stat64, sizeof(struct linux_stat64)))
         return -EFAULT;
     return 0;
+}
+
+int sys_stat64(const char* user_pathname, struct linux_stat64* user_buf) {
+    struct kstat buf;
+    int rc = stat(user_pathname, &buf);
+    if (IS_ERR(rc))
+        return rc;
+    return copy_stat_to_user64(&buf, user_buf);
+}
+
+int sys_lstat64(const char* user_pathname, struct linux_stat64* user_buf) {
+    struct kstat buf;
+    int rc = lstat(user_pathname, &buf);
+    if (IS_ERR(rc))
+        return rc;
+    return copy_stat_to_user64(&buf, user_buf);
+}
+
+int sys_fstat64(int fd, struct linux_stat64* user_buf) {
+    struct kstat buf;
+    int rc = fstat(fd, &buf);
+    if (IS_ERR(rc))
+        return rc;
+    return copy_stat_to_user64(&buf, user_buf);
 }
 
 int sys_symlink(const char* user_target, const char* user_linkpath) {
@@ -450,61 +610,49 @@ int sys_rmdir(const char* user_pathname) {
     return rc;
 }
 
+typedef ssize_t (*fill_dir_fn)(void* user_buf, size_t buf_size,
+                               const char* name, uint8_t type);
+
 struct fill_dir_ctx {
-    struct linux_dirent* user_dirp;
-    unsigned remaining_count;
-    long nwritten;
+    fill_dir_fn fill_dir;
+    unsigned char* user_buf;
+    size_t nremaining;
+    size_t nwritten;
     int rc;
 };
 
-static bool fill_dir(const char* name, uint8_t type, void* raw_ctx) {
+static bool getdents_callback(const char* name, uint8_t type, void* raw_ctx) {
     struct fill_dir_ctx* ctx = (struct fill_dir_ctx*)raw_ctx;
-    size_t name_len = strlen(name);
-    size_t name_size = name_len + 1;
-    size_t rec_len = offsetof(struct linux_dirent, d_name) //
-                     + name_size                           // d_name
-                     + sizeof(char)                        // pad
-                     + sizeof(char);                       // d_type
-    rec_len = round_up(rec_len, alignof(struct linux_dirent));
-    if (ctx->remaining_count < rec_len) {
+    ssize_t nwritten =
+        ctx->fill_dir(ctx->user_buf, ctx->nremaining, name, type);
+    if (IS_ERR(nwritten)) {
+        ctx->rc = nwritten;
+        return false;
+    }
+    if (nwritten == 0) {
         if (ctx->nwritten == 0)
             ctx->rc = -EINVAL;
         return false;
     }
-
-    struct linux_dirent* user_dent = ctx->user_dirp;
-    struct linux_dirent dent = {.d_reclen = rec_len};
-    if (copy_to_user(user_dent, &dent, offsetof(struct linux_dirent, d_name))) {
-        ctx->rc = -EFAULT;
-        return false;
-    }
-    if (copy_to_user(user_dent->d_name, name, name_size)) {
-        ctx->rc = -EFAULT;
-        return false;
-    }
-    if (copy_to_user(user_dent->d_name + name_size + sizeof(char), &type,
-                     sizeof(char))) {
-        ctx->rc = -EFAULT;
-        return false;
-    }
-
-    ctx->user_dirp =
-        (struct linux_dirent*)((unsigned char*)user_dent + rec_len);
-    ctx->remaining_count -= rec_len;
-    ctx->nwritten += rec_len;
+    ASSERT((size_t)nwritten <= ctx->nremaining);
+    ctx->user_buf += nwritten;
+    ctx->nremaining -= nwritten;
+    ctx->nwritten += nwritten;
     return true;
 }
 
-long sys_getdents(int fd, struct linux_dirent* user_dirp, size_t count) {
+static ssize_t getdents(int fd, void* user_buf, size_t count,
+                        fill_dir_fn fill_dir) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
     struct fill_dir_ctx ctx = {
-        .user_dirp = user_dirp,
-        .remaining_count = count,
+        .fill_dir = fill_dir,
+        .user_buf = user_buf,
+        .nremaining = count,
     };
-    int rc = file_getdents(file, fill_dir, &ctx);
+    int rc = file_getdents(file, getdents_callback, &ctx);
     if (IS_ERR(rc))
         return rc;
     if (IS_ERR(ctx.rc))
@@ -512,7 +660,88 @@ long sys_getdents(int fd, struct linux_dirent* user_dirp, size_t count) {
     return ctx.nwritten;
 }
 
-int sys_fcntl(int fd, int cmd, uintptr_t arg) {
+static ssize_t fill_dir_old(void* user_buf, size_t buf_size, const char* name,
+                            uint8_t type) {
+    (void)type;
+
+    size_t name_len = strlen(name);
+    size_t name_size = name_len + 1;
+    size_t rec_len = offsetof(struct linux_old_dirent, d_name) //
+                     + name_size;                              // d_name
+    rec_len = round_up(rec_len, alignof(struct linux_old_dirent));
+    if (buf_size < rec_len)
+        return 0;
+
+    struct linux_old_dirent* user_dent = user_buf;
+    struct linux_old_dirent dent = {.d_namlen = name_len};
+    if (copy_to_user(user_dent, &dent,
+                     offsetof(struct linux_old_dirent, d_name)))
+        return -EFAULT;
+    if (copy_to_user(user_dent->d_name, name, name_size))
+        return -EFAULT;
+
+    return rec_len;
+}
+
+ssize_t sys_readdir(int fd, struct linux_old_dirent* user_dirp, size_t count) {
+    return getdents(fd, user_dirp, count, fill_dir_old);
+}
+
+static ssize_t fill_dir(void* user_buf, size_t buf_size, const char* name,
+                        uint8_t type) {
+    size_t name_size = strlen(name) + 1;
+    size_t rec_len = offsetof(struct linux_dirent, d_name) //
+                     + name_size                           // d_name
+                     + sizeof(char)                        // pad
+                     + sizeof(char);                       // d_type
+    rec_len = round_up(rec_len, alignof(struct linux_dirent));
+    if (buf_size < rec_len)
+        return 0;
+
+    struct linux_dirent* user_dent = user_buf;
+    struct linux_dirent dent = {.d_reclen = rec_len};
+    if (copy_to_user(user_dent, &dent, offsetof(struct linux_dirent, d_name)))
+        return -EFAULT;
+    if (copy_to_user(user_dent->d_name, name, name_size))
+        return -EFAULT;
+    if (copy_to_user(user_dent->d_name + name_size + sizeof(char), &type,
+                     sizeof(char)))
+        return -EFAULT;
+
+    return rec_len;
+}
+
+ssize_t sys_getdents(int fd, struct linux_dirent* user_dirp, size_t count) {
+    return getdents(fd, user_dirp, count, fill_dir);
+}
+
+static ssize_t fill_dir64(void* user_buf, size_t buf_size, const char* name,
+                          uint8_t type) {
+    size_t name_size = strlen(name) + 1;
+    size_t rec_len = offsetof(struct linux_dirent64, d_name) //
+                     + name_size;                            // d_name
+    rec_len = round_up(rec_len, alignof(struct linux_dirent64));
+    if (buf_size < rec_len)
+        return 0;
+
+    struct linux_dirent64* user_dent = user_buf;
+    struct linux_dirent64 dent = {
+        .d_reclen = rec_len,
+        .d_type = type,
+    };
+    if (copy_to_user(user_dent, &dent, offsetof(struct linux_dirent64, d_name)))
+        return -EFAULT;
+    if (copy_to_user(user_dent->d_name, name, name_size))
+        return -EFAULT;
+
+    return rec_len;
+}
+
+ssize_t sys_getdents64(int fd, struct linux_dirent* user_dirp, size_t count) {
+    return getdents(fd, user_dirp, count, fill_dir64);
+}
+
+int sys_fcntl(int fd, int cmd, unsigned long arg) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
@@ -534,7 +763,26 @@ int sys_fcntl(int fd, int cmd, uintptr_t arg) {
     }
 }
 
-int sys_dup2(int oldfd, int newfd) {
+int sys_fcntl64(int fd, int cmd, unsigned long arg) {
+    return sys_fcntl(fd, cmd, arg);
+}
+
+int sys_dup(int oldfd) {
+    struct file* file = task_get_file(oldfd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    int new_fd = task_alloc_file_descriptor(-1, file);
+    if (IS_ERR(new_fd))
+        return new_fd;
+    ++file->ref_count;
+    return new_fd;
+}
+
+int sys_dup2(int oldfd, int newfd) { return sys_dup3(oldfd, newfd, 0); }
+
+int sys_dup3(int oldfd, int newfd, int flags) {
+    (void)flags;
+
     struct file* oldfd_file = task_get_file(oldfd);
     if (IS_ERR(oldfd_file))
         return PTR_ERR(oldfd_file);
@@ -556,19 +804,21 @@ int sys_dup2(int oldfd, int newfd) {
     return ret;
 }
 
-int sys_pipe(int user_fifofd[2]) {
+int sys_pipe(int user_pipefd[2]) { return sys_pipe2(user_pipefd, 0); }
+
+int sys_pipe2(int user_pipefd[2], int flags) {
     struct inode* fifo = fifo_create();
     if (IS_ERR(fifo))
         return PTR_ERR(fifo);
 
     inode_ref(fifo);
-    struct file* reader_file = inode_open(fifo, O_RDONLY, 0);
+    struct file* reader_file = inode_open(fifo, O_RDONLY, flags);
     if (IS_ERR(reader_file)) {
         inode_unref(fifo);
         return PTR_ERR(reader_file);
     }
 
-    struct file* writer_file = inode_open(fifo, O_WRONLY, 0);
+    struct file* writer_file = inode_open(fifo, O_WRONLY, flags);
     if (IS_ERR(writer_file)) {
         file_close(reader_file);
         return PTR_ERR(writer_file);
@@ -589,8 +839,8 @@ int sys_pipe(int user_fifofd[2]) {
         goto fail;
     }
 
-    int fifofd[2] = {reader_fd, writer_fd};
-    if (copy_to_user(user_fifofd, fifofd, sizeof(int[2]))) {
+    int fds[2] = {reader_fd, writer_fd};
+    if (copy_to_user(user_pipefd, fds, sizeof(int[2]))) {
         rc = -EFAULT;
         goto fail;
     }

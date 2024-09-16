@@ -15,3 +15,10 @@ struct timespec {
     time_t tv_sec;
     long long tv_nsec;
 };
+
+typedef int32_t time32_t;
+
+struct timespec32 {
+    time32_t tv_sec;
+    int32_t tv_nsec;
+};

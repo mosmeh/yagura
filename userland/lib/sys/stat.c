@@ -2,44 +2,55 @@
 #include <private.h>
 #include <unistd.h>
 
-static void linux_stat_to_stat(const struct linux_stat* linux_stat,
-                               struct stat* stat) {
+static void stat64_to_stat(const struct linux_stat64* stat64,
+                           struct stat* stat) {
     *stat = (struct stat){
-        .st_dev = linux_stat->st_dev,
-        .st_ino = linux_stat->st_ino,
-        .st_mode = linux_stat->st_mode,
-        .st_nlink = linux_stat->st_nlink,
-        .st_uid = linux_stat->st_uid,
-        .st_gid = linux_stat->st_gid,
-        .st_rdev = linux_stat->st_rdev,
-        .st_size = linux_stat->st_size,
-        .st_blksize = linux_stat->st_blksize,
-        .st_blocks = linux_stat->st_blocks,
-        .st_atim = {linux_stat->st_atime, linux_stat->st_atime_nsec},
-        .st_mtim = {linux_stat->st_mtime, linux_stat->st_mtime_nsec},
-        .st_ctim = {linux_stat->st_ctime, linux_stat->st_ctime_nsec},
+        .st_dev = stat64->st_dev,
+        .st_ino = stat64->st_ino,
+        .st_mode = stat64->st_mode,
+        .st_nlink = stat64->st_nlink,
+        .st_uid = stat64->st_uid,
+        .st_gid = stat64->st_gid,
+        .st_rdev = stat64->st_rdev,
+        .st_size = stat64->st_size,
+        .st_blksize = stat64->st_blksize,
+        .st_blocks = stat64->st_blocks,
+        .st_atim = {stat64->st_atime, stat64->st_atime_nsec},
+        .st_mtim = {stat64->st_mtime, stat64->st_mtime_nsec},
+        .st_ctim = {stat64->st_ctime, stat64->st_ctime_nsec},
     };
 }
 
 int stat(const char* pathname, struct stat* buf) {
-    struct linux_stat linux_stat;
-    int rc = SYSCALL2(stat, pathname, &linux_stat);
+    struct linux_stat64 stat64;
+    int rc = SYSCALL2(stat64, pathname, &stat64);
     if (IS_ERR(rc)) {
         errno = -rc;
         return -1;
     }
-    linux_stat_to_stat(&linux_stat, buf);
+    stat64_to_stat(&stat64, buf);
     return rc;
 }
 
 int lstat(const char* pathname, struct stat* buf) {
-    struct linux_stat linux_stat;
-    int rc = SYSCALL2(lstat, pathname, &linux_stat);
+    struct linux_stat64 stat64;
+    int rc = SYSCALL2(lstat64, pathname, &stat64);
     if (IS_ERR(rc)) {
         errno = -rc;
         return -1;
     }
-    linux_stat_to_stat(&linux_stat, buf);
+    stat64_to_stat(&stat64, buf);
+    return rc;
+}
+
+int fstat(int fd, struct stat* buf) {
+    struct linux_stat64 stat64;
+    int rc = SYSCALL2(fstat64, fd, &stat64);
+    if (IS_ERR(rc)) {
+        errno = -rc;
+        return -1;
+    }
+    stat64_to_stat(&stat64, buf);
     return rc;
 }
 

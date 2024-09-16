@@ -28,7 +28,7 @@ struct task {
 
     char comm[16];
 
-    struct vm* vm;
+    _Atomic(struct vm*) vm;
     uintptr_t kernel_stack_base, kernel_stack_top;
     uintptr_t arg_start, arg_end, env_start, env_end;
 
@@ -54,6 +54,7 @@ struct task {
     struct task* all_tasks_next;
     struct task* ready_queue_next;
 
+    struct mutex lock;
     atomic_size_t ref_count;
 };
 

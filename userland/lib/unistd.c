@@ -7,6 +7,7 @@
 #include "sys/auxv.h"
 #include "sys/ioctl.h"
 #include "sys/reboot.h"
+#include "sys/utsname.h"
 #include "time.h"
 #include <private.h>
 #include <sys/limits.h>
@@ -15,6 +16,8 @@ char** environ;
 
 pid_t getpid(void) { RETURN_WITH_ERRNO(pid_t, SYSCALL0(getpid)); }
 
+pid_t getppid(void) { RETURN_WITH_ERRNO(pid_t, SYSCALL0(getppid)); }
+
 pid_t gettid(void) { RETURN_WITH_ERRNO(pid_t, SYSCALL0(gettid)); }
 
 int setpgid(pid_t pid, pid_t pgid) {
@@ -22,6 +25,8 @@ int setpgid(pid_t pid, pid_t pgid) {
 }
 
 pid_t getpgid(pid_t pid) { RETURN_WITH_ERRNO(pid_t, SYSCALL1(getpgid, pid)); }
+
+pid_t getpgrp(void) { RETURN_WITH_ERRNO(pid_t, SYSCALL0(getpgrp)); }
 
 pid_t fork(void) { RETURN_WITH_ERRNO(pid_t, SYSCALL0(fork)); }
 
@@ -63,6 +68,18 @@ int execvpe(const char* file, char* const argv[], char* const envp[]) {
     return -1;
 }
 
+uid_t getuid(void) { RETURN_WITH_ERRNO(uid_t, SYSCALL0(getuid32)); }
+
+uid_t geteuid(void) { RETURN_WITH_ERRNO(uid_t, SYSCALL0(geteuid32)); }
+
+gid_t getgid(void) { RETURN_WITH_ERRNO(gid_t, SYSCALL0(getgid32)); }
+
+gid_t getegid(void) { RETURN_WITH_ERRNO(gid_t, SYSCALL0(getegid32)); }
+
+int access(const char* pathname, int mode) {
+    RETURN_WITH_ERRNO(int, SYSCALL2(access, pathname, mode));
+}
+
 int close(int fd) { RETURN_WITH_ERRNO(int, SYSCALL1(close, fd)); }
 
 ssize_t read(int fd, void* buf, size_t count) {
@@ -71,6 +88,10 @@ ssize_t read(int fd, void* buf, size_t count) {
 
 ssize_t write(int fd, const void* buf, size_t count) {
     RETURN_WITH_ERRNO(ssize_t, SYSCALL3(write, fd, buf, count));
+}
+
+int truncate(const char* path, off_t length) {
+    RETURN_WITH_ERRNO(int, SYSCALL2(truncate, path, length));
 }
 
 int ftruncate(int fd, off_t length) {
@@ -115,7 +136,15 @@ int dup2(int oldfd, int newfd) {
     RETURN_WITH_ERRNO(int, SYSCALL2(dup2, oldfd, newfd));
 }
 
+int dup3(int oldfd, int newfd, int flags) {
+    RETURN_WITH_ERRNO(int, SYSCALL3(dup3, oldfd, newfd, flags));
+}
+
 int pipe(int pipefd[2]) { RETURN_WITH_ERRNO(int, SYSCALL1(pipe, pipefd)); }
+
+int pipe2(int pipefd[2], int flags) {
+    RETURN_WITH_ERRNO(int, SYSCALL2(pipe2, pipefd, flags));
+}
 
 char* getcwd(char* buf, size_t size) {
     int rc = SYSCALL2(getcwd, buf, size);
@@ -146,6 +175,32 @@ int usleep(useconds_t usec) {
         .tv_nsec = (usec % 1000000) * 1000LL,
     };
     return nanosleep(&req, NULL);
+}
+
+int pause(void) { RETURN_WITH_ERRNO(int, SYSCALL0(pause)); }
+
+int gethostname(char* name, size_t len) {
+    struct utsname buf;
+    if (uname(&buf) < 0)
+        return -1;
+    strlcpy(name, buf.nodename, len);
+    return 0;
+}
+
+int sethostname(const char* name, size_t len) {
+    RETURN_WITH_ERRNO(int, SYSCALL2(sethostname, name, len));
+}
+
+int getdomainname(char* name, size_t len) {
+    struct utsname buf;
+    if (uname(&buf) < 0)
+        return -1;
+    strlcpy(name, buf.domainname, len);
+    return 0;
+}
+
+int setdomainname(const char* name, size_t len) {
+    RETURN_WITH_ERRNO(int, SYSCALL2(setdomainname, name, len));
 }
 
 int reboot(int howto) {

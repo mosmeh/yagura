@@ -107,7 +107,7 @@ static int populate_meminfo(struct file* file, struct vec* vec) {
     return vec_printf(vec,
                       "MemTotal: %8u kB\n"
                       "MemFree:  %8u kB\n",
-                      stats.total, stats.free);
+                      stats.total_kibibytes, stats.free_kibibytes);
 }
 
 static int populate_self(struct file* file, struct vec* vec) {
@@ -147,8 +147,10 @@ static int populate_uptime(struct file* file, struct vec* vec) {
 
 static int populate_version(struct file* file, struct vec* vec) {
     (void)file;
-    return vec_printf(vec, "%s version %s %s\n", utsname()->sysname,
-                      utsname()->release, utsname()->version);
+    struct utsname utsname;
+    utsname_get(&utsname);
+    return vec_printf(vec, "%s version %s %s\n", utsname.sysname,
+                      utsname.release, utsname.version);
 }
 
 static proc_item_def root_items[] = {

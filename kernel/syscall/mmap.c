@@ -46,6 +46,25 @@ void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
     return file_mmap(file, length, pgoff * PAGE_SIZE, vm_flags);
 }
 
+struct mmap_arg_struct {
+    unsigned long addr;
+    unsigned long len;
+    unsigned long prot;
+    unsigned long flags;
+    unsigned long fd;
+    unsigned long offset;
+};
+
+void* sys_old_mmap(struct mmap_arg_struct* user_arg) {
+    struct mmap_arg_struct arg;
+    if (copy_from_user(&arg, user_arg, sizeof(struct mmap_arg_struct)))
+        return ERR_PTR(-EFAULT);
+    if (arg.offset % PAGE_SIZE)
+        return ERR_PTR(-EINVAL);
+    return sys_mmap_pgoff((void*)arg.addr, arg.len, arg.prot, arg.flags, arg.fd,
+                          arg.offset / PAGE_SIZE);
+}
+
 int sys_munmap(void* addr, size_t length) {
     if ((uintptr_t)addr % PAGE_SIZE || length == 0)
         return -EINVAL;

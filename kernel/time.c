@@ -75,3 +75,32 @@ int time_now(clockid_t clock_id, struct timespec* tp) {
     }
     return 0;
 }
+
+int time_set(clockid_t clock_id, const struct timespec* tp) {
+    if (tp->tv_sec < 0 || tp->tv_nsec < 0 || tp->tv_nsec >= NANOS)
+        return -EINVAL;
+
+    switch (clock_id) {
+    case CLOCK_REALTIME:
+        spinlock_lock(&now_lock);
+        now = *tp;
+        spinlock_unlock(&now_lock);
+        break;
+    default:
+        return -EINVAL;
+    }
+    return 0;
+}
+
+int time_get_resolution(clockid_t clock_id, struct timespec* res) {
+    switch (clock_id) {
+    case CLOCK_REALTIME:
+    case CLOCK_MONOTONIC:
+        res->tv_sec = 0;
+        res->tv_nsec = NANOS / CLK_TCK;
+        break;
+    default:
+        return -EINVAL;
+    }
+    return 0;
+}

@@ -7,8 +7,8 @@
 #include "unistd.h"
 #include <extra.h>
 
-static long getdents(int fd, struct linux_dirent* dirp, size_t count) {
-    RETURN_WITH_ERRNO(long, SYSCALL3(getdents, fd, dirp, count));
+static ssize_t getdents(int fd, struct linux_dirent* dirp, size_t count) {
+    RETURN_WITH_ERRNO(ssize_t, SYSCALL3(getdents, fd, dirp, count));
 }
 
 typedef struct __DIR {

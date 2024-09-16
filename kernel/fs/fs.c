@@ -127,13 +127,13 @@ struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
     return file;
 }
 
-int inode_stat(struct inode* inode, struct stat* buf) {
-    *buf = (struct stat){0};
-    buf->st_dev = inode->dev;
-    buf->st_mode = inode->mode;
-    buf->st_nlink = inode->num_links;
-    buf->st_rdev = inode->rdev;
-    buf->st_size = 0;
+int inode_stat(struct inode* inode, struct kstat* buf) {
+    *buf = (struct kstat){
+        .st_dev = inode->dev,
+        .st_mode = inode->mode,
+        .st_nlink = inode->num_links,
+        .st_rdev = inode->rdev,
+    };
     if (inode->fops->stat)
         return inode->fops->stat(inode, buf);
     inode_unref(inode);
@@ -251,7 +251,7 @@ off_t file_seek(struct file* file, off_t offset, int whence) {
         mutex_unlock(&file->offset_lock);
         return new_offset;
     case SEEK_END: {
-        struct stat stat;
+        struct kstat stat;
         inode_ref(file->inode);
         int rc = inode_stat(file->inode, &stat);
         if (IS_ERR(rc))

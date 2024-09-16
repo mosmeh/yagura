@@ -7,6 +7,7 @@
 
 #include "api/sys/types.h"
 #include "api/sys/utsname.h"
+#include <common/extra.h>
 #include <stdalign.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -33,7 +34,9 @@ struct fpu_state {
 
 void syscall_init(void);
 
-const struct utsname* utsname(void);
+void utsname_get(struct utsname*);
+NODISCARD int utsname_set_hostname(const char*, size_t);
+NODISCARD int utsname_set_domainname(const char*, size_t);
 
 void cmdline_init(const multiboot_info_t*);
 const char* cmdline_get_raw(void);

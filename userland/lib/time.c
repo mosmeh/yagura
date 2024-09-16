@@ -1,5 +1,4 @@
 #include "time.h"
-#include "errno.h"
 #include "private.h"
 #include "stdio.h"
 #include "sys/auxv.h"
@@ -20,6 +19,11 @@ time_t time(time_t* tloc) {
     if (tloc)
         *tloc = tp.tv_sec;
     return tp.tv_sec;
+}
+
+int stime(const time_t* t) {
+    struct timespec tp = {.tv_sec = *t};
+    return clock_settime(CLOCK_REALTIME, &tp);
 }
 
 double difftime(time_t time1, time_t time0) { return (double)(time1 - time0); }
@@ -77,16 +81,19 @@ char* asctime_r(const struct tm* time_ptr, char* buf) {
 }
 
 int nanosleep(const struct timespec* req, struct timespec* rem) {
-    int rc = clock_nanosleep(CLOCK_MONOTONIC, 0, req, rem);
-    if (rc > 0) {
-        errno = -rc;
-        return -1;
-    }
-    return 0;
+    RETURN_WITH_ERRNO(int, SYSCALL2(nanosleep, req, rem));
 }
 
-int clock_gettime(clockid_t clk_id, struct timespec* tp) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(clock_gettime64, clk_id, tp));
+int clock_gettime(clockid_t clockid, struct timespec* tp) {
+    RETURN_WITH_ERRNO(int, SYSCALL2(clock_gettime64, clockid, tp));
+}
+
+int clock_settime(clockid_t clockid, const struct timespec* tp) {
+    RETURN_WITH_ERRNO(int, SYSCALL2(clock_settime64, clockid, tp));
+}
+
+int clock_getres(clockid_t clockid, struct timespec* res) {
+    RETURN_WITH_ERRNO(int, SYSCALL2(clock_getres_time64, clockid, res));
 }
 
 int clock_nanosleep(clockid_t clockid, int flags,

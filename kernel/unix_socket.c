@@ -129,7 +129,7 @@ static short unix_socket_poll(struct file* file, short events) {
         if (can_write)
             revents |= POLLOUT;
     }
-    if (!socket->is_open_for_writing_to_connector &&
+    if ((events & POLLHUP) && !socket->is_open_for_writing_to_connector &&
         !socket->is_open_for_writing_to_acceptor)
         revents |= POLLHUP;
     return revents;

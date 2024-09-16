@@ -34,12 +34,12 @@ int syscall(int num, int, int, int, int, int, int);
 
 #define RETURN_WITH_ERRNO(type, rc)                                            \
     do {                                                                       \
-        int _rc = (rc);                                                        \
-        if (IS_ERR(_rc)) {                                                     \
-            errno = -(_rc);                                                    \
+        int __rc = (rc);                                                       \
+        if (IS_ERR(__rc)) {                                                    \
+            errno = -__rc;                                                     \
             return (type)(-1);                                                 \
         }                                                                      \
-        return (type)(_rc);                                                    \
+        return (type)__rc;                                                     \
     } while (0)
 
 int __clone(int (*fn)(void*), void* stack, int flags, void* arg,

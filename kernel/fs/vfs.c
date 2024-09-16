@@ -446,15 +446,15 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
     return inode_open(inode, flags, mode);
 }
 
-int vfs_stat(const char* pathname, struct stat* buf, int flags) {
+int vfs_stat(const char* pathname, struct kstat* buf, int flags) {
     mutex_lock(&current->fs->lock);
     int ret = vfs_stat_at(current->fs->cwd, pathname, buf, flags);
     mutex_unlock(&current->fs->lock);
     return ret;
 }
 
-int vfs_stat_at(const struct path* base, const char* pathname, struct stat* buf,
-                int flags) {
+int vfs_stat_at(const struct path* base, const char* pathname,
+                struct kstat* buf, int flags) {
     struct path* path = vfs_resolve_path_at(base, pathname, flags);
     if (IS_ERR(path))
         return PTR_ERR(path);

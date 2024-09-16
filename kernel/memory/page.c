@@ -132,8 +132,9 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
             ref_counts[i] = UINT8_MAX;
         }
     }
-    stats.total = stats.free = num_pages * PAGE_SIZE / 1024;
-    kprintf("page: #physical pages = %u (%u KiB)\n", num_pages, stats.total);
+    stats.total_kibibytes = stats.free_kibibytes = num_pages * PAGE_SIZE / 1024;
+    kprintf("page: #physical pages = %u (%u KiB)\n", num_pages,
+            stats.total_kibibytes);
 }
 
 void page_init(const multiboot_info_t* mb_info) {
@@ -165,7 +166,7 @@ uintptr_t page_alloc(void) {
 
     ref_counts[first_set] = 1;
     bitmap_clear(first_set);
-    stats.free -= PAGE_SIZE / 1024;
+    stats.free_kibibytes -= PAGE_SIZE / 1024;
 
     mutex_unlock(&lock);
     return first_set * PAGE_SIZE;
@@ -206,7 +207,7 @@ void page_unref(uintptr_t phys_addr) {
     if (ref_counts[index] < UINT8_MAX) {
         if (--ref_counts[index] == 0) {
             bitmap_set(index);
-            stats.free += PAGE_SIZE / 1024;
+            stats.free_kibibytes += PAGE_SIZE / 1024;
         }
     }
 

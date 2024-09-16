@@ -168,7 +168,7 @@ static int execve(const char* pathname, struct string_vec* argv,
     unsigned char* exe_buf = NULL;
     struct file* file = NULL;
 
-    struct stat stat;
+    struct kstat stat;
     mutex_lock(&current->fs->lock);
     ret = vfs_stat_at(current->fs->cwd, pathname, &stat, 0);
     mutex_unlock(&current->fs->lock);
@@ -388,19 +388,24 @@ static int execve(const char* pathname, struct string_vec* argv,
     if (prev_vm != kernel_vm)
         vm_unref(prev_vm);
 
-    cli();
     struct task* task = current;
+    mutex_lock(&task->lock);
+
+    strlcpy(task->comm, comm, sizeof(task->comm));
+
+    task->arg_start = arg_start;
+    task->arg_end = arg_end;
+    task->env_start = env_start;
+    task->env_end = env_end;
+
+    mutex_unlock(&task->lock);
+
+    cli();
 
     task->eip = entry_point;
     task->esp = task->ebp = sp;
     task->ebx = task->esi = task->edi = 0;
     task->fpu_state = initial_fpu_state;
-
-    strlcpy(task->comm, comm, sizeof(task->comm));
-    task->arg_start = arg_start;
-    task->arg_end = arg_end;
-    task->env_start = env_start;
-    task->env_end = env_end;
 
     memset(task->tls, 0, sizeof(task->tls));
 

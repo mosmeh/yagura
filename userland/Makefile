@@ -82,8 +82,12 @@ LIB_OBJS := \
 	lib/sys/mman.o \
 	lib/sys/mount.o \
 	lib/sys/poll.o \
+	lib/sys/prctl.o \
+	lib/sys/select.o \
 	lib/sys/socket.o \
 	lib/sys/stat.o \
+	lib/sys/sysinfo.o \
+	lib/sys/time.o \
 	lib/sys/times.o \
 	lib/sys/utsname.o \
 	lib/sys/wait.o \

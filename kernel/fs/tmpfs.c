@@ -28,7 +28,7 @@ static struct inode* tmpfs_lookup_child(struct inode* inode, const char* name) {
     return child;
 }
 
-static int tmpfs_stat(struct inode* inode, struct stat* buf) {
+static int tmpfs_stat(struct inode* inode, struct kstat* buf) {
     tmpfs_inode* node = (tmpfs_inode*)inode;
     buf->st_size = node->content.size;
     inode_unref(inode);

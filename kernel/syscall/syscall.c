@@ -1,67 +1,10 @@
 #include "syscall.h"
 #include "unimplemented.h"
-#include <kernel/api/sys/reboot.h>
 #include <kernel/api/sys/syscall.h>
-#include <kernel/api/unistd.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/task.h>
-#include <kernel/time.h>
-
-int sys_reboot(int magic, int magic2, int op, void* user_arg) {
-    if ((unsigned)magic != LINUX_REBOOT_MAGIC1)
-        return -EINVAL;
-    switch (magic2) {
-    case LINUX_REBOOT_MAGIC2:
-    case LINUX_REBOOT_MAGIC2A:
-    case LINUX_REBOOT_MAGIC2B:
-    case LINUX_REBOOT_MAGIC2C:
-        break;
-    default:
-        return -EINVAL;
-    }
-
-    switch (op) {
-    case LINUX_REBOOT_CMD_RESTART:
-        kprint("Restarting system.\n");
-        reboot();
-    case LINUX_REBOOT_CMD_RESTART2: {
-        char arg[1024] = {0};
-        int rc = strncpy_from_user(arg, user_arg, sizeof(arg));
-        if (IS_ERR(rc))
-            return rc;
-        arg[sizeof(arg) - 1] = 0;
-        kprintf("Restarting system with command '%s'", arg);
-        reboot();
-    }
-    case LINUX_REBOOT_CMD_HALT:
-        kprint("System halted.\n");
-        halt();
-    case LINUX_REBOOT_CMD_POWER_OFF:
-        kprint("Power down.\n");
-        poweroff();
-    default:
-        return -EINVAL;
-    }
-}
-
-int sys_newuname(struct utsname* user_buf) {
-    if (copy_to_user(user_buf, utsname(), sizeof(struct utsname)))
-        return -EFAULT;
-    return 0;
-}
-
-int sys_dbgprint(const char* user_str) {
-    char str[1024];
-    ssize_t str_len = strncpy_from_user(str, user_str, sizeof(str));
-    if (IS_ERR(str_len))
-        return str_len;
-    if ((size_t)str_len >= sizeof(str))
-        return -E2BIG;
-    return kprint(user_str);
-}
 
 #define F(name)                                                                \
     static int sys_ni_##name(struct registers* regs) {                         \

@@ -56,8 +56,8 @@ static inline bool is_kernel_range(const void* addr, size_t size) {
 void memory_init(const multiboot_info_t*);
 
 struct memory_stats {
-    size_t total;
-    size_t free;
+    size_t total_kibibytes;
+    size_t free_kibibytes;
 };
 
 void memory_get_stats(struct memory_stats* out_stats);

@@ -146,11 +146,11 @@ static short fifo_poll(struct file* file, short events) {
         revents |= POLLOUT;
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
-        if (fifo->num_writers == 0)
+        if ((events & POLLHUP) && (fifo->num_writers == 0))
             revents |= POLLHUP;
         break;
     case O_WRONLY:
-        if (fifo->num_readers == 0)
+        if ((events & POLLERR) && (fifo->num_readers == 0))
             revents |= POLLERR;
         break;
     default:

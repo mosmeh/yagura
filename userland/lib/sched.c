@@ -23,3 +23,7 @@ int clone(int (*fn)(void*), void* stack, int flags, void* arg, ...) {
 }
 
 int sched_yield(void) { RETURN_WITH_ERRNO(int, SYSCALL0(sched_yield)); }
+
+int getcpu(unsigned int* cpu, unsigned int* node) {
+    RETURN_WITH_ERRNO(int, SYSCALL3(getcpu, cpu, node, NULL));
+}

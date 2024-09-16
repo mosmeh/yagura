@@ -326,6 +326,7 @@ static noreturn void exit(int exit_status) {
     }
 
     sti();
+    mutex_lock(&current->lock);
     thread_group_unref(current->thread_group);
     current->thread_group = NULL;
     sighand_unref(current->sighand);
@@ -334,6 +335,7 @@ static noreturn void exit(int exit_status) {
     current->files = NULL;
     fs_unref(current->fs);
     current->fs = NULL;
+    mutex_unlock(&current->lock);
 
     cli();
     spinlock_lock(&all_tasks_lock);

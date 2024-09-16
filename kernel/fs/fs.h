@@ -25,7 +25,7 @@ struct file {
     atomic_size_t ref_count;
 };
 
-struct stat {
+struct kstat {
     dev_t st_dev;         /* ID of device containing file */
     ino_t st_ino;         /* Inode number */
     mode_t st_mode;       /* File type and mode */
@@ -52,7 +52,7 @@ struct file_ops {
     int (*link_child)(struct inode*, const char* name, struct inode* child);
     struct inode* (*unlink_child)(struct inode*, const char* name);
     int (*open)(struct file*, mode_t mode);
-    int (*stat)(struct inode*, struct stat* buf);
+    int (*stat)(struct inode*, struct kstat* buf);
 
     int (*close)(struct file*);
     ssize_t (*read)(struct file*, void* buffer, size_t count);
@@ -86,7 +86,7 @@ NODISCARD int inode_link_child(struct inode*, const char* name,
                                struct inode* child);
 NODISCARD int inode_unlink_child(struct inode*, const char* name);
 NODISCARD struct file* inode_open(struct inode*, int flags, mode_t mode);
-NODISCARD int inode_stat(struct inode*, struct stat* buf);
+NODISCARD int inode_stat(struct inode*, struct kstat* buf);
 
 int file_close(struct file*);
 NODISCARD ssize_t file_read(struct file*, void* buffer, size_t count);
@@ -138,9 +138,9 @@ NODISCARD struct file* vfs_open(const char* pathname, int flags, mode_t mode);
 NODISCARD struct file* vfs_open_at(const struct path* base,
                                    const char* pathname, int flags,
                                    mode_t mode);
-NODISCARD int vfs_stat(const char* pathname, struct stat* buf, int flags);
+NODISCARD int vfs_stat(const char* pathname, struct kstat* buf, int flags);
 NODISCARD int vfs_stat_at(const struct path* base, const char* pathname,
-                          struct stat* buf, int flags);
+                          struct kstat* buf, int flags);
 NODISCARD struct inode* vfs_create(const char* pathname, mode_t mode);
 NODISCARD struct inode* vfs_create_at(const struct path* base,
                                       const char* pathname, mode_t mode);

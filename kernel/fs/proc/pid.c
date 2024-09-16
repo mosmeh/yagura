@@ -30,6 +30,7 @@ static int populate_cmdline(struct file* file, struct vec* vec) {
 
     int ret = 0;
     char* buf = NULL;
+    mutex_lock(&task->lock);
 
     size_t len = task->arg_end - task->arg_start;
     if (!len)
@@ -50,6 +51,7 @@ static int populate_cmdline(struct file* file, struct vec* vec) {
 
 done:
     kfree(buf);
+    mutex_unlock(&task->lock);
     task_unref(task);
     return ret;
 }
@@ -60,9 +62,12 @@ static int populate_comm(struct file* file, struct vec* vec) {
     if (!task)
         return -ENOENT;
 
+    mutex_lock(&task->lock);
+
     char comm[sizeof(task->comm)];
     strlcpy(comm, task->comm, sizeof(task->comm));
 
+    mutex_unlock(&task->lock);
     task_unref(task);
 
     return vec_printf(vec, "%s\n", comm);
@@ -74,9 +79,11 @@ static int populate_cwd(struct file* file, struct vec* vec) {
     if (!task)
         return -ENOENT;
 
+    mutex_lock(&task->lock);
     mutex_lock(&task->fs->lock);
     char* cwd = path_to_string(task->fs->cwd);
     mutex_unlock(&task->fs->lock);
+    mutex_unlock(&task->lock);
     if (!cwd) {
         task_unref(task);
         return -ENOMEM;
@@ -96,6 +103,7 @@ static int populate_environ(struct file* file, struct vec* vec) {
 
     int ret = 0;
     char* buf = NULL;
+    mutex_lock(&task->lock);
 
     size_t len = task->env_end - task->env_start;
     if (!len)
@@ -116,6 +124,7 @@ static int populate_environ(struct file* file, struct vec* vec) {
 
 done:
     kfree(buf);
+    mutex_unlock(&task->lock);
     task_unref(task);
     return ret;
 }
@@ -127,6 +136,7 @@ static int populate_maps(struct file* file, struct vec* vec) {
         return -ENOENT;
 
     int ret = 0;
+    mutex_lock(&task->lock);
     struct vm* vm = task->vm;
     mutex_lock(&vm->lock);
     struct vm_region* region = vm->regions;
@@ -140,6 +150,7 @@ static int populate_maps(struct file* file, struct vec* vec) {
         region = region->next;
     }
     mutex_unlock(&vm->lock);
+    mutex_unlock(&task->lock);
     task_unref(task);
     return ret;
 }

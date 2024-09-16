@@ -2,6 +2,7 @@
 #include <common/string.h>
 #include <kernel/api/asm/ldt.h>
 #include <kernel/api/sched.h>
+#include <kernel/api/sys/prctl.h>
 #include <kernel/api/sys/times.h>
 #include <kernel/api/sys/wait.h>
 #include <kernel/cpu.h>
@@ -15,9 +16,24 @@ void sys_exit(int status) { task_exit(status); }
 
 void sys_exit_group(int status) { task_exit_thread_group(status); }
 
+pid_t sys_gettid(void) { return current->tid; }
+
 pid_t sys_getpid(void) { return current->tgid; }
 
-pid_t sys_gettid(void) { return current->tid; }
+pid_t sys_getppid(void) { return current->ppid; }
+
+pid_t sys_getpgrp(void) { return current->pgid; }
+
+pid_t sys_getpgid(pid_t pid) {
+    if (pid == 0)
+        return current->pgid;
+    struct task* task = task_find_by_tid(pid);
+    if (!task)
+        return -ESRCH;
+    pid_t pgid = task->pgid;
+    task_unref(task);
+    return pgid;
+}
 
 int sys_setpgid(pid_t pid, pid_t pgid) {
     if (pgid < 0)
@@ -31,17 +47,6 @@ int sys_setpgid(pid_t pid, pid_t pgid) {
     target->pgid = pgid ? pgid : target_tgid;
     task_unref(target);
     return 0;
-}
-
-pid_t sys_getpgid(pid_t pid) {
-    if (pid == 0)
-        return current->pgid;
-    struct task* task = task_find_by_tid(pid);
-    if (!task)
-        return -ESRCH;
-    pid_t pgid = task->pgid;
-    task_unref(task);
-    return pgid;
 }
 
 int sys_sched_yield(void) {
@@ -421,8 +426,9 @@ static bool unblock_waitpid(struct waitpid_blocker* blocker) {
     return true;
 }
 
-pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
-    if (options & ~WNOHANG)
+pid_t sys_wait4(pid_t pid, int* user_wstatus, int options,
+                struct rusage* user_rusage) {
+    if ((options & ~WNOHANG) || user_rusage)
         return -ENOTSUP;
 
     struct waitpid_blocker blocker = {
@@ -461,6 +467,10 @@ pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
     }
 
     return result;
+}
+
+pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
+    return sys_wait4(pid, user_wstatus, options, NULL);
 }
 
 clock_t sys_times(struct tms* user_buf) {
@@ -528,4 +538,31 @@ int sys_chdir(const char* user_path) {
 
     mutex_unlock(&current->fs->lock);
     return 0;
+}
+
+int sys_prctl(int op, unsigned long arg2, unsigned long arg3,
+              unsigned long arg4, unsigned long arg5) {
+    (void)arg3;
+    (void)arg4;
+    (void)arg5;
+
+    switch (op) {
+    case PR_SET_NAME:
+        mutex_lock(&current->lock);
+        char comm[sizeof(current->comm)];
+        ssize_t len = strncpy_from_user(comm, (const char*)arg2, sizeof(comm));
+        if (IS_ERR(len)) {
+            mutex_unlock(&current->lock);
+            return len;
+        }
+        strlcpy(current->comm, comm, sizeof(current->comm));
+        mutex_unlock(&current->lock);
+        return 0;
+    case PR_GET_NAME:
+        if (copy_to_user((char*)arg2, current->comm, sizeof(current->comm)))
+            return -EFAULT;
+        return 0;
+    default:
+        return -EINVAL;
+    }
 }

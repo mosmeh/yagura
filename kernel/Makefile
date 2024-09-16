@@ -66,14 +66,15 @@ OBJS := \
 	safe_string.o \
 	sched.o \
 	smp.o \
-	syscall/clock.o \
 	syscall/fs.o \
 	syscall/mmap.o \
-	syscall/poll.o \
+	syscall/select.o \
 	syscall/signal.o \
 	syscall/socket.o \
 	syscall/syscall.o \
+	syscall/system.o \
 	syscall/task.o \
+	syscall/time.o \
 	system.o \
 	task.o \
 	time.o \

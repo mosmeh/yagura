@@ -17,3 +17,5 @@ int timespec_compare(const struct timespec*, const struct timespec*);
 void time_init(void);
 void time_tick(void);
 NODISCARD int time_now(clockid_t, struct timespec*);
+NODISCARD int time_set(clockid_t, const struct timespec*);
+NODISCARD int time_get_resolution(clockid_t, struct timespec*);
