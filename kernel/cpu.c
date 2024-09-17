@@ -260,6 +260,19 @@ static void detect_features(struct cpu* cpu) {
 static void init_cpu(struct cpu* cpu) {
     detect_features(cpu);
 
+    if (cpu_has_feature(cpu, X86_FEATURE_XMM)) {
+        ASSERT(cpu_has_feature(cpu, X86_FEATURE_FXSR));
+
+        uint32_t cr0 = read_cr0();
+        cr0 &= ~X86_CR0_EM;
+        cr0 |= X86_CR0_MP;
+        write_cr0(cr0);
+
+        uint32_t cr4 = read_cr4();
+        cr4 |= X86_CR4_OSFXSR | X86_CR4_OSXMMEXCPT;
+        write_cr4(cr4);
+    }
+
     if (cpu_has_feature(cpu, X86_FEATURE_PGE)) {
         uint32_t cr4 = read_cr4();
         cr4 |= X86_CR4_PGE;
