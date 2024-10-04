@@ -77,6 +77,20 @@ ssize_t sys_read(int fd, void* user_buf, size_t count) {
     return rc;
 }
 
+ssize_t sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
+                         uint32_t pos_hi) {
+    if (!user_buf || !is_user_range(user_buf, count))
+        return -EFAULT;
+    struct file* file = task_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
+    int rc = file_pread(file, user_buf, count, pos);
+    if (rc == -EINTR)
+        return -ERESTARTSYS;
+    return rc;
+}
+
 ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
     char pathname[PATH_MAX];
     int rc = copy_pathname_from_user(pathname, user_pathname);
@@ -118,6 +132,20 @@ ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     if (IS_ERR(file))
         return PTR_ERR(file);
     int rc = file_write(file, user_buf, count);
+    if (rc == -EINTR)
+        return -ERESTARTSYS;
+    return rc;
+}
+
+ssize_t sys_ia32_pwrite64(int fd, const void* buf, size_t count,
+                          uint32_t pos_lo, uint32_t pos_hi) {
+    if (!buf || !is_user_range(buf, count))
+        return -EFAULT;
+    struct file* file = task_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
+    int rc = file_pwrite(file, buf, count, pos);
     if (rc == -EINTR)
         return -ERESTARTSYS;
     return rc;

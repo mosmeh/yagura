@@ -9,16 +9,17 @@
 
 static struct file* active_console;
 
-static ssize_t system_console_device_read(struct file* file, void* buffer,
-                                          size_t count) {
+static ssize_t system_console_device_pread(struct file* file, void* buffer,
+                                           size_t count, uint64_t offset) {
     (void)file;
-    return file_read(active_console, buffer, count);
+    return file_pread(active_console, buffer, count, offset);
 }
 
-static ssize_t system_console_device_write(struct file* file,
-                                           const void* buffer, size_t count) {
+static ssize_t system_console_device_pwrite(struct file* file,
+                                            const void* buffer, size_t count,
+                                            uint64_t offset) {
     (void)file;
-    return file_write(active_console, buffer, count);
+    return file_pwrite(active_console, buffer, count, offset);
 }
 
 static int system_console_device_ioctl(struct file* file, int request,
@@ -34,8 +35,8 @@ static short system_console_device_poll(struct file* file, short events) {
 
 static struct inode* system_console_device_get(void) {
     static const struct file_ops fops = {
-        .read = system_console_device_read,
-        .write = system_console_device_write,
+        .pread = system_console_device_pread,
+        .pwrite = system_console_device_pwrite,
         .ioctl = system_console_device_ioctl,
         .poll = system_console_device_poll,
     };

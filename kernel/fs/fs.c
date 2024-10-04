@@ -155,14 +155,27 @@ int file_close(struct file* file) {
 }
 
 ssize_t file_read(struct file* file, void* buffer, size_t count) {
+    if (!(file->inode->mode & (S_IFREG | S_IFBLK)))
+        return file_pread(file, buffer, count, 0);
+
+    mutex_lock(&file->offset_lock);
+    ssize_t nread = file_pread(file, buffer, count, file->offset);
+    if (IS_OK(nread))
+        file->offset += nread;
+    mutex_unlock(&file->offset_lock);
+    return nread;
+}
+
+ssize_t file_pread(struct file* file, void* buffer, size_t count,
+                   uint64_t offset) {
     struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
-    if (!inode->fops->read)
+    if (!inode->fops->pread)
         return -EINVAL;
     if ((file->flags & O_ACCMODE) == O_WRONLY)
         return -EBADF;
-    return inode->fops->read(file, buffer, count);
+    return inode->fops->pread(file, buffer, count, offset);
 }
 
 ssize_t file_read_to_end(struct file* file, void* buffer, size_t count) {
@@ -182,14 +195,27 @@ ssize_t file_read_to_end(struct file* file, void* buffer, size_t count) {
 }
 
 ssize_t file_write(struct file* file, const void* buffer, size_t count) {
+    if (!(file->inode->mode & (S_IFREG | S_IFBLK)))
+        return file_pwrite(file, buffer, count, 0);
+
+    mutex_lock(&file->offset_lock);
+    ssize_t nwritten = file_pwrite(file, buffer, count, file->offset);
+    if (IS_OK(nwritten))
+        file->offset += nwritten;
+    mutex_unlock(&file->offset_lock);
+    return nwritten;
+}
+
+ssize_t file_pwrite(struct file* file, const void* buffer, size_t count,
+                    uint64_t offset) {
     struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
-    if (!inode->fops->write)
+    if (!inode->fops->pwrite)
         return -EINVAL;
     if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EBADF;
-    return inode->fops->write(file, buffer, count);
+    return inode->fops->pwrite(file, buffer, count, offset);
 }
 
 ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {

@@ -35,28 +35,21 @@ static int tmpfs_stat(struct inode* inode, struct kstat* buf) {
     return 0;
 }
 
-static ssize_t tmpfs_read(struct file* file, void* buffer, size_t count) {
+static ssize_t tmpfs_pread(struct file* file, void* buffer, size_t count,
+                           uint64_t offset) {
     tmpfs_inode* node = (tmpfs_inode*)file->inode;
-    mutex_lock(&file->offset_lock);
     mutex_lock(&node->lock);
-    ssize_t nread = vec_pread(&node->content, buffer, count, file->offset);
+    ssize_t nread = vec_pread(&node->content, buffer, count, offset);
     mutex_unlock(&node->lock);
-    if (IS_OK(nread))
-        file->offset += nread;
-    mutex_unlock(&file->offset_lock);
     return nread;
 }
 
-static ssize_t tmpfs_write(struct file* file, const void* buffer,
-                           size_t count) {
+static ssize_t tmpfs_pwrite(struct file* file, const void* buffer, size_t count,
+                            uint64_t offset) {
     tmpfs_inode* node = (tmpfs_inode*)file->inode;
-    mutex_lock(&file->offset_lock);
     mutex_lock(&node->lock);
-    ssize_t nwritten = vec_pwrite(&node->content, buffer, count, file->offset);
+    ssize_t nwritten = vec_pwrite(&node->content, buffer, count, offset);
     mutex_unlock(&node->lock);
-    if (IS_OK(nwritten))
-        file->offset += nwritten;
-    mutex_unlock(&file->offset_lock);
     return nwritten;
 }
 
@@ -122,8 +115,8 @@ static const struct file_ops dir_fops = {
 static const struct file_ops non_dir_fops = {
     .destroy_inode = tmpfs_destroy_inode,
     .stat = tmpfs_stat,
-    .read = tmpfs_read,
-    .write = tmpfs_write,
+    .pread = tmpfs_pread,
+    .pwrite = tmpfs_pwrite,
     .mmap = tmpfs_mmap,
     .truncate = tmpfs_truncate,
 };
