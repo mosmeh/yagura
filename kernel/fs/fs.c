@@ -9,6 +9,7 @@
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
 #include <kernel/sched.h>
+#include <kernel/socket.h>
 
 void inode_ref(struct inode* inode) {
     ASSERT(inode);
@@ -27,7 +28,7 @@ void inode_destroy(struct inode* inode) {
     ASSERT(inode->ref_count == 0 && inode->num_links == 0);
     ASSERT(inode->fops->destroy_inode);
     inode_unref(inode->fifo);
-    inode_unref((struct inode*)inode->bound_socket);
+    inode_unref(&inode->bound_socket->inode);
     inode->fops->destroy_inode(inode);
 }
 

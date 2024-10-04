@@ -26,6 +26,10 @@ typedef struct {
     struct dentry* children;
 } proc_dir_inode;
 
+static inline proc_dir_inode* proc_dir_from_inode(struct inode* inode) {
+    return CONTAINER_OF(inode, proc_dir_inode, inode);
+}
+
 void proc_dir_destroy_inode(struct inode* inode);
 struct inode* proc_dir_lookup_child(struct inode* inode, const char* name);
 int proc_dir_getdents(struct file*, getdents_callback_fn callback, void* ctx);

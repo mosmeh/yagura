@@ -22,8 +22,12 @@ typedef struct {
     pid_t pid;
 } proc_pid_item_inode;
 
+static proc_pid_item_inode* item_from_file(struct file* file) {
+    return CONTAINER_OF(file->inode, proc_pid_item_inode, item_inode.inode);
+}
+
 static int populate_cmdline(struct file* file, struct vec* vec) {
-    proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
+    proc_pid_item_inode* node = item_from_file(file);
     struct task* task = task_find_by_tid(node->pid);
     if (!task)
         return -ENOENT;
@@ -57,7 +61,7 @@ done:
 }
 
 static int populate_comm(struct file* file, struct vec* vec) {
-    proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
+    proc_pid_item_inode* node = item_from_file(file);
     struct task* task = task_find_by_tid(node->pid);
     if (!task)
         return -ENOENT;
@@ -74,7 +78,7 @@ static int populate_comm(struct file* file, struct vec* vec) {
 }
 
 static int populate_cwd(struct file* file, struct vec* vec) {
-    proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
+    proc_pid_item_inode* node = item_from_file(file);
     struct task* task = task_find_by_tid(node->pid);
     if (!task)
         return -ENOENT;
@@ -96,7 +100,7 @@ static int populate_cwd(struct file* file, struct vec* vec) {
 }
 
 static int populate_environ(struct file* file, struct vec* vec) {
-    proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
+    proc_pid_item_inode* node = item_from_file(file);
     struct task* task = task_find_by_tid(node->pid);
     if (!task)
         return -ENOENT;
@@ -130,7 +134,7 @@ done:
 }
 
 static int populate_maps(struct file* file, struct vec* vec) {
-    proc_pid_item_inode* node = (proc_pid_item_inode*)file->inode;
+    proc_pid_item_inode* node = item_from_file(file);
     struct task* task = task_find_by_tid(node->pid);
     if (!task)
         return -ENOENT;
@@ -159,7 +163,7 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def,
                     pid_t pid) {
     proc_pid_item_inode* node = kmalloc(sizeof(proc_pid_item_inode));
     if (!node) {
-        inode_unref((struct inode*)parent);
+        inode_unref(&parent->inode);
         return -ENOMEM;
     }
     *node = (proc_pid_item_inode){0};
@@ -174,7 +178,7 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def,
     inode->ref_count = 1;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);
-    inode_unref((struct inode*)parent);
+    inode_unref(&parent->inode);
     return rc;
 }
 
@@ -215,6 +219,6 @@ struct inode* proc_pid_dir_inode_create(proc_dir_inode* parent, pid_t pid) {
             return ERR_PTR(rc);
     }
 
-    inode_unref((struct inode*)parent);
+    inode_unref(&parent->inode);
     return inode;
 }

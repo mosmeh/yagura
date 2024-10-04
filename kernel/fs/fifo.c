@@ -15,14 +15,22 @@ struct fifo {
     atomic_size_t num_writers;
 };
 
+static struct fifo* fifo_from_inode(struct inode* inode) {
+    return CONTAINER_OF(inode, struct fifo, inode);
+}
+
+static struct fifo* fifo_from_file(struct file* file) {
+    return fifo_from_inode(file->inode);
+}
+
 static void fifo_destroy_inode(struct inode* inode) {
-    struct fifo* fifo = (struct fifo*)inode;
+    struct fifo* fifo = fifo_from_inode(inode);
     ring_buf_destroy(&fifo->buf);
     kfree(fifo);
 }
 
 static bool unblock_open(struct file* file) {
-    const struct fifo* fifo = (const struct fifo*)file->inode;
+    const struct fifo* fifo = fifo_from_file(file);
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
         return fifo->num_writers > 0;
@@ -36,7 +44,7 @@ static bool unblock_open(struct file* file) {
 static int fifo_open(struct file* file, mode_t mode) {
     (void)mode;
 
-    struct fifo* fifo = (struct fifo*)file->inode;
+    struct fifo* fifo = fifo_from_file(file);
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
         ++fifo->num_readers;
@@ -61,7 +69,7 @@ static int fifo_open(struct file* file, mode_t mode) {
 }
 
 static int fifo_close(struct file* file) {
-    struct fifo* fifo = (struct fifo*)file->inode;
+    struct fifo* fifo = fifo_from_file(file);
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
         --fifo->num_readers;
@@ -76,7 +84,7 @@ static int fifo_close(struct file* file) {
 }
 
 static bool unblock_read(struct file* file) {
-    const struct fifo* fifo = (const struct fifo*)file->inode;
+    const struct fifo* fifo = fifo_from_file(file);
     return fifo->num_writers == 0 || !ring_buf_is_empty(&fifo->buf);
 }
 
@@ -84,7 +92,7 @@ static ssize_t fifo_pread(struct file* file, void* buffer, size_t count,
                           uint64_t offset) {
     (void)offset;
 
-    struct fifo* fifo = (struct fifo*)file->inode;
+    struct fifo* fifo = fifo_from_file(file);
     struct ring_buf* buf = &fifo->buf;
 
     for (;;) {
@@ -107,7 +115,7 @@ static ssize_t fifo_pread(struct file* file, void* buffer, size_t count,
 }
 
 static bool unblock_write(struct file* file) {
-    const struct fifo* fifo = (const struct fifo*)file->inode;
+    const struct fifo* fifo = fifo_from_file(file);
     return fifo->num_readers == 0 || !ring_buf_is_full(&fifo->buf);
 }
 
@@ -115,7 +123,7 @@ static ssize_t fifo_pwrite(struct file* file, const void* buffer, size_t count,
                            uint64_t offset) {
     (void)offset;
 
-    struct fifo* fifo = (struct fifo*)file->inode;
+    struct fifo* fifo = fifo_from_file(file);
     struct ring_buf* buf = &fifo->buf;
 
     for (;;) {
@@ -145,7 +153,7 @@ static ssize_t fifo_pwrite(struct file* file, const void* buffer, size_t count,
 
 static short fifo_poll(struct file* file, short events) {
     short revents = 0;
-    const struct fifo* fifo = (const struct fifo*)file->inode;
+    const struct fifo* fifo = fifo_from_file(file);
     if ((events & POLLIN) && !ring_buf_is_empty(&fifo->buf))
         revents |= POLLIN;
     if ((events & POLLOUT) && !ring_buf_is_full(&fifo->buf))
@@ -190,5 +198,5 @@ struct inode* fifo_create(void) {
     inode->mode = S_IFIFO;
     inode->ref_count = 1;
 
-    return (struct inode*)fifo;
+    return inode;
 }

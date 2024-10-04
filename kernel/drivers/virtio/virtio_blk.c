@@ -18,21 +18,25 @@ typedef struct {
     uint64_t capacity;
 } virtio_blk_device;
 
+static virtio_blk_device* device_from_inode(struct inode* inode) {
+    return CONTAINER_OF(inode, virtio_blk_device, inode);
+}
+
 static void virtio_blk_destroy_inode(struct inode* inode) {
-    virtio_blk_device* node = (virtio_blk_device*)inode;
+    virtio_blk_device* node = device_from_inode(inode);
     virtio_device_destroy(node->virtio);
     kfree(node);
 }
 
 static bool unblock_request(struct file* file) {
-    virtio_blk_device* node = (virtio_blk_device*)file->inode;
+    virtio_blk_device* node = device_from_inode(file->inode);
     return node->virtio->virtqs[0]->num_free_descs >= 3;
 }
 
 static int submit_request(struct file* file, void* buffer, size_t count,
                           uint64_t sector, uint32_t type,
                           bool device_writable) {
-    virtio_blk_device* node = (virtio_blk_device*)file->inode;
+    virtio_blk_device* node = device_from_inode(file->inode);
     struct virtq* virtq = node->virtio->virtqs[0];
     struct virtio_blk_req_header header = {
         .type = type,
@@ -80,7 +84,7 @@ static ssize_t virtio_blk_do_io(struct file* file, void* buffer, size_t count,
         return -EINVAL;
     uint64_t sector = offset / SECTOR_SIZE;
 
-    virtio_blk_device* node = (virtio_blk_device*)file->inode;
+    virtio_blk_device* node = device_from_inode(file->inode);
     if (sector >= node->capacity)
         return 0;
     count = MIN(count, (node->capacity - sector) * SECTOR_SIZE);

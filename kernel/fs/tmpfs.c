@@ -13,14 +13,14 @@ typedef struct {
 } tmpfs_inode;
 
 static void tmpfs_destroy_inode(struct inode* inode) {
-    tmpfs_inode* node = (tmpfs_inode*)inode;
+    tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
     vec_destroy(&node->content);
     dentry_clear(node->children);
     kfree(node);
 }
 
 static struct inode* tmpfs_lookup_child(struct inode* inode, const char* name) {
-    tmpfs_inode* node = (tmpfs_inode*)inode;
+    tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
     mutex_lock(&node->lock);
     struct inode* child = dentry_find(node->children, name);
     mutex_unlock(&node->lock);
@@ -29,7 +29,7 @@ static struct inode* tmpfs_lookup_child(struct inode* inode, const char* name) {
 }
 
 static int tmpfs_stat(struct inode* inode, struct kstat* buf) {
-    tmpfs_inode* node = (tmpfs_inode*)inode;
+    tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
     buf->st_size = node->content.size;
     inode_unref(inode);
     return 0;
@@ -37,7 +37,7 @@ static int tmpfs_stat(struct inode* inode, struct kstat* buf) {
 
 static ssize_t tmpfs_pread(struct file* file, void* buffer, size_t count,
                            uint64_t offset) {
-    tmpfs_inode* node = (tmpfs_inode*)file->inode;
+    tmpfs_inode* node = CONTAINER_OF(file->inode, tmpfs_inode, inode);
     mutex_lock(&node->lock);
     ssize_t nread = vec_pread(&node->content, buffer, count, offset);
     mutex_unlock(&node->lock);
@@ -46,7 +46,7 @@ static ssize_t tmpfs_pread(struct file* file, void* buffer, size_t count,
 
 static ssize_t tmpfs_pwrite(struct file* file, const void* buffer, size_t count,
                             uint64_t offset) {
-    tmpfs_inode* node = (tmpfs_inode*)file->inode;
+    tmpfs_inode* node = CONTAINER_OF(file->inode, tmpfs_inode, inode);
     mutex_lock(&node->lock);
     ssize_t nwritten = vec_pwrite(&node->content, buffer, count, offset);
     mutex_unlock(&node->lock);
@@ -63,7 +63,7 @@ static void* tmpfs_mmap(struct file* file, size_t length, uint64_t offset,
 }
 
 static int tmpfs_truncate(struct file* file, uint64_t length) {
-    tmpfs_inode* node = (tmpfs_inode*)file->inode;
+    tmpfs_inode* node = CONTAINER_OF(file->inode, tmpfs_inode, inode);
     mutex_lock(&node->lock);
     int rc = vec_resize(&node->content, length);
     mutex_unlock(&node->lock);
@@ -72,7 +72,7 @@ static int tmpfs_truncate(struct file* file, uint64_t length) {
 
 static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
                           void* ctx) {
-    tmpfs_inode* node = (tmpfs_inode*)file->inode;
+    tmpfs_inode* node = CONTAINER_OF(file->inode, tmpfs_inode, inode);
     mutex_lock(&node->lock);
     mutex_lock(&file->offset_lock);
     int rc = dentry_getdents(file, node->children, callback, ctx);
@@ -83,7 +83,7 @@ static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
 
 static int tmpfs_link_child(struct inode* inode, const char* name,
                             struct inode* child) {
-    tmpfs_inode* node = (tmpfs_inode*)inode;
+    tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
     mutex_lock(&node->lock);
     int rc = dentry_append(&node->children, name, child);
     mutex_unlock(&node->lock);
@@ -92,7 +92,7 @@ static int tmpfs_link_child(struct inode* inode, const char* name,
 }
 
 static struct inode* tmpfs_unlink_child(struct inode* inode, const char* name) {
-    tmpfs_inode* node = (tmpfs_inode*)inode;
+    tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
     mutex_lock(&node->lock);
     struct inode* child = dentry_remove(&node->children, name);
     mutex_unlock(&node->lock);

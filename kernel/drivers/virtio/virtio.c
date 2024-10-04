@@ -243,9 +243,9 @@ struct virtio_device* virtio_device_create(const struct pci_addr* addr,
         (volatile struct virtio_pci_common_cfg*)(common_cfg_space +
                                                  common_cfg_cap.offset);
 
-    struct virtio_pci_notify_cap notify_cap;
+    struct virtio_pci_notify_cap notify_cap = {0};
     if (!virtio_find_pci_cap(addr, VIRTIO_PCI_CAP_NOTIFY_CFG,
-                             (struct virtio_pci_cap*)&notify_cap)) {
+                             &notify_cap.cap)) {
         kprint("virtio: device is missing VIRTIO_PCI_CAP_NOTIFY_CFG\n");
         goto fail_discovery;
     }

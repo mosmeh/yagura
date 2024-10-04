@@ -14,7 +14,7 @@ static int proc_item_open(struct file* file, mode_t mode) {
         return -ENOMEM;
     *vec = (struct vec){0};
 
-    proc_item_inode* node = (proc_item_inode*)file->inode;
+    proc_item_inode* node = CONTAINER_OF(file->inode, proc_item_inode, inode);
     int rc = node->populate(file, vec);
     if (IS_ERR(rc)) {
         vec_destroy(vec);
@@ -45,13 +45,13 @@ const struct file_ops proc_item_fops = {
 };
 
 void proc_dir_destroy_inode(struct inode* inode) {
-    proc_dir_inode* node = (proc_dir_inode*)inode;
+    proc_dir_inode* node = proc_dir_from_inode(inode);
     dentry_clear(node->children);
     kfree(node);
 }
 
 struct inode* proc_dir_lookup_child(struct inode* inode, const char* name) {
-    proc_dir_inode* node = (proc_dir_inode*)inode;
+    proc_dir_inode* node = proc_dir_from_inode(inode);
     struct inode* child = dentry_find(node->children, name);
     inode_unref(inode);
     return child;
@@ -59,7 +59,7 @@ struct inode* proc_dir_lookup_child(struct inode* inode, const char* name) {
 
 int proc_dir_getdents(struct file* file, getdents_callback_fn callback,
                       void* ctx) {
-    proc_dir_inode* node = (proc_dir_inode*)file->inode;
+    proc_dir_inode* node = proc_dir_from_inode(file->inode);
     mutex_lock(&file->offset_lock);
     int rc = dentry_getdents(file, node->children, callback, ctx);
     mutex_unlock(&file->offset_lock);

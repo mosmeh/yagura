@@ -10,7 +10,7 @@ export CFLAGS := \
 	-nostdlib -ffreestanding \
 	-fno-omit-frame-pointer \
 	-U_FORTIFY_SOURCE \
-	-Wall -Wextra -pedantic \
+	-Wall -Wextra -pedantic -Wno-gnu-statement-expression-from-macro-expansion \
 	-O2 -g \
 	$(if $(GIT_HASH),-DYAGURA_VERSION=\"$(GIT_HASH)\") \
 	$(EXTRA_CFLAGS)

@@ -168,15 +168,16 @@ static proc_item_def root_items[] = {
 static struct inode* proc_root_lookup_child(struct inode* inode,
                                             const char* name) {
     if (str_is_uint(name)) {
+        proc_dir_inode* parent = proc_dir_from_inode(inode);
         pid_t pid = atoi(name);
-        return proc_pid_dir_inode_create((proc_dir_inode*)inode, pid);
+        return proc_pid_dir_inode_create(parent, pid);
     }
     return proc_dir_lookup_child(inode, name);
 }
 
 static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
                               void* ctx) {
-    proc_dir_inode* node = (proc_dir_inode*)file->inode;
+    proc_dir_inode* node = CONTAINER_OF(file->inode, proc_dir_inode, inode);
 
     mutex_lock(&file->offset_lock);
     if ((size_t)file->offset < NUM_ITEMS) {
@@ -218,7 +219,7 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
 static int add_item(proc_dir_inode* parent, const proc_item_def* item_def) {
     proc_item_inode* node = kmalloc(sizeof(proc_item_inode));
     if (!node) {
-        inode_unref((struct inode*)parent);
+        inode_unref(&parent->inode);
         return -ENOMEM;
     }
     *node = (proc_item_inode){0};
@@ -232,7 +233,7 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def) {
     inode->ref_count = 1;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);
-    inode_unref((struct inode*)parent);
+    inode_unref(&parent->inode);
     return rc;
 }
 
