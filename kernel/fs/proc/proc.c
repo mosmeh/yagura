@@ -32,20 +32,16 @@ static int proc_item_close(struct file* file) {
     return 0;
 }
 
-static ssize_t proc_item_read(struct file* file, void* buffer, size_t count) {
-    mutex_lock(&file->offset_lock);
-    ssize_t nread = vec_pread(file->private_data, buffer, count, file->offset);
-    if (IS_OK(nread))
-        file->offset += nread;
-    mutex_unlock(&file->offset_lock);
-    return nread;
+static ssize_t proc_item_pread(struct file* file, void* buffer, size_t count,
+                               uint64_t offset) {
+    return vec_pread(file->private_data, buffer, count, offset);
 }
 
 const struct file_ops proc_item_fops = {
     .destroy_inode = proc_item_destroy_inode,
     .open = proc_item_open,
     .close = proc_item_close,
-    .read = proc_item_read,
+    .pread = proc_item_pread,
 };
 
 void proc_dir_destroy_inode(struct inode* inode) {

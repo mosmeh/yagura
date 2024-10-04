@@ -93,6 +93,8 @@
     F(nanosleep, sys_nanosleep_time32, 0)                                      \
     F(poll, sys_poll, 0)                                                       \
     F(prctl, sys_prctl, 0)                                                     \
+    F(pread64, sys_ia32_pread64, 0)                                            \
+    F(pwrite64, sys_ia32_pwrite64, 0)                                          \
     F(getcwd, sys_getcwd, 0)                                                   \
     F(mmap2, sys_mmap_pgoff, 0)                                                \
     F(truncate64, sys_ia32_truncate64, 0)                                      \
@@ -233,6 +235,10 @@ int sys_nanosleep_time32(const struct timespec32* duration,
 int sys_poll(struct pollfd* fds, nfds_t nfds, int timeout);
 int sys_prctl(int op, unsigned long arg2, unsigned long arg3,
               unsigned long arg4, unsigned long arg5);
+ssize_t sys_ia32_pread64(int fd, void* buf, size_t count, uint32_t pos_lo,
+                         uint32_t pos_hi);
+ssize_t sys_ia32_pwrite64(int fd, const void* buf, size_t count,
+                          uint32_t pos_lo, uint32_t pos_hi);
 int sys_getcwd(char* buf, size_t size);
 void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
                      unsigned long pgoff);

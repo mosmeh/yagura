@@ -338,8 +338,9 @@ static bool unblock_read(struct file* file) {
     return can_read();
 }
 
-static ssize_t ps2_keyboard_device_read(struct file* file, void* buffer,
-                                        size_t count) {
+static ssize_t ps2_keyboard_device_pread(struct file* file, void* buffer,
+                                         size_t count, uint64_t offset) {
+    (void)offset;
     for (;;) {
         int rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
@@ -379,7 +380,7 @@ static short ps2_keyboard_device_poll(struct file* file, short events) {
 
 static struct inode* ps2_keyboard_device_get(void) {
     static const struct file_ops fops = {
-        .read = ps2_keyboard_device_read,
+        .pread = ps2_keyboard_device_pread,
         .poll = ps2_keyboard_device_poll,
     };
     static struct inode inode = {

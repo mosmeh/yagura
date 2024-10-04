@@ -170,8 +170,9 @@ static int write_single_buffer(struct file* file, const void* buffer,
 
 static struct mutex lock;
 
-static ssize_t ac97_device_write(struct file* file, const void* buffer,
-                                 size_t count) {
+static ssize_t ac97_device_pwrite(struct file* file, const void* buffer,
+                                  size_t count, uint64_t offset) {
+    (void)offset;
     unsigned char* src = (unsigned char*)buffer;
     size_t nwritten = 0;
     mutex_lock(&lock);
@@ -244,7 +245,7 @@ static short ac97_device_poll(struct file* file, short events) {
 
 static struct inode* ac97_device_get(void) {
     static const struct file_ops fops = {
-        .write = ac97_device_write,
+        .pwrite = ac97_device_pwrite,
         .ioctl = ac97_device_ioctl,
         .poll = ac97_device_poll,
     };
