@@ -15,23 +15,15 @@
 #define SIZEOF_FIELD(t, f) sizeof(((t*)0)->f)
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
+#define ROUND_UP(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
+#define ROUND_DOWN(x, align) ((x) & ~((align) - 1))
+#define DIV_CEIL(lhs, rhs) (((lhs) + (rhs) - 1) / (rhs))
+
 #define NODISCARD __attribute__((__warn_unused_result__))
 #define NOINLINE __attribute__((noinline))
 #define STATIC_ASSERT(x) _Static_assert(x, "Static assertion failed")
 
 #define PRINTF_LIKE(a, b) __attribute__((format(printf, a, b)))
-
-static inline uintptr_t round_up(uintptr_t x, size_t align) {
-    return (x + (align - 1)) & ~(align - 1);
-}
-
-static inline uintptr_t round_down(uintptr_t x, size_t align) {
-    return x & ~(align - 1);
-}
-
-static inline size_t div_ceil(size_t lhs, size_t rhs) {
-    return (lhs + rhs - 1) / rhs;
-}
 
 static inline size_t next_power_of_two(size_t x) {
     if (x <= 1)

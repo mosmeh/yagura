@@ -37,7 +37,7 @@ struct pthread* __init_tls(void* tls) {
     memset(tls, 0, __tls_size);
 
     uintptr_t p = (uintptr_t)tls + __tls_size - sizeof(struct pthread);
-    p = round_down((uintptr_t)p, tls_phdr->p_align);
+    p = ROUND_DOWN(p, tls_phdr->p_align);
     memcpy((unsigned char*)p - tls_phdr->p_memsz, (void*)tls_phdr->p_vaddr,
            tls_phdr->p_filesz);
 

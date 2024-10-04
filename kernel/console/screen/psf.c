@@ -78,7 +78,7 @@ static struct font* load_psf2(struct file* file) {
     font->glyph_width = header.width;
     font->glyph_height = header.height;
     font->bytes_per_glyph = header.bytesperglyph;
-    if (div_ceil(font->glyph_width, 8) * font->glyph_height !=
+    if (DIV_CEIL(font->glyph_width, 8) * font->glyph_height !=
         font->bytes_per_glyph) {
         kfree(font);
         return ERR_PTR(-EINVAL);

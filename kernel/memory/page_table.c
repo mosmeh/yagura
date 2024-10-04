@@ -438,7 +438,7 @@ void page_table_unmap(uintptr_t virt_addr, uintptr_t size) {
     ASSERT((virt_addr % PAGE_SIZE) == 0);
     ASSERT((size % PAGE_SIZE) == 0);
 
-    uintptr_t virt_end = virt_addr + round_up(size, PAGE_SIZE);
+    uintptr_t virt_end = virt_addr + ROUND_UP(size, PAGE_SIZE);
     for (uintptr_t virt_cursor = virt_addr; virt_cursor < virt_end;
          virt_cursor += PAGE_SIZE) {
         volatile page_table_entry* pte = get_pte(virt_cursor);
@@ -453,7 +453,7 @@ void page_table_set_flags(uintptr_t virt_addr, uintptr_t size, uint16_t flags) {
     ASSERT((virt_addr % PAGE_SIZE) == 0);
     ASSERT((size % PAGE_SIZE) == 0);
 
-    uintptr_t virt_end = virt_addr + round_up(size, PAGE_SIZE);
+    uintptr_t virt_end = virt_addr + ROUND_UP(size, PAGE_SIZE);
     for (uintptr_t virt_cursor = virt_addr; virt_cursor < virt_end;
          virt_cursor += PAGE_SIZE) {
         volatile page_table_entry* pte = get_pte(virt_cursor);

@@ -572,7 +572,7 @@ void task_handle_signal(struct registers* regs, int signum,
     ASSERT(0 < signum && signum < NSIG);
     ASSERT(action->sa_flags & SA_RESTORER);
 
-    uintptr_t esp = round_down(regs->user_esp, 16);
+    uintptr_t esp = ROUND_DOWN(regs->user_esp, 16);
 
     // Push the context of the interrupted task
     struct sigcontext ctx = {
