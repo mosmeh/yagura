@@ -1,4 +1,5 @@
 #include "private.h"
+#include <common/extra.h>
 #include <common/string.h>
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/ioctl.h>
@@ -9,20 +10,23 @@
 #include <kernel/safe_string.h>
 #include <kernel/task.h>
 
+static struct tty* tty_from_file(struct file* file) {
+    return CONTAINER_OF(file->inode, struct tty, inode);
+}
+
 static bool can_read(struct tty* tty) {
     return !ring_buf_is_empty(&tty->input_buf);
 }
 
 static bool unblock_read(struct file* file) {
-    struct tty* tty = (struct tty*)file->inode;
-    return can_read(tty);
+    return can_read(tty_from_file(file));
 }
 
 static ssize_t tty_pread(struct file* file, void* buf, size_t count,
                          uint64_t offset) {
     (void)offset;
 
-    struct tty* tty = (struct tty*)file->inode;
+    struct tty* tty = tty_from_file(file);
 
     for (;;) {
         int rc = file_block(file, unblock_read, 0);
@@ -81,7 +85,7 @@ static void processed_echo(struct tty* tty, const char* buf, size_t count) {
 static ssize_t tty_pwrite(struct file* file, const void* buf, size_t count,
                           uint64_t offset) {
     (void)offset;
-    struct tty* tty = (struct tty*)file->inode;
+    struct tty* tty = tty_from_file(file);
     spinlock_lock(&tty->lock);
     processed_echo(tty, buf, count);
     spinlock_unlock(&tty->lock);
@@ -89,7 +93,7 @@ static ssize_t tty_pwrite(struct file* file, const void* buf, size_t count,
 }
 
 static int tty_ioctl(struct file* file, int request, void* user_argp) {
-    struct tty* tty = (struct tty*)file->inode;
+    struct tty* tty = tty_from_file(file);
     struct termios* termios = &tty->termios;
     int ret = 0;
     spinlock_lock(&tty->lock);
@@ -157,9 +161,9 @@ done:
 }
 
 static short tty_poll(struct file* file, short events) {
-    struct tty* tty = (struct tty*)file->inode;
     short revents = 0;
     if (events & POLLIN) {
+        struct tty* tty = tty_from_file(file);
         spinlock_lock(&tty->lock);
         if (can_read(tty))
             revents |= POLLIN;
