@@ -60,7 +60,7 @@ static ssize_t tmpfs_write(struct file* file, const void* buffer,
     return nwritten;
 }
 
-static void* tmpfs_mmap(struct file* file, size_t length, off_t offset,
+static void* tmpfs_mmap(struct file* file, size_t length, uint64_t offset,
                         int flags) {
     tmpfs_inode* node = (tmpfs_inode*)file->inode;
     mutex_lock(&node->lock);
@@ -69,7 +69,7 @@ static void* tmpfs_mmap(struct file* file, size_t length, off_t offset,
     return ret;
 }
 
-static int tmpfs_truncate(struct file* file, off_t length) {
+static int tmpfs_truncate(struct file* file, uint64_t length) {
     tmpfs_inode* node = (tmpfs_inode*)file->inode;
     mutex_lock(&node->lock);
     int rc = vec_resize(&node->content, length);

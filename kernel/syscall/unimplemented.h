@@ -101,8 +101,6 @@
     F(sendfile)                                                                \
     F(vfork)                                                                   \
     F(ugetrlimit)                                                              \
-    F(truncate64)                                                              \
-    F(ftruncate64)                                                             \
     F(lchown32)                                                                \
     F(setreuid32)                                                              \
     F(setregid32)                                                              \

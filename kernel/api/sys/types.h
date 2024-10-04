@@ -9,6 +9,7 @@ typedef uint32_t ino_t;
 typedef uint32_t mode_t;
 typedef uint32_t nlink_t;
 typedef int32_t off_t;
+typedef int64_t loff_t;
 typedef int32_t pid_t;
 typedef uint32_t clock_t;
 typedef int64_t time_t;

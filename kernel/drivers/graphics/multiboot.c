@@ -17,7 +17,7 @@ static int multiboot_fb_set_info(struct fb_info* inout_info) {
     return -ENOTSUP;
 }
 
-static void* multiboot_fb_mmap(size_t length, off_t offset, int flags) {
+static void* multiboot_fb_mmap(size_t length, uint64_t offset, int flags) {
     if (offset != 0)
         return ERR_PTR(-ENXIO);
     if (!(flags & VM_SHARED))

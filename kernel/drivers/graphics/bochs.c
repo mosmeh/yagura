@@ -79,7 +79,7 @@ static int bochs_fb_set_info(struct fb_info* inout_info) {
     return 0;
 }
 
-static void* bochs_fb_mmap(size_t length, off_t offset, int flags) {
+static void* bochs_fb_mmap(size_t length, uint64_t offset, int flags) {
     if (offset != 0)
         return ERR_PTR(-ENXIO);
     if (!(flags & VM_SHARED))

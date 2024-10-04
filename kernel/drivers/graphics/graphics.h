@@ -1,7 +1,7 @@
 #pragma once
 
-#include <kernel/api/sys/types.h>
 #include <stddef.h>
+#include <stdint.h>
 
 struct fb_info {
     char id[16];
@@ -14,7 +14,7 @@ struct fb_info {
 struct fb {
     int (*get_info)(struct fb_info* out_info);
     int (*set_info)(struct fb_info* inout_info);
-    void* (*mmap)(size_t length, off_t offset, int flags);
+    void* (*mmap)(size_t length, uint64_t offset, int flags);
 };
 
 struct fb* fb_get(void);

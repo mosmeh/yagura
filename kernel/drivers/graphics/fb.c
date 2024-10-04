@@ -21,7 +21,7 @@ static struct fb* find_fb(const multiboot_info_t* mb_info) {
 
 struct fb* fb_get(void) { return fb; }
 
-static void* fb_device_mmap(struct file* file, size_t length, off_t offset,
+static void* fb_device_mmap(struct file* file, size_t length, uint64_t offset,
                             int flags) {
     (void)file;
     return fb->mmap(length, offset, flags);

@@ -86,6 +86,7 @@
     F(uname, sys_newuname, 0)                                                  \
     F(sigprocmask, sys_sigprocmask, 0)                                         \
     F(getpgid, sys_getpgid, 0)                                                 \
+    F(_llseek, sys_llseek, 0)                                                  \
     F(getdents, sys_getdents, 0)                                               \
     F(_newselect, sys_select, 0)                                               \
     F(sched_yield, sys_sched_yield, 0)                                         \
@@ -94,6 +95,8 @@
     F(prctl, sys_prctl, 0)                                                     \
     F(getcwd, sys_getcwd, 0)                                                   \
     F(mmap2, sys_mmap_pgoff, 0)                                                \
+    F(truncate64, sys_ia32_truncate64, 0)                                      \
+    F(ftruncate64, sys_ia32_ftruncate64, 0)                                    \
     F(stat64, sys_stat64, 0)                                                   \
     F(lstat64, sys_lstat64, 0)                                                 \
     F(fstat64, sys_fstat64, 0)                                                 \
@@ -219,6 +222,8 @@ int sys_setdomainname(const char* name, int len);
 int sys_newuname(struct utsname* buf);
 int sys_sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
 pid_t sys_getpgid(pid_t pid);
+int sys_llseek(unsigned int fd, unsigned long offset_high,
+               unsigned long offset_low, loff_t* result, unsigned int whence);
 ssize_t sys_getdents(int fd, struct linux_dirent* dirp, size_t count);
 int sys_select(int nfds, unsigned long* readfds, unsigned long* writefds,
                unsigned long* exceptfds, struct linux_timeval* timeout);
@@ -231,6 +236,10 @@ int sys_prctl(int op, unsigned long arg2, unsigned long arg3,
 int sys_getcwd(char* buf, size_t size);
 void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
                      unsigned long pgoff);
+int sys_ia32_truncate64(const char* path, unsigned long offset_low,
+                        unsigned long offset_high);
+int sys_ia32_ftruncate64(int fd, unsigned long offset_low,
+                         unsigned long offset_high);
 int sys_stat64(const char* pathname, struct linux_stat64* buf);
 int sys_lstat64(const char* pathname, struct linux_stat64* buf);
 int sys_fstat64(int fd, struct linux_stat64* buf);
