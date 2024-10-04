@@ -159,7 +159,7 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def,
                     pid_t pid) {
     proc_pid_item_inode* node = kmalloc(sizeof(proc_pid_item_inode));
     if (!node) {
-        inode_unref((struct inode*)parent);
+        inode_unref(&parent->inode);
         return -ENOMEM;
     }
     *node = (proc_pid_item_inode){0};
@@ -174,7 +174,7 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def,
     inode->ref_count = 1;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);
-    inode_unref((struct inode*)parent);
+    inode_unref(&parent->inode);
     return rc;
 }
 
@@ -215,6 +215,6 @@ struct inode* proc_pid_dir_inode_create(proc_dir_inode* parent, pid_t pid) {
             return ERR_PTR(rc);
     }
 
-    inode_unref((struct inode*)parent);
+    inode_unref(&parent->inode);
     return inode;
 }

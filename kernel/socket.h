@@ -35,3 +35,11 @@ NODISCARD int unix_socket_listen(struct unix_socket*, int backlog);
 NODISCARD struct unix_socket* unix_socket_accept(struct file*);
 NODISCARD int unix_socket_connect(struct file*, struct inode* addr_inode);
 NODISCARD int unix_socket_shutdown(struct file*, int how);
+
+static inline struct unix_socket* unix_socket_from_inode(struct inode* inode) {
+    return CONTAINER_OF(inode, struct unix_socket, inode);
+}
+
+static inline struct unix_socket* unix_socket_from_file(struct file* file) {
+    return unix_socket_from_inode(file->inode);
+}

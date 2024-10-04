@@ -15,6 +15,12 @@
 #define SIZEOF_FIELD(t, f) sizeof(((t*)0)->f)
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
+#define CONTAINER_OF(ptr, type, member)                                        \
+    ({                                                                         \
+        const __typeof__(((type*)0)->member)* __mptr = (ptr);                  \
+        (type*)((char*)__mptr - offsetof(type, member));                       \
+    })
+
 #define ROUND_UP(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
 #define ROUND_DOWN(x, align) ((x) & ~((align) - 1))
 #define DIV_CEIL(lhs, rhs) (((lhs) + (rhs) - 1) / (rhs))
