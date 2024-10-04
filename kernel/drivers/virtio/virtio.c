@@ -24,9 +24,9 @@ static struct virtq* virtq_create(uint16_t queue_size) {
     size_t used_size =
         sizeof(struct virtq_used) + sizeof(struct virtq_used_elem) * queue_size;
 
-    size_t alloc_size = round_up(sizeof(struct virtq), DESC_ALIGN);
-    alloc_size = round_up(alloc_size + desc_size, AVAIL_ALIGN);
-    alloc_size = round_up(alloc_size + avail_size, USED_ALIGN);
+    size_t alloc_size = ROUND_UP(sizeof(struct virtq), DESC_ALIGN);
+    alloc_size = ROUND_UP(alloc_size + desc_size, AVAIL_ALIGN);
+    alloc_size = ROUND_UP(alloc_size + avail_size, USED_ALIGN);
     alloc_size += used_size;
 
     struct virtq* virtq = kaligned_alloc(DESC_ALIGN, alloc_size);
@@ -38,15 +38,15 @@ static struct virtq* virtq_create(uint16_t queue_size) {
     virtq->num_free_descs = queue_size;
 
     uintptr_t ptr =
-        round_up((uintptr_t)virtq + sizeof(struct virtq), DESC_ALIGN);
+        ROUND_UP((uintptr_t)virtq + sizeof(struct virtq), DESC_ALIGN);
     ASSERT(ptr % DESC_ALIGN == 0);
     virtq->desc = (struct virtq_desc*)ptr;
 
-    ptr = round_up(ptr + desc_size, AVAIL_ALIGN);
+    ptr = ROUND_UP(ptr + desc_size, AVAIL_ALIGN);
     ASSERT(ptr % AVAIL_ALIGN == 0);
     virtq->avail = (struct virtq_avail*)ptr;
 
-    ptr = round_up(ptr + avail_size, USED_ALIGN);
+    ptr = ROUND_UP(ptr + avail_size, USED_ALIGN);
     ASSERT(ptr % USED_ALIGN == 0);
     virtq->used = (struct virtq_used*)ptr;
 

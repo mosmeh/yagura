@@ -727,7 +727,7 @@ static ssize_t fill_dir_old(void* user_buf, size_t buf_size, const char* name,
     size_t name_size = name_len + 1;
     size_t rec_len = offsetof(struct linux_old_dirent, d_name) //
                      + name_size;                              // d_name
-    rec_len = round_up(rec_len, alignof(struct linux_old_dirent));
+    rec_len = ROUND_UP(rec_len, alignof(struct linux_old_dirent));
     if (buf_size < rec_len)
         return 0;
 
@@ -753,7 +753,7 @@ static ssize_t fill_dir(void* user_buf, size_t buf_size, const char* name,
                      + name_size                           // d_name
                      + sizeof(char)                        // pad
                      + sizeof(char);                       // d_type
-    rec_len = round_up(rec_len, alignof(struct linux_dirent));
+    rec_len = ROUND_UP(rec_len, alignof(struct linux_dirent));
     if (buf_size < rec_len)
         return 0;
 
@@ -779,7 +779,7 @@ static ssize_t fill_dir64(void* user_buf, size_t buf_size, const char* name,
     size_t name_size = strlen(name) + 1;
     size_t rec_len = offsetof(struct linux_dirent64, d_name) //
                      + name_size;                            // d_name
-    rec_len = round_up(rec_len, alignof(struct linux_dirent64));
+    rec_len = ROUND_UP(rec_len, alignof(struct linux_dirent64));
     if (buf_size < rec_len)
         return 0;
 

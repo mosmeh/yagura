@@ -23,7 +23,7 @@ NODISCARD static int grow_capacity(struct vec* vec, size_t requested_size) {
     new_capacity = MAX(new_capacity, requested_size);
     if (new_capacity == 0)
         new_capacity = PAGE_SIZE;
-    new_capacity = round_up(new_capacity, PAGE_SIZE);
+    new_capacity = ROUND_UP(new_capacity, PAGE_SIZE);
     if (new_capacity == 0)
         return -EOVERFLOW;
     ASSERT(new_capacity > vec->capacity);

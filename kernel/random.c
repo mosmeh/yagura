@@ -136,10 +136,10 @@ static bool fill_remainder(unsigned char* buffer, uint8_t count) {
 ssize_t random_get(void* buffer, size_t count) {
     unsigned char* prefix = buffer;
     unsigned char* aligned =
-        (unsigned char*)round_up((uintptr_t)buffer, alignof(uint32_t));
+        (unsigned char*)ROUND_UP((uintptr_t)buffer, alignof(uint32_t));
     unsigned char* end = prefix + count;
     unsigned char* suffix =
-        (unsigned char*)round_down((uintptr_t)end, alignof(uint32_t));
+        (unsigned char*)ROUND_DOWN((uintptr_t)end, alignof(uint32_t));
 
     if (prefix < aligned) {
         if (!fill_remainder(prefix, aligned - prefix))

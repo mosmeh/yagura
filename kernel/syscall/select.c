@@ -183,7 +183,7 @@ int sys_select(int nfds, unsigned long* user_readfds,
     struct pollfd* pollfds = NULL;
 
     if (nfds > 0) {
-        size_t num_fd_longs = div_ceil(nfds, NUM_FD_BITS);
+        size_t num_fd_longs = DIV_CEIL(nfds, NUM_FD_BITS);
         num_fd_bytes = sizeof(unsigned long) * num_fd_longs;
 
         fds = kmalloc(num_fd_bytes * 3);
