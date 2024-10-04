@@ -122,9 +122,9 @@ static int list_dir(const char* path, size_t terminal_width, bool long_format) {
 
             putchar('\n');
         } else {
-            size_t next_pos = round_up(x_pos + len + 1, TAB_STOP);
+            size_t next_pos = ROUND_UP(x_pos + len + 1, TAB_STOP);
             if (next_pos >= terminal_width) {
-                x_pos = round_up(len + 1, TAB_STOP);
+                x_pos = ROUND_UP(len + 1, TAB_STOP);
                 putchar('\n');
             } else {
                 x_pos = next_pos;

@@ -71,7 +71,7 @@ static struct memory_stats stats;
 
 static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
                         uintptr_t upper_bound) {
-    bitmap_len = div_ceil(upper_bound, PAGE_SIZE * 32);
+    bitmap_len = DIV_CEIL(upper_bound, PAGE_SIZE * 32);
     ASSERT(bitmap_len <= BITMAP_MAX_LEN);
 
     if (mb_info->flags & MULTIBOOT_INFO_MEM_MAP) {
@@ -98,12 +98,12 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
             if (entry_start >= entry_end)
                 continue;
 
-            for (size_t i = div_ceil(entry_start, PAGE_SIZE);
+            for (size_t i = DIV_CEIL(entry_start, PAGE_SIZE);
                  i < entry_end / PAGE_SIZE; ++i)
                 bitmap_set(i);
         }
     } else {
-        for (size_t i = div_ceil(lower_bound, PAGE_SIZE);
+        for (size_t i = DIV_CEIL(lower_bound, PAGE_SIZE);
              i < upper_bound / PAGE_SIZE; ++i)
             bitmap_set(i);
     }
@@ -115,7 +115,7 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
             kprintf("page: module P0x%08x - P0x%08x (%u MiB)\n", mod->mod_start,
                     mod->mod_end, (mod->mod_end - mod->mod_start) / 0x100000);
             for (size_t i = mod->mod_start / PAGE_SIZE;
-                 i < div_ceil(mod->mod_end, PAGE_SIZE); ++i)
+                 i < DIV_CEIL(mod->mod_end, PAGE_SIZE); ++i)
                 bitmap_clear(i);
             ++mod;
         }

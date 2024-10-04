@@ -150,7 +150,7 @@ static void handle_ground(struct vt* vt, char c) {
             set_cursor(vt, vt->cursor_x - 1, vt->cursor_y);
         break;
     case '\t':
-        set_cursor(vt, round_up(vt->cursor_x + 1, TAB_STOP), vt->cursor_y);
+        set_cursor(vt, ROUND_UP(vt->cursor_x + 1, TAB_STOP), vt->cursor_y);
         break;
     default:
         if ((unsigned)c > 127)

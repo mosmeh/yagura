@@ -255,9 +255,9 @@ static int execve(const char* pathname, struct string_vec* argv,
             ehdr->e_phoff < phdr->p_offset + phdr->p_filesz)
             phdr_virt_addr = ehdr->e_phoff - phdr->p_offset + phdr->p_vaddr;
 
-        uintptr_t region_start = round_down(phdr->p_vaddr, PAGE_SIZE);
+        uintptr_t region_start = ROUND_DOWN(phdr->p_vaddr, PAGE_SIZE);
         uintptr_t region_end =
-            round_up(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
+            ROUND_UP(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
         size_t region_size = region_end - region_start;
         void* addr = vm_alloc_at((void*)region_start, region_size,
                                  VM_READ | VM_WRITE | VM_USER);
@@ -353,7 +353,7 @@ static int execve(const char* pathname, struct string_vec* argv,
     kfree(exe_buf);
     exe_buf = NULL;
 
-    sp = round_down(sp, 16);
+    sp = ROUND_DOWN(sp, 16);
 
     for (ssize_t i = ARRAY_SIZE(auxv) - 1; i >= 0; --i) {
         Elf32_auxv_t* aux = auxv + i;

@@ -87,7 +87,7 @@ void smp_start(void) {
 
     // APs start in real mode (no paging), so they need identity mapping of
     // the initialization code.
-    size_t init_size = round_up((uintptr_t)init_end, PAGE_SIZE);
+    size_t init_size = ROUND_UP((uintptr_t)init_end, PAGE_SIZE);
     ASSERT_OK(page_table_map_phys(0, 0, init_size, PTE_WRITE));
 
     kprintf("smp: starting %u APs\n", num_cpus - 1);

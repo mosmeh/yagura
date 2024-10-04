@@ -613,8 +613,8 @@ static int unmap(struct vm* vm, void* virt_addr, size_t size) {
 // original range.
 // Returns the aligned start address. The size is updated to the aligned size.
 static uintptr_t page_align_range(uintptr_t start, size_t* size) {
-    uintptr_t aligned_start = round_down(start, PAGE_SIZE);
-    uintptr_t aligned_end = round_up(start + *size, PAGE_SIZE);
+    uintptr_t aligned_start = ROUND_DOWN(start, PAGE_SIZE);
+    uintptr_t aligned_end = ROUND_UP(start + *size, PAGE_SIZE);
     *size = aligned_end - aligned_start;
     return aligned_start;
 }
@@ -624,7 +624,7 @@ void* vm_alloc(size_t size, int vm_flags) {
         return ERR_PTR(-EINVAL);
     if (!validate_vm_flags(vm_flags))
         return ERR_PTR(-EINVAL);
-    size = round_up(size, PAGE_SIZE);
+    size = ROUND_UP(size, PAGE_SIZE);
 
     struct vm* vm = vm_for_flags(vm_flags);
     mutex_lock(&vm->lock);
@@ -745,7 +745,7 @@ int vm_free(void* addr) {
         mutex_unlock(&vm->lock);
         return -ENOENT;
     }
-    if (region->start != round_down((uintptr_t)addr, PAGE_SIZE)) {
+    if (region->start != ROUND_DOWN((uintptr_t)addr, PAGE_SIZE)) {
         mutex_unlock(&vm->lock);
         return -EINVAL;
     }
