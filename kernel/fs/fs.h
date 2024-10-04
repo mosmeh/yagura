@@ -55,8 +55,9 @@ struct file_ops {
     int (*stat)(struct inode*, struct kstat* buf);
 
     int (*close)(struct file*);
-    ssize_t (*read)(struct file*, void* buffer, size_t count);
-    ssize_t (*write)(struct file*, const void* buffer, size_t count);
+    ssize_t (*pread)(struct file*, void* buffer, size_t count, uint64_t offset);
+    ssize_t (*pwrite)(struct file*, const void* buffer, size_t count,
+                      uint64_t offset);
     void* (*mmap)(struct file*, size_t length, uint64_t offset, int flags);
     int (*truncate)(struct file*, uint64_t length);
     int (*ioctl)(struct file*, int request, void* user_argp);
@@ -90,8 +91,12 @@ NODISCARD int inode_stat(struct inode*, struct kstat* buf);
 
 int file_close(struct file*);
 NODISCARD ssize_t file_read(struct file*, void* buffer, size_t count);
+NODISCARD ssize_t file_pread(struct file*, void* buffer, size_t count,
+                             uint64_t offset);
 NODISCARD ssize_t file_read_to_end(struct file*, void* buffer, size_t count);
 NODISCARD ssize_t file_write(struct file*, const void* buffer, size_t count);
+NODISCARD ssize_t file_pwrite(struct file*, const void* buffer, size_t count,
+                              uint64_t offset);
 NODISCARD ssize_t file_write_all(struct file*, const void* buffer,
                                  size_t count);
 NODISCARD void* file_mmap(struct file*, size_t length, uint64_t offset,

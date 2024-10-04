@@ -92,8 +92,6 @@
     F(rt_sigtimedwait)                                                         \
     F(rt_sigqueueinfo)                                                         \
     F(rt_sigsuspend)                                                           \
-    F(pread64)                                                                 \
-    F(pwrite64)                                                                \
     F(chown)                                                                   \
     F(capget)                                                                  \
     F(capset)                                                                  \

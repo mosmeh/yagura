@@ -18,7 +18,10 @@ static bool unblock_read(struct file* file) {
     return can_read(tty);
 }
 
-static ssize_t tty_read(struct file* file, void* buf, size_t count) {
+static ssize_t tty_pread(struct file* file, void* buf, size_t count,
+                         uint64_t offset) {
+    (void)offset;
+
     struct tty* tty = (struct tty*)file->inode;
 
     for (;;) {
@@ -75,7 +78,9 @@ static void processed_echo(struct tty* tty, const char* buf, size_t count) {
     }
 }
 
-static ssize_t tty_write(struct file* file, const void* buf, size_t count) {
+static ssize_t tty_pwrite(struct file* file, const void* buf, size_t count,
+                          uint64_t offset) {
+    (void)offset;
     struct tty* tty = (struct tty*)file->inode;
     spinlock_lock(&tty->lock);
     processed_echo(tty, buf, count);
@@ -189,8 +194,8 @@ int tty_init(struct tty* tty, uint8_t minor) {
 
     struct inode* inode = &tty->inode;
     static const struct file_ops fops = {
-        .read = tty_read,
-        .write = tty_write,
+        .pread = tty_pread,
+        .pwrite = tty_pwrite,
         .ioctl = tty_ioctl,
         .poll = tty_poll,
     };

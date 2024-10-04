@@ -90,6 +90,14 @@ ssize_t write(int fd, const void* buf, size_t count) {
     RETURN_WITH_ERRNO(ssize_t, SYSCALL3(write, fd, buf, count));
 }
 
+ssize_t pread(int fd, void* buf, size_t count, off_t offset) {
+    RETURN_WITH_ERRNO(ssize_t, SYSCALL5(pread64, fd, buf, count, offset, 0));
+}
+
+ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
+    RETURN_WITH_ERRNO(ssize_t, SYSCALL5(pwrite64, fd, buf, count, offset, 0));
+}
+
 int truncate(const char* path, off_t length) {
     RETURN_WITH_ERRNO(int, SYSCALL2(truncate, path, length));
 }

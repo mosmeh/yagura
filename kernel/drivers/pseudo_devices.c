@@ -8,30 +8,36 @@
 #include <kernel/panic.h>
 #include <kernel/system.h>
 
-static ssize_t read_nothing(struct file* file, void* buffer, size_t count) {
+static ssize_t read_nothing(struct file* file, void* buffer, size_t count,
+                            uint64_t offset) {
     (void)file;
     (void)buffer;
     (void)count;
+    (void)offset;
     return 0;
 }
 
-static ssize_t read_zeros(struct file* file, void* buffer, size_t count) {
+static ssize_t read_zeros(struct file* file, void* buffer, size_t count,
+                          uint64_t offset) {
     (void)file;
+    (void)offset;
     memset(buffer, 0, count);
     return count;
 }
 
 static ssize_t write_to_bit_bucket(struct file* file, const void* buffer,
-                                   size_t count) {
+                                   size_t count, uint64_t offset) {
     (void)file;
     (void)buffer;
+    (void)offset;
     return count;
 }
 
 static ssize_t write_to_full_disk(struct file* file, const void* buffer,
-                                  size_t count) {
+                                  size_t count, uint64_t offset) {
     (void)file;
     (void)buffer;
+    (void)offset;
     if (count > 0)
         return -ENOSPC;
     return 0;
@@ -39,8 +45,8 @@ static ssize_t write_to_full_disk(struct file* file, const void* buffer,
 
 static struct inode* null_device_get(void) {
     static const struct file_ops fops = {
-        .read = read_nothing,
-        .write = write_to_bit_bucket,
+        .pread = read_nothing,
+        .pwrite = write_to_bit_bucket,
     };
     static struct inode inode = {
         .fops = &fops,
@@ -53,8 +59,8 @@ static struct inode* null_device_get(void) {
 
 static struct inode* zero_device_get(void) {
     static const struct file_ops fops = {
-        .read = read_zeros,
-        .write = write_to_bit_bucket,
+        .pread = read_zeros,
+        .pwrite = write_to_bit_bucket,
     };
     static struct inode inode = {
         .fops = &fops,
@@ -67,8 +73,8 @@ static struct inode* zero_device_get(void) {
 
 static struct inode* full_device_get(void) {
     static const struct file_ops fops = {
-        .read = read_zeros,
-        .write = write_to_full_disk,
+        .pread = read_zeros,
+        .pwrite = write_to_full_disk,
     };
     static struct inode inode = {
         .fops = &fops,
@@ -79,16 +85,17 @@ static struct inode* full_device_get(void) {
     return &inode;
 }
 
-static ssize_t random_device_read(struct file* file, void* buffer,
-                                  size_t count) {
+static ssize_t random_device_pread(struct file* file, void* buffer,
+                                   size_t count, uint64_t offset) {
     (void)file;
+    (void)offset;
     return random_get(buffer, count);
 }
 
 static struct inode* random_device_get(void) {
     static const struct file_ops fops = {
-        .read = random_device_read,
-        .write = write_to_bit_bucket,
+        .pread = random_device_pread,
+        .pwrite = write_to_bit_bucket,
     };
     static struct inode inode = {
         .fops = &fops,
@@ -101,8 +108,8 @@ static struct inode* random_device_get(void) {
 
 static struct inode* urandom_device_get(void) {
     static const struct file_ops fops = {
-        .read = random_device_read,
-        .write = write_to_bit_bucket,
+        .pread = random_device_pread,
+        .pwrite = write_to_bit_bucket,
     };
     static struct inode inode = {
         .fops = &fops,
@@ -118,7 +125,8 @@ static int kmsg_device_close(struct file* file) {
     return 0;
 }
 
-static ssize_t kmsg_device_read(struct file* file, void* buffer, size_t count) {
+static ssize_t kmsg_device_pread(struct file* file, void* buffer, size_t count,
+                                 uint64_t offset) {
     struct kmsg {
         char data[KMSG_BUF_SIZE];
         size_t size;
@@ -133,24 +141,18 @@ static ssize_t kmsg_device_read(struct file* file, void* buffer, size_t count) {
         file->private_data = kmsg;
     }
 
-    mutex_lock(&file->offset_lock);
-    if ((size_t)file->offset >= kmsg->size) {
-        count = 0;
-        goto done;
-    }
-    if (file->offset + count >= kmsg->size)
-        count = kmsg->size - file->offset;
-    memcpy(buffer, kmsg->data + file->offset, count);
-    file->offset += count;
-done:
-    mutex_unlock(&file->offset_lock);
-
+    if (offset >= kmsg->size)
+        return 0;
+    if (offset + count >= kmsg->size)
+        count = kmsg->size - offset;
+    memcpy(buffer, kmsg->data + offset, count);
     return count;
 }
 
-static ssize_t kmsg_device_write(struct file* file, const void* buffer,
-                                 size_t count) {
+static ssize_t kmsg_device_pwrite(struct file* file, const void* buffer,
+                                  size_t count, uint64_t offset) {
     (void)file;
+    (void)offset;
     kmsg_write(buffer, count);
     return count;
 }
@@ -158,8 +160,8 @@ static ssize_t kmsg_device_write(struct file* file, const void* buffer,
 static struct inode* kmsg_device_get(void) {
     static const struct file_ops fops = {
         .close = kmsg_device_close,
-        .read = kmsg_device_read,
-        .write = kmsg_device_write,
+        .pread = kmsg_device_pread,
+        .pwrite = kmsg_device_pwrite,
     };
     static struct inode inode = {
         .fops = &fops,

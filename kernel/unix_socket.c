@@ -50,7 +50,10 @@ static bool is_readable(struct file* file) {
     return !ring_buf_is_empty(buf);
 }
 
-static ssize_t unix_socket_read(struct file* file, void* buffer, size_t count) {
+static ssize_t unix_socket_pread(struct file* file, void* buffer, size_t count,
+                                 uint64_t offset) {
+    (void)offset;
+
     struct unix_socket* socket = (struct unix_socket*)file->inode;
     if (!socket->is_connected)
         return -EINVAL;
@@ -86,8 +89,10 @@ static bool is_writable(struct file* file) {
     return !ring_buf_is_full(buf);
 }
 
-static ssize_t unix_socket_write(struct file* file, const void* buffer,
-                                 size_t count) {
+static ssize_t unix_socket_pwrite(struct file* file, const void* buffer,
+                                  size_t count, uint64_t offset) {
+    (void)offset;
+
     struct unix_socket* socket = (struct unix_socket*)file->inode;
     if (!socket->is_connected)
         return -ENOTCONN;
@@ -145,8 +150,8 @@ struct unix_socket* unix_socket_create(void) {
     static const struct file_ops fops = {
         .destroy_inode = unix_socket_destroy_inode,
         .close = unix_socket_close,
-        .read = unix_socket_read,
-        .write = unix_socket_write,
+        .pread = unix_socket_pread,
+        .pwrite = unix_socket_pwrite,
         .poll = unix_socket_poll,
     };
     inode->fops = &fops;

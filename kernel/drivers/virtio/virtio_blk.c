@@ -71,45 +71,36 @@ retry:
 }
 
 static ssize_t virtio_blk_do_io(struct file* file, void* buffer, size_t count,
-                                uint32_t type, bool device_writable) {
+                                uint64_t offset, uint32_t type,
+                                bool device_writable) {
     if (count % SECTOR_SIZE != 0)
         return -EINVAL;
 
-    mutex_lock(&file->offset_lock);
-
-    if (file->offset % SECTOR_SIZE != 0) {
-        mutex_unlock(&file->offset_lock);
+    if (offset % SECTOR_SIZE != 0)
         return -EINVAL;
-    }
-    uint64_t sector = file->offset / SECTOR_SIZE;
+    uint64_t sector = offset / SECTOR_SIZE;
 
     virtio_blk_device* node = (virtio_blk_device*)file->inode;
-    if (sector >= node->capacity) {
-        mutex_unlock(&file->offset_lock);
+    if (sector >= node->capacity)
         return 0;
-    }
     count = MIN(count, (node->capacity - sector) * SECTOR_SIZE);
 
     int rc = submit_request(file, buffer, count, sector, type, device_writable);
-    if (IS_ERR(rc)) {
-        mutex_unlock(&file->offset_lock);
+    if (IS_ERR(rc))
         return rc;
-    }
-
-    file->offset += count;
-    mutex_unlock(&file->offset_lock);
 
     return count;
 }
 
-static ssize_t virtio_blk_read(struct file* file, void* buffer, size_t count) {
-    return virtio_blk_do_io(file, buffer, count, VIRTIO_BLK_T_IN, true);
+static ssize_t virtio_blk_pread(struct file* file, void* buffer, size_t count,
+                                uint64_t offset) {
+    return virtio_blk_do_io(file, buffer, count, offset, VIRTIO_BLK_T_IN, true);
 }
 
-static ssize_t virtio_blk_write(struct file* file, const void* buffer,
-                                size_t count) {
-    return virtio_blk_do_io(file, (void*)buffer, count, VIRTIO_BLK_T_OUT,
-                            false);
+static ssize_t virtio_blk_pwrite(struct file* file, const void* buffer,
+                                 size_t count, uint64_t offset) {
+    return virtio_blk_do_io(file, (void*)buffer, count, offset,
+                            VIRTIO_BLK_T_OUT, false);
 }
 
 static void virtio_blk_device_init(const struct pci_addr* addr) {
@@ -162,8 +153,8 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
     struct inode* inode = &device->inode;
     static const struct file_ops fops = {
         .destroy_inode = virtio_blk_destroy_inode,
-        .read = virtio_blk_read,
-        .write = virtio_blk_write,
+        .pread = virtio_blk_pread,
+        .pwrite = virtio_blk_pwrite,
     };
     inode->fops = &fops;
     inode->mode = S_IFBLK;

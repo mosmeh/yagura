@@ -140,6 +140,16 @@ int inode_stat(struct inode* inode, struct kstat* buf) {
     return 0;
 }
 
+static bool inode_is_seekable(const struct inode* inode) {
+    switch (inode->mode & S_IFMT) {
+    case S_IFREG:
+    case S_IFBLK:
+    case S_IFLNK:
+        return true;
+    }
+    return false;
+}
+
 int file_close(struct file* file) {
     ASSERT(file);
     ASSERT(file->ref_count > 0);
@@ -156,13 +166,27 @@ int file_close(struct file* file) {
 
 ssize_t file_read(struct file* file, void* buffer, size_t count) {
     struct inode* inode = file->inode;
+    if (!inode_is_seekable(inode))
+        return file_pread(file, buffer, count, 0);
+
+    mutex_lock(&file->offset_lock);
+    ssize_t nread = file_pread(file, buffer, count, file->offset);
+    if (IS_OK(nread))
+        file->offset += nread;
+    mutex_unlock(&file->offset_lock);
+    return nread;
+}
+
+ssize_t file_pread(struct file* file, void* buffer, size_t count,
+                   uint64_t offset) {
+    struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
-    if (!inode->fops->read)
+    if (!inode->fops->pread)
         return -EINVAL;
     if ((file->flags & O_ACCMODE) == O_WRONLY)
         return -EBADF;
-    return inode->fops->read(file, buffer, count);
+    return inode->fops->pread(file, buffer, count, offset);
 }
 
 ssize_t file_read_to_end(struct file* file, void* buffer, size_t count) {
@@ -183,13 +207,27 @@ ssize_t file_read_to_end(struct file* file, void* buffer, size_t count) {
 
 ssize_t file_write(struct file* file, const void* buffer, size_t count) {
     struct inode* inode = file->inode;
+    if (!inode_is_seekable(inode))
+        return file_pwrite(file, buffer, count, 0);
+
+    mutex_lock(&file->offset_lock);
+    ssize_t nwritten = file_pwrite(file, buffer, count, file->offset);
+    if (IS_OK(nwritten))
+        file->offset += nwritten;
+    mutex_unlock(&file->offset_lock);
+    return nwritten;
+}
+
+ssize_t file_pwrite(struct file* file, const void* buffer, size_t count,
+                    uint64_t offset) {
+    struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
-    if (!inode->fops->write)
+    if (!inode->fops->pwrite)
         return -EINVAL;
     if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EBADF;
-    return inode->fops->write(file, buffer, count);
+    return inode->fops->pwrite(file, buffer, count, offset);
 }
 
 ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
@@ -232,6 +270,9 @@ int file_truncate(struct file* file, uint64_t length) {
 }
 
 loff_t file_seek(struct file* file, loff_t offset, int whence) {
+    struct inode* inode = file->inode;
+    if (!inode_is_seekable(inode))
+        return -ESPIPE;
     switch (whence) {
     case SEEK_SET:
         if (offset < 0)
@@ -252,8 +293,8 @@ loff_t file_seek(struct file* file, loff_t offset, int whence) {
         return new_offset;
     case SEEK_END: {
         struct kstat stat;
-        inode_ref(file->inode);
-        int rc = inode_stat(file->inode, &stat);
+        inode_ref(inode);
+        int rc = inode_stat(inode, &stat);
         if (IS_ERR(rc))
             return rc;
         loff_t new_offset = (loff_t)stat.st_size + offset;
