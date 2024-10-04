@@ -6,8 +6,8 @@
 
 void vec_destroy(struct vec* vec) { kfree(vec->data); }
 
-ssize_t vec_pread(struct vec* vec, void* bytes, size_t count, off_t offset) {
-    if ((size_t)offset >= vec->size)
+ssize_t vec_pread(struct vec* vec, void* bytes, size_t count, uint64_t offset) {
+    if (offset >= vec->size)
         return 0;
     if (offset + count >= vec->size)
         count = vec->size - offset;
@@ -39,7 +39,7 @@ NODISCARD static int grow_capacity(struct vec* vec, size_t requested_size) {
     return 0;
 }
 
-int vec_reserve(struct vec* vec, size_t additional) {
+int vec_reserve(struct vec* vec, uint64_t additional) {
     size_t new_size = vec->size + additional;
     if (new_size < vec->size)
         return -EOVERFLOW;
@@ -48,12 +48,10 @@ int vec_reserve(struct vec* vec, size_t additional) {
     return grow_capacity(vec, new_size);
 }
 
-int vec_resize(struct vec* vec, off_t new_size) {
-    if (new_size < 0)
-        return -EINVAL;
-    if ((size_t)new_size == vec->size)
+int vec_resize(struct vec* vec, uint64_t new_size) {
+    if (new_size == vec->size)
         return 0;
-    if ((size_t)new_size <= vec->size) {
+    if (new_size <= vec->size) {
         memset(vec->data + new_size, 0, vec->size - new_size);
     } else if ((size_t)new_size <= vec->capacity) {
         memset(vec->data + vec->size, 0, new_size - vec->size);
@@ -69,8 +67,8 @@ int vec_resize(struct vec* vec, off_t new_size) {
 }
 
 ssize_t vec_pwrite(struct vec* vec, const void* bytes, size_t count,
-                   off_t offset) {
-    size_t end = offset + count;
+                   uint64_t offset) {
+    uint64_t end = offset + count;
     if (end > vec->capacity) {
         int rc = grow_capacity(vec, end);
         if (IS_ERR(rc))
@@ -88,7 +86,7 @@ ssize_t vec_append(struct vec* vec, const void* bytes, size_t count) {
     return vec_pwrite(vec, bytes, count, vec->size);
 }
 
-void* vec_mmap(struct vec* vec, size_t length, off_t offset, int flags) {
+void* vec_mmap(struct vec* vec, size_t length, uint64_t offset, int flags) {
     if (offset != 0)
         return ERR_PTR(-ENOTSUP);
     if (length > vec->size)
@@ -106,11 +104,11 @@ int vec_printf(struct vec* vec, const char* format, ...) {
 
 int vec_vsprintf(struct vec* vec, const char* format, va_list args) {
     for (;;) {
-        size_t max_len = vec->capacity - vec->size;
+        uint64_t max_len = vec->capacity - vec->size;
         if (max_len > 0) {
             char* dest = (char*)(vec->data + vec->size);
             int len = vsnprintf(dest, max_len, format, args);
-            if ((size_t)len < max_len) {
+            if ((uint64_t)len < max_len) {
                 vec->size += len;
                 return len;
             }

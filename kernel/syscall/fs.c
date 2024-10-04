@@ -123,7 +123,7 @@ ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     return rc;
 }
 
-int sys_truncate(const char* user_path, off_t length) {
+static int truncate(const char* user_path, uint64_t length) {
     char path[PATH_MAX];
     int rc = copy_pathname_from_user(path, user_path);
     if (IS_ERR(rc))
@@ -136,11 +136,27 @@ int sys_truncate(const char* user_path, off_t length) {
     return rc;
 }
 
-int sys_ftruncate(int fd, off_t length) {
+static int ftruncate(int fd, uint64_t length) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_truncate(file, length);
+}
+
+int sys_truncate(const char* user_path, off_t length) {
+    return truncate(user_path, length);
+}
+
+int sys_ftruncate(int fd, off_t length) { return ftruncate(fd, length); }
+
+int sys_ia32_truncate64(const char* user_path, unsigned long offset_low,
+                        unsigned long offset_high) {
+    return truncate(user_path, ((uint64_t)offset_high << 32) | offset_low);
+}
+
+int sys_ia32_ftruncate64(int fd, unsigned long offset_low,
+                         unsigned long offset_high) {
+    return ftruncate(fd, ((uint64_t)offset_high << 32) | offset_low);
 }
 
 off_t sys_lseek(int fd, off_t offset, int whence) {
@@ -148,6 +164,21 @@ off_t sys_lseek(int fd, off_t offset, int whence) {
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_seek(file, offset, whence);
+}
+
+int sys_llseek(unsigned int fd, unsigned long offset_high,
+               unsigned long offset_low, loff_t* user_result,
+               unsigned int whence) {
+    struct file* file = task_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    loff_t offset = ((loff_t)offset_high << 32) | offset_low;
+    loff_t rc = file_seek(file, offset, whence);
+    if (IS_ERR(rc))
+        return (int)rc;
+    if (copy_to_user(user_result, &rc, sizeof(rc)))
+        return -EFAULT;
+    return 0;
 }
 
 NODISCARD static int stat(const char* user_pathname, struct kstat* buf) {

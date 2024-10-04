@@ -43,7 +43,7 @@ int dentry_getdents(struct file* file, const struct dentry* head,
     if (!dentry)
         return 0;
 
-    for (off_t i = 0; i < file->offset; ++i) {
+    for (uint64_t i = 0; i < file->offset; ++i) {
         dentry = dentry->next;
         if (!dentry)
             return 0;

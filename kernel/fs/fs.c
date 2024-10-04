@@ -208,7 +208,7 @@ ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
     return cursor;
 }
 
-void* file_mmap(struct file* file, size_t length, off_t offset, int flags) {
+void* file_mmap(struct file* file, size_t length, uint64_t offset, int flags) {
     struct inode* inode = file->inode;
     if (!inode->fops->mmap)
         return ERR_PTR(-ENODEV);
@@ -220,7 +220,7 @@ void* file_mmap(struct file* file, size_t length, off_t offset, int flags) {
     return inode->fops->mmap(file, length, offset, flags);
 }
 
-int file_truncate(struct file* file, off_t length) {
+int file_truncate(struct file* file, uint64_t length) {
     struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
@@ -231,7 +231,7 @@ int file_truncate(struct file* file, off_t length) {
     return inode->fops->truncate(file, length);
 }
 
-off_t file_seek(struct file* file, off_t offset, int whence) {
+loff_t file_seek(struct file* file, loff_t offset, int whence) {
     switch (whence) {
     case SEEK_SET:
         if (offset < 0)
@@ -242,7 +242,7 @@ off_t file_seek(struct file* file, off_t offset, int whence) {
         return offset;
     case SEEK_CUR:
         mutex_lock(&file->offset_lock);
-        off_t new_offset = file->offset + offset;
+        loff_t new_offset = (loff_t)file->offset + offset;
         if (new_offset < 0) {
             mutex_unlock(&file->offset_lock);
             return -EINVAL;
@@ -256,7 +256,7 @@ off_t file_seek(struct file* file, off_t offset, int whence) {
         int rc = inode_stat(file->inode, &stat);
         if (IS_ERR(rc))
             return rc;
-        off_t new_offset = stat.st_size + offset;
+        loff_t new_offset = (loff_t)stat.st_size + offset;
         if (new_offset < 0)
             return -EINVAL;
         mutex_lock(&file->offset_lock);

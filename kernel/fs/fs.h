@@ -20,7 +20,7 @@ struct file {
     struct mutex offset_lock;
     struct inode* inode;
     atomic_int flags;
-    off_t offset;
+    uint64_t offset;
     void* private_data;
     atomic_size_t ref_count;
 };
@@ -33,7 +33,7 @@ struct kstat {
     uid_t st_uid;         /* User ID of owner */
     gid_t st_gid;         /* Group ID of owner */
     dev_t st_rdev;        /* Device ID (if special file) */
-    off_t st_size;        /* Total size, in bytes */
+    uint64_t st_size;     /* Total size, in bytes */
     blksize_t st_blksize; /* Block size for filesystem I/O */
     blkcnt_t st_blocks;   /* Number of 512 B blocks allocated */
 
@@ -57,8 +57,8 @@ struct file_ops {
     int (*close)(struct file*);
     ssize_t (*read)(struct file*, void* buffer, size_t count);
     ssize_t (*write)(struct file*, const void* buffer, size_t count);
-    void* (*mmap)(struct file*, size_t length, off_t offset, int flags);
-    int (*truncate)(struct file*, off_t length);
+    void* (*mmap)(struct file*, size_t length, uint64_t offset, int flags);
+    int (*truncate)(struct file*, uint64_t length);
     int (*ioctl)(struct file*, int request, void* user_argp);
     int (*getdents)(struct file*, getdents_callback_fn callback, void* ctx);
     short (*poll)(struct file*, short events);
@@ -70,9 +70,9 @@ struct inode {
     dev_t rdev; // Device number (if this inode is a special file)
     _Atomic(struct inode*) fifo;
     _Atomic(struct unix_socket*) bound_socket;
+    mode_t mode;
     _Atomic(nlink_t) num_links;
     atomic_size_t ref_count;
-    mode_t mode;
 };
 
 void inode_ref(struct inode*);
@@ -94,9 +94,10 @@ NODISCARD ssize_t file_read_to_end(struct file*, void* buffer, size_t count);
 NODISCARD ssize_t file_write(struct file*, const void* buffer, size_t count);
 NODISCARD ssize_t file_write_all(struct file*, const void* buffer,
                                  size_t count);
-NODISCARD void* file_mmap(struct file*, size_t length, off_t offset, int flags);
-NODISCARD int file_truncate(struct file*, off_t length);
-NODISCARD off_t file_seek(struct file*, off_t offset, int whence);
+NODISCARD void* file_mmap(struct file*, size_t length, uint64_t offset,
+                          int flags);
+NODISCARD int file_truncate(struct file*, uint64_t length);
+NODISCARD loff_t file_seek(struct file*, loff_t offset, int whence);
 NODISCARD int file_ioctl(struct file*, int request, void* user_argp);
 NODISCARD int file_getdents(struct file*, getdents_callback_fn, void* ctx);
 NODISCARD short file_poll(struct file*, short events);
