@@ -164,4 +164,22 @@ void page_table_unmap(uintptr_t virt_addr, uintptr_t size);
 // Changes the page table flags for the virtual address range.
 void page_table_set_flags(uintptr_t virt_addr, uintptr_t size, uint16_t flags);
 
+#define MAX_NUM_KMAPS_PER_TASK 2
+
+struct kmap_ctrl {
+    size_t num_mapped;
+    uintptr_t phys_addrs[MAX_NUM_KMAPS_PER_TASK];
+};
+
+// Maps a physical page to the kernel virtual address space.
+// MAX_NUM_KMAPS_PER_TASK pages can be mapped at the same time for each task.
+void* kmap(uintptr_t phys_addr);
+
+// Unmaps the kmapped virtual address.
+// kunmap must be called in the reverse order of kmap.
+void kunmap(void* virt_addr);
+
+// Should be called on context switch with the kmap_ctrl of the new task.
+void kmap_switch(struct kmap_ctrl*);
+
 #endif

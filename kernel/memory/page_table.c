@@ -171,43 +171,14 @@ static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
     pop_cli(int_flag);
 }
 
-// quickmap temporarily maps a physical page to the fixed virtual addresses,
-// which are at the last two pages of the kernel page directory
-
-#define QUICKMAP_PAGE 1022
-#define QUICKMAP_PAGE_TABLE 1023
-
-// this is locked in page_directory_clone_current
-static struct mutex quickmap_lock;
-
-static uintptr_t quickmap(size_t which, uintptr_t phys_addr, uint32_t flags) {
-    volatile page_table* pt = get_page_table_from_index(KERNEL_PDE_IDX);
-    volatile page_table_entry* pte = pt->entries + which;
-    ASSERT(pte->raw == 0);
-    pte->raw = phys_addr | flags;
-    pte->present = true;
-    uintptr_t virt_addr = KERNEL_VIRT_ADDR + PAGE_SIZE * which;
-    flush_tlb_range(virt_addr, PAGE_SIZE);
-    return virt_addr;
-}
-
-static void unquickmap(size_t which) {
-    volatile page_table* pt = get_page_table_from_index(KERNEL_PDE_IDX);
-    volatile page_table_entry* pte = pt->entries + which;
-    ASSERT(pte->present);
-    pte->raw = 0;
-    flush_tlb_range(KERNEL_VIRT_ADDR + PAGE_SIZE * which, PAGE_SIZE);
-}
-
 static uintptr_t clone_page_table(const volatile page_table* src,
                                   uintptr_t src_virt_addr) {
     uintptr_t dest_pt_phys_addr = page_alloc();
     if (IS_ERR(dest_pt_phys_addr))
         return dest_pt_phys_addr;
 
-    uintptr_t dest_pt_virt_addr =
-        quickmap(QUICKMAP_PAGE_TABLE, dest_pt_phys_addr, PTE_WRITE);
-    volatile page_table* dest_pt = (volatile page_table*)dest_pt_virt_addr;
+    volatile page_table* dest_pt =
+        (volatile page_table*)kmap(dest_pt_phys_addr);
 
     for (size_t i = 0; i < 1024; ++i) {
         if (!src->entries[i].present) {
@@ -223,21 +194,20 @@ static uintptr_t clone_page_table(const volatile page_table* src,
 
         uintptr_t dest_page_phys_addr = page_alloc();
         if (IS_ERR(dest_page_phys_addr)) {
-            unquickmap(QUICKMAP_PAGE_TABLE);
+            kunmap((void*)dest_pt);
             return dest_page_phys_addr;
         }
 
         dest_pt->entries[i].raw =
             dest_page_phys_addr | (src->entries[i].raw & PTE_FLAGS_MASK);
 
-        uintptr_t dest_page_virt_addr =
-            quickmap(QUICKMAP_PAGE, dest_page_phys_addr, PTE_WRITE);
-        memcpy((void*)dest_page_virt_addr,
-               (void*)(src_virt_addr + PAGE_SIZE * i), PAGE_SIZE);
-        unquickmap(QUICKMAP_PAGE);
+        void* dest_page_kaddr = kmap(dest_page_phys_addr);
+        memcpy(dest_page_kaddr, (void*)(src_virt_addr + PAGE_SIZE * i),
+               PAGE_SIZE);
+        kunmap(dest_page_kaddr);
     }
 
-    unquickmap(QUICKMAP_PAGE_TABLE);
+    kunmap((void*)dest_pt);
     return dest_pt_phys_addr;
 }
 
@@ -248,8 +218,6 @@ struct page_directory* page_directory_clone_current(void) {
 
     // copy userland region
 
-    mutex_lock(&quickmap_lock);
-
     struct page_directory* src = current_page_directory();
     for (size_t i = 0; i < KERNEL_PDE_IDX; ++i) {
         if (!src->entries[i].present) {
@@ -259,16 +227,12 @@ struct page_directory* page_directory_clone_current(void) {
 
         volatile page_table* pt = get_page_table_from_index(i);
         uintptr_t cloned_pt_phys_addr = clone_page_table(pt, i * 0x400000);
-        if (IS_ERR(cloned_pt_phys_addr)) {
-            mutex_unlock(&quickmap_lock);
+        if (IS_ERR(cloned_pt_phys_addr))
             return ERR_PTR(cloned_pt_phys_addr);
-        }
 
         dst->entries[i].raw =
             cloned_pt_phys_addr | (src->entries[i].raw & PTE_FLAGS_MASK);
     }
-
-    mutex_unlock(&quickmap_lock);
 
     return dst;
 }
@@ -462,4 +426,82 @@ void page_table_set_flags(uintptr_t virt_addr, uintptr_t size, uint16_t flags) {
         pte->present = true;
     }
     flush_tlb_range(virt_addr, size);
+}
+
+static uintptr_t kmap_addr(size_t index) {
+    return KMAP_START +
+           (cpu_get_id() * MAX_NUM_KMAPS_PER_TASK + index) * PAGE_SIZE;
+}
+
+void* kmap(uintptr_t phys_addr) {
+    ASSERT(phys_addr);
+    ASSERT(phys_addr % PAGE_SIZE == 0);
+
+    bool int_flag = push_cli();
+
+    struct kmap_ctrl* kmap = &current->kmap;
+    size_t index = kmap->num_mapped++;
+    ASSERT(index < MAX_NUM_KMAPS_PER_TASK);
+    ASSERT(!kmap->phys_addrs[index]);
+    kmap->phys_addrs[index] = phys_addr;
+
+    uintptr_t kaddr = kmap_addr(index);
+    volatile page_table_entry* pte = get_or_create_pte(kaddr);
+    ASSERT(pte);
+    pte->raw = phys_addr;
+    pte->write = true;
+    pte->global = true;
+    pte->present = true;
+    flush_tlb_single(kaddr);
+
+    pop_cli(int_flag);
+
+    return (void*)kaddr;
+}
+
+void kunmap(void* addr) {
+    ASSERT(addr);
+    size_t offset = (uintptr_t)addr - kmap_addr(0);
+    ASSERT(offset % PAGE_SIZE == 0);
+    size_t index = offset / PAGE_SIZE;
+    ASSERT(index < MAX_NUM_KMAPS_PER_TASK);
+
+    bool int_flag = push_cli();
+
+    struct kmap_ctrl* kmap = &current->kmap;
+    ASSERT(kmap->num_mapped == index + 1);
+    kmap->phys_addrs[index] = 0;
+    --kmap->num_mapped;
+
+    volatile page_table_entry* pte = get_pte((uintptr_t)addr);
+    ASSERT(pte && pte->present);
+    pte->raw = 0;
+    flush_tlb_single((uintptr_t)addr);
+
+    pop_cli(int_flag);
+}
+
+void kmap_switch(struct kmap_ctrl* kmap) {
+    ASSERT(!interrupts_enabled());
+    ASSERT(kmap);
+
+    size_t i = 0;
+    for (; i < kmap->num_mapped; ++i) {
+        uintptr_t virt_addr = kmap_addr(i);
+        volatile page_table_entry* pte = get_or_create_pte(virt_addr);
+        ASSERT(pte);
+        pte->raw = kmap->phys_addrs[i];
+        pte->write = true;
+        pte->global = true;
+        pte->present = true;
+        flush_tlb_single(virt_addr);
+    }
+    for (; i < MAX_NUM_KMAPS_PER_TASK; ++i) {
+        uintptr_t virt_addr = kmap_addr(i);
+        volatile page_table_entry* pte = get_pte(virt_addr);
+        if (!pte || !pte->present)
+            break;
+        pte->raw = 0;
+        flush_tlb_single(virt_addr);
+    }
 }

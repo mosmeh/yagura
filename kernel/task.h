@@ -32,6 +32,8 @@ struct task {
     uintptr_t kernel_stack_base, kernel_stack_top;
     uintptr_t arg_start, arg_end, env_start, env_end;
 
+    struct kmap_ctrl kmap;
+
     struct gdt_segment tls[NUM_GDT_TLS_ENTRIES];
 
     struct fs* fs;
