@@ -2,8 +2,22 @@
 
 #include "memory.h"
 #include <common/extra.h>
+#include <kernel/cpu.h>
 #include <kernel/lock.h>
 #include <stdalign.h>
+
+// In the current setup, kernel image (including 1MiB offset) has to fit in
+// single page table (< 4MiB).
+#define KERNEL_IMAGE_END (KERNEL_VIRT_ADDR + 1024 * PAGE_SIZE)
+
+#define KMAP_START KERNEL_IMAGE_END
+#define KMAP_END                                                               \
+    (KMAP_START + MAX_NUM_KMAPS_PER_TASK * MAX_NUM_CPUS * PAGE_SIZE)
+
+#define KERNEL_HEAP_START KMAP_END
+
+// Last 4MiB is for recursive mapping
+#define KERNEL_HEAP_END 0xffc00000
 
 struct page_directory;
 typedef struct multiboot_info multiboot_info_t;
@@ -32,12 +46,6 @@ void page_init(const multiboot_info_t*);
 uintptr_t page_alloc(void);
 void page_ref(uintptr_t phys_addr);
 void page_unref(uintptr_t phys_addr);
-
-// kernel heap starts right after the quickmap page
-#define KERNEL_HEAP_START (KERNEL_VIRT_ADDR + 1024 * PAGE_SIZE)
-
-// last 4MiB is for recursive mapping
-#define KERNEL_HEAP_END 0xffc00000
 
 void page_table_init(void);
 

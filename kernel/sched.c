@@ -134,6 +134,8 @@ noreturn void switch_context(void) {
     cpu->current_task = task;
 
     vm_enter(task->vm);
+    kmap_switch(&task->kmap);
+
     gdt_set_cpu_kernel_stack(task->kernel_stack_top);
     memcpy(cpu_get_current()->gdt + GDT_ENTRY_TLS_MIN, current->tls,
            sizeof(current->tls));

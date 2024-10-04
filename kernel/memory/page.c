@@ -1,4 +1,5 @@
 #include "memory.h"
+#include "private.h"
 #include <common/extra.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/kmsg.h>
@@ -15,7 +16,7 @@
 static size_t bitmap_len;
 static uint32_t bitmap[BITMAP_MAX_LEN];
 static uint8_t ref_counts[MAX_NUM_PAGES];
-static struct mutex lock;
+static struct spinlock lock;
 
 static bool bitmap_get(size_t i) {
     ASSERT(BITMAP_INDEX(i) < bitmap_len);
@@ -138,9 +139,7 @@ static void bitmap_init(const multiboot_info_t* mb_info, uintptr_t lower_bound,
 }
 
 void page_init(const multiboot_info_t* mb_info) {
-    // In the current setup, kernel image (including 1MiB offset) has to fit in
-    // single page table (< 4MiB), and last two pages are reserved for quickmap
-    ASSERT((uintptr_t)kernel_end <= KERNEL_VIRT_ADDR + 1022 * PAGE_SIZE);
+    ASSERT((uintptr_t)kernel_end <= KERNEL_IMAGE_END);
 
     uintptr_t lower_bound;
     uintptr_t upper_bound;
@@ -152,11 +151,11 @@ void page_init(const multiboot_info_t* mb_info) {
 }
 
 uintptr_t page_alloc(void) {
-    mutex_lock(&lock);
+    spinlock_lock(&lock);
 
     ssize_t first_set = bitmap_find_first_set();
     if (IS_ERR(first_set)) {
-        mutex_unlock(&lock);
+        spinlock_unlock(&lock);
         kprint("page: out of physical pages\n");
         return first_set;
     }
@@ -168,7 +167,7 @@ uintptr_t page_alloc(void) {
     bitmap_clear(first_set);
     stats.free_kibibytes -= PAGE_SIZE / 1024;
 
-    mutex_unlock(&lock);
+    spinlock_unlock(&lock);
     return first_set * PAGE_SIZE;
 }
 
@@ -178,7 +177,7 @@ void page_ref(uintptr_t phys_addr) {
     if (BITMAP_INDEX(index) >= bitmap_len)
         return;
 
-    mutex_lock(&lock);
+    spinlock_lock(&lock);
 
     ASSERT(ref_counts[index] > 0);
     ASSERT(!bitmap_get(index));
@@ -186,7 +185,7 @@ void page_ref(uintptr_t phys_addr) {
     if (ref_counts[index] < UINT8_MAX)
         ++ref_counts[index];
 
-    mutex_unlock(&lock);
+    spinlock_unlock(&lock);
 }
 
 void page_unref(uintptr_t phys_addr) {
@@ -195,7 +194,7 @@ void page_unref(uintptr_t phys_addr) {
     if (BITMAP_INDEX(index) >= bitmap_len)
         return;
 
-    mutex_lock(&lock);
+    spinlock_lock(&lock);
 
     ASSERT(ref_counts[index] > 0);
     ASSERT(!bitmap_get(index));
@@ -211,11 +210,11 @@ void page_unref(uintptr_t phys_addr) {
         }
     }
 
-    mutex_unlock(&lock);
+    spinlock_unlock(&lock);
 }
 
 void memory_get_stats(struct memory_stats* out_stats) {
-    mutex_lock(&lock);
+    spinlock_lock(&lock);
     *out_stats = stats;
-    mutex_unlock(&lock);
+    spinlock_unlock(&lock);
 }
