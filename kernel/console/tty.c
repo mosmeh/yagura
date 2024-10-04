@@ -29,6 +29,7 @@ static ssize_t tty_read(struct file* file, void* buf, size_t count) {
         spinlock_lock(&tty->lock);
         if (can_read(tty))
             break;
+        spinlock_unlock(&tty->lock);
     }
 
     ssize_t ret = 0;
