@@ -218,7 +218,7 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
 static int add_item(proc_dir_inode* parent, const proc_item_def* item_def) {
     proc_item_inode* node = kmalloc(sizeof(proc_item_inode));
     if (!node) {
-        inode_unref((struct inode*)parent);
+        inode_unref(&parent->inode);
         return -ENOMEM;
     }
     *node = (proc_item_inode){0};
@@ -232,7 +232,7 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def) {
     inode->ref_count = 1;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);
-    inode_unref((struct inode*)parent);
+    inode_unref(&parent->inode);
     return rc;
 }
 
