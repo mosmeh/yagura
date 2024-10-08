@@ -54,7 +54,6 @@
     F(fsync)                                                                   \
     F(modify_ldt)                                                              \
     F(adjtimex)                                                                \
-    F(mprotect)                                                                \
     F(init_module)                                                             \
     F(delete_module)                                                           \
     F(quotactl)                                                                \
@@ -65,8 +64,6 @@
     F(setfsgid)                                                                \
     F(flock)                                                                   \
     F(msync)                                                                   \
-    F(readv)                                                                   \
-    F(writev)                                                                  \
     F(getsid)                                                                  \
     F(fdatasync)                                                               \
     F(mlock)                                                                   \
@@ -145,7 +142,6 @@
     F(epoll_ctl)                                                               \
     F(epoll_wait)                                                              \
     F(remap_file_pages)                                                        \
-    F(set_tid_address)                                                         \
     F(timer_create)                                                            \
     F(timer_settime)                                                           \
     F(timer_gettime)                                                           \

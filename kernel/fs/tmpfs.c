@@ -117,7 +117,6 @@ static const struct file_ops non_dir_fops = {
     .stat = tmpfs_stat,
     .pread = tmpfs_pread,
     .pwrite = tmpfs_pwrite,
-    .mmap = tmpfs_mmap,
     .truncate = tmpfs_truncate,
 };
 

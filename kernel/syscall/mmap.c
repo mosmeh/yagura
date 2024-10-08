@@ -9,41 +9,58 @@
 #include <kernel/safe_string.h>
 #include <kernel/task.h>
 
+static uint32_t prot_to_vm_flags(int prot) {
+    uint32_t flags = VM_USER;
+    if (prot & PROT_READ)
+        flags |= VM_READ;
+    if (prot & PROT_WRITE)
+        flags |= VM_WRITE;
+    return flags;
+}
+
 void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
                      unsigned long pgoff) {
-    (void)addr;
-
     if (length == 0 || !((flags & MAP_PRIVATE) ^ (flags & MAP_SHARED)))
         return ERR_PTR(-EINVAL);
 
-    if (flags & MAP_FIXED)
-        return ERR_PTR(-ENOTSUP);
-    if ((flags & MAP_ANONYMOUS) && pgoff)
-        return ERR_PTR(-ENOTSUP);
-
-    int vm_flags = VM_USER;
-    if (prot & PROT_READ)
-        vm_flags |= VM_READ;
-    if (prot & PROT_WRITE)
-        vm_flags |= VM_WRITE;
-    if (flags & MAP_SHARED)
-        vm_flags |= VM_SHARED;
-
+    struct vobj* vobj;
     if (flags & MAP_ANONYMOUS) {
-        void* mapped_addr = vm_alloc(length, vm_flags);
-        if (IS_ERR(mapped_addr))
-            return mapped_addr;
-        memset(mapped_addr, 0, length);
-        return mapped_addr;
+        vobj = anon_create();
+        if (IS_ERR(vobj))
+            return vobj;
+    } else {
+        struct file* file = task_get_file(fd);
+        if (IS_ERR(file))
+            return file;
+        if (S_ISDIR(file->inode->mode))
+            return ERR_PTR(-ENODEV);
+        vobj = &file->vobj;
+        vobj_ref(vobj);
     }
 
-    struct file* file = task_get_file(fd);
-    if (IS_ERR(file))
-        return file;
-    if (S_ISDIR(file->inode->mode))
-        return ERR_PTR(-ENODEV);
+    struct vm* vm = current->vm;
+    spinlock_lock(&vm->lock);
 
-    return file_mmap(file, length, pgoff * PAGE_SIZE, vm_flags);
+    size_t npages = DIV_CEIL(length, PAGE_SIZE);
+    struct vm_region* region = (flags & MAP_FIXED)
+                                   ? vm_alloc_at(vm, addr, npages)
+                                   : vm_alloc(vm, npages);
+    if (IS_ERR(region)) {
+        spinlock_unlock(&vm->lock);
+        vobj_unref(vobj);
+        return region;
+    }
+
+    region->flags = prot_to_vm_flags(prot);
+    if (flags & MAP_SHARED)
+        region->flags |= VM_SHARED;
+
+    region->offset = pgoff;
+    vm_region_set_vobj(region, vobj);
+
+    spinlock_unlock(&vm->lock);
+
+    return (void*)(region->start * PAGE_SIZE);
 }
 
 struct mmap_arg_struct {
@@ -65,11 +82,50 @@ void* sys_old_mmap(struct mmap_arg_struct* user_arg) {
                           arg.offset / PAGE_SIZE);
 }
 
-int sys_munmap(void* addr, size_t length) {
+static int for_each_overlapping_region(struct vm* vm, void* addr, size_t length,
+                                       int (*fn)(struct vm_region*,
+                                                 size_t offset, size_t npages,
+                                                 void* ctx),
+                                       void* ctx) {
     if ((uintptr_t)addr % PAGE_SIZE || length == 0)
         return -EINVAL;
-    int rc = vm_unmap(addr, length);
-    if (rc == -ENOENT)
-        return 0;
-    return rc;
+
+    size_t start = (uintptr_t)addr / PAGE_SIZE;
+    size_t end = DIV_CEIL((uintptr_t)addr + length, PAGE_SIZE);
+
+    spinlock_lock(&vm->lock);
+    int ret = 0;
+    struct vm_region* region = vm_find(vm, addr);
+    for (; region; region = region->next) {
+        if (region->start >= end)
+            break;
+        ret = fn(region, start - region->start, end - region->start, ctx);
+        if (IS_ERR(ret))
+            break;
+    }
+    spinlock_unlock(&vm->lock);
+    return ret;
+}
+
+static int unmap(struct vm_region* region, size_t offset, size_t npages,
+                 void* ctx) {
+    (void)ctx;
+    return vm_region_free(region, offset, npages);
+}
+
+int sys_munmap(void* addr, size_t length) {
+    return for_each_overlapping_region(current->vm, addr, length, unmap, NULL);
+}
+
+static int protect(struct vm_region* region, size_t offset, size_t npages,
+                   void* ctx) {
+    uint32_t vm_flags = *(uint32_t*)ctx;
+    return vm_region_set_flags(region, offset, npages, vm_flags,
+                               VM_READ | VM_WRITE);
+}
+
+int sys_mprotect(void* addr, size_t len, int prot) {
+    uint32_t vm_flags = prot_to_vm_flags(prot);
+    return for_each_overlapping_region(current->vm, addr, len, protect,
+                                       &vm_flags);
 }

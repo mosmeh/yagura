@@ -15,7 +15,7 @@
 static noreturn void userland_init(void) {
     current->tid = current->tgid = current->pgid = task_generate_next_tid();
 
-    static const char* envp[] = {NULL};
+    static const char* envp[] = {"HOME=/", "TERM=linux", NULL};
 
     const char* init_path = cmdline_lookup("init");
     if (init_path) {

@@ -79,15 +79,6 @@ static int bochs_fb_set_info(struct fb_info* inout_info) {
     return 0;
 }
 
-static void* bochs_fb_mmap(size_t length, uint64_t offset, int flags) {
-    if (offset != 0)
-        return ERR_PTR(-ENXIO);
-    if (!(flags & VM_SHARED))
-        return ERR_PTR(-ENODEV);
-
-    return vm_phys_map(phys_addr, length, flags);
-}
-
 struct fb* bochs_fb_init(void) {
     pci_enumerate_devices(pci_device_callback, NULL);
     if (!phys_addr)
@@ -99,7 +90,6 @@ struct fb* bochs_fb_init(void) {
     static struct fb fb = {
         .get_info = bochs_fb_get_info,
         .set_info = bochs_fb_set_info,
-        .mmap = bochs_fb_mmap,
     };
     return &fb;
 }

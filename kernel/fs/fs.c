@@ -26,33 +26,33 @@ void inode_unref(struct inode* inode) {
 
 void inode_destroy(struct inode* inode) {
     ASSERT(inode->ref_count == 0 && inode->num_links == 0);
-    ASSERT(inode->fops->destroy_inode);
+    ASSERT(inode->ops->destroy_inode);
     inode_unref(inode->fifo);
     inode_unref(&inode->bound_socket->inode);
-    inode->fops->destroy_inode(inode);
+    inode->ops->destroy_inode(inode);
 }
 
 struct inode* inode_lookup_child(struct inode* inode, const char* name) {
-    if (!inode->fops->lookup_child || !S_ISDIR(inode->mode)) {
+    if (!inode->ops->lookup_child || !S_ISDIR(inode->mode)) {
         inode_unref(inode);
         return ERR_PTR(-ENOTDIR);
     }
-    return inode->fops->lookup_child(inode, name);
+    return inode->ops->lookup_child(inode, name);
 }
 
 struct inode* inode_create_child(struct inode* inode, const char* name,
                                  mode_t mode) {
-    if (!inode->fops->create_child || !S_ISDIR(inode->mode)) {
+    if (!inode->ops->create_child || !S_ISDIR(inode->mode)) {
         inode_unref(inode);
         return ERR_PTR(-ENOTDIR);
     }
     ASSERT(mode & S_IFMT);
-    return inode->fops->create_child(inode, name, mode);
+    return inode->ops->create_child(inode, name, mode);
 }
 
 int inode_link_child(struct inode* inode, const char* name,
                      struct inode* child) {
-    if (!inode->fops->link_child || !S_ISDIR(inode->mode)) {
+    if (!inode->ops->link_child || !S_ISDIR(inode->mode)) {
         inode_unref(inode);
         inode_unref(child);
         return -ENOTDIR;
@@ -62,20 +62,49 @@ int inode_link_child(struct inode* inode, const char* name,
         inode_unref(child);
         return -EXDEV;
     }
-    return inode->fops->link_child(inode, name, child);
+    return inode->ops->link_child(inode, name, child);
 }
 
 int inode_unlink_child(struct inode* inode, const char* name) {
-    if (!inode->fops->unlink_child || !S_ISDIR(inode->mode)) {
+    if (!inode->ops->unlink_child || !S_ISDIR(inode->mode)) {
         inode_unref(inode);
         return -ENOTDIR;
     }
-    struct inode* child = inode->fops->unlink_child(inode, name);
+    struct inode* child = inode->ops->unlink_child(inode, name);
     if (IS_ERR(child))
         return PTR_ERR(child);
     inode_unref(child);
     return 0;
 }
+
+static void file_destroy(struct vobj* vobj) {
+    struct file* file = CONTAINER_OF(vobj, struct file, vobj);
+    struct inode* inode = file->inode;
+    if (inode->ops->close)
+        inode->ops->close(file);
+    kfree(file);
+    inode_unref(inode);
+}
+
+static struct vobj* file_clone(struct vobj* vobj) {
+    struct file* file = CONTAINER_OF(vobj, struct file, vobj);
+    file_ref(file);
+    return vobj;
+}
+
+static bool file_handle_fault(struct vm_region* region, size_t offset,
+                              uint32_t error_code) {
+    (void)region;
+    (void)offset;
+    (void)error_code;
+    UNIMPLEMENTED();
+}
+
+static const struct vm_ops file_vm_ops = {
+    .destroy_vobj = file_destroy,
+    .clone_vobj = file_clone,
+    .handle_fault = file_handle_fault,
+};
 
 struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
     switch (flags & O_ACCMODE) {
@@ -98,13 +127,18 @@ struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
         inode_unref(inode);
         return ERR_PTR(-ENOMEM);
     }
-    *file = (struct file){0};
-    file->inode = inode;
-    file->flags = flags;
-    file->ref_count = 1;
+    *file = (struct file){
+        .vobj =
+            {
+                .ops = &file_vm_ops,
+                .ref_count = 1,
+            },
+        .inode = inode,
+        .flags = flags,
+    };
 
-    if (inode->fops->open) {
-        int rc = inode->fops->open(file, mode);
+    if (inode->ops->open) {
+        int rc = inode->ops->open(file, mode);
         if (IS_ERR(rc)) {
             inode_unref(inode);
             kfree(file);
@@ -116,8 +150,8 @@ struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
         if (S_ISDIR(inode->mode))
             return ERR_PTR(-EISDIR);
         // Truncation is performed even with O_RDONLY.
-        if (inode->fops->truncate) {
-            int rc = inode->fops->truncate(file, 0);
+        if (inode->ops->truncate) {
+            int rc = inode->ops->truncate(file, 0);
             if (IS_ERR(rc)) {
                 file_close(file);
                 return ERR_PTR(rc);
@@ -135,24 +169,15 @@ int inode_stat(struct inode* inode, struct kstat* buf) {
         .st_nlink = inode->num_links,
         .st_rdev = inode->rdev,
     };
-    if (inode->fops->stat)
-        return inode->fops->stat(inode, buf);
+    if (inode->ops->stat)
+        return inode->ops->stat(inode, buf);
     inode_unref(inode);
     return 0;
 }
 
-int file_close(struct file* file) {
+void file_ref(struct file* file) {
     ASSERT(file);
-    ASSERT(file->ref_count > 0);
-    if (--file->ref_count > 0)
-        return 0;
-    struct inode* inode = file->inode;
-    int rc = 0;
-    if (inode->fops->close)
-        rc = inode->fops->close(file);
-    kfree(file);
-    inode_unref(inode);
-    return rc;
+    ++file->vobj.ref_count;
 }
 
 ssize_t file_read(struct file* file, void* buffer, size_t count) {
@@ -172,11 +197,11 @@ ssize_t file_pread(struct file* file, void* buffer, size_t count,
     struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
-    if (!inode->fops->pread)
+    if (!inode->ops->pread)
         return -EINVAL;
     if ((file->flags & O_ACCMODE) == O_WRONLY)
         return -EBADF;
-    return inode->fops->pread(file, buffer, count, offset);
+    return inode->ops->pread(file, buffer, count, offset);
 }
 
 ssize_t file_read_to_end(struct file* file, void* buffer, size_t count) {
@@ -212,11 +237,11 @@ ssize_t file_pwrite(struct file* file, const void* buffer, size_t count,
     struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
-    if (!inode->fops->pwrite)
+    if (!inode->ops->pwrite)
         return -EINVAL;
     if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EBADF;
-    return inode->fops->pwrite(file, buffer, count, offset);
+    return inode->ops->pwrite(file, buffer, count, offset);
 }
 
 ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
@@ -235,27 +260,15 @@ ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
     return cursor;
 }
 
-void* file_mmap(struct file* file, size_t length, uint64_t offset, int flags) {
-    struct inode* inode = file->inode;
-    if (!inode->fops->mmap)
-        return ERR_PTR(-ENODEV);
-    if ((file->flags & O_ACCMODE) == O_WRONLY)
-        return ERR_PTR(-EACCES);
-    if ((flags & VM_SHARED) && (flags & VM_WRITE) &&
-        ((file->flags & O_ACCMODE) != O_RDWR))
-        return ERR_PTR(-EACCES);
-    return inode->fops->mmap(file, length, offset, flags);
-}
-
 int file_truncate(struct file* file, uint64_t length) {
     struct inode* inode = file->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
-    if (!inode->fops->truncate)
+    if (!inode->ops->truncate)
         return -EINVAL;
     if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EINVAL;
-    return inode->fops->truncate(file, length);
+    return inode->ops->truncate(file, length);
 }
 
 loff_t file_seek(struct file* file, loff_t offset, int whence) {
@@ -300,24 +313,24 @@ loff_t file_seek(struct file* file, loff_t offset, int whence) {
 
 int file_ioctl(struct file* file, int request, void* user_argp) {
     struct inode* inode = file->inode;
-    if (!inode->fops->ioctl)
+    if (!inode->ops->ioctl)
         return -ENOTTY;
-    return inode->fops->ioctl(file, request, user_argp);
+    return inode->ops->ioctl(file, request, user_argp);
 }
 
 int file_getdents(struct file* file, getdents_callback_fn callback, void* ctx) {
     struct inode* inode = file->inode;
-    if (!inode->fops->getdents || !S_ISDIR(inode->mode))
+    if (!inode->ops->getdents || !S_ISDIR(inode->mode))
         return -ENOTDIR;
 
-    return inode->fops->getdents(file, callback, ctx);
+    return inode->ops->getdents(file, callback, ctx);
 }
 
 short file_poll(struct file* file, short events) {
     struct inode* inode = file->inode;
-    if (!inode->fops->poll)
+    if (!inode->ops->poll)
         return events & (POLLIN | POLLOUT);
-    short revents = inode->fops->poll(file, events);
+    short revents = inode->ops->poll(file, events);
     ASSERT(revents >= 0);
     if (!(events & POLLIN))
         ASSERT(!(revents & POLLIN));

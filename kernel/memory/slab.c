@@ -20,31 +20,36 @@ static int ensure_cache(struct slab_cache* cache) {
         return 0;
 
     int ret = 0;
-    mutex_lock(&kernel_vm->lock);
+    spinlock_lock(&kernel_vm->lock);
 
-    uintptr_t virt_addr;
-    struct vm_region* cursor = vm_find_gap(kernel_vm, PAGE_SIZE, &virt_addr);
+    size_t start;
+    struct vm_region* cursor = vm_find_gap(kernel_vm, PAGE_SIZE, &start);
     if (IS_ERR(cursor)) {
         ret = PTR_ERR(cursor);
         goto fail;
     }
 
-    ret = page_table_map_anon(virt_addr, PAGE_SIZE, PTE_WRITE | PTE_GLOBAL);
+    size_t phys_index = page_alloc_raw();
+    if (!phys_index) {
+        ret = -ENOMEM;
+        goto fail;
+    }
+
+    ret = page_table_map(start, phys_index, 1, PTE_WRITE | PTE_GLOBAL);
     if (IS_ERR(ret))
         goto fail;
 
-    struct vm_region* region = (struct vm_region*)virt_addr;
+    struct vm_region* region = (struct vm_region*)(start * PAGE_SIZE);
     *region = (struct vm_region){
-        .start = virt_addr,
-        .end = virt_addr + PAGE_SIZE,
-        .flags = VM_RW,
+        .start = start,
+        .end = start + 1,
+        .flags = VM_READ | VM_WRITE,
     };
     vm_insert_region_after(kernel_vm, cursor, region);
 
-    mutex_unlock(&kernel_vm->lock);
+    spinlock_unlock(&kernel_vm->lock);
 
-    struct slab_obj* obj =
-        (struct slab_obj*)(virt_addr + sizeof(struct vm_region));
+    struct slab_obj* obj = (struct slab_obj*)(region + 1);
     for (size_t i = 0; i < PAGE_SIZE / cache->obj_size - 1; ++i) {
         obj->next = cache->free_list;
         cache->free_list = obj;
@@ -54,7 +59,7 @@ static int ensure_cache(struct slab_cache* cache) {
     return 0;
 
 fail:
-    mutex_unlock(&kernel_vm->lock);
+    spinlock_unlock(&kernel_vm->lock);
     return ret;
 }
 
@@ -72,6 +77,8 @@ void* slab_cache_alloc(struct slab_cache* cache) {
 }
 
 void slab_cache_free(struct slab_cache* cache, void* obj) {
+    if (!obj)
+        return;
     mutex_lock(&cache->lock);
     ((struct slab_obj*)obj)->next = cache->free_list;
     cache->free_list = obj;

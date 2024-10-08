@@ -5,6 +5,7 @@
 #include <kernel/api/sys/types.h>
 #include <kernel/api/time.h>
 #include <kernel/lock.h>
+#include <kernel/memory/memory.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 
@@ -17,12 +18,12 @@ typedef struct multiboot_mod_list multiboot_module_t;
 
 // Open file description
 struct file {
-    struct mutex offset_lock;
+    struct vobj vobj;
     struct inode* inode;
     atomic_int flags;
+    struct mutex offset_lock;
     uint64_t offset;
     void* private_data;
-    atomic_size_t ref_count;
 };
 
 struct kstat {
@@ -58,7 +59,6 @@ struct file_ops {
     ssize_t (*pread)(struct file*, void* buffer, size_t count, uint64_t offset);
     ssize_t (*pwrite)(struct file*, const void* buffer, size_t count,
                       uint64_t offset);
-    void* (*mmap)(struct file*, size_t length, uint64_t offset, int flags);
     int (*truncate)(struct file*, uint64_t length);
     int (*ioctl)(struct file*, int request, void* user_argp);
     int (*getdents)(struct file*, getdents_callback_fn callback, void* ctx);
@@ -66,7 +66,7 @@ struct file_ops {
 };
 
 struct inode {
-    const struct file_ops* fops;
+    const struct file_ops* ops;
     dev_t dev;  // Device number of device containing this inode
     dev_t rdev; // Device number (if this inode is a special file)
     _Atomic(struct inode*) fifo;
@@ -89,6 +89,7 @@ NODISCARD int inode_unlink_child(struct inode*, const char* name);
 NODISCARD struct file* inode_open(struct inode*, int flags, mode_t mode);
 NODISCARD int inode_stat(struct inode*, struct kstat* buf);
 
+void file_ref(struct file*);
 int file_close(struct file*);
 NODISCARD ssize_t file_read(struct file*, void* buffer, size_t count);
 NODISCARD ssize_t file_pread(struct file*, void* buffer, size_t count,
@@ -99,8 +100,6 @@ NODISCARD ssize_t file_pwrite(struct file*, const void* buffer, size_t count,
                               uint64_t offset);
 NODISCARD ssize_t file_write_all(struct file*, const void* buffer,
                                  size_t count);
-NODISCARD void* file_mmap(struct file*, size_t length, uint64_t offset,
-                          int flags);
 NODISCARD int file_truncate(struct file*, uint64_t length);
 NODISCARD loff_t file_seek(struct file*, loff_t offset, int whence);
 NODISCARD int file_ioctl(struct file*, int request, void* user_argp);

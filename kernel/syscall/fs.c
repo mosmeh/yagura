@@ -3,6 +3,7 @@
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/limits.h>
+#include <kernel/api/sys/uio.h>
 #include <kernel/api/unistd.h>
 #include <kernel/fs/fs.h>
 #include <kernel/fs/path.h>
@@ -91,6 +92,27 @@ ssize_t sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
     return rc;
 }
 
+ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
+    if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
+        return -EFAULT;
+    struct file* file = task_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    size_t nread = 0;
+    for (int i = 0; i < iovcnt; ++i) {
+        struct iovec iov;
+        if (copy_from_user(&iov, user_iov + i, sizeof(struct iovec)))
+            return -EFAULT;
+        if (!is_user_range(iov.iov_base, iov.iov_len))
+            return -EFAULT;
+        int rc = file_read_to_end(file, iov.iov_base, iov.iov_len);
+        if (IS_ERR(rc))
+            return rc;
+        nread += rc;
+    }
+    return nread;
+}
+
 ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
     char pathname[PATH_MAX];
     int rc = copy_pathname_from_user(pathname, user_pathname);
@@ -149,6 +171,27 @@ ssize_t sys_ia32_pwrite64(int fd, const void* buf, size_t count,
     if (rc == -EINTR)
         return -ERESTARTSYS;
     return rc;
+}
+
+ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
+    if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
+        return -EFAULT;
+    struct file* file = task_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    size_t nwritten = 0;
+    for (int i = 0; i < iovcnt; ++i) {
+        struct iovec iov;
+        if (copy_from_user(&iov, user_iov + i, sizeof(struct iovec)))
+            return -EFAULT;
+        if (!is_user_range(iov.iov_base, iov.iov_len))
+            return -EFAULT;
+        int rc = file_write_all(file, iov.iov_base, iov.iov_len);
+        if (IS_ERR(rc))
+            return rc;
+        nwritten += rc;
+    }
+    return nwritten;
 }
 
 static int truncate(const char* user_path, uint64_t length) {
@@ -809,7 +852,7 @@ int sys_fcntl(int fd, int cmd, unsigned long arg) {
         int ret = task_alloc_file_descriptor(-1, file);
         if (IS_ERR(ret))
             return ret;
-        ++file->ref_count;
+        file_ref(file);
         return ret;
     }
     case F_GETFL:
@@ -833,7 +876,7 @@ int sys_dup(int oldfd) {
     int new_fd = task_alloc_file_descriptor(-1, file);
     if (IS_ERR(new_fd))
         return new_fd;
-    ++file->ref_count;
+    file_ref(file);
     return new_fd;
 }
 
@@ -859,7 +902,7 @@ int sys_dup3(int oldfd, int newfd, int flags) {
     int ret = task_alloc_file_descriptor(newfd, oldfd_file);
     if (IS_ERR(ret))
         return ret;
-    ++oldfd_file->ref_count;
+    file_ref(oldfd_file);
     return ret;
 }
 

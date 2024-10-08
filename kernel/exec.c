@@ -12,6 +12,7 @@
 #include <common/extra.h>
 #include <common/libgen.h>
 #include <common/string.h>
+#include <kernel/lock.h>
 
 struct string_vec {
     size_t count;
@@ -230,13 +231,14 @@ static int execve(const char* pathname, struct string_vec* argv,
 
     struct vm* prev_vm = current->vm;
 
-    // Start userland virtual memory range at 1MiB (arbitrary choice)
-    struct vm* vm = vm_create((void*)0x100000, (void*)KERNEL_VIRT_ADDR);
+    struct vm* vm =
+        vm_create((void*)(KERNEL_VIRT_ADDR / 3), (void*)KERNEL_VIRT_ADDR);
     if (IS_ERR(vm)) {
         ret = PTR_ERR(vm);
         goto fail_exe;
     }
     vm_enter(vm);
+    spinlock_lock(&vm->lock);
 
     struct ptr_vec envp_ptrs = (struct ptr_vec){0};
     struct ptr_vec argv_ptrs = (struct ptr_vec){0};
@@ -255,50 +257,57 @@ static int execve(const char* pathname, struct string_vec* argv,
             ehdr->e_phoff < phdr->p_offset + phdr->p_filesz)
             phdr_virt_addr = ehdr->e_phoff - phdr->p_offset + phdr->p_vaddr;
 
-        uintptr_t region_start = ROUND_DOWN(phdr->p_vaddr, PAGE_SIZE);
-        uintptr_t region_end =
-            ROUND_UP(phdr->p_vaddr + phdr->p_memsz, PAGE_SIZE);
-        size_t region_size = region_end - region_start;
-        void* addr = vm_alloc_at((void*)region_start, region_size,
-                                 VM_READ | VM_WRITE | VM_USER);
-        if (IS_ERR(addr)) {
-            ret = PTR_ERR(addr);
+        struct vm_region* region =
+            vm_alloc_at(vm, (void*)phdr->p_vaddr, phdr->p_memsz);
+        if (IS_ERR(region)) {
+            ret = PTR_ERR(region);
             goto fail_vm;
         }
 
-        memset((void*)region_start, 0, phdr->p_vaddr - region_start);
+        struct vobj* vobj = anon_create();
+        if (IS_ERR(vobj)) {
+            ret = PTR_ERR(vobj);
+            goto fail_vm;
+        }
+        vm_region_set_vobj(region, vobj);
+
         memcpy((void*)phdr->p_vaddr, exe_buf + phdr->p_offset, phdr->p_filesz);
-        memset((void*)(phdr->p_vaddr + phdr->p_filesz), 0,
-               region_end - phdr->p_vaddr - phdr->p_filesz);
 
         if (!(phdr->p_flags & PF_W)) {
-            ret = vm_set_flags((void*)region_start, region_size,
-                               VM_READ | VM_USER);
+            ret = vm_region_set_flags(region, 0, region->end - region->start,
+                                      VM_READ | VM_USER, ~0);
             if (IS_ERR(ret))
                 goto fail_vm;
         }
     }
 
-    void* stack_region =
-        vm_alloc(2 * PAGE_SIZE + STACK_SIZE, VM_READ | VM_WRITE | VM_USER);
-    if (IS_ERR(stack_region)) {
-        ret = PTR_ERR(stack_region);
+    struct vm_region* region = vm_alloc(vm, 2 * PAGE_SIZE + STACK_SIZE);
+    if (IS_ERR(region)) {
+        ret = PTR_ERR(region);
         goto fail_vm;
     }
 
-    uintptr_t stack_base = (uintptr_t)stack_region + PAGE_SIZE;
+    // Split the region into three:
+    // guard (PAGE_SIZE), stack (STACK_SIZE), and guard (PAGE_SIZE)
+    ret = vm_region_set_flags(region, PAGE_SIZE, STACK_SIZE,
+                              VM_READ | VM_WRITE | VM_USER, ~0);
+    if (IS_ERR(ret))
+        goto fail_vm;
 
-    // Make pages before and after the stack inaccessible to detect stack
-    // overflow and underflow
-    ret = vm_set_flags(stack_region, PAGE_SIZE, VM_USER);
-    if (IS_ERR(ret))
+    uintptr_t stack_base = (uintptr_t)region->start + PAGE_SIZE;
+
+    // Get the middle region, which is the stack
+    struct vm_region* stack_region = vm_find(vm, (void*)stack_base);
+    ASSERT(stack_region);
+
+    struct vobj* stack_vobj = anon_create();
+    if (IS_ERR(stack_vobj)) {
+        ret = PTR_ERR(stack_vobj);
         goto fail_vm;
-    ret = vm_set_flags((void*)(stack_base + STACK_SIZE), PAGE_SIZE, VM_USER);
-    if (IS_ERR(ret))
-        goto fail_vm;
+    }
+    vm_region_set_vobj(stack_region, stack_vobj);
 
     uintptr_t sp = stack_base + STACK_SIZE;
-    memset((void*)stack_base, 0, STACK_SIZE);
 
     ret = push_value(&sp, stack_base, 0); // Sentinel
     if (IS_ERR(ret))
@@ -385,6 +394,8 @@ static int execve(const char* pathname, struct string_vec* argv,
     if (IS_ERR(ret))
         goto fail_vm;
 
+    spinlock_unlock(&vm->lock);
+
     if (prev_vm != kernel_vm)
         vm_unref(prev_vm);
 
@@ -435,6 +446,7 @@ static int execve(const char* pathname, struct string_vec* argv,
 fail_vm:
     ptr_vec_destroy(&envp_ptrs);
     ptr_vec_destroy(&argv_ptrs);
+    spinlock_unlock(&vm->lock);
     vm_unref(vm);
     vm_enter(prev_vm);
 

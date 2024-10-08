@@ -17,15 +17,6 @@ static int multiboot_fb_set_info(struct fb_info* inout_info) {
     return -ENOTSUP;
 }
 
-static void* multiboot_fb_mmap(size_t length, uint64_t offset, int flags) {
-    if (offset != 0)
-        return ERR_PTR(-ENXIO);
-    if (!(flags & VM_SHARED))
-        return ERR_PTR(-ENODEV);
-
-    return vm_phys_map(phys_addr, length, flags | VM_WC);
-}
-
 struct fb* multiboot_fb_init(const multiboot_info_t* mb_info) {
     if (!(mb_info->flags & MULTIBOOT_INFO_FRAMEBUFFER_INFO))
         return NULL;
@@ -45,7 +36,6 @@ struct fb* multiboot_fb_init(const multiboot_info_t* mb_info) {
     static struct fb fb = {
         .get_info = multiboot_fb_get_info,
         .set_info = multiboot_fb_set_info,
-        .mmap = multiboot_fb_mmap,
     };
     return &fb;
 }

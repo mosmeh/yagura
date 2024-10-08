@@ -41,6 +41,7 @@ OBJS := \
 	fs/fifo.o \
 	fs/fs.o \
 	fs/initrd.o \
+	fs/minix.o \
 	fs/path.o \
 	fs/proc/pid.o \
 	fs/proc/proc.o \

@@ -77,7 +77,7 @@ struct files* files_clone(struct files* files) {
     memcpy(new_files->entries, files->entries, sizeof(files->entries));
     for (size_t i = 0; i < OPEN_MAX; ++i) {
         if (files->entries[i])
-            ++files->entries[i]->ref_count;
+            file_ref(files->entries[i]);
     }
     mutex_unlock(&files->lock);
 
