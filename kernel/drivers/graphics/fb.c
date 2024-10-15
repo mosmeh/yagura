@@ -21,12 +21,6 @@ static struct fb* find_fb(const multiboot_info_t* mb_info) {
 
 struct fb* fb_get(void) { return fb; }
 
-static void* fb_device_mmap(struct file* file, size_t length, uint64_t offset,
-                            int flags) {
-    (void)file;
-    return fb->mmap(length, offset, flags);
-}
-
 static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
     (void)file;
 
@@ -86,14 +80,12 @@ static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
 
 static struct inode* fb_device_get(void) {
     static const struct file_ops fops = {
-        .mmap = fb_device_mmap,
         .ioctl = fb_device_ioctl,
     };
     static struct inode inode = {
         .fops = &fops,
         .mode = S_IFBLK,
         .rdev = makedev(29, 0),
-        .ref_count = 1,
     };
     return &inode;
 }

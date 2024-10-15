@@ -53,15 +53,6 @@ static ssize_t tmpfs_pwrite(struct file* file, const void* buffer, size_t count,
     return nwritten;
 }
 
-static void* tmpfs_mmap(struct file* file, size_t length, uint64_t offset,
-                        int flags) {
-    tmpfs_inode* node = (tmpfs_inode*)file->inode;
-    mutex_lock(&node->lock);
-    void* ret = vec_mmap(&node->content, length, offset, flags);
-    mutex_unlock(&node->lock);
-    return ret;
-}
-
 static int tmpfs_truncate(struct file* file, uint64_t length) {
     tmpfs_inode* node = CONTAINER_OF(file->inode, tmpfs_inode, inode);
     mutex_lock(&node->lock);
@@ -117,7 +108,6 @@ static const struct file_ops non_dir_fops = {
     .stat = tmpfs_stat,
     .pread = tmpfs_pread,
     .pwrite = tmpfs_pwrite,
-    .mmap = tmpfs_mmap,
     .truncate = tmpfs_truncate,
 };
 

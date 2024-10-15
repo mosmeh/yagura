@@ -150,7 +150,7 @@ static void write_bar(const struct pci_addr* addr, uint8_t bar,
 }
 
 void* pci_map_bar(const struct pci_addr* pci_addr, uint8_t bar) {
-    uint32_t bar_value = pci_get_bar(pci_addr, bar);
+    /*uint32_t bar_value = pci_get_bar(pci_addr, bar);
     if ((bar_value & PCI_BAR_SPACE) == PCI_BAR_SPACE_IO)
         return ERR_PTR(-EINVAL);
 
@@ -170,9 +170,10 @@ void* pci_map_bar(const struct pci_addr* pci_addr, uint8_t bar) {
     uint32_t size = pci_get_bar(pci_addr, bar);
     write_bar(pci_addr, bar, bar_value);
     size &= ~0xf;
-    size = (~size) + 1;
+    size = (~size) + 1;*/
 
-    return vm_phys_map(phys_addr, size, VM_READ | VM_WRITE | VM_SHARED);
+    // return vm_phys_map(phys_addr, size, VM_READ | VM_WRITE | VM_SHARED);
+    UNIMPLEMENTED();
 }
 
 uint8_t pci_get_interrupt_line(const struct pci_addr* addr) {

@@ -95,6 +95,7 @@ read_eip:
 
     .code16
     .globl ap_trampoline_start, ap_trampoline_end
+    .align 4096
 ap_trampoline_start:
     cli
 

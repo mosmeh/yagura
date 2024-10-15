@@ -9,6 +9,7 @@
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
 #include <kernel/task.h>
+#include <linux/kd.h>
 
 static struct tty* tty_from_file(struct file* file) {
     return CONTAINER_OF(file->inode, struct tty, inode);
@@ -149,6 +150,14 @@ static int tty_ioctl(struct file* file, int request, void* user_argp) {
         }
         tty->num_columns = winsize.ws_col;
         tty->num_rows = winsize.ws_row;
+        break;
+    }
+    case KDGKBTYPE: {
+        int type = KB_101;
+        if (copy_to_user(user_argp, &type, sizeof(int))) {
+            ret = -EFAULT;
+            goto done;
+        }
         break;
     }
     default:

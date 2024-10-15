@@ -77,6 +77,39 @@ int inode_unlink_child(struct inode* inode, const char* name) {
     return 0;
 }
 
+static struct slab_cache file_cache;
+
+void file_init(void) { slab_cache_init(&file_cache, sizeof(struct file)); }
+
+static void file_destroy(struct vobj* vobj) {
+    struct file* file = CONTAINER_OF(vobj, struct file, vobj);
+    struct inode* inode = file->inode;
+    if (inode->fops->close)
+        inode->fops->close(file);
+    slab_cache_free(&file_cache, file);
+    inode_unref(inode);
+}
+
+static struct vobj* file_clone(struct vobj* vobj) {
+    struct file* file = CONTAINER_OF(vobj, struct file, vobj);
+    file_ref(file);
+    return vobj;
+}
+
+static bool file_handle_fault(struct vm_region* region, size_t offset,
+                              uint32_t error_code) {
+    (void)region;
+    (void)offset;
+    (void)error_code;
+    UNIMPLEMENTED();
+}
+
+static const struct vm_ops file_vm_ops = {
+    .destroy_vobj = file_destroy,
+    .clone_vobj = file_clone,
+    .handle_fault = file_handle_fault,
+};
+
 struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
     switch (flags & O_ACCMODE) {
     case O_RDONLY:
@@ -93,33 +126,40 @@ struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
         return ERR_PTR(-EINVAL);
     }
 
-    struct file* file = kmalloc(sizeof(struct file));
-    if (!file) {
+    struct file* file = slab_cache_alloc(&file_cache);
+    if (IS_ERR(file)) {
         inode_unref(inode);
-        return ERR_PTR(-ENOMEM);
+        return file;
     }
-    *file = (struct file){0};
-    file->inode = inode;
-    file->flags = flags;
-    file->ref_count = 1;
+    *file = (struct file){
+        .vobj =
+            {
+                .vm_ops = &file_vm_ops,
+                .ref_count = 1,
+            },
+        .inode = inode,
+        .flags = flags,
+    };
 
     if (inode->fops->open) {
         int rc = inode->fops->open(file, mode);
         if (IS_ERR(rc)) {
             inode_unref(inode);
-            kfree(file);
+            slab_cache_free(&file_cache, file);
             return ERR_PTR(rc);
         }
     }
 
     if (flags & O_TRUNC) {
-        if (S_ISDIR(inode->mode))
+        if (S_ISDIR(inode->mode)) {
+            file_unref(file);
             return ERR_PTR(-EISDIR);
+        }
         // Truncation is performed even with O_RDONLY.
         if (inode->fops->truncate) {
             int rc = inode->fops->truncate(file, 0);
             if (IS_ERR(rc)) {
-                file_close(file);
+                file_unref(file);
                 return ERR_PTR(rc);
             }
         }
@@ -141,18 +181,15 @@ int inode_stat(struct inode* inode, struct kstat* buf) {
     return 0;
 }
 
-int file_close(struct file* file) {
+void file_ref(struct file* file) {
     ASSERT(file);
-    ASSERT(file->ref_count > 0);
-    if (--file->ref_count > 0)
-        return 0;
-    struct inode* inode = file->inode;
-    int rc = 0;
-    if (inode->fops->close)
-        rc = inode->fops->close(file);
-    kfree(file);
-    inode_unref(inode);
-    return rc;
+    vobj_ref(&file->vobj);
+}
+
+void file_unref(struct file* file) {
+    if (!file)
+        return;
+    vobj_unref(&file->vobj);
 }
 
 ssize_t file_read(struct file* file, void* buffer, size_t count) {
@@ -233,18 +270,6 @@ ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
         cursor += nwritten;
     }
     return cursor;
-}
-
-void* file_mmap(struct file* file, size_t length, uint64_t offset, int flags) {
-    struct inode* inode = file->inode;
-    if (!inode->fops->mmap)
-        return ERR_PTR(-ENODEV);
-    if ((file->flags & O_ACCMODE) == O_WRONLY)
-        return ERR_PTR(-EACCES);
-    if ((flags & VM_SHARED) && (flags & VM_WRITE) &&
-        ((file->flags & O_ACCMODE) != O_RDWR))
-        return ERR_PTR(-EACCES);
-    return inode->fops->mmap(file, length, offset, flags);
 }
 
 int file_truncate(struct file* file, uint64_t length) {

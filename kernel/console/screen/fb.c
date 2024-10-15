@@ -2,6 +2,7 @@
 #include "screen.h"
 #include <kernel/drivers/graphics/graphics.h>
 #include <kernel/kmsg.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/task.h>
 
@@ -115,10 +116,10 @@ struct screen* fb_screen_init(void) {
     num_rows = fb_info.height / font->glyph_height;
     kprintf("fb_screen: columns=%u rows=%u\n", num_columns, num_rows);
 
-    size_t fb_size = fb_info.pitch * fb_info.height;
-    fb = fb_get()->mmap(fb_size, 0, VM_READ | VM_WRITE | VM_SHARED);
+    fb = phys_map(fb_info.phys_addr, fb_info.pitch * fb_info.height,
+                  VM_READ | VM_WRITE | VM_WC);
     if (IS_ERR(fb)) {
-        kprint("fb_screen: failed to mmap framebuffer\n");
+        kprint("fb_screen: failed to map framebuffer\n");
         return ERR_CAST(fb);
     }
 

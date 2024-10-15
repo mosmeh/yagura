@@ -21,9 +21,11 @@
 // Page is global (not flushed from TLB on context switch)
 #define PTE_GLOBAL 0x100
 
-// Flag to indicate that the page is shared between multiple vm instances.
-// The bit is unused by the hardware, so we can use it for our purposes.
-#define PTE_SHARED 0x200
+#define X86_PF_PROT 0x1
+#define X86_PF_WRITE 0x2
+#define X86_PF_USER 0x4
+#define X86_PF_RSVD 0x8
+#define X86_PF_INSTR 0x10
 
 #ifndef ASM_FILE
 
@@ -33,6 +35,8 @@
 extern struct page_directory* kernel_page_directory;
 
 typedef struct multiboot_info multiboot_info_t;
+struct vobj;
+struct vm_region;
 
 static inline bool is_user_address(const void* addr) {
     return addr && (uintptr_t)addr < KERNEL_VIRT_ADDR;
@@ -58,6 +62,7 @@ void memory_init(const multiboot_info_t*);
 struct memory_stats {
     size_t total_kibibytes;
     size_t free_kibibytes;
+    size_t committed_kibibytes;
 };
 
 void memory_get_stats(struct memory_stats* out_stats);
@@ -70,7 +75,42 @@ void kfree(void*);
 char* kstrdup(const char*);
 char* kstrndup(const char*, size_t n);
 
+void* phys_map(uintptr_t phys_addr, size_t size, unsigned vm_flags);
+void phys_unmap(void*);
+
 uintptr_t virt_to_phys(void*);
+
+struct vm_ops {
+    void (*destroy_vobj)(struct vobj*);
+    struct vobj* (*clone_vobj)(struct vobj*);
+    bool (*handle_fault)(struct vm_region*, size_t offset, uint32_t error_code);
+};
+
+struct vobj {
+    const struct vm_ops* vm_ops;
+    struct page* pages;
+    struct vm_region* regions;
+    struct spinlock lock;
+    atomic_size_t ref_count;
+};
+
+void vobj_ref(struct vobj*);
+void vobj_unref(struct vobj*);
+
+struct page* vobj_create_page(struct vobj*, size_t offset);
+struct page* vobj_get_page(struct vobj*, size_t offset);
+
+struct vobj* anon_create(void);
+struct vobj* phys_create(uintptr_t phys_addr, size_t npages);
+
+struct vm {
+    size_t start; // Start virtual address / PAGE_SIZE (inclusive)
+    size_t end;   // End virtual address / PAGE_SIZE (exclusive)
+    struct page_directory* page_directory;
+    struct vm_region* regions;
+    struct spinlock lock;
+    atomic_size_t ref_count;
+};
 
 // Region may be read
 #define VM_READ 0x1
@@ -87,21 +127,16 @@ uintptr_t virt_to_phys(void*);
 // Write-combining is enabled for the region
 #define VM_WC 0x10
 
-struct vm {
-    uintptr_t start;
-    uintptr_t end;
-    struct page_directory* page_directory;
-    struct mutex lock;
-    struct vm_region* regions;
-    atomic_size_t ref_count;
-};
-
 struct vm_region {
-    uintptr_t start;
-    uintptr_t end;
-    int flags;
-    struct vm_region* prev;
-    struct vm_region* next;
+    struct vm* vm;
+    size_t start;   // Start virtual address / PAGE_SIZE (inclusive)
+    size_t end;     // End virtual address / PAGE_SIZE (exclusive)
+    size_t offset;  // Offset into the vobj (in pages)
+    unsigned flags; // VM_*
+    struct vobj* vobj;
+    struct vm_region* prev;        // prev->end <= start
+    struct vm_region* next;        // end <= next->start
+    struct vm_region* shared_next; // vobj == shared_next->vobj
 };
 
 extern struct vm* kernel_vm;
@@ -110,59 +145,73 @@ struct vm* vm_create(void* start, void* end);
 void vm_ref(struct vm*);
 void vm_unref(struct vm*);
 
-// Switches to the virtual memory space.
-void vm_enter(struct vm*);
+// Switches to the virtual memory space. Returns the previous vm.
+struct vm* vm_enter(struct vm*);
 
-// Clones the current virtual memory space.
-struct vm* vm_clone(void);
+// Clones the virtual memory space.
+struct vm* vm_clone(struct vm*);
 
-// Allocates a virtual memory region mapped to free physical pages.
-void* vm_alloc(size_t, int flags);
+NODISCARD bool vm_handle_page_fault(uintptr_t addr, uint32_t error_code);
+
+// Finds the region that contains the given address.
+// Returns NULL if no region contains the address.
+struct vm_region* vm_find(struct vm*, void* virt_addr);
+
+// Allocates a virtual memory region at arbitrary address.
+NODISCARD struct vm_region* vm_alloc(struct vm*, size_t npages);
 
 // Allocates a virtual memory region at a specific virtual address range.
-NODISCARD void* vm_alloc_at(void*, size_t, int flags);
+NODISCARD struct vm_region* vm_alloc_at(struct vm*, void* virt_addr,
+                                        size_t npages);
 
-// Allocates a virtual memory region mapped to a specific physical address
-// range.
-void* vm_phys_map(uintptr_t phys_addr, size_t, int flags);
+// Sets the vobj and offset into the vobj.
+// Panics if the region already has a vobj.
+void vm_region_set_vobj(struct vm_region*, struct vobj*, size_t offset);
 
-// Allocates a virtual memory region that has the same mapping as the specified
-// virtual memory range.
-void* vm_virt_map(void*, size_t, int flags);
+// Returns the start virtual address of the region.
+void* vm_region_to_virt(struct vm_region*);
 
 // Resizes a virtual memory region.
-NODISCARD void* vm_resize(void*, size_t new_size);
+NODISCARD int vm_region_resize(struct vm_region*, size_t new_npages);
 
 // Changes the flags of a virtual memory region.
-NODISCARD int vm_set_flags(void*, size_t, int flags);
+// mask is a bitmask that specifies which flags are changed.
+// If only a part of the region is changed, the region is split.
+NODISCARD int vm_region_set_flags(struct vm_region*, size_t offset,
+                                  size_t npages, unsigned flags, unsigned mask);
 
-// Unmaps a virtual memory region.
-// If only a part of the region is unmapped, the region is shrunk or split.
-NODISCARD int vm_unmap(void*, size_t);
+// Frees a virtual memory region.
+// If only a part of the region is freed, the region is shrunk or split.
+NODISCARD int vm_region_free(struct vm_region*, size_t offset, size_t npages);
 
-// Frees a region of memory in the virtual memory space.
-// Equivalent to vm_unmap with the start address and size of the region.
-// Fails if the address is not the start of a region.
-NODISCARD int vm_free(void*);
+// Maps the pages to the virtual address.
+NODISCARD int page_table_map(size_t virt_index, size_t phys_index,
+                             size_t npages, uint16_t flags);
 
-// Allocates free pages and maps them to the virtual address range.
-NODISCARD int page_table_map_anon(uintptr_t virt_addr, uintptr_t size,
-                                  uint16_t flags);
+// Maps the page to the virtual address. Only the TLB of the current CPU is
+// flushed.
+NODISCARD int page_table_map_local(size_t virt_index, size_t phys_index,
+                                   uint16_t flags);
 
-// Maps the physical address range to the virtual address range.
-NODISCARD int page_table_map_phys(uintptr_t virt_addr, uintptr_t phys_addr,
-                                  uintptr_t size, uint16_t flags);
+// Unmaps the pages at the virtual address.
+void page_table_unmap(size_t virt_index, size_t npages);
 
-// Copies the page table entries from one virtual address range to another.
-NODISCARD int page_table_shallow_copy(uintptr_t to_virt_addr,
-                                      uintptr_t from_virt_addr, uintptr_t size,
-                                      uint16_t new_flags);
+// Unmaps the page at the virtual address. Only the TLB of the current CPU is
+// flushed.
+void page_table_unmap_local(size_t virt_index);
 
-// Unmaps the virtual address range.
-void page_table_unmap(uintptr_t virt_addr, uintptr_t size);
+void page_directory_switch(struct page_directory*);
 
-// Changes the page table flags for the virtual address range.
-void page_table_set_flags(uintptr_t virt_addr, uintptr_t size, uint16_t flags);
+static inline uint16_t vm_flags_to_pte_flags(unsigned vm_flags) {
+    uint16_t pte_flags = (vm_flags & VM_USER) ? PTE_USER : PTE_GLOBAL;
+    if (vm_flags & VM_WRITE)
+        pte_flags |= PTE_WRITE;
+    if (vm_flags & VM_USER)
+        pte_flags |= PTE_USER;
+    if (vm_flags & VM_WC)
+        pte_flags |= PTE_PAT;
+    return pte_flags;
+}
 
 #define MAX_NUM_KMAPS_PER_TASK 2
 
@@ -175,11 +224,23 @@ struct kmap_ctrl {
 // MAX_NUM_KMAPS_PER_TASK pages can be mapped at the same time for each task.
 void* kmap(uintptr_t phys_addr);
 
+void* kmap_page(struct page*);
+
 // Unmaps the kmapped virtual address.
 // kunmap must be called in the reverse order of kmap.
 void kunmap(void* virt_addr);
 
 // Should be called on context switch with the kmap_ctrl of the new task.
 void kmap_switch(struct kmap_ctrl*);
+
+struct slab_cache {
+    struct spinlock lock;
+    size_t obj_size;
+    struct slab_obj* free_list;
+};
+
+void slab_cache_init(struct slab_cache*, size_t obj_size);
+void* slab_cache_alloc(struct slab_cache*);
+void slab_cache_free(struct slab_cache*, void*);
 
 #endif

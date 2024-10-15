@@ -41,16 +41,17 @@ struct madt {
 #define ACPI_MADT_INTERRUPT_SOURCE_OVERRIDE 2
 
 static const struct rsdp_descriptor* find_rsdp(void) {
-    uint64_t* p = (uint64_t*)(0x80000 + KERNEL_VIRT_ADDR);
+    return NULL;
+    /*uint64_t* p = (uint64_t*)(0x80000 + KERNEL_VIRT_ADDR);
     uint64_t* end = (uint64_t*)(0x100000 + KERNEL_VIRT_ADDR);
     for (; p < end; p += 2) {         // Signature is at 16-byte boundary
         if (*p == 0x2052545020445352) // "RSD PTR "
             return (struct rsdp_descriptor*)p;
     }
-    return NULL;
+    return NULL;*/
 }
 
-static struct madt* find_madt(const struct rsdt* rsdt) {
+/*static struct madt* find_madt(const struct rsdt* rsdt) {
     size_t n =
         (rsdt->header.length - sizeof(struct sdt_header)) / sizeof(uint32_t);
     for (size_t i = 0; i < n; ++i) {
@@ -65,7 +66,7 @@ static struct madt* find_madt(const struct rsdt* rsdt) {
             return vm_phys_map(rsdt->entries[i], length, VM_READ);
     }
     return NULL;
-}
+}*/
 
 static bool is_parse_successful = false;
 static struct acpi acpi;
@@ -75,7 +76,9 @@ void acpi_init(void) {
     if (!rsdp)
         return;
 
-    struct rsdt* rsdt_header =
+    UNIMPLEMENTED();
+
+    /*struct rsdt* rsdt_header =
         vm_phys_map(rsdp->rsdt_address, sizeof(struct rsdt), VM_READ);
     ASSERT_OK(rsdt_header);
     uint32_t rsdt_size = rsdt_header->header.length;
@@ -159,7 +162,7 @@ void acpi_init(void) {
         kprintf("%u ", (*p)->apic_id);
     kprintf("(BSP = %u)\n", cpu_get_bsp()->apic_id);
 
-    is_parse_successful = true;
+    is_parse_successful = true;*/
 }
 
 const struct acpi* acpi_get(void) { return is_parse_successful ? &acpi : NULL; }

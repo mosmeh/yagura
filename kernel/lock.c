@@ -72,7 +72,7 @@ void spinlock_lock(struct spinlock* s) {
 
 void spinlock_unlock(struct spinlock* s) {
     ASSERT(!interrupts_enabled());
-    unsigned v = atomic_load(&s->lock);
+    unsigned v = s->lock;
     ASSERT(v & SPINLOCK_LOCKED);
     ASSERT((v >> SPINLOCK_CPU_ID_SHIFT) == cpu_get_id());
     ASSERT(s->level > 0);
@@ -81,4 +81,15 @@ void spinlock_unlock(struct spinlock* s) {
         if (v & SPINLOCK_PUSHED_INTERRUPT)
             sti();
     }
+}
+
+bool spinlock_is_locked_by_current(struct spinlock* s) {
+    unsigned v = s->lock;
+    if (!(v & SPINLOCK_LOCKED))
+        return false;
+    if ((v >> SPINLOCK_CPU_ID_SHIFT) != cpu_get_id())
+        return false;
+    ASSERT(!interrupts_enabled());
+    ASSERT(s->level > 0);
+    return true;
 }

@@ -10,8 +10,7 @@
 
 static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
                                size_t size) {
-    struct vm* current_vm = current->vm;
-    vm_enter(vm);
+    struct vm* current_vm = vm_enter(vm);
     int ret = copy_from_user(dst, user_src, size);
     vm_enter(current_vm);
     return ret;
@@ -138,7 +137,7 @@ static int populate_maps(struct file* file, struct vec* vec) {
     int ret = 0;
     mutex_lock(&task->lock);
     struct vm* vm = task->vm;
-    mutex_lock(&vm->lock);
+    spinlock_lock(&vm->lock);
     struct vm_region* region = vm->regions;
     while (region) {
         ret = vec_printf(vec, "%08x-%08x %c%c%c\n", region->start, region->end,
@@ -149,7 +148,7 @@ static int populate_maps(struct file* file, struct vec* vec) {
             break;
         region = region->next;
     }
-    mutex_unlock(&vm->lock);
+    spinlock_unlock(&vm->lock);
     mutex_unlock(&task->lock);
     task_unref(task);
     return ret;

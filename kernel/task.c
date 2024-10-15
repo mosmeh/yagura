@@ -77,7 +77,7 @@ struct files* files_clone(struct files* files) {
     memcpy(new_files->entries, files->entries, sizeof(files->entries));
     for (size_t i = 0; i < OPEN_MAX; ++i) {
         if (files->entries[i])
-            ++files->entries[i]->ref_count;
+            file_ref(files->entries[i]);
     }
     mutex_unlock(&files->lock);
 
@@ -97,7 +97,7 @@ void files_unref(struct files* files) {
         return;
     for (size_t i = 0; i < OPEN_MAX; ++i) {
         if (files->entries[i]) {
-            file_close(files->entries[i]);
+            file_unref(files->entries[i]);
             files->entries[i] = NULL;
         }
     }
@@ -223,6 +223,7 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
         ret = -ENOMEM;
         goto fail;
     }
+    memset(stack, 0, STACK_SIZE);
     task->kernel_stack_base = (uintptr_t)stack;
     task->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
     task->esp = task->ebp = task->kernel_stack_top;
