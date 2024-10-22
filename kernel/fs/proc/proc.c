@@ -60,9 +60,9 @@ struct inode* proc_dir_lookup_child(struct inode* inode, const char* name) {
 int proc_dir_getdents(struct file* file, getdents_callback_fn callback,
                       void* ctx) {
     proc_dir_inode* node = (proc_dir_inode*)file->inode;
-    mutex_lock(&file->offset_lock);
+    spinlock_lock(&file->offset_lock);
     int rc = dentry_getdents(file, node->children, callback, ctx);
-    mutex_unlock(&file->offset_lock);
+    spinlock_unlock(&file->offset_lock);
     return rc;
 }
 

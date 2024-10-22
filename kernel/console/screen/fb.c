@@ -2,6 +2,7 @@
 #include "screen.h"
 #include <kernel/drivers/graphics/graphics.h>
 #include <kernel/kmsg.h>
+#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/task.h>
 
@@ -25,7 +26,6 @@ static const uint32_t palette[] = {
 };
 
 static struct font* font;
-static unsigned char* fb;
 static struct fb_info fb_info;
 static size_t num_columns;
 static size_t num_rows;
@@ -33,7 +33,7 @@ static size_t cursor_x;
 static size_t cursor_y;
 static bool is_cursor_visible;
 
-static void get_size(struct screen* screen, size_t* out_columns,
+static void buf_size(struct screen* screen, size_t* out_columns,
                      size_t* out_rows) {
     (void)screen;
     *out_columns = num_columns;
@@ -50,6 +50,7 @@ static void put(struct screen* screen, size_t x, size_t y, char c,
 
     const unsigned char* glyph =
         font->glyphs + font->ascii_to_glyph[(size_t)c] * font->bytes_per_glyph;
+    unsigned char* fb = fb_get_buf();
     unsigned char* row = fb + x * font->glyph_width * sizeof(uint32_t) +
                          y * font->glyph_height * fb_info.pitch;
     for (size_t py = 0; py < font->glyph_height; ++py) {
@@ -76,12 +77,12 @@ static void set_cursor(struct screen* screen, size_t x, size_t y,
 
 static void clear(struct screen* screen, uint8_t bg_color) {
     (void)screen;
-    memset32((uint32_t*)fb, palette[bg_color],
+    memset32((uint32_t*)fb_get_buf(), palette[bg_color],
              fb_info.pitch * fb_info.height / sizeof(uint32_t));
 }
 
 static struct screen fb_screen = {
-    .get_size = get_size,
+    .get_size = buf_size,
     .put = put,
     .set_cursor = set_cursor,
     .clear = clear,
@@ -114,13 +115,6 @@ struct screen* fb_screen_init(void) {
     num_columns = fb_info.width / font->glyph_width;
     num_rows = fb_info.height / font->glyph_height;
     kprintf("fb_screen: columns=%u rows=%u\n", num_columns, num_rows);
-
-    size_t fb_size = fb_info.pitch * fb_info.height;
-    fb = fb_get()->mmap(fb_size, 0, VM_READ | VM_WRITE | VM_SHARED);
-    if (IS_ERR(fb)) {
-        kprint("fb_screen: failed to mmap framebuffer\n");
-        return ERR_CAST(fb);
-    }
 
     return &fb_screen;
 }

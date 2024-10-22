@@ -1,79 +1,65 @@
 #pragma once
 
 #include "memory.h"
-#include <common/extra.h>
-#include <kernel/lock.h>
-#include <stdalign.h>
+#include <kernel/api/sys/types.h>
+#include <kernel/cpu.h>
 
-struct page_directory;
+// In the current setup, kernel image (including 1MiB offset) has to fit in
+// single page table (< 4MiB).
+#define KERNEL_IMAGE_END (KERNEL_VIRT_ADDR + 1024 * PAGE_SIZE)
+
+#define KMAP_START KERNEL_IMAGE_END
+#define KMAP_END                                                               \
+    (KMAP_START + MAX_NUM_KMAPS_PER_TASK * MAX_NUM_CPUS * PAGE_SIZE)
+
+#define PAGES_START KMAP_END
+
+// Last 4MiB is for recursive mapping
+#define KERNEL_VM_END 0xffc00000
+
 typedef struct multiboot_info multiboot_info_t;
 
-typedef union {
-    struct {
-        bool present : 1;
-        bool write : 1;
-        bool user : 1;
-        bool write_through : 1;
-        bool cache_disable : 1;
-        bool accessed : 1;
-        bool ignored1 : 1;
-        bool page_size : 1;
-        uint8_t ignored2 : 4;
-        uint32_t page_table_addr : 20;
-    };
-    uint32_t raw;
-} __attribute__((packed)) page_directory_entry;
+// Returns the start virtual address of the kernel vm space.
+uintptr_t page_init(const multiboot_info_t*);
 
-struct page_directory {
-    alignas(PAGE_SIZE) page_directory_entry entries[1024];
-};
+struct page* page_get(size_t pfn);
+size_t page_to_pfn(struct page*);
 
-void page_init(const multiboot_info_t*);
-uintptr_t page_alloc(void);
-void page_ref(uintptr_t phys_addr);
-void page_unref(uintptr_t phys_addr);
+// Commits pages without allocating them.
+NODISCARD bool page_commit(size_t n);
 
-// kernel heap starts right after the quickmap page
-#define KERNEL_HEAP_START (KERNEL_VIRT_ADDR + 1024 * PAGE_SIZE)
+void page_uncommit(size_t n);
 
-// last 4MiB is for recursive mapping
-#define KERNEL_HEAP_END 0xffc00000
+// Commits and allocates a page.
+struct page* page_alloc(void);
 
-void page_table_init(void);
+// Returns the page frame number of the allocated page.
+ssize_t page_alloc_raw(void);
+
+// Allocates a page without committing it. At least one page should have been
+// committed before calling this function.
+struct page* page_alloc_committed(void);
+
+// Frees and uncommits a page.
+void page_free(struct page*);
+void page_free_raw(size_t pfn);
 
 struct page_directory* page_directory_create(void);
-struct page_directory* page_directory_clone_current(void);
-void page_directory_destroy_current(void);
-void page_directory_switch(struct page_directory* to);
+void page_directory_destroy(struct page_directory*);
 
-struct slab_cache {
-    struct mutex lock;
-    size_t obj_size;
-    struct slab_obj* free_list;
-};
-
-void slab_cache_init(struct slab_cache*, size_t obj_size);
-void* slab_cache_alloc(struct slab_cache*);
-void slab_cache_free(struct slab_cache*, void*);
-
-#define VM_RW (VM_READ | VM_WRITE)
-
-struct vm;
-
-void vm_init(void);
-
-// Finds the region that contains the given address.
-// Returns NULL if no region contains the address.
-struct vm_region* vm_find_region(struct vm*, void* virt_addr);
+void vm_init(uintptr_t kernel_vm_start);
 
 // Finds a gap in the address space that can fit a region of the given size.
 // Returns the region before the gap, or NULL if the vm is empty.
-// If virt_addr is not NULL, the address of the gap is stored in it.
-struct vm_region* vm_find_gap(struct vm*, size_t, uintptr_t* virt_addr);
+// If start is not NULL, the start virtual address / PAGE_SIZE of the gap is
+// stored in *start.
+struct vm_region* vm_find_gap(struct vm*, size_t npages, size_t* start);
 
-// Inserts a region after the cursor. If the cursor is NULL, insert at the head.
-void vm_insert_region_after(struct vm*, struct vm_region* cursor,
+// Inserts the region `inserted` after the region `prev`.
+void vm_insert_region_after(struct vm*, struct vm_region* prev,
                             struct vm_region* inserted);
 
 // Removes a region from the vm's region list.
-void vm_remove_region(struct vm*, struct vm_region*);
+void vm_region_remove(struct vm_region*);
+
+void vm_obj_init(void);

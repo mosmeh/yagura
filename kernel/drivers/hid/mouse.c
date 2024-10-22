@@ -116,10 +116,10 @@ static struct inode* ps2_mouse_device_get(void) {
         .poll = ps2_mouse_device_poll,
     };
     static struct inode inode = {
+        .vm_obj = INODE_VM_OBJ_CONST_INIT,
         .fops = &fops,
         .mode = S_IFCHR,
         .rdev = makedev(10, 1),
-        .ref_count = 1,
     };
     return &inode;
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdatomic.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 struct mutex {
@@ -19,3 +20,4 @@ struct spinlock {
 
 void spinlock_lock(struct spinlock*);
 void spinlock_unlock(struct spinlock*);
+bool spinlock_is_locked_by_current(struct spinlock*);

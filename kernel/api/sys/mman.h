@@ -10,3 +10,7 @@
 #define MAP_ANON MAP_ANONYMOUS
 
 #define MAP_FAILED ((void*)-1)
+
+#define MS_ASYNC 1      /* Sync memory asynchronously.  */
+#define MS_SYNC 4       /* Synchronous memory sync.  */
+#define MS_INVALIDATE 2 /* Invalidate the caches.  */

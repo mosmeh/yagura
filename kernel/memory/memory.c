@@ -2,7 +2,7 @@
 #include "private.h"
 
 void memory_init(const multiboot_info_t* mb_info) {
-    page_init(mb_info);
-    page_table_init();
-    vm_init();
+    uintptr_t kernel_vm_start = page_init(mb_info);
+    vm_init(kernel_vm_start);
+    vm_obj_init();
 }

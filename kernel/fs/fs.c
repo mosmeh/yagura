@@ -1,4 +1,5 @@
 #include "fs.h"
+#include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/stdio.h>
@@ -11,25 +12,93 @@
 #include <kernel/sched.h>
 #include <kernel/socket.h>
 
+static void inode_destroy(struct vm_obj* obj) {
+    struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
+    ASSERT(inode->num_links == 0);
+    ASSERT(inode->fops->destroy_inode);
+    inode_unref(inode->fifo);
+    inode_unref(&inode->bound_socket->inode);
+    inode->fops->destroy_inode(inode);
+}
+
+static struct page* inode_populate(struct vm_obj* obj, size_t offset,
+                                   uint32_t error_code) {
+    (void)error_code;
+
+    int ret = 0;
+    struct page* page = NULL;
+    struct file* file = NULL;
+
+    page = page_set_alloc_at(&obj->shared_pages, offset);
+    if (IS_ERR(page)) {
+        ret = PTR_ERR(page);
+        page = NULL;
+        goto fail;
+    }
+
+    struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
+    const struct file_ops* fops = inode->fops;
+    ASSERT(fops);
+    ASSERT(fops->pread);
+
+    inode_ref(inode);
+    file = inode_open(inode, O_RDONLY, 0);
+    if (IS_ERR(file)) {
+        ret = PTR_ERR(file);
+        file = NULL;
+        goto fail;
+    }
+
+    void* kaddr = kmap_page(page);
+    unsigned char* dest = kaddr;
+    size_t to_read = PAGE_SIZE;
+    uint64_t file_offset = (uint64_t)offset * PAGE_SIZE;
+    while (to_read > 0) {
+        ssize_t nread = fops->pread(file, dest, to_read, file_offset);
+        if (IS_ERR(nread)) {
+            kunmap(kaddr);
+            ret = nread;
+            goto fail;
+        }
+        if (nread == 0) {
+            memset(dest, 0, to_read);
+            break;
+        }
+        dest += nread;
+        to_read -= nread;
+        file_offset += nread;
+    }
+    kunmap(kaddr);
+
+    file_unref(file);
+    return page;
+
+fail:
+    file_unref(file);
+    page_set_free(&obj->shared_pages, page);
+    return ERR_PTR(ret);
+}
+
+static void inode_on_write(struct vm_obj* obj, struct page* page) {
+    (void)obj;
+    page->flags |= PAGE_DIRTY;
+}
+
+const struct vm_ops inode_vm_ops = {
+    .destroy_obj = inode_destroy,
+    .populate = inode_populate,
+    .on_write = inode_on_write,
+};
+
 void inode_ref(struct inode* inode) {
     ASSERT(inode);
-    ++inode->ref_count;
+    vm_obj_ref(&inode->vm_obj);
 }
 
 void inode_unref(struct inode* inode) {
     if (!inode)
         return;
-    ASSERT(inode->ref_count > 0);
-    if (--inode->ref_count == 0 && inode->num_links == 0)
-        inode_destroy(inode);
-}
-
-void inode_destroy(struct inode* inode) {
-    ASSERT(inode->ref_count == 0 && inode->num_links == 0);
-    ASSERT(inode->fops->destroy_inode);
-    inode_unref(inode->fifo);
-    inode_unref(&inode->bound_socket->inode);
-    inode->fops->destroy_inode(inode);
+    vm_obj_unref(&inode->vm_obj);
 }
 
 struct inode* inode_lookup_child(struct inode* inode, const char* name) {
@@ -77,6 +146,10 @@ int inode_unlink_child(struct inode* inode, const char* name) {
     return 0;
 }
 
+static struct slab_cache file_cache;
+
+void file_init(void) { slab_cache_init(&file_cache, sizeof(struct file)); }
+
 struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
     switch (flags & O_ACCMODE) {
     case O_RDONLY:
@@ -93,33 +166,36 @@ struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
         return ERR_PTR(-EINVAL);
     }
 
-    struct file* file = kmalloc(sizeof(struct file));
-    if (!file) {
+    struct file* file = slab_cache_alloc(&file_cache);
+    if (IS_ERR(file)) {
         inode_unref(inode);
-        return ERR_PTR(-ENOMEM);
+        return file;
     }
-    *file = (struct file){0};
-    file->inode = inode;
-    file->flags = flags;
-    file->ref_count = 1;
+    *file = (struct file){
+        .inode = inode,
+        .flags = flags,
+        .ref_count = 1,
+    };
 
     if (inode->fops->open) {
         int rc = inode->fops->open(file, mode);
         if (IS_ERR(rc)) {
             inode_unref(inode);
-            kfree(file);
+            slab_cache_free(&file_cache, file);
             return ERR_PTR(rc);
         }
     }
 
     if (flags & O_TRUNC) {
-        if (S_ISDIR(inode->mode))
+        if (S_ISDIR(inode->mode)) {
+            file_unref(file);
             return ERR_PTR(-EISDIR);
+        }
         // Truncation is performed even with O_RDONLY.
         if (inode->fops->truncate) {
             int rc = inode->fops->truncate(file, 0);
             if (IS_ERR(rc)) {
-                file_close(file);
+                file_unref(file);
                 return ERR_PTR(rc);
             }
         }
@@ -141,18 +217,71 @@ int inode_stat(struct inode* inode, struct kstat* buf) {
     return 0;
 }
 
-int file_close(struct file* file) {
+void file_ref(struct file* file) {
     ASSERT(file);
+    ++file->ref_count;
+}
+
+void file_unref(struct file* file) {
+    if (!file)
+        return;
     ASSERT(file->ref_count > 0);
     if (--file->ref_count > 0)
-        return 0;
+        return;
+
+    int rc = file_sync(file);
+    (void)rc;
     struct inode* inode = file->inode;
-    int rc = 0;
     if (inode->fops->close)
-        rc = inode->fops->close(file);
-    kfree(file);
+        inode->fops->close(file);
+    slab_cache_free(&file_cache, file);
     inode_unref(inode);
-    return rc;
+}
+
+static void* map_cached_page(struct file* file, size_t offset, bool write) {
+    struct inode* inode = file->inode;
+    struct vm_obj* vm_obj = &inode->vm_obj;
+    ASSERT(spinlock_is_locked_by_current(&vm_obj->lock));
+
+    struct page* page = page_set_get(&vm_obj->shared_pages, offset);
+    if (page)
+        return kmap_page(page);
+
+    page = page_set_alloc_at(&vm_obj->shared_pages, offset);
+    if (IS_ERR(page))
+        return page;
+
+    ASSERT(inode->fops->pread);
+    unsigned char* kaddr = kmap_page(page);
+    size_t page_offset = 0;
+    uint64_t file_offset = (uint64_t)offset * PAGE_SIZE;
+    while (page_offset < PAGE_SIZE) {
+        size_t to_read = PAGE_SIZE - page_offset;
+        ssize_t nread =
+            inode->fops->pread(file, kaddr + page_offset, to_read, file_offset);
+        if (IS_ERR(nread)) {
+            kunmap(kaddr);
+            page_set_free(&vm_obj->shared_pages, page);
+            return ERR_PTR(nread);
+        }
+        if (nread == 0) {
+            if (!write && page_offset == 0) {
+                // Out of bounds
+                kunmap(kaddr);
+                page_set_free(&vm_obj->shared_pages, page);
+                return NULL;
+            }
+            memset(kaddr + page_offset, 0, to_read);
+            break;
+        }
+        to_read -= nread;
+        page_offset += nread;
+        file_offset += nread;
+    }
+
+    if (write)
+        page->flags |= PAGE_DIRTY;
+    return kaddr;
 }
 
 ssize_t file_read(struct file* file, void* buffer, size_t count) {
@@ -160,11 +289,11 @@ ssize_t file_read(struct file* file, void* buffer, size_t count) {
     if (!S_ISREG(inode->mode) && !S_ISBLK(inode->mode))
         return file_pread(file, buffer, count, 0);
 
-    mutex_lock(&file->offset_lock);
+    spinlock_lock(&file->offset_lock);
     ssize_t nread = file_pread(file, buffer, count, file->offset);
     if (IS_OK(nread))
         file->offset += nread;
-    mutex_unlock(&file->offset_lock);
+    spinlock_unlock(&file->offset_lock);
     return nread;
 }
 
@@ -177,7 +306,33 @@ ssize_t file_pread(struct file* file, void* buffer, size_t count,
         return -EINVAL;
     if ((file->flags & O_ACCMODE) == O_WRONLY)
         return -EBADF;
-    return inode->fops->pread(file, buffer, count, offset);
+    if (!S_ISREG(inode->mode) && !S_ISBLK(inode->mode))
+        return inode->fops->pread(file, buffer, count, offset);
+
+    struct vm_obj* vm_obj = &inode->vm_obj;
+    size_t page_index = offset / PAGE_SIZE;
+    size_t page_offset = offset % PAGE_SIZE;
+    unsigned char* dest = buffer;
+    size_t nread = 0;
+    spinlock_lock(&vm_obj->lock);
+    while (nread < count) {
+        unsigned char* kaddr = map_cached_page(file, page_index, false);
+        if (IS_ERR(kaddr)) {
+            spinlock_unlock(&vm_obj->lock);
+            return PTR_ERR(kaddr);
+        }
+        if (!kaddr)
+            break;
+        size_t to_read = MIN(count - nread, PAGE_SIZE - page_offset);
+        memcpy(dest, kaddr + page_offset, to_read);
+        kunmap(kaddr);
+        dest += to_read;
+        nread += to_read;
+        ++page_index;
+        page_offset = 0;
+    }
+    spinlock_unlock(&vm_obj->lock);
+    return nread;
 }
 
 ssize_t file_read_to_end(struct file* file, void* buffer, size_t count) {
@@ -201,11 +356,11 @@ ssize_t file_write(struct file* file, const void* buffer, size_t count) {
     if (!S_ISREG(inode->mode) && !S_ISBLK(inode->mode))
         return file_pwrite(file, buffer, count, 0);
 
-    mutex_lock(&file->offset_lock);
+    spinlock_lock(&file->offset_lock);
     ssize_t nwritten = file_pwrite(file, buffer, count, file->offset);
     if (IS_OK(nwritten))
         file->offset += nwritten;
-    mutex_unlock(&file->offset_lock);
+    spinlock_unlock(&file->offset_lock);
     return nwritten;
 }
 
@@ -218,7 +373,32 @@ ssize_t file_pwrite(struct file* file, const void* buffer, size_t count,
         return -EINVAL;
     if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EBADF;
-    return inode->fops->pwrite(file, buffer, count, offset);
+    if (!S_ISREG(inode->mode) && !S_ISBLK(inode->mode))
+        return inode->fops->pwrite(file, buffer, count, offset);
+
+    struct vm_obj* vm_obj = &inode->vm_obj;
+    spinlock_lock(&vm_obj->lock);
+    size_t page_index = offset / PAGE_SIZE;
+    size_t page_offset = offset % PAGE_SIZE;
+    const unsigned char* src = buffer;
+    size_t nwritten = 0;
+    while (nwritten < count) {
+        unsigned char* kaddr = map_cached_page(file, page_index, true);
+        if (IS_ERR(kaddr)) {
+            spinlock_unlock(&vm_obj->lock);
+            return PTR_ERR(kaddr);
+        }
+        ASSERT(kaddr);
+        size_t to_write = MIN(count - nwritten, PAGE_SIZE - page_offset);
+        memcpy(kaddr + page_offset, src, to_write);
+        kunmap(kaddr);
+        src += to_write;
+        nwritten += to_write;
+        ++page_index;
+        page_offset = 0;
+    }
+    spinlock_unlock(&vm_obj->lock);
+    return nwritten;
 }
 
 ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
@@ -235,18 +415,6 @@ ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
         cursor += nwritten;
     }
     return cursor;
-}
-
-void* file_mmap(struct file* file, size_t length, uint64_t offset, int flags) {
-    struct inode* inode = file->inode;
-    if (!inode->fops->mmap)
-        return ERR_PTR(-ENODEV);
-    if ((file->flags & O_ACCMODE) == O_WRONLY)
-        return ERR_PTR(-EACCES);
-    if ((flags & VM_SHARED) && (flags & VM_WRITE) &&
-        ((file->flags & O_ACCMODE) != O_RDWR))
-        return ERR_PTR(-EACCES);
-    return inode->fops->mmap(file, length, offset, flags);
 }
 
 int file_truncate(struct file* file, uint64_t length) {
@@ -268,19 +436,19 @@ loff_t file_seek(struct file* file, loff_t offset, int whence) {
     case SEEK_SET:
         if (offset < 0)
             return -EINVAL;
-        mutex_lock(&file->offset_lock);
+        spinlock_lock(&file->offset_lock);
         file->offset = offset;
-        mutex_unlock(&file->offset_lock);
+        spinlock_unlock(&file->offset_lock);
         return offset;
     case SEEK_CUR:
-        mutex_lock(&file->offset_lock);
+        spinlock_lock(&file->offset_lock);
         loff_t new_offset = (loff_t)file->offset + offset;
         if (new_offset < 0) {
-            mutex_unlock(&file->offset_lock);
+            spinlock_unlock(&file->offset_lock);
             return -EINVAL;
         }
         file->offset = new_offset;
-        mutex_unlock(&file->offset_lock);
+        spinlock_unlock(&file->offset_lock);
         return new_offset;
     case SEEK_END: {
         struct kstat stat;
@@ -291,9 +459,9 @@ loff_t file_seek(struct file* file, loff_t offset, int whence) {
         loff_t new_offset = (loff_t)stat.st_size + offset;
         if (new_offset < 0)
             return -EINVAL;
-        mutex_lock(&file->offset_lock);
+        spinlock_lock(&file->offset_lock);
         file->offset = new_offset;
-        mutex_unlock(&file->offset_lock);
+        spinlock_unlock(&file->offset_lock);
         return new_offset;
     }
     default:
@@ -327,6 +495,40 @@ short file_poll(struct file* file, short events) {
     if (!(events & POLLOUT))
         ASSERT(!(revents & POLLOUT));
     return revents;
+}
+
+int file_sync(struct file* file) {
+    struct inode* inode = file->inode;
+    struct vm_obj* vm_obj = &inode->vm_obj;
+    spinlock_lock(&vm_obj->lock);
+    struct page* page = page_set_first(&vm_obj->shared_pages);
+    for (; page; page = page->next) {
+        if (!(page->flags & PAGE_DIRTY))
+            continue;
+        ASSERT(inode->fops->pwrite);
+        page->flags &= ~PAGE_DIRTY;
+        void* kaddr = kmap_page(page);
+        unsigned char* src = kaddr;
+        size_t to_write = PAGE_SIZE;
+        uint64_t file_offset = (uint64_t)page->offset * PAGE_SIZE;
+        while (to_write > 0) {
+            ssize_t nwritten =
+                inode->fops->pwrite(file, src, to_write, file_offset);
+            if (IS_ERR(nwritten)) {
+                kunmap(kaddr);
+                spinlock_unlock(&vm_obj->lock);
+                return nwritten;
+            }
+            if (nwritten == 0)
+                break;
+            src += nwritten;
+            to_write -= nwritten;
+            file_offset += nwritten;
+        }
+        kunmap(kaddr);
+    }
+    spinlock_unlock(&vm_obj->lock);
+    return 0;
 }
 
 int file_block(struct file* file, bool (*unblock)(struct file*), int flags) {

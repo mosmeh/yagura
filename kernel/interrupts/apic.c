@@ -40,7 +40,7 @@ void lapic_init(void) {
     const struct acpi* acpi = acpi_get();
     ASSERT(acpi);
     ASSERT(acpi->lapic_addr);
-    lapic = vm_phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE);
+    lapic = phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE);
     ASSERT(lapic);
 
     idt_set_interrupt_handler(LAPIC_TIMER_VECTOR, sched_tick);
@@ -166,8 +166,7 @@ void io_apic_init(void) {
     uint8_t apic_id = cpu_get_bsp()->apic_id;
 
     for (const struct io_apic** p = acpi->io_apics; *p; ++p) {
-        volatile void* io_apic =
-            vm_phys_map((*p)->io_apic_addr, PAGE_SIZE, VM_READ | VM_WRITE);
+        volatile void* io_apic = kmap((*p)->io_apic_addr);
         ASSERT_OK(io_apic);
 
         size_t num_redirections =
@@ -207,6 +206,6 @@ void io_apic_init(void) {
                                       IRQ((*iso)->source), lo);
         }
 
-        kfree((void*)io_apic);
+        kunmap((void*)io_apic);
     }
 }

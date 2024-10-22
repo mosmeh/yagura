@@ -80,15 +80,21 @@
     F(olduname, sys_uname, 0)                                                  \
     F(wait4, sys_wait4, 0)                                                     \
     F(sysinfo, sys_sysinfo, 0)                                                 \
+    F(fsync, sys_fsync, 0)                                                     \
     F(sigreturn, sys_sigreturn, SYSCALL_RAW_REGISTERS | SYSCALL_NO_ERROR)      \
     F(clone, sys_clone, SYSCALL_RAW_REGISTERS)                                 \
     F(setdomainname, sys_setdomainname, 0)                                     \
     F(uname, sys_newuname, 0)                                                  \
+    F(mprotect, sys_mprotect, 0)                                               \
     F(sigprocmask, sys_sigprocmask, 0)                                         \
     F(getpgid, sys_getpgid, 0)                                                 \
     F(_llseek, sys_llseek, 0)                                                  \
     F(getdents, sys_getdents, 0)                                               \
     F(_newselect, sys_select, 0)                                               \
+    F(msync, sys_msync, 0)                                                     \
+    F(readv, sys_readv, 0)                                                     \
+    F(writev, sys_writev, 0)                                                   \
+    F(fdatasync, sys_fdatasync, 0)                                             \
     F(sched_yield, sys_sched_yield, 0)                                         \
     F(nanosleep, sys_nanosleep_time32, 0)                                      \
     F(poll, sys_poll, 0)                                                       \
@@ -112,6 +118,7 @@
     F(set_thread_area, sys_set_thread_area, 0)                                 \
     F(get_thread_area, sys_get_thread_area, 0)                                 \
     F(exit_group, sys_exit_group, 0)                                           \
+    F(set_tid_address, sys_set_tid_address, 0)                                 \
     F(clock_settime, sys_clock_settime32, 0)                                   \
     F(clock_gettime, sys_clock_gettime32, 0)                                   \
     F(clock_getres, sys_clock_getres_time32, 0)                                \
@@ -217,11 +224,13 @@ int sys_newfstat(int fd, struct linux_stat* buf);
 int sys_uname(struct linux_old_utsname* buf);
 pid_t sys_wait4(pid_t pid, int* wstatus, int options, struct rusage* rusage);
 int sys_sysinfo(struct sysinfo* info);
+int sys_fsync(int fd);
 int sys_sigreturn(struct registers*);
 int sys_clone(struct registers*, unsigned long flags, void* stack,
               pid_t* parent_tid, pid_t* child_tid, void* tls);
 int sys_setdomainname(const char* name, int len);
 int sys_newuname(struct utsname* buf);
+int sys_mprotect(void* addr, size_t len, int prot);
 int sys_sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
 pid_t sys_getpgid(pid_t pid);
 int sys_llseek(unsigned int fd, unsigned long offset_high,
@@ -229,6 +238,10 @@ int sys_llseek(unsigned int fd, unsigned long offset_high,
 ssize_t sys_getdents(int fd, struct linux_dirent* dirp, size_t count);
 int sys_select(int nfds, unsigned long* readfds, unsigned long* writefds,
                unsigned long* exceptfds, struct linux_timeval* timeout);
+int sys_msync(void* addr, size_t length, int flags);
+ssize_t sys_readv(int fd, const struct iovec* iov, int iovcnt);
+ssize_t sys_writev(int fd, const struct iovec* iov, int iovcnt);
+int sys_fdatasync(int fd);
 int sys_sched_yield(void);
 int sys_nanosleep_time32(const struct timespec32* duration,
                          struct timespec32* rem);
@@ -259,6 +272,7 @@ pid_t sys_gettid(void);
 int sys_get_thread_area(struct user_desc* u_info);
 int sys_set_thread_area(struct user_desc* u_info);
 void sys_exit_group(int status);
+pid_t sys_set_tid_address(int* tidptr);
 int sys_clock_settime32(clockid_t clockid, const struct timespec32* tp);
 int sys_clock_gettime32(clockid_t clockid, struct timespec32* tp);
 int sys_clock_getres_time32(clockid_t clockid, struct timespec32* res);

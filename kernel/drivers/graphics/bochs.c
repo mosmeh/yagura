@@ -24,7 +24,6 @@
 #define VBE_DISPI_ENABLED 0x01
 #define VBE_DISPI_LFB_ENABLED 0x40
 
-static uintptr_t phys_addr;
 static struct fb_info info = {
     .id = "bochs",
 };
@@ -35,7 +34,7 @@ static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,
     (void)ctx;
     if ((vendor_id == 0x1234 && device_id == 0x1111) ||
         (vendor_id == 0x80ee && device_id == 0xbeef))
-        phys_addr = pci_get_bar(addr, 0) & 0xfffffff0;
+        info.phys_addr = pci_get_bar(addr, 0) & 0xfffffff0;
 }
 
 static uint16_t read_reg(uint16_t index) {
@@ -79,27 +78,17 @@ static int bochs_fb_set_info(struct fb_info* inout_info) {
     return 0;
 }
 
-static void* bochs_fb_mmap(size_t length, uint64_t offset, int flags) {
-    if (offset != 0)
-        return ERR_PTR(-ENXIO);
-    if (!(flags & VM_SHARED))
-        return ERR_PTR(-ENODEV);
-
-    return vm_phys_map(phys_addr, length, flags);
-}
-
 struct fb* bochs_fb_init(void) {
     pci_enumerate_devices(pci_device_callback, NULL);
-    if (!phys_addr)
+    if (!info.phys_addr)
         return NULL;
 
-    kprintf("bochs_fb: found framebuffer at P%#x\n", phys_addr);
+    kprintf("bochs_fb: found framebuffer at P%#x\n", info.phys_addr);
     configure(640, 480, 32);
 
     static struct fb fb = {
         .get_info = bochs_fb_get_info,
         .set_info = bochs_fb_set_info,
-        .mmap = bochs_fb_mmap,
     };
     return &fb;
 }

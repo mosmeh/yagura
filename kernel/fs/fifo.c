@@ -186,6 +186,7 @@ struct inode* fifo_create(void) {
     }
 
     struct inode* inode = &fifo->inode;
+    inode->vm_obj = INODE_VM_OBJ_INIT;
     static const struct file_ops fops = {
         .destroy_inode = fifo_destroy_inode,
         .open = fifo_open,
@@ -196,7 +197,6 @@ struct inode* fifo_create(void) {
     };
     inode->fops = &fops;
     inode->mode = S_IFIFO;
-    inode->ref_count = 1;
 
     return inode;
 }

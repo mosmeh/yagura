@@ -24,6 +24,15 @@ static void virtio_blk_destroy_inode(struct inode* inode) {
     kfree(node);
 }
 
+static int virtio_blk_stat(struct inode* inode, struct kstat* buf) {
+    virtio_blk_device* node = (virtio_blk_device*)inode;
+    buf->st_size = node->capacity * SECTOR_SIZE;
+    buf->st_blksize = SECTOR_SIZE;
+    buf->st_blocks = node->capacity * SECTOR_SIZE / 512;
+    inode_unref(inode);
+    return 0;
+}
+
 static bool unblock_request(struct file* file) {
     virtio_blk_device* node = (virtio_blk_device*)file->inode;
     return node->virtio->virtqs[0]->num_free_descs >= 3;
@@ -130,7 +139,7 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
         (volatile struct virtio_blk_config*)(device_cfg_space +
                                              device_cfg_cap.offset);
     uint64_t capacity = blk_config->capacity;
-    kfree(device_cfg_space);
+    phys_unmap(device_cfg_space);
 
     size_t id = next_id++;
     dev_t rdev = makedev(254, id);
@@ -151,15 +160,16 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
     device->capacity = capacity;
 
     struct inode* inode = &device->inode;
+    inode->vm_obj = INODE_VM_OBJ_INIT;
     static const struct file_ops fops = {
         .destroy_inode = virtio_blk_destroy_inode,
+        .stat = virtio_blk_stat,
         .pread = virtio_blk_pread,
         .pwrite = virtio_blk_pwrite,
     };
     inode->fops = &fops;
     inode->mode = S_IFBLK;
     inode->rdev = rdev;
-    inode->ref_count = 1;
 
     ASSERT_OK(vfs_register_device(name, inode));
     return;

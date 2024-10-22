@@ -146,6 +146,7 @@ struct unix_socket* unix_socket_create(void) {
     *socket = (struct unix_socket){0};
 
     struct inode* inode = &socket->inode;
+    inode->vm_obj = INODE_VM_OBJ_INIT;
     static const struct file_ops fops = {
         .destroy_inode = unix_socket_destroy_inode,
         .close = unix_socket_close,
@@ -155,7 +156,6 @@ struct unix_socket* unix_socket_create(void) {
     };
     inode->fops = &fops;
     inode->mode = S_IFSOCK;
-    inode->ref_count = 1;
 
     socket->state = SOCKET_STATE_OPENED;
     socket->is_open_for_writing_to_connector = true;

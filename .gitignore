@@ -3,9 +3,12 @@ compile_flags.txt
 /kernel/kernel
 /kernel/kernel.*
 /base/bin/**
+/base/lib/**
+/base/root/*.WAD
 !/base/**/.gitkeep
 /base/root/src
 /initrd
 /disk/boot/*
 !/disk/boot/grub
 /disk_image
+/img

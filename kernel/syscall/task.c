@@ -148,8 +148,6 @@ pid_t sys_fork(struct registers* regs) {
 
 int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
               pid_t* user_parent_tid, pid_t* user_child_tid, void* user_tls) {
-    (void)user_child_tid;
-
     if ((flags & CLONE_SIGHAND) && !(flags & CLONE_VM))
         return -EINVAL;
     if ((flags & CLONE_THREAD) && !(flags & CLONE_SIGHAND))
@@ -195,6 +193,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         rc = -ENOMEM;
         goto fail;
     }
+    memset(stack, 0, STACK_SIZE);
     task->kernel_stack_base = (uintptr_t)stack;
     task->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
     task->esp = task->ebp = task->kernel_stack_top;
@@ -212,7 +211,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         task->vm = current->vm;
         vm_ref(task->vm);
     } else {
-        task->vm = vm_clone();
+        task->vm = vm_clone(current->vm);
         if (IS_ERR(task->vm)) {
             rc = PTR_ERR(task->vm);
             task->vm = NULL;
@@ -286,6 +285,11 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         if (IS_ERR(rc))
             goto fail;
     }
+
+    if (flags & CLONE_CHILD_SETTID)
+        task->user_set_child_tid = user_child_tid;
+    if (flags & CLONE_CHILD_CLEARTID)
+        task->user_clear_child_tid = user_child_tid;
 
     if (flags & CLONE_PARENT_SETTID) {
         if (copy_to_user(user_parent_tid, &tid, sizeof(pid_t))) {
@@ -370,6 +374,11 @@ int sys_set_thread_area(struct user_desc* user_u_info) {
     }
 
     return 0;
+}
+
+pid_t sys_set_tid_address(int* user_tidptr) {
+    current->user_clear_child_tid = user_tidptr;
+    return current->tid;
 }
 
 struct waitpid_blocker {

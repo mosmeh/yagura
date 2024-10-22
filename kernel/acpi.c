@@ -55,14 +55,14 @@ static struct madt* find_madt(const struct rsdt* rsdt) {
         (rsdt->header.length - sizeof(struct sdt_header)) / sizeof(uint32_t);
     for (size_t i = 0; i < n; ++i) {
         struct sdt_header* header =
-            vm_phys_map(rsdt->entries[i], sizeof(struct sdt_header), VM_READ);
+            phys_map(rsdt->entries[i], sizeof(struct sdt_header), VM_READ);
         ASSERT_OK(header);
 
         uint32_t signature = *(uint32_t*)header->signature;
         uint32_t length = header->length;
-        ASSERT_OK(vm_unmap(header, sizeof(struct sdt_header)));
+        phys_unmap(header);
         if (signature == 0x43495041) // "APIC"
-            return vm_phys_map(rsdt->entries[i], length, VM_READ);
+            return phys_map(rsdt->entries[i], length, VM_READ);
     }
     return NULL;
 }
@@ -76,17 +76,17 @@ void acpi_init(void) {
         return;
 
     struct rsdt* rsdt_header =
-        vm_phys_map(rsdp->rsdt_address, sizeof(struct rsdt), VM_READ);
+        phys_map(rsdp->rsdt_address, sizeof(struct rsdt), VM_READ);
     ASSERT_OK(rsdt_header);
     uint32_t rsdt_size = rsdt_header->header.length;
-    ASSERT_OK(vm_unmap(rsdt_header, sizeof(struct rsdt)));
+    phys_unmap(rsdt_header);
 
-    struct rsdt* rsdt = vm_phys_map(rsdp->rsdt_address, rsdt_size, VM_READ);
+    struct rsdt* rsdt = phys_map(rsdp->rsdt_address, rsdt_size, VM_READ);
     ASSERT_OK(rsdt);
 
     struct madt* madt = find_madt(rsdt);
     ASSERT_OK(madt);
-    ASSERT_OK(vm_unmap(rsdt, rsdt_size));
+    phys_unmap(rsdt);
     if (!madt)
         return;
 
