@@ -20,11 +20,11 @@ extern unsigned char init_end[];
 extern unsigned char kernel_end[];
 
 struct registers {
-    uint32_t ss, gs, fs, es, ds;
-    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;
+    uint32_t gs, fs, es, ds;
+    uint32_t edi, esi, ebp, edx, ecx, ebx, eax;
     uint32_t interrupt_num, error_code;
-    uint32_t eip, cs, eflags, user_esp, user_ss;
-} __attribute__((packed));
+    uint32_t eip, cs, eflags, esp, ss;
+};
 
 void dump_context(const struct registers*);
 

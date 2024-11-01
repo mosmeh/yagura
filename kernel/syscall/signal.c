@@ -110,12 +110,12 @@ int sys_sigpending(sigset_t* user_set) {
      X86_EFLAGS_CF | X86_EFLAGS_RF)
 
 int sys_sigreturn(struct registers* regs) {
-    uintptr_t esp = regs->user_esp + sizeof(int); // Pop signum
+    uintptr_t esp = regs->esp + sizeof(int); // Pop signum
     struct sigcontext ctx;
     if (copy_from_user(&ctx, (void*)esp, sizeof(struct sigcontext)))
         task_crash(SIGSEGV);
 
-    regs->user_ss = ctx.regs.user_ss | 3;
+    regs->ss = ctx.regs.ss | 3;
     regs->cs = ctx.regs.cs | 3;
     regs->ds = ctx.regs.ds;
     regs->es = ctx.regs.es;
@@ -128,7 +128,7 @@ int sys_sigreturn(struct registers* regs) {
     regs->esi = ctx.regs.esi;
     regs->edi = ctx.regs.edi;
     regs->ebp = ctx.regs.ebp;
-    regs->user_esp = ctx.regs.user_esp;
+    regs->esp = ctx.regs.esp;
     regs->eip = ctx.regs.eip;
 
     regs->eflags =

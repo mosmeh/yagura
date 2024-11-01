@@ -4,12 +4,17 @@
     .text
     .globl isr_entry
 isr_entry:
-    pusha
+    pushl %eax
+    pushl %ebx
+    pushl %ecx
+    pushl %edx
+    pushl %ebp
+    pushl %esi
+    pushl %edi
     pushl %ds
     pushl %es
     pushl %fs
     pushl %gs
-    pushl %ss
 
     movw $KERNEL_DS, %ax
     movw %ax, %ds
@@ -30,12 +35,17 @@ isr_entry:
 
     .globl do_iret
 do_iret:
-    addl $4, %esp # pop ss
     popl %gs
     popl %fs
     popl %es
     popl %ds
-    popa
+    popl %edi
+    popl %esi
+    popl %ebp
+    popl %edx
+    popl %ecx
+    popl %ebx
+    popl %eax
 
-    addl $8, %esp # pop err_code and num
+    addl $8, %esp # pop error_code and interrupt_num
     iret

@@ -242,8 +242,6 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
         .esp = task->esp,
         .eip = (uintptr_t)entry_point,
         .eflags = X86_EFLAGS_IF | X86_EFLAGS_FIXED,
-        .user_esp = task->esp,
-        .user_ss = KERNEL_DS,
     };
 
     return task;
@@ -572,7 +570,7 @@ void task_handle_signal(struct registers* regs, int signum,
     ASSERT(0 < signum && signum < NSIG);
     ASSERT(action->sa_flags & SA_RESTORER);
 
-    uintptr_t esp = ROUND_DOWN(regs->user_esp, 16);
+    uintptr_t esp = ROUND_DOWN(regs->esp, 16);
 
     // Push the context of the interrupted task
     struct sigcontext ctx = {
@@ -593,7 +591,7 @@ void task_handle_signal(struct registers* regs, int signum,
     if (copy_to_user((void*)esp, &action->sa_restorer, sizeof(uintptr_t)))
         goto fail;
 
-    regs->user_esp = esp;
+    regs->esp = esp;
     regs->eip = (uintptr_t)action->sa_handler;
 
     sigset_t new_blocked = current->blocked_signals | action->sa_mask;

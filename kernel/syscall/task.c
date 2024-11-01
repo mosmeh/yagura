@@ -206,7 +206,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     child_regs->eax = 0; // returns 0 in the child
 
     if (user_stack)
-        child_regs->user_esp = (uintptr_t)user_stack;
+        child_regs->esp = (uintptr_t)user_stack;
 
     if (flags & CLONE_VM) {
         task->vm = current->vm;
