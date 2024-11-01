@@ -17,6 +17,8 @@ isr_entry:
     movw %ax, %fs
     movw %ax, %gs
 
+    cld
+
     movl %esp, %eax
     pushl %eax
 

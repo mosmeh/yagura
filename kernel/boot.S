@@ -30,6 +30,7 @@
     .globl _start
 _start:
     cli
+    cld
 
     # fill page table
     movl $(PTE_PRESENT | PTE_WRITE | PTE_GLOBAL), %esi
@@ -97,6 +98,7 @@ read_eip:
     .globl ap_trampoline_start, ap_trampoline_end
 ap_trampoline_start:
     cli
+    cld
 
     xorw %ax, %ax
     movw %ax, %ds
