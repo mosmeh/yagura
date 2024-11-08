@@ -89,6 +89,7 @@ LIB_OBJS := \
 	lib/sys/sysinfo.o \
 	lib/sys/time.o \
 	lib/sys/times.o \
+	lib/sys/uio.o \
 	lib/sys/utsname.o \
 	lib/sys/wait.o \
 	lib/termios.o \

@@ -17,10 +17,10 @@ typedef struct multiboot_mod_list multiboot_module_t;
 
 // Open file description
 struct file {
-    struct mutex offset_lock;
     struct inode* inode;
     atomic_int flags;
     uint64_t offset;
+    struct mutex offset_lock;
     void* private_data;
     atomic_size_t ref_count;
 };

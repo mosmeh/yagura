@@ -89,6 +89,8 @@
     F(_llseek, sys_llseek, 0)                                                  \
     F(getdents, sys_getdents, 0)                                               \
     F(_newselect, sys_select, 0)                                               \
+    F(readv, sys_readv, 0)                                                     \
+    F(writev, sys_writev, 0)                                                   \
     F(sched_yield, sys_sched_yield, 0)                                         \
     F(nanosleep, sys_nanosleep_time32, 0)                                      \
     F(poll, sys_poll, 0)                                                       \
@@ -229,6 +231,8 @@ int sys_llseek(unsigned int fd, unsigned long offset_high,
 ssize_t sys_getdents(int fd, struct linux_dirent* dirp, size_t count);
 int sys_select(int nfds, unsigned long* readfds, unsigned long* writefds,
                unsigned long* exceptfds, struct linux_timeval* timeout);
+ssize_t sys_readv(int fd, const struct iovec* iov, int iovcnt);
+ssize_t sys_writev(int fd, const struct iovec* iov, int iovcnt);
 int sys_sched_yield(void);
 int sys_nanosleep_time32(const struct timespec32* duration,
                          struct timespec32* rem);

@@ -65,8 +65,6 @@
     F(setfsgid)                                                                \
     F(flock)                                                                   \
     F(msync)                                                                   \
-    F(readv)                                                                   \
-    F(writev)                                                                  \
     F(getsid)                                                                  \
     F(fdatasync)                                                               \
     F(mlock)                                                                   \
