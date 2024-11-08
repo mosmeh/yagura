@@ -37,6 +37,8 @@ typedef uint16_t Elf32_Half;
      (ehdr).e_ident[EI_MAG2] == ELFMAG2 && (ehdr).e_ident[EI_MAG3] == ELFMAG3)
 
 #define ET_EXEC 2
+#define ET_DYN 3
+
 #define EM_386 3
 #define EV_CURRENT 1
 

@@ -169,9 +169,7 @@ static int execve(const char* pathname, struct string_vec* argv,
     struct file* file = NULL;
 
     struct kstat stat;
-    mutex_lock(&current->fs->lock);
-    ret = vfs_stat_at(current->fs->cwd, pathname, &stat, 0);
-    mutex_unlock(&current->fs->lock);
+    ret = vfs_stat(pathname, &stat, 0);
     if (IS_ERR(ret))
         goto fail_exe;
     if (!S_ISREG(stat.st_mode)) {
@@ -215,13 +213,21 @@ static int execve(const char* pathname, struct string_vec* argv,
         ehdr->e_ident[EI_DATA] != ELFDATA2LSB ||
         ehdr->e_ident[EI_VERSION] != EV_CURRENT ||
         ehdr->e_ident[EI_ABIVERSION] != 0 || ehdr->e_machine != EM_386 ||
-        ehdr->e_type != ET_EXEC || ehdr->e_version != EV_CURRENT) {
+        ehdr->e_version != EV_CURRENT) {
         ret = -ENOEXEC;
         goto fail_exe;
     }
     switch (ehdr->e_ident[EI_OSABI]) {
     case ELFOSABI_NONE:
     case ELFOSABI_GNU:
+        break;
+    default:
+        ret = -ENOEXEC;
+        goto fail_exe;
+    }
+    switch (ehdr->e_type) {
+    case ET_EXEC:
+    case ET_DYN:
         break;
     default:
         ret = -ENOEXEC;
