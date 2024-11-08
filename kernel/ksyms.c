@@ -21,9 +21,10 @@ void ksyms_init(void) {
     // Parse the output of `nm -n`
     // e.g. c0110580 T start
 
+    size_t n = 0;
     for (const char* p = ksyms_start; p < ksyms_end; ++p)
-        num_symbols += *p == '\n';
-    symbols = kmalloc(num_symbols * sizeof(struct symbol));
+        n += *p == '\n';
+    symbols = kmalloc(n * sizeof(struct symbol));
 
     struct symbol* symbol = symbols;
     for (char* p = ksyms_start; p < ksyms_end; ++p, ++symbol) {
@@ -47,6 +48,8 @@ void ksyms_init(void) {
             ++p;
         *p = 0; // Replace '\n' with '\0'
     }
+
+    num_symbols = n;
 }
 
 const struct symbol* ksyms_lookup(uintptr_t addr) {
@@ -60,6 +63,8 @@ const struct symbol* ksyms_lookup(uintptr_t addr) {
 }
 
 const struct symbol* ksyms_next(const struct symbol* symbol) {
+    if (num_symbols == 0)
+        return NULL;
     if (symbol == NULL || symbol < symbols)
         return symbols;
     if (symbol >= symbols + num_symbols - 1)
