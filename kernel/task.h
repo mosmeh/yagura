@@ -33,6 +33,8 @@ struct task {
     uintptr_t arg_start, arg_end, env_start, env_end;
 
     struct gdt_segment tls[NUM_GDT_TLS_ENTRIES];
+    int* user_set_child_tid;
+    int* user_clear_child_tid;
 
     struct fs* fs;
     struct files* files;

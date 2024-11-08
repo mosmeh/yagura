@@ -19,6 +19,7 @@ ENUMERATE_UNIMPLEMENTED_SYSCALLS(F)
 #undef F
 
 struct syscall {
+    const char* name;
     uintptr_t handler;
     unsigned flags;
 };
@@ -26,6 +27,7 @@ struct syscall {
 static struct syscall syscalls[] = {
 #define F(name)                                                                \
     [SYS_##name] = {                                                           \
+        #name,                                                                 \
         (uintptr_t)sys_ni_##name,                                              \
         SYSCALL_RAW_REGISTERS,                                                 \
     },
@@ -34,6 +36,7 @@ static struct syscall syscalls[] = {
 
 #define F(name, handler, flags)                                                \
     [SYS_##name] = {                                                           \
+        #name,                                                                 \
         (uintptr_t)(handler),                                                  \
         (flags),                                                               \
     },
@@ -55,13 +58,22 @@ static int do_syscall(struct registers* regs, unsigned* out_flags) {
     typedef int (*regs_fn)(struct registers*, int, int, int, int, int, int);
     typedef int (*no_regs_fn)(int, int, int, int, int, int);
 
-    if (syscall->flags & SYSCALL_RAW_REGISTERS)
-        return ((regs_fn)syscall->handler)(regs, regs->ebx, regs->ecx,
-                                           regs->edx, regs->esi, regs->edi,
-                                           regs->ebp);
+    if (cmdline_contains("syscall_log"))
+        kprintf("syscall: %s(%#x, %#x, %#x, %#x, %#x, %#x) = ", syscall->name,
+                regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi,
+                regs->ebp);
 
-    return ((no_regs_fn)syscall->handler)(regs->ebx, regs->ecx, regs->edx,
+    int ret;
+    if (syscall->flags & SYSCALL_RAW_REGISTERS)
+        ret = ((regs_fn)syscall->handler)(regs, regs->ebx, regs->ecx, regs->edx,
                                           regs->esi, regs->edi, regs->ebp);
+    else
+        ret = ((no_regs_fn)syscall->handler)(regs->ebx, regs->ecx, regs->edx,
+                                             regs->esi, regs->edi, regs->ebp);
+
+    if (cmdline_contains("syscall_log"))
+        kprintf("%#x\n", ret);
+    return ret;
 }
 
 static void syscall_handler(struct registers* regs) {

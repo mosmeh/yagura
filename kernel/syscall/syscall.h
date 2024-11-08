@@ -114,6 +114,7 @@
     F(set_thread_area, sys_set_thread_area, 0)                                 \
     F(get_thread_area, sys_get_thread_area, 0)                                 \
     F(exit_group, sys_exit_group, 0)                                           \
+    F(set_tid_address, sys_set_tid_address, 0)                                 \
     F(clock_settime, sys_clock_settime32, 0)                                   \
     F(clock_gettime, sys_clock_gettime32, 0)                                   \
     F(clock_getres, sys_clock_getres_time32, 0)                                \
@@ -263,6 +264,7 @@ pid_t sys_gettid(void);
 int sys_get_thread_area(struct user_desc* u_info);
 int sys_set_thread_area(struct user_desc* u_info);
 void sys_exit_group(int status);
+pid_t sys_set_tid_address(int* tidptr);
 int sys_clock_settime32(clockid_t clockid, const struct timespec32* tp);
 int sys_clock_gettime32(clockid_t clockid, struct timespec32* tp);
 int sys_clock_getres_time32(clockid_t clockid, struct timespec32* res);

@@ -143,7 +143,6 @@
     F(epoll_ctl)                                                               \
     F(epoll_wait)                                                              \
     F(remap_file_pages)                                                        \
-    F(set_tid_address)                                                         \
     F(timer_create)                                                            \
     F(timer_settime)                                                           \
     F(timer_gettime)                                                           \
