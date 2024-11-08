@@ -235,6 +235,7 @@ NODISCARD static int fstat(int fd, struct kstat* buf) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
+    inode_ref(file->inode);
     return inode_stat(file->inode, buf);
 }
 
