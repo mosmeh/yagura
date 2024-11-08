@@ -411,8 +411,9 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
     if (IS_ERR(file))
         return PTR_ERR(file);
     rc = file_write_all(file, target, target_len);
-    file_close(file);
-    return rc;
+    if (IS_ERR(rc))
+        return rc;
+    return 0;
 }
 
 int sys_ioctl(int fd, int request, void* user_argp) {
