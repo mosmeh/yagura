@@ -99,6 +99,8 @@ int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
     }
 
     struct unix_socket* connector = unix_socket_accept(file);
+    if (PTR_ERR(connector) == -EINTR)
+        return -ERESTARTSYS;
     if (IS_ERR(connector))
         return PTR_ERR(connector);
     struct file* connector_file = inode_open(&connector->inode, O_RDWR, 0);
@@ -137,7 +139,10 @@ int sys_connect(int sockfd, const struct sockaddr* user_addr,
     if (IS_ERR(addr_file))
         return PTR_ERR(addr_file);
 
-    return unix_socket_connect(file, addr_file->inode);
+    int rc = unix_socket_connect(file, addr_file->inode);
+    if (rc == -EINTR)
+        return -ERESTARTSYS;
+    return rc;
 }
 
 int sys_shutdown(int sockfd, int how) {

@@ -41,6 +41,8 @@ int sys_open(const char* user_pathname, int flags, unsigned mode) {
         return rc;
 
     struct file* file = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
+    if (PTR_ERR(file) == -EINTR)
+        return -ERESTARTSYS;
     if (IS_ERR(file))
         return PTR_ERR(file);
     rc = task_alloc_file_descriptor(-1, file);
@@ -422,7 +424,10 @@ int sys_ioctl(int fd, int request, void* user_argp) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    return file_ioctl(file, request, user_argp);
+    int rc = file_ioctl(file, request, user_argp);
+    if (rc == -EINTR)
+        return -ERESTARTSYS;
+    return rc;
 }
 
 int sys_mkdir(const char* user_pathname, mode_t mode) {
