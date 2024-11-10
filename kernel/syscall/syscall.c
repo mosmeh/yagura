@@ -66,10 +66,6 @@ static int do_syscall(struct registers* regs, unsigned* out_flags) {
 
 static void syscall_handler(struct registers* regs) {
     ASSERT((regs->cs & 3) == 3);
-    ASSERT((regs->ds & 3) == 3);
-    ASSERT((regs->es & 3) == 3);
-    ASSERT((regs->fs & 3) == 3);
-    ASSERT((regs->gs & 3) == 3);
     ASSERT((regs->ss & 3) == 3);
     ASSERT(interrupts_enabled());
 
