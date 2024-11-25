@@ -5,7 +5,7 @@
 typedef void (*sighandler_t)(int);
 typedef uint32_t sigset_t;
 
-#define sigmask(sig) (1 << ((sig) - 1))
+#define sigmask(sig) (1U << ((sig) - 1))
 
 #define SIG_ERR ((sighandler_t)(-1)) // Error return.
 #define SIG_DFL ((sighandler_t)0)    // Default action.

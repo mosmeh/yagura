@@ -9,11 +9,11 @@
 #include "system.h"
 
 static void set_feature(struct cpu* cpu, int feature) {
-    cpu->features[feature >> 5] |= 1 << (feature & 31);
+    cpu->features[feature >> 5] |= 1U << (feature & 31);
 }
 
 bool cpu_has_feature(const struct cpu* cpu, int feature) {
-    return cpu->features[feature >> 5] & (1 << (feature & 31));
+    return cpu->features[feature >> 5] & (1U << (feature & 31));
 }
 
 static void detect_features(struct cpu* cpu) {
@@ -43,7 +43,7 @@ static void detect_features(struct cpu* cpu) {
     }
 
 #define F(reg, bit, name)                                                      \
-    if ((reg) & (1 << (bit)))                                                  \
+    if ((reg) & (1U << (bit)))                                                 \
         set_feature(cpu, X86_FEATURE_##name);
 
     F(ecx, 0, XMM3)

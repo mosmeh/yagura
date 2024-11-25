@@ -19,17 +19,17 @@ static struct mutex lock;
 
 static bool bitmap_get(size_t i) {
     ASSERT(BITMAP_INDEX(i) < bitmap_len);
-    return bitmap[BITMAP_INDEX(i)] & (1 << (i & 31));
+    return bitmap[BITMAP_INDEX(i)] & (1U << (i & 31));
 }
 
 static void bitmap_set(size_t i) {
     ASSERT(BITMAP_INDEX(i) < bitmap_len);
-    bitmap[BITMAP_INDEX(i)] |= 1 << (i & 31);
+    bitmap[BITMAP_INDEX(i)] |= 1U << (i & 31);
 }
 
 static void bitmap_clear(size_t i) {
     ASSERT(BITMAP_INDEX(i) < bitmap_len);
-    bitmap[BITMAP_INDEX(i)] &= ~(1 << (i & 31));
+    bitmap[BITMAP_INDEX(i)] &= ~(1U << (i & 31));
 }
 
 static ssize_t bitmap_find_first_set(void) {

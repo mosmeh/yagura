@@ -59,7 +59,7 @@ static void put(struct screen* screen, size_t x, size_t y, char c,
             uint32_t swapped = ((val >> 24) & 0xff) | ((val << 8) & 0xff0000) |
                                ((val >> 8) & 0xff00) |
                                ((val << 24) & 0xff000000);
-            *pixel++ = swapped & (1 << (32 - px - 1)) ? fg : bg;
+            *pixel++ = swapped & (1U << (32 - px - 1)) ? fg : bg;
         }
         glyph += font->bytes_per_glyph / font->glyph_height;
         row += fb_info.pitch;
