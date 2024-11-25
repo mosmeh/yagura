@@ -3,6 +3,7 @@
 #include "kmsg.h"
 #include "memory/memory.h"
 #include "panic.h"
+#include <common/string.h>
 
 struct rsdp_descriptor {
     char signature[8];
@@ -58,7 +59,8 @@ static struct madt* find_madt(const struct rsdt* rsdt) {
             vm_phys_map(rsdt->entries[i], sizeof(struct sdt_header), VM_READ);
         ASSERT_OK(header);
 
-        uint32_t signature = *(uint32_t*)header->signature;
+        uint32_t signature;
+        memcpy(&signature, header->signature, sizeof(signature));
         uint32_t length = header->length;
         ASSERT_OK(vm_unmap(header, sizeof(struct sdt_header)));
         if (signature == 0x43495041) // "APIC"

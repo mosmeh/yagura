@@ -55,11 +55,10 @@ static void put(struct screen* screen, size_t x, size_t y, char c,
     for (size_t py = 0; py < font->glyph_height; ++py) {
         uint32_t* pixel = (uint32_t*)row;
         for (size_t px = 0; px < font->glyph_width; ++px) {
-            uint32_t val = *(const uint32_t*)glyph;
-            uint32_t swapped = ((val >> 24) & 0xff) | ((val << 8) & 0xff0000) |
-                               ((val >> 8) & 0xff00) |
-                               ((val << 24) & 0xff000000);
-            *pixel++ = swapped & (1U << (32 - px - 1)) ? fg : bg;
+            uint32_t v = ((uint32_t)glyph[0] << 24) |
+                         ((uint32_t)glyph[1] << 16) |
+                         ((uint32_t)glyph[2] << 8) | glyph[3];
+            *pixel++ = v & (1U << (32 - px - 1)) ? fg : bg;
         }
         glyph += font->bytes_per_glyph / font->glyph_height;
         row += fb_info.pitch;
