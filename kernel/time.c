@@ -67,7 +67,9 @@ int time_now(clockid_t clock_id, struct timespec* tp) {
     case CLOCK_MONOTONIC: {
         unsigned t = uptime;
         tp->tv_sec = t / CLK_TCK;
-        tp->tv_nsec = (t - tp->tv_sec * CLK_TCK) * NANOS / CLK_TCK;
+        tp->tv_nsec =
+            divmodi64(((uint64_t)t - (uint64_t)tp->tv_sec * CLK_TCK) * NANOS,
+                      CLK_TCK, NULL);
         break;
     }
     default:

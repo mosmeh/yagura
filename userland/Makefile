@@ -66,6 +66,7 @@ LIB_OBJS := \
 	../common/strings.o \
  	../common/stdio.o \
  	../common/stdlib.o \
+	../common/ubsan.o \
 	lib/asm.o \
 	lib/crt0.o \
 	lib/dirent.o \

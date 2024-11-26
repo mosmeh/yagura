@@ -84,7 +84,8 @@ OBJS := \
 	../common/string.o \
 	../common/strings.o \
  	../common/stdio.o \
- 	../common/stdlib.o
+ 	../common/stdlib.o \
+	../common/ubsan.o
 
 DEPS := $(OBJS:.o=.d)
 

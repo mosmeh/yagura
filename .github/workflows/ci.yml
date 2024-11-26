@@ -20,3 +20,13 @@ jobs:
               timeout-minutes: 3
             - run: grub-file --is-x86-multiboot kernel/kernel
             - run: make disk_image
+    ubsan:
+        runs-on: ubuntu-24.04
+        env:
+            CC: gcc
+        steps:
+            - uses: actions/checkout@v4
+            - run: sudo apt-get update && sudo apt-get install -y gcc-multilib cpio qemu-system-x86
+            - run: make EXTRA_CFLAGS="-Werror -fsanitize=undefined"
+            - run: make test
+              timeout-minutes: 5
