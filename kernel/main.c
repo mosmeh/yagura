@@ -12,6 +12,15 @@
 #include "task.h"
 #include "time.h"
 
+static noreturn void ksyncd(void) {
+    for (;;) {
+        int rc = vfs_sync();
+        if (IS_ERR(rc))
+            kprintf("ksyncd: sync failed (error %d)\n", rc);
+        sched_sleep(&(struct timespec){.tv_sec = 1});
+    }
+}
+
 static noreturn void userland_init(void) {
     current->tid = current->tgid = current->pgid = task_generate_next_tid();
 
@@ -88,6 +97,7 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     smp_start();
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
+    ASSERT_OK(task_spawn("ksyncd", ksyncd));
     ASSERT_OK(task_spawn("userland_init", userland_init));
 
     sched_start();

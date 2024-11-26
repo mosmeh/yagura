@@ -61,7 +61,7 @@ static struct virtq* virtq_create(uint16_t queue_size) {
     return virtq;
 }
 
-bool virtq_is_ready(struct virtq* virtq) {
+bool virtq_is_ready(const struct virtq* virtq) {
     return virtq->used->idx == virtq->avail_index_shadow;
 }
 
@@ -341,7 +341,7 @@ struct virtio_device* virtio_device_create(const struct pci_addr* addr,
 fail_initialization:
     common_cfg->device_status |= VIRTIO_CONFIG_S_FAILED;
 fail_discovery:
-    kfree(common_cfg_space);
+    phys_unmap(common_cfg_space);
     virtio_device_destroy(virtio);
     return ERR_PTR(ret);
 }
@@ -356,6 +356,6 @@ void virtio_device_destroy(struct virtio_device* virtio) {
             virtio->virtqs[i] = NULL;
         }
     }
-    kfree(virtio->notify_space);
+    phys_unmap(virtio->notify_space);
     kfree(virtio);
 }

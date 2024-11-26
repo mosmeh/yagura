@@ -173,7 +173,7 @@ static struct mutex lock;
 static ssize_t ac97_device_pwrite(struct file* file, const void* buffer,
                                   size_t count, uint64_t offset) {
     (void)offset;
-    unsigned char* src = (unsigned char*)buffer;
+    const unsigned char* src = (const unsigned char*)buffer;
     size_t nwritten = 0;
     mutex_lock(&lock);
     while (count > 0) {
@@ -250,10 +250,10 @@ static struct inode* ac97_device_get(void) {
         .poll = ac97_device_poll,
     };
     static struct inode inode = {
+        .vm_obj = INODE_VM_OBJ_CONST_INIT,
         .fops = &fops,
         .mode = S_IFCHR,
         .rdev = makedev(14, 3),
-        .ref_count = 1,
     };
     return &inode;
 }

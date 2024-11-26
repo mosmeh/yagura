@@ -21,7 +21,7 @@ int sys_socket(int domain, int type, int protocol) {
         return PTR_ERR(file);
     int fd = task_alloc_file_descriptor(-1, file);
     if (IS_ERR(fd))
-        file_close(file);
+        file_unref(file);
     return fd;
 }
 
@@ -55,7 +55,7 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
 
     int rc = unix_socket_bind(socket, addr_file->inode);
     if (IS_ERR(rc)) {
-        file_close(addr_file);
+        file_unref(addr_file);
         return rc;
     }
 
@@ -109,7 +109,7 @@ int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
 
     int fd = task_alloc_file_descriptor(-1, connector_file);
     if (IS_ERR(fd)) {
-        file_close(connector_file);
+        file_unref(connector_file);
         return fd;
     }
 

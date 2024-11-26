@@ -5,7 +5,7 @@
 #include <sys/sysmacros.h>
 #include <unistd.h>
 
-static const char* file_type(struct stat* buf) {
+static const char* file_type(const struct stat* buf) {
     if (S_ISREG(buf->st_mode))
         return buf->st_size == 0 ? "regular empty file" : "regular file";
     if (S_ISDIR(buf->st_mode))

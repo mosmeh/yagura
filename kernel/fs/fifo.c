@@ -10,7 +10,6 @@
 struct fifo {
     struct inode inode;
     struct ring_buf buf;
-    struct mutex lock;
     atomic_size_t num_readers;
     atomic_size_t num_writers;
 };
@@ -100,15 +99,15 @@ static ssize_t fifo_pread(struct file* file, void* buffer, size_t count,
         if (IS_ERR(rc))
             return rc;
 
-        mutex_lock(&fifo->lock);
+        inode_lock(file->inode);
         if (!ring_buf_is_empty(buf)) {
             ssize_t nread = ring_buf_read(buf, buffer, count);
-            mutex_unlock(&fifo->lock);
+            inode_unlock(file->inode);
             return nread;
         }
 
         bool no_writer = fifo->num_writers == 0;
-        mutex_unlock(&fifo->lock);
+        inode_unlock(file->inode);
         if (no_writer)
             return 0;
     }
@@ -131,9 +130,9 @@ static ssize_t fifo_pwrite(struct file* file, const void* buffer, size_t count,
         if (IS_ERR(rc))
             return rc;
 
-        mutex_lock(&fifo->lock);
+        inode_lock(file->inode);
         if (fifo->num_readers == 0) {
-            mutex_unlock(&fifo->lock);
+            inode_unlock(file->inode);
             int rc = task_send_signal(current->tid, SIGPIPE, 0);
             if (IS_ERR(rc))
                 return rc;
@@ -141,12 +140,12 @@ static ssize_t fifo_pwrite(struct file* file, const void* buffer, size_t count,
         }
 
         if (ring_buf_is_full(buf)) {
-            mutex_unlock(&fifo->lock);
+            inode_unlock(file->inode);
             continue;
         }
 
         ssize_t nwritten = ring_buf_write(buf, buffer, count);
-        mutex_unlock(&fifo->lock);
+        inode_unlock(file->inode);
         return nwritten;
     }
 }
@@ -186,6 +185,7 @@ struct inode* fifo_create(void) {
     }
 
     struct inode* inode = &fifo->inode;
+    inode->vm_obj = INODE_VM_OBJ_INIT;
     static const struct file_ops fops = {
         .destroy_inode = fifo_destroy_inode,
         .open = fifo_open,
@@ -196,7 +196,6 @@ struct inode* fifo_create(void) {
     };
     inode->fops = &fops;
     inode->mode = S_IFIFO;
-    inode->ref_count = 1;
 
     return inode;
 }

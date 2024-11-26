@@ -21,13 +21,16 @@
 // Page is global (not flushed from TLB on context switch)
 #define PTE_GLOBAL 0x100
 
-// Flag to indicate that the page is shared between multiple vm instances.
-// The bit is unused by the hardware, so we can use it for our purposes.
-#define PTE_SHARED 0x200
+#define X86_PF_PROT 0x1
+#define X86_PF_WRITE 0x2
+#define X86_PF_USER 0x4
+#define X86_PF_RSVD 0x8
+#define X86_PF_INSTR 0x10
 
 #ifndef ASM_FILE
 
 #include <common/extra.h>
+#include <kernel/api/sys/types.h>
 #include <kernel/lock.h>
 
 extern struct page_directory* kernel_page_directory;
@@ -58,9 +61,62 @@ void memory_init(const multiboot_info_t*);
 struct memory_stats {
     size_t total_kibibytes;
     size_t free_kibibytes;
+    size_t committed_kibibytes;
 };
 
 void memory_get_stats(struct memory_stats* out_stats);
+
+#define PAGE_RESERVED 0x1
+#define PAGE_ALLOCATED 0x2
+#define PAGE_DIRTY 0x4
+
+struct page {
+    size_t offset;
+    unsigned flags;    // PAGE_*
+    struct page* next; // offset < next->offset
+};
+
+struct page* page_get(size_t pfn);
+size_t page_to_pfn(const struct page*);
+
+// Commits pages without allocating them.
+NODISCARD bool page_commit(size_t n);
+
+void page_uncommit(size_t n);
+
+// Commits and allocates a page.
+struct page* page_alloc(void);
+
+// Returns the page frame number of the allocated page.
+ssize_t page_alloc_raw(void);
+
+// Allocates a page without committing it. At least one page should have been
+// committed before calling this function.
+struct page* page_alloc_committed(void);
+
+// Frees and uncommits a page.
+void page_free(struct page*);
+void page_free_raw(size_t pfn);
+
+// Returns a page from the list of pages. Returns NULL if the page is not found.
+struct page* pages_get(struct page*, size_t offset);
+
+// Allocates a page, inserting it into the list of pages.
+NODISCARD struct page* pages_alloc_at(struct page**, size_t offset);
+
+// Splits the pages into two at the offset.
+// Returns the pages >= offset.
+// Returns NULL if the offset is larger than the last page.
+NODISCARD struct page* pages_split_off(struct page**, size_t offset);
+
+// Frees a page, removing it from the list of pages.
+void pages_free(struct page**, struct page*);
+
+// Truncates the pages, freeing >= offset.
+void pages_truncate(struct page**, size_t offset);
+
+// Frees all the pages.
+void pages_clear(struct page**);
 
 void* kmalloc(size_t);
 void* kaligned_alloc(size_t alignment, size_t);
@@ -70,98 +126,57 @@ void kfree(void*);
 char* kstrdup(const char*);
 char* kstrndup(const char*, size_t n);
 
+void* phys_map(uintptr_t phys_addr, size_t size, unsigned vm_flags);
+void phys_unmap(void*);
+
 uintptr_t virt_to_phys(void*);
 
-// Region may be read
-#define VM_READ 0x1
+// Maps the pages to the virtual address.
+NODISCARD int page_table_map(uintptr_t virt_addr, size_t pfn, size_t npages,
+                             uint16_t flags);
 
-// Region may be written
-#define VM_WRITE 0x2
+// Maps the page to the virtual address. Only the TLB of the current CPU is
+// flushed.
+NODISCARD int page_table_map_local(uintptr_t virt_addr, size_t pfn,
+                                   uint16_t flags);
 
-// Region may be accessed from userland
-#define VM_USER 0x4
+// Unmaps the pages at the virtual address.
+void page_table_unmap(uintptr_t virt_addr, size_t npages);
 
-// Region is shared between multiple vm instances
-#define VM_SHARED 0x8
+// Unmaps the page at the virtual address. Only the TLB of the current CPU is
+// flushed.
+void page_table_unmap_local(uintptr_t virt_addr);
 
-// Write-combining is enabled for the region
-#define VM_WC 0x10
+void page_directory_switch(struct page_directory*);
 
-struct vm {
-    uintptr_t start;
-    uintptr_t end;
-    struct page_directory* page_directory;
+#define MAX_NUM_KMAPS_PER_TASK 4
+
+struct kmap_ctrl {
+    size_t num_mapped;
+    uintptr_t phys_addrs[MAX_NUM_KMAPS_PER_TASK];
+};
+
+// Maps a physical page to the kernel virtual address space.
+// MAX_NUM_KMAPS_PER_TASK pages can be mapped at the same time for each task.
+NODISCARD void* kmap(uintptr_t phys_addr);
+
+NODISCARD void* kmap_page(struct page*);
+
+// Unmaps the kmapped virtual address.
+// kunmap must be called in the reverse order of kmap.
+void kunmap(void* virt_addr);
+
+// Should be called on context switch with the kmap_ctrl of the new task.
+void kmap_switch(struct kmap_ctrl*);
+
+struct slab_cache {
     struct mutex lock;
-    struct vm_region* regions;
-    atomic_size_t ref_count;
+    size_t obj_size;
+    struct slab_obj* free_list;
 };
 
-struct vm_region {
-    uintptr_t start;
-    uintptr_t end;
-    int flags;
-    struct vm_region* prev;
-    struct vm_region* next;
-};
-
-extern struct vm* kernel_vm;
-
-struct vm* vm_create(void* start, void* end);
-void vm_ref(struct vm*);
-void vm_unref(struct vm*);
-
-// Switches to the virtual memory space.
-void vm_enter(struct vm*);
-
-// Clones the current virtual memory space.
-struct vm* vm_clone(void);
-
-// Allocates a virtual memory region mapped to free physical pages.
-void* vm_alloc(size_t, int flags);
-
-// Allocates a virtual memory region at a specific virtual address range.
-NODISCARD void* vm_alloc_at(void*, size_t, int flags);
-
-// Allocates a virtual memory region mapped to a specific physical address
-// range.
-void* vm_phys_map(uintptr_t phys_addr, size_t, int flags);
-
-// Allocates a virtual memory region that has the same mapping as the specified
-// virtual memory range.
-void* vm_virt_map(void*, size_t, int flags);
-
-// Resizes a virtual memory region.
-NODISCARD void* vm_resize(void*, size_t new_size);
-
-// Changes the flags of a virtual memory region.
-NODISCARD int vm_set_flags(void*, size_t, int flags);
-
-// Unmaps a virtual memory region.
-// If only a part of the region is unmapped, the region is shrunk or split.
-NODISCARD int vm_unmap(void*, size_t);
-
-// Frees a region of memory in the virtual memory space.
-// Equivalent to vm_unmap with the start address and size of the region.
-// Fails if the address is not the start of a region.
-NODISCARD int vm_free(void*);
-
-// Allocates free pages and maps them to the virtual address range.
-NODISCARD int page_table_map_anon(uintptr_t virt_addr, uintptr_t size,
-                                  uint16_t flags);
-
-// Maps the physical address range to the virtual address range.
-NODISCARD int page_table_map_phys(uintptr_t virt_addr, uintptr_t phys_addr,
-                                  uintptr_t size, uint16_t flags);
-
-// Copies the page table entries from one virtual address range to another.
-NODISCARD int page_table_shallow_copy(uintptr_t to_virt_addr,
-                                      uintptr_t from_virt_addr, uintptr_t size,
-                                      uint16_t new_flags);
-
-// Unmaps the virtual address range.
-void page_table_unmap(uintptr_t virt_addr, uintptr_t size);
-
-// Changes the page table flags for the virtual address range.
-void page_table_set_flags(uintptr_t virt_addr, uintptr_t size, uint16_t flags);
+void slab_cache_init(struct slab_cache*, size_t obj_size);
+void* slab_cache_alloc(struct slab_cache*);
+void slab_cache_free(struct slab_cache*, void*);
 
 #endif

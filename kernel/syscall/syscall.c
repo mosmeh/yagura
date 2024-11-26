@@ -7,7 +7,7 @@
 #include <kernel/task.h>
 
 #define F(name)                                                                \
-    static int sys_ni_##name(struct registers* regs) {                         \
+    static int sys_ni_##name(const struct registers* regs) {                   \
         if (cmdline_contains("ni_syscall_log"))                                \
             kprintf("syscall: unimplemented syscall " #name                    \
                     "(%#x, %#x, %#x, %#x, %#x, %#x)\n",                        \

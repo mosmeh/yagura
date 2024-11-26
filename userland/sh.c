@@ -523,7 +523,7 @@ struct parser {
     } result;
 };
 
-static char peek(struct parser* parser) { return *parser->cursor; }
+static char peek(const struct parser* parser) { return *parser->cursor; }
 
 static char consume(struct parser* parser) { return *parser->cursor++; }
 

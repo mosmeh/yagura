@@ -1,6 +1,6 @@
 #include "screen.h"
 #include <kernel/asm_wrapper.h>
-#include <kernel/memory/memory.h>
+#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 
 #define NUM_COLUMNS 80
@@ -52,8 +52,8 @@ static struct screen screen = {
 };
 
 struct screen* vga_text_screen_init(void) {
-    cells = vm_phys_map(0xb8000, NUM_COLUMNS * NUM_ROWS * 2,
-                        VM_READ | VM_WRITE | VM_WC);
+    cells = phys_map(0xb8000, NUM_COLUMNS * NUM_ROWS * 2,
+                     VM_READ | VM_WRITE | VM_WC);
     if (IS_ERR(cells))
         return ERR_CAST(cells);
     return &screen;

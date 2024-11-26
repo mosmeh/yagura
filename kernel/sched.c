@@ -5,6 +5,7 @@
 #include "panic.h"
 #include "system.h"
 #include "task.h"
+#include "time.h"
 #include <common/stdio.h>
 #include <common/string.h>
 
@@ -92,11 +93,6 @@ void sched_register(struct task* task) {
 static void unblock_tasks(void) {
     spinlock_lock(&all_tasks_lock);
 
-    if (!all_tasks) {
-        spinlock_unlock(&all_tasks_lock);
-        return;
-    }
-
     for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
         if (it->state != TASK_UNINTERRUPTIBLE &&
             it->state != TASK_INTERRUPTIBLE)
@@ -133,7 +129,9 @@ noreturn void switch_context(void) {
     ASSERT(task->state == TASK_RUNNING);
     cpu->current_task = task;
 
-    vm_enter(task->vm);
+    page_directory_switch(task->vm->page_directory);
+    kmap_switch(&task->kmap);
+
     gdt_set_cpu_kernel_stack(task->kernel_stack_top);
     memcpy(cpu_get_current()->gdt + GDT_ENTRY_TLS_MIN, current->tls,
            sizeof(current->tls));
@@ -241,4 +239,18 @@ int sched_block(unblock_fn unblock, void* data, int flags) {
     pop_cli(int_flag);
 
     return current->interrupted ? -EINTR : 0;
+}
+
+static bool unblock_sleep(const struct timespec* deadline) {
+    struct timespec now;
+    ASSERT_OK(time_now(CLOCK_MONOTONIC, &now));
+    return timespec_compare(&now, deadline) >= 0;
+}
+
+void sched_sleep(const struct timespec* duration) {
+    struct timespec deadline;
+    ASSERT_OK(time_now(CLOCK_MONOTONIC, &deadline));
+    timespec_add(&deadline, duration);
+    ASSERT_OK(sched_block((unblock_fn)unblock_sleep, &deadline,
+                          BLOCK_UNINTERRUPTIBLE));
 }

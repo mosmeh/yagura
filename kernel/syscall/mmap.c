@@ -6,44 +6,61 @@
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/syscall.h>
 #include <kernel/memory/memory.h>
+#include <kernel/panic.h>
 #include <kernel/safe_string.h>
 #include <kernel/task.h>
 
+static unsigned prot_to_vm_flags(int prot) {
+    unsigned flags = 0;
+    if (prot & PROT_READ)
+        flags |= VM_READ;
+    if (prot & PROT_WRITE)
+        flags |= VM_WRITE;
+    return flags;
+}
+
 void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
                      unsigned long pgoff) {
-    (void)addr;
-
     if (length == 0 || !((flags & MAP_PRIVATE) ^ (flags & MAP_SHARED)))
         return ERR_PTR(-EINVAL);
 
-    if (flags & MAP_FIXED)
-        return ERR_PTR(-ENOTSUP);
-    if ((flags & MAP_ANONYMOUS) && pgoff)
-        return ERR_PTR(-ENOTSUP);
-
-    int vm_flags = VM_USER;
-    if (prot & PROT_READ)
-        vm_flags |= VM_READ;
-    if (prot & PROT_WRITE)
-        vm_flags |= VM_WRITE;
-    if (flags & MAP_SHARED)
-        vm_flags |= VM_SHARED;
-
+    struct vm_obj* obj;
     if (flags & MAP_ANONYMOUS) {
-        void* mapped_addr = vm_alloc(length, vm_flags);
-        if (IS_ERR(mapped_addr))
-            return mapped_addr;
-        memset(mapped_addr, 0, length);
-        return mapped_addr;
+        obj = anon_create();
+        if (IS_ERR(obj))
+            return obj;
+    } else {
+        struct file* file = task_get_file(fd);
+        if (IS_ERR(file))
+            return file;
+        if (S_ISDIR(file->inode->mode))
+            return ERR_PTR(-ENODEV);
+        obj = &file->inode->vm_obj;
+        vm_obj_ref(obj);
     }
 
-    struct file* file = task_get_file(fd);
-    if (IS_ERR(file))
-        return file;
-    if (S_ISDIR(file->inode->mode))
-        return ERR_PTR(-ENODEV);
+    struct vm* vm = current->vm;
+    mutex_lock(&vm->lock);
 
-    return file_mmap(file, length, pgoff * PAGE_SIZE, vm_flags);
+    size_t npages = DIV_CEIL(length, PAGE_SIZE);
+    struct vm_region* region = (flags & MAP_FIXED)
+                                   ? vm_alloc_at(vm, addr, npages)
+                                   : vm_alloc(vm, npages);
+    if (IS_ERR(region)) {
+        mutex_unlock(&vm->lock);
+        vm_obj_unref(obj);
+        return region;
+    }
+
+    unsigned vm_flags = prot_to_vm_flags(prot) | VM_USER;
+    if (flags & MAP_SHARED)
+        vm_flags |= VM_SHARED;
+    ASSERT_OK(vm_region_set_flags(region, 0, npages, vm_flags, ~0));
+
+    vm_region_set_obj(region, obj, pgoff);
+
+    mutex_unlock(&vm->lock);
+    return vm_region_to_virt(region);
 }
 
 struct mmap_arg_struct {
@@ -65,11 +82,82 @@ void* sys_old_mmap(struct mmap_arg_struct* user_arg) {
                           arg.offset / PAGE_SIZE);
 }
 
-int sys_munmap(void* addr, size_t length) {
+NODISCARD static int for_each_overlapping_region(
+    void* addr, size_t length,
+    int (*fn)(struct vm_region*, size_t offset, size_t npages, void* ctx),
+    void* ctx) {
     if ((uintptr_t)addr % PAGE_SIZE || length == 0)
         return -EINVAL;
-    int rc = vm_unmap(addr, length);
-    if (rc == -ENOENT)
+
+    size_t start = (uintptr_t)addr / PAGE_SIZE;
+    size_t end = DIV_CEIL((uintptr_t)addr + length, PAGE_SIZE);
+
+    struct vm* vm = current->vm;
+    mutex_lock(&vm->lock);
+    int ret = 0;
+    struct vm_region* region =
+        vm_find_intersection(vm, addr, (void*)(end * PAGE_SIZE));
+    while (region && region->start < end) {
+        struct vm_region* next = region->next;
+        size_t offset = MAX(start, region->start) - region->start;
+        size_t npages = MIN(end, region->end) - region->start - offset;
+        ret = fn(region, offset, npages, ctx);
+        if (IS_ERR(ret))
+            break;
+        region = next;
+    }
+    mutex_unlock(&vm->lock);
+    return ret;
+}
+
+static int unmap(struct vm_region* region, size_t offset, size_t npages,
+                 void* ctx) {
+    (void)ctx;
+    return vm_region_free(region, offset, npages);
+}
+
+int sys_munmap(void* addr, size_t length) {
+    return for_each_overlapping_region(addr, length, unmap, NULL);
+}
+
+static int protect(struct vm_region* region, size_t offset, size_t npages,
+                   void* ctx) {
+    unsigned vm_flags = *(unsigned*)ctx;
+    return vm_region_set_flags(region, offset, npages, vm_flags,
+                               VM_READ | VM_WRITE);
+}
+
+int sys_mprotect(void* addr, size_t len, int prot) {
+    unsigned vm_flags = prot_to_vm_flags(prot);
+    return for_each_overlapping_region(addr, len, protect, &vm_flags);
+}
+
+static int sync(struct vm_region* region, size_t offset, size_t npages,
+                void* ctx) {
+    (void)offset;
+    (void)npages;
+    (void)ctx;
+    struct vm_obj* obj = region->obj;
+    if (!obj || obj->vm_ops != &inode_vm_ops)
         return 0;
-    return rc;
+    struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
+    inode_ref(inode);
+    struct file* file = inode_open(inode, 0, 0);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    uint64_t file_offset = ((uint64_t)region->offset + offset) * PAGE_SIZE;
+    uint64_t file_length = (uint64_t)npages * PAGE_SIZE;
+    int ret = file_sync(file, file_offset, file_length);
+    file_unref(file);
+    return ret;
+}
+
+int sys_msync(void* addr, size_t length, int flags) {
+    if (flags & ~(MS_ASYNC | MS_SYNC | MS_INVALIDATE))
+        return -EINVAL;
+    if ((flags & MS_SYNC) && (flags & MS_ASYNC))
+        return -EINVAL;
+    if (flags & MS_INVALIDATE)
+        UNIMPLEMENTED();
+    return for_each_overlapping_region(addr, length, sync, NULL);
 }

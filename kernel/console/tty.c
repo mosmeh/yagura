@@ -15,7 +15,7 @@ static struct tty* tty_from_file(struct file* file) {
     return CONTAINER_OF(file->inode, struct tty, inode);
 }
 
-static bool can_read(struct tty* tty) {
+static bool can_read(const struct tty* tty) {
     return !ring_buf_is_empty(&tty->input_buf);
 }
 
@@ -64,13 +64,14 @@ static ssize_t tty_pread(struct file* file, void* buf, size_t count,
     return ret;
 }
 
-static void echo(struct tty* tty, const char* buf, size_t count) {
+static void echo(const struct tty* tty, const char* buf, size_t count) {
     if (tty->echo)
         tty->echo(buf, count, tty->echo_ctx);
 }
 
-static void processed_echo(struct tty* tty, const char* buf, size_t count) {
-    struct termios* termios = &tty->termios;
+static void processed_echo(const struct tty* tty, const char* buf,
+                           size_t count) {
+    const struct termios* termios = &tty->termios;
     if (!(termios->c_oflag & OPOST)) {
         echo(tty, buf, count);
         return;
@@ -206,6 +207,7 @@ int tty_init(struct tty* tty, uint8_t minor) {
         return rc;
 
     struct inode* inode = &tty->inode;
+    inode->vm_obj = INODE_VM_OBJ_INIT;
     static const struct file_ops fops = {
         .pread = tty_pread,
         .pwrite = tty_pwrite,
@@ -215,7 +217,6 @@ int tty_init(struct tty* tty, uint8_t minor) {
     inode->fops = &fops;
     inode->mode = S_IFCHR;
     inode->rdev = makedev(4, minor);
-    inode->ref_count = 1;
 
     return 0;
 }

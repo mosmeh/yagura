@@ -5,6 +5,7 @@
 #include <kernel/api/sys/types.h>
 #include <kernel/api/time.h>
 #include <kernel/lock.h>
+#include <kernel/memory/vm.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 
@@ -58,28 +59,40 @@ struct file_ops {
     ssize_t (*pread)(struct file*, void* buffer, size_t count, uint64_t offset);
     ssize_t (*pwrite)(struct file*, const void* buffer, size_t count,
                       uint64_t offset);
-    void* (*mmap)(struct file*, size_t length, uint64_t offset, int flags);
     int (*truncate)(struct file*, uint64_t length);
     int (*ioctl)(struct file*, int request, void* user_argp);
     int (*getdents)(struct file*, getdents_callback_fn callback, void* ctx);
     short (*poll)(struct file*, short events);
 };
 
+extern const struct vm_ops inode_vm_ops;
+
+#define INODE_VM_OBJ_CONST_INIT                                                \
+    { .vm_ops = &inode_vm_ops, .ref_count = 1 }
+
+#define INODE_VM_OBJ_INIT ((struct vm_obj)INODE_VM_OBJ_CONST_INIT)
+
+#define INODE_NO_PAGE_CACHE 0x1 // The contents of this inode are not cached
+#define INODE_DIRTY 0x2 // This inode has been modified since the last writeback
+
 struct inode {
+    struct vm_obj vm_obj;
     const struct file_ops* fops;
+    struct page* shared_pages;
     dev_t dev;  // Device number of device containing this inode
     dev_t rdev; // Device number (if this inode is a special file)
     _Atomic(struct inode*) fifo;
     _Atomic(struct unix_socket*) bound_socket;
     mode_t mode;
     _Atomic(nlink_t) num_links;
-    atomic_size_t ref_count;
+    atomic_uint flags;
 };
 
 void inode_ref(struct inode*);
 void inode_unref(struct inode*);
+void inode_lock(struct inode*);
+void inode_unlock(struct inode*);
 
-void inode_destroy(struct inode*);
 NODISCARD struct inode* inode_lookup_child(struct inode*, const char* name);
 NODISCARD struct inode* inode_create_child(struct inode*, const char* name,
                                            mode_t mode);
@@ -88,8 +101,13 @@ NODISCARD int inode_link_child(struct inode*, const char* name,
 NODISCARD int inode_unlink_child(struct inode*, const char* name);
 NODISCARD struct file* inode_open(struct inode*, int flags, mode_t mode);
 NODISCARD int inode_stat(struct inode*, struct kstat* buf);
+NODISCARD void* inode_map(struct inode*, size_t length, unsigned vm_flags,
+                          size_t pgoff);
+void inode_unmap(void*);
 
-int file_close(struct file*);
+void file_ref(struct file*);
+void file_unref(struct file*);
+
 NODISCARD ssize_t file_read(struct file*, void* buffer, size_t count);
 NODISCARD ssize_t file_pread(struct file*, void* buffer, size_t count,
                              uint64_t offset);
@@ -99,13 +117,12 @@ NODISCARD ssize_t file_pwrite(struct file*, const void* buffer, size_t count,
                               uint64_t offset);
 NODISCARD ssize_t file_write_all(struct file*, const void* buffer,
                                  size_t count);
-NODISCARD void* file_mmap(struct file*, size_t length, uint64_t offset,
-                          int flags);
 NODISCARD int file_truncate(struct file*, uint64_t length);
 NODISCARD loff_t file_seek(struct file*, loff_t offset, int whence);
 NODISCARD int file_ioctl(struct file*, int request, void* user_argp);
 NODISCARD int file_getdents(struct file*, getdents_callback_fn, void* ctx);
 NODISCARD short file_poll(struct file*, short events);
+NODISCARD int file_sync(struct file*, uint64_t offset, uint64_t nbytes);
 
 NODISCARD int file_block(struct file*, bool (*unblock)(struct file*),
                          int flags);
@@ -154,5 +171,7 @@ NODISCARD struct inode* vfs_create_at(const struct path* base,
 struct path* vfs_resolve_path(const char* pathname, int flags);
 struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
                                  int flags);
+
+NODISCARD int vfs_sync(void);
 
 struct inode* fifo_create(void);

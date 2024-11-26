@@ -227,10 +227,11 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def) {
     node->populate = item_def->populate;
 
     struct inode* inode = &node->inode;
+    inode->vm_obj = INODE_VM_OBJ_INIT;
     inode->dev = parent->inode.dev;
     inode->fops = &proc_item_fops;
     inode->mode = item_def->mode;
-    inode->ref_count = 1;
+    inode->flags = INODE_NO_PAGE_CACHE;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);
     inode_unref(&parent->inode);
@@ -252,10 +253,11 @@ struct inode* proc_mount(const char* source) {
     };
 
     struct inode* inode = &root->inode;
+    inode->vm_obj = INODE_VM_OBJ_INIT;
     inode->dev = vfs_generate_unnamed_block_device_number();
     inode->fops = &fops;
     inode->mode = S_IFDIR;
-    inode->ref_count = 1;
+    inode->flags = INODE_NO_PAGE_CACHE;
 
     for (size_t i = 0; i < NUM_ITEMS; ++i) {
         inode_ref(inode);

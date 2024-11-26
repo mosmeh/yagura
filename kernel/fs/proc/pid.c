@@ -10,8 +10,7 @@
 
 static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
                                size_t size) {
-    struct vm* current_vm = current->vm;
-    vm_enter(vm);
+    struct vm* current_vm = vm_enter(vm);
     int ret = copy_from_user(dst, user_src, size);
     vm_enter(current_vm);
     return ret;
@@ -172,10 +171,11 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def,
     node->item_inode.populate = item_def->populate;
 
     struct inode* inode = &node->item_inode.inode;
+    inode->vm_obj = INODE_VM_OBJ_INIT;
     inode->dev = parent->inode.dev;
     inode->fops = &proc_item_fops;
     inode->mode = item_def->mode;
-    inode->ref_count = 1;
+    inode->flags = INODE_NO_PAGE_CACHE;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);
     inode_unref(&parent->inode);
@@ -207,10 +207,11 @@ struct inode* proc_pid_dir_inode_create(proc_dir_inode* parent, pid_t pid) {
         .getdents = proc_dir_getdents,
     };
     struct inode* inode = &node->inode;
+    inode->vm_obj = INODE_VM_OBJ_INIT;
     inode->dev = parent->inode.dev;
     inode->fops = &fops;
     inode->mode = S_IFDIR;
-    inode->ref_count = 1;
+    inode->flags = INODE_NO_PAGE_CACHE;
 
     for (size_t i = 0; i < ARRAY_SIZE(pid_items); ++i) {
         inode_ref(inode);

@@ -193,6 +193,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         rc = -ENOMEM;
         goto fail;
     }
+    memset(stack, 0, STACK_SIZE);
     task->kernel_stack_base = (uintptr_t)stack;
     task->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
     task->esp = task->ebp = task->kernel_stack_top;
@@ -210,7 +211,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         task->vm = current->vm;
         vm_ref(task->vm);
     } else {
-        task->vm = vm_clone();
+        task->vm = vm_clone(current->vm);
         if (IS_ERR(task->vm)) {
             rc = PTR_ERR(task->vm);
             task->vm = NULL;

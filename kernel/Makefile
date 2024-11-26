@@ -63,6 +63,7 @@ OBJS := \
 	memory/page.o \
 	memory/slab.o \
 	memory/vm.o \
+	memory/vm_obj.o \
 	random.o \
 	safe_string.o \
 	sched.o \

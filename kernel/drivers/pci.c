@@ -1,6 +1,6 @@
 #include "pci.h"
 #include <kernel/asm_wrapper.h>
-#include <kernel/memory/memory.h>
+#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 
 #define PCI_ADDRESS_PORT 0xcf8
@@ -172,7 +172,7 @@ void* pci_map_bar(const struct pci_addr* pci_addr, uint8_t bar) {
     size &= ~0xf;
     size = (~size) + 1;
 
-    return vm_phys_map(phys_addr, size, VM_READ | VM_WRITE | VM_SHARED);
+    return phys_map(phys_addr, size, VM_READ | VM_WRITE);
 }
 
 uint8_t pci_get_interrupt_line(const struct pci_addr* addr) {

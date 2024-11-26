@@ -219,7 +219,7 @@ void exectest(void) {
     ASSERT_OK(exec("/bin/echo", echoargv));
 }
 
-static ssize_t write_all(int fd, void* buf, size_t count) {
+static ssize_t write_all(int fd, const void* buf, size_t count) {
     unsigned char* chars = (unsigned char*)buf;
     size_t total = 0;
     while (total < count) {

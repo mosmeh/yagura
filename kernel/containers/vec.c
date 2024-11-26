@@ -86,14 +86,6 @@ ssize_t vec_append(struct vec* vec, const void* bytes, size_t count) {
     return vec_pwrite(vec, bytes, count, vec->size);
 }
 
-void* vec_mmap(struct vec* vec, size_t length, uint64_t offset, int flags) {
-    if (offset != 0)
-        return ERR_PTR(-ENOTSUP);
-    if (length > vec->size)
-        return ERR_PTR(-EINVAL);
-    return vm_virt_map(vec->data, length, flags);
-}
-
 int vec_printf(struct vec* vec, const char* format, ...) {
     va_list args;
     va_start(args, format);

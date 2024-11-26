@@ -61,9 +61,7 @@ void* aligned_alloc(size_t alignment, size_t size) {
     header->magic = MALLOC_MAGIC;
     header->size = real_size;
 
-    void* ptr = (void*)((uintptr_t)addr + data_offset);
-    memset(ptr, 0, size);
-    return ptr;
+    return (void*)((uintptr_t)addr + data_offset);
 }
 
 void* malloc(size_t size) { return aligned_alloc(alignof(max_align_t), size); }
@@ -113,7 +111,7 @@ void free(void* ptr) {
     if (!ptr)
         return;
     struct malloc_header* header = header_from_ptr(ptr);
-    ASSERT_OK(munmap((void*)header, header->size));
+    ASSERT_OK(munmap(header, header->size));
 }
 
 char* getenv(const char* name) {

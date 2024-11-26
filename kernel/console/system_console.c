@@ -41,10 +41,10 @@ static struct inode* system_console_device_get(void) {
         .poll = system_console_device_poll,
     };
     static struct inode inode = {
+        .vm_obj = INODE_VM_OBJ_CONST_INIT,
         .fops = &fops,
         .mode = S_IFCHR,
         .rdev = makedev(5, 1),
-        .ref_count = 1,
     };
     return &inode;
 }
