@@ -268,16 +268,11 @@ static void init_cpu(struct cpu* cpu) {
         cr0 |= X86_CR0_MP;
         write_cr0(cr0);
 
-        uint32_t cr4 = read_cr4();
-        cr4 |= X86_CR4_OSFXSR | X86_CR4_OSXMMEXCPT;
-        write_cr4(cr4);
+        write_cr4(read_cr4() | X86_CR4_OSFXSR | X86_CR4_OSXMMEXCPT);
     }
 
-    if (cpu_has_feature(cpu, X86_FEATURE_PGE)) {
-        uint32_t cr4 = read_cr4();
-        cr4 |= X86_CR4_PGE;
-        write_cr4(cr4);
-    }
+    if (cpu_has_feature(cpu, X86_FEATURE_PGE))
+        write_cr4(read_cr4() | X86_CR4_PGE);
 
     if (cpu_has_feature(cpu, X86_FEATURE_PAT)) {
         uint64_t pat = rdmsr(0x277);
@@ -285,6 +280,11 @@ static void init_cpu(struct cpu* cpu) {
         pat |= (uint64_t)1 << 32;      // Set write-combining
         wrmsr(0x277, pat);
     }
+
+    if (cpu_has_feature(cpu, X86_FEATURE_SMEP))
+        write_cr4(read_cr4() | X86_CR4_SMEP);
+    if (cpu_has_feature(cpu, X86_FEATURE_UMIP))
+        write_cr4(read_cr4() | X86_CR4_UMIP);
 }
 
 static struct cpu bsp;

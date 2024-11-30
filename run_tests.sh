@@ -8,6 +8,7 @@ set -e
     -append 'panic=poweroff init=/bin/init-test console=ttyS0' \
     -d guest_errors \
     -no-reboot \
+    -cpu max \
     -serial stdio \
     -vga none -display none \
     -m 512M \
