@@ -111,7 +111,7 @@ static inline void cpuid(uint32_t function, uint32_t* eax, uint32_t* ebx,
     // NOLINTEND(readability-non-const-parameter)
     __asm__ volatile("cpuid"
                      : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx)
-                     : "a"(function));
+                     : "a"(function), "c"(0));
 }
 
 static inline uint64_t rdmsr(uint32_t msr) {
