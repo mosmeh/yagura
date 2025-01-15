@@ -153,9 +153,10 @@ static uint32_t io_apic_read(volatile void* io_apic, uint32_t reg) {
 }
 
 static void io_apic_write_redirection(volatile void* io_apic, uint8_t index,
-                                      uint32_t hi, uint32_t lo) {
-    io_apic_write(io_apic, IO_APIC_REDIRECTION_TABLE + 2 * index, hi);
-    io_apic_write(io_apic, IO_APIC_REDIRECTION_TABLE + 2 * index + 1, lo);
+                                      uint8_t dest, uint32_t value) {
+    io_apic_write(io_apic, IO_APIC_REDIRECTION_TABLE + 2 * index, value);
+    io_apic_write(io_apic, IO_APIC_REDIRECTION_TABLE + 2 * index + 1,
+                  (uint32_t)dest << 24);
 }
 
 void io_apic_init(void) {
@@ -175,14 +176,14 @@ void io_apic_init(void) {
 
         // First, mask all interrupts.
         for (size_t i = 0; i < num_redirections; ++i)
-            io_apic_write_redirection(io_apic, i, IO_APIC_INT_DISABLED, 0);
+            io_apic_write_redirection(io_apic, i, 0, IO_APIC_INT_DISABLED);
 
         uint32_t gsi_base = (*p)->global_system_interrupt_base;
 
         // Then, route 0..NUM_IRQS to IRQ(0)..IRQ(NUM_IRQS) if this I/O APIC is
         // responsible for them.
         for (size_t i = 0; i < num_redirections && i + gsi_base < NUM_IRQS; ++i)
-            io_apic_write_redirection(io_apic, i, IRQ(i + gsi_base), apic_id);
+            io_apic_write_redirection(io_apic, i, apic_id, IRQ(i + gsi_base));
 
         // There may be interrupt source overrides that route interrupts to
         // global system interrupts different from the source IRQ numbers.
@@ -198,13 +199,12 @@ void io_apic_init(void) {
                 continue;
             if ((*iso)->source >= NUM_IRQS)
                 continue;
-            uint32_t lo = apic_id;
+            uint32_t value = IRQ((*iso)->source);
             if (((*iso)->flags & 3) == 3)
-                lo |= IO_APIC_INT_ACTIVELOW;
+                value |= IO_APIC_INT_ACTIVELOW;
             if ((((*iso)->flags >> 2) & 3) == 3)
-                lo |= IO_APIC_INT_LEVEL;
-            io_apic_write_redirection(io_apic, gsi - gsi_base,
-                                      IRQ((*iso)->source), lo);
+                value |= IO_APIC_INT_LEVEL;
+            io_apic_write_redirection(io_apic, gsi - gsi_base, apic_id, value);
         }
 
         kfree((void*)io_apic);
