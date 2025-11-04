@@ -8,14 +8,14 @@ void* memset(void* s, int c, size_t n) {
 
     bool aligned = !((uintptr_t)s & (alignof(uint32_t) - 1));
     if (aligned && n >= sizeof(uint32_t)) {
-        size_t nd = n / sizeof(uint32_t);
         uint32_t d =
             (uint32_t)c << 24 | (uint32_t)c << 16 | (uint32_t)c << 8 | c;
+        size_t nd = n / sizeof(uint32_t);
+        n -= sizeof(uint32_t) * nd;
         __asm__ volatile("rep stosl"
-                         : "=D"(dest)
+                         : "=D"(dest), "=c"(nd)
                          : "D"(dest), "c"(nd), "a"(d)
                          : "memory");
-        n -= sizeof(uint32_t) * nd;
         if (n == 0)
             return s;
     }
@@ -35,16 +35,19 @@ void* memcpy(void* dest_ptr, const void* src_ptr, size_t n) {
                    !((uintptr_t)src_ptr & (alignof(uint32_t) - 1));
     if (aligned && n >= sizeof(uint32_t)) {
         size_t nd = n / sizeof(uint32_t);
+        n -= sizeof(uint32_t) * nd;
         __asm__ volatile("rep movsl"
-                         : "=S"(src), "=D"(dest)
+                         : "=S"(src), "=D"(dest), "=c"(nd)
                          : "S"(src), "D"(dest), "c"(nd)
                          : "memory");
-        n -= sizeof(uint32_t) * nd;
         if (n == 0)
             return dest_ptr;
     }
 
-    __asm__ volatile("rep movsb" ::"S"(src), "D"(dest), "c"(n) : "memory");
+    __asm__ volatile("rep movsb"
+                     : "=S"(src), "=D"(dest), "=c"(n)
+                     : "S"(src), "D"(dest), "c"(n)
+                     : "memory");
     return dest_ptr;
 }
 
