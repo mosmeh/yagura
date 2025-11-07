@@ -61,7 +61,7 @@ static struct virtq* virtq_create(uint16_t queue_size) {
     return virtq;
 }
 
-bool virtq_is_ready(struct virtq* virtq) {
+bool virtq_is_ready(const struct virtq* virtq) {
     return virtq->used->idx == virtq->avail_index_shadow;
 }
 

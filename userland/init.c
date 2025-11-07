@@ -9,7 +9,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static pid_t do_spawn(char* filename, char* const argv[]) {
+static pid_t do_spawn(const char* filename, char* const argv[]) {
     pid_t pid = fork();
     if (pid < 0) {
         perror("fork");

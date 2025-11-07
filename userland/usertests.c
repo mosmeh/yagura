@@ -158,20 +158,22 @@ static void test_fs(void) {
     }
 }
 
-static size_t read_all(int fd, unsigned char* buf, size_t count) {
+static size_t read_all(int fd, void* buf, size_t count) {
+    unsigned char* p = buf;
     size_t total = 0;
     while (total < count) {
-        ssize_t n = read(fd, buf + total, count - total);
+        ssize_t n = read(fd, p + total, count - total);
         ASSERT_OK(n);
         total += n;
     }
     return total;
 }
 
-static size_t write_all(int fd, unsigned char* buf, size_t count) {
+static size_t write_all(int fd, const void* buf, size_t count) {
+    const unsigned char* p = buf;
     size_t total = 0;
     while (total < count) {
-        ssize_t nwritten = write(fd, buf + total, count - total);
+        ssize_t nwritten = write(fd, p + total, count - total);
         ASSERT_OK(nwritten);
         total += nwritten;
     }
@@ -183,7 +185,7 @@ static noreturn void pipe_peer(int send_fd, int recv_fd) {
     size_t total = 0;
     for (size_t i = 0; i < 10000; i += 1024) {
         size_t s = MIN(1024, 10000 - i) * sizeof(unsigned);
-        ASSERT(read_all(recv_fd, (unsigned char*)buf, s) == s);
+        ASSERT(read_all(recv_fd, buf, s) == s);
         for (size_t j = 0; j < s / sizeof(unsigned); ++j)
             ASSERT(buf[j] == total / sizeof(unsigned) + j);
         total += s;
@@ -198,7 +200,7 @@ static noreturn void pipe_peer(int send_fd, int recv_fd) {
     ASSERT_ERR(read(recv_fd, &c, 1));
     ASSERT(errno == EAGAIN);
 
-    ASSERT(write_all(send_fd, (unsigned char*)"x", 1) == 1);
+    ASSERT(write_all(send_fd, "x", 1) == 1);
 
     ASSERT_OK(close(send_fd));
     ASSERT_OK(close(recv_fd));
@@ -231,8 +233,7 @@ static void test_fifo(void) {
     static unsigned buf[10000];
     for (size_t i = 0; i < 10000; ++i)
         buf[i] = i;
-    ASSERT(write_all(send_fds[1], (unsigned char*)buf, sizeof(buf)) ==
-           sizeof(buf));
+    ASSERT(write_all(send_fds[1], buf, sizeof(buf)) == sizeof(buf));
 
     int dummy_fds[2];
     ASSERT_OK(pipe(dummy_fds));
@@ -298,7 +299,7 @@ static noreturn void socket_receiver(bool shut_rd) {
     size_t total = 0;
     for (size_t i = 0; i < 55000; i += 1024) {
         size_t s = MIN(1024, 55000 - i) * sizeof(unsigned);
-        ASSERT(read_all(sockfd, (unsigned char*)buf, s) == s);
+        ASSERT(read_all(sockfd, buf, s) == s);
         for (size_t j = 0; j < s / sizeof(unsigned); ++j)
             ASSERT(buf[j] == total / sizeof(unsigned) + j);
         total += s;
@@ -397,8 +398,8 @@ static void test_socket(void) {
         buf[j] = j;
     for (size_t i = 0; i < 55000; i += 10000) {
         size_t s = MIN(10000, 55000 - i) * sizeof(unsigned);
-        ASSERT(write_all(peer_fd1, (unsigned char*)buf, s) == s);
-        ASSERT(write_all(peer_fd2, (unsigned char*)buf, s) == s);
+        ASSERT(write_all(peer_fd1, buf, s) == s);
+        ASSERT(write_all(peer_fd2, buf, s) == s);
         for (size_t j = 0; j < 10000; ++j)
             buf[j] += 10000;
     }

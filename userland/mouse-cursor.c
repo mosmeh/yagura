@@ -61,10 +61,10 @@ static void move_cursor_to(uint32_t x, uint32_t y) {
 
     // draw cursor
     row_addr = origin_addr;
-    char* row_mask = (char*)mask;
+    const char* row_mask = mask;
     for (size_t y = 0; y < visible_height; ++y) {
         uint32_t* pixel = (uint32_t*)row_addr;
-        char* mask_for_pixel = row_mask;
+        const char* mask_for_pixel = row_mask;
         for (size_t x = 0; x < visible_width; ++x) {
             if (*mask_for_pixel++ == 'x')
                 *pixel = CURSOR_COLOR;

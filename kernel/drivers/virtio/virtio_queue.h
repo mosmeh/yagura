@@ -66,7 +66,7 @@ struct virtq {
     uint16_t* notify; // The notification address
 };
 
-bool virtq_is_ready(struct virtq*);
+bool virtq_is_ready(const struct virtq*);
 
 struct virtq_desc_chain {
     struct virtq* virtq;
