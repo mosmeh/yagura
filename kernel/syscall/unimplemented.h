@@ -54,7 +54,6 @@
     F(fsync)                                                                   \
     F(modify_ldt)                                                              \
     F(adjtimex)                                                                \
-    F(mprotect)                                                                \
     F(init_module)                                                             \
     F(delete_module)                                                           \
     F(quotactl)                                                                \
@@ -64,7 +63,6 @@
     F(setfsuid)                                                                \
     F(setfsgid)                                                                \
     F(flock)                                                                   \
-    F(msync)                                                                   \
     F(getsid)                                                                  \
     F(fdatasync)                                                               \
     F(mlock)                                                                   \

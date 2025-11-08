@@ -144,3 +144,39 @@ static int unmap(struct vm_region* region, size_t offset, size_t npages,
 int sys_munmap(void* addr, size_t length) {
     return for_each_overlapping_region(addr, length, unmap, NULL);
 }
+
+static int protect(struct vm_region* region, size_t offset, size_t npages,
+                   void* ctx) {
+    unsigned vm_flags = *(unsigned*)ctx;
+    return vm_region_set_flags(region, offset, npages, vm_flags,
+                               VM_READ | VM_WRITE);
+}
+
+int sys_mprotect(void* addr, size_t len, int prot) {
+    unsigned vm_flags = prot_to_vm_flags(prot);
+    return for_each_overlapping_region(addr, len, protect, &vm_flags);
+}
+
+static int sync(struct vm_region* region, size_t offset, size_t npages,
+                void* ctx) {
+    (void)ctx;
+    struct vm_obj* obj = region->obj;
+    if (!obj || obj->vm_ops != &file_vm_ops)
+        return 0;
+
+    struct file* file = CONTAINER_OF(obj, struct file, vm_obj);
+    uint64_t byte_offset = ((uint64_t)region->offset + offset) << PAGE_SHIFT;
+    uint64_t nbytes = (uint64_t)npages << PAGE_SHIFT;
+    int ret = file_sync(file, byte_offset, nbytes);
+    return ret;
+}
+
+int sys_msync(void* addr, size_t length, int flags) {
+    if (flags & ~(MS_ASYNC | MS_SYNC | MS_INVALIDATE))
+        return -EINVAL;
+    if ((flags & MS_SYNC) && (flags & MS_ASYNC))
+        return -EINVAL;
+    if (!(flags & (MS_SYNC | MS_ASYNC)))
+        return -EINVAL;
+    return for_each_overlapping_region(addr, length, sync, NULL);
+}

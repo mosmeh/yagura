@@ -84,11 +84,13 @@
     F(clone, sys_clone, SYSCALL_RAW_REGISTERS)                                 \
     F(setdomainname, sys_setdomainname, 0)                                     \
     F(uname, sys_newuname, 0)                                                  \
+    F(mprotect, sys_mprotect, 0)                                               \
     F(sigprocmask, sys_sigprocmask, 0)                                         \
     F(getpgid, sys_getpgid, 0)                                                 \
     F(_llseek, sys_llseek, 0)                                                  \
     F(getdents, sys_getdents, 0)                                               \
     F(_newselect, sys_select, 0)                                               \
+    F(msync, sys_msync, 0)                                                     \
     F(readv, sys_readv, 0)                                                     \
     F(writev, sys_writev, 0)                                                   \
     F(sched_yield, sys_sched_yield, 0)                                         \
@@ -224,6 +226,7 @@ int sys_clone(struct registers*, unsigned long flags, void* stack,
               pid_t* parent_tid, pid_t* child_tid, void* tls);
 int sys_setdomainname(const char* name, int len);
 int sys_newuname(struct utsname* buf);
+int sys_mprotect(void* addr, size_t len, int prot);
 int sys_sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
 pid_t sys_getpgid(pid_t pid);
 int sys_llseek(unsigned int fd, unsigned long offset_high,
@@ -231,6 +234,7 @@ int sys_llseek(unsigned int fd, unsigned long offset_high,
 ssize_t sys_getdents(int fd, struct linux_dirent* dirp, size_t count);
 int sys_select(int nfds, unsigned long* readfds, unsigned long* writefds,
                unsigned long* exceptfds, struct linux_timeval* timeout);
+int sys_msync(void* addr, size_t length, int flags);
 ssize_t sys_readv(int fd, const struct iovec* iov, int iovcnt);
 ssize_t sys_writev(int fd, const struct iovec* iov, int iovcnt);
 int sys_sched_yield(void);

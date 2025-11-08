@@ -16,3 +16,11 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd,
 int munmap(void* addr, size_t length) {
     RETURN_WITH_ERRNO(int, SYSCALL2(munmap, addr, length));
 }
+
+int mprotect(void* addr, size_t len, int prot) {
+    RETURN_WITH_ERRNO(int, SYSCALL3(mprotect, addr, len, prot));
+}
+
+int msync(void* addr, size_t length, int flags) {
+    RETURN_WITH_ERRNO(int, SYSCALL3(msync, addr, length, flags));
+}
