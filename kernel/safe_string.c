@@ -146,6 +146,10 @@ extern char safe_strncpy_write[];
 extern char safe_strncpy_on_fault[];
 
 bool safe_string_handle_page_fault(struct registers* regs) {
+    if (regs->error_code & X86_PF_USER) {
+        // safe_string functions should have been called from kernel mode
+        return false;
+    }
     if (regs->eip == (uintptr_t)safe_memcpy_copy) {
         regs->eip = (uintptr_t)safe_memcpy_on_fault;
         return true;
