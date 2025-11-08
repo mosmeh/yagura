@@ -364,7 +364,8 @@ int sys_set_thread_area(struct user_desc* user_u_info) {
     pop_cli(int_flag);
 
     if (should_alloc) {
-        if (copy_to_user(user_u_info + offsetof(struct user_desc, entry_number),
+        if (copy_to_user((unsigned char*)user_u_info +
+                             offsetof(struct user_desc, entry_number),
                          &u_info.entry_number, sizeof(u_info.entry_number)))
             return -EFAULT;
     }
