@@ -64,4 +64,16 @@ static inline void pop_cli(bool was_enabled) {
         sti();
 }
 
+static inline bool push_sti(void) {
+    bool enabled = interrupts_enabled();
+    sti();
+    return enabled;
+}
+
+static inline void pop_sti(bool was_enabled) {
+    ASSERT(interrupts_enabled());
+    if (!was_enabled)
+        cli();
+}
+
 void do_iret(struct registers);

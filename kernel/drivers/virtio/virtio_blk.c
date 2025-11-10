@@ -9,11 +9,8 @@
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 
-#define SECTOR_SIZE 512
-
 typedef struct {
     struct inode inode;
-    struct mutex lock;
     struct virtio_device* virtio;
     uint64_t capacity;
 } virtio_blk_device;
@@ -50,17 +47,17 @@ retry:
     if (IS_ERR(rc))
         return rc;
 
-    mutex_lock(&node->lock);
+    mutex_lock(&file->inode->lock);
     struct virtq_desc_chain chain;
     if (!virtq_desc_chain_init(&chain, virtq, 3)) {
-        mutex_unlock(&node->lock);
+        mutex_unlock(&file->inode->lock);
         goto retry;
     }
     virtq_desc_chain_push_buf(&chain, &header, sizeof(header), false);
     virtq_desc_chain_push_buf(&chain, buffer, count, device_writable);
     virtq_desc_chain_push_buf(&chain, &footer, sizeof(footer), true);
     rc = virtq_desc_chain_submit(&chain);
-    mutex_unlock(&node->lock);
+    mutex_unlock(&file->inode->lock);
     if (IS_ERR(rc))
         return rc;
 
@@ -82,12 +79,12 @@ static ssize_t virtio_blk_do_io(struct file* file, void* buffer, size_t count,
 
     if (offset % SECTOR_SIZE != 0)
         return -EINVAL;
-    uint64_t sector = offset / SECTOR_SIZE;
+    uint64_t sector = offset >> SECTOR_SHIFT;
 
     virtio_blk_device* node = device_from_inode(file->inode);
     if (sector >= node->capacity)
         return 0;
-    count = MIN(count, (node->capacity - sector) * SECTOR_SIZE);
+    count = MIN(count, (node->capacity - sector) << SECTOR_SHIFT);
 
     int rc = submit_request(file, buffer, count, sector, type, device_writable);
     if (IS_ERR(rc))
@@ -134,7 +131,7 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
         (volatile struct virtio_blk_config*)(device_cfg_space +
                                              device_cfg_cap.offset);
     uint64_t capacity = blk_config->capacity;
-    kfree(device_cfg_space);
+    phys_unmap(device_cfg_space);
 
     size_t id = next_id++;
     dev_t rdev = makedev(254, id);
@@ -163,6 +160,9 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
     inode->fops = &fops;
     inode->mode = S_IFBLK;
     inode->rdev = rdev;
+    inode->size = capacity << SECTOR_SHIFT;
+    inode->block_bits = SECTOR_SHIFT;
+    inode->blocks = capacity;
     inode->ref_count = 1;
 
     ASSERT_OK(vfs_register_device(name, inode));

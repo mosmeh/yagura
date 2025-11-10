@@ -11,5 +11,5 @@ set -e
     -cpu max \
     -serial stdio \
     -vga none -display none \
-    -m 512M \
+    -m 256M \
     2>&1 | tee >(cat 1>&2) | grep -q PANIC

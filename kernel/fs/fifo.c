@@ -10,7 +10,6 @@
 struct fifo {
     struct inode inode;
     struct ring_buf buf;
-    struct mutex lock;
     atomic_size_t num_readers;
     atomic_size_t num_writers;
 };
@@ -100,15 +99,15 @@ static ssize_t fifo_pread(struct file* file, void* buffer, size_t count,
         if (IS_ERR(rc))
             return rc;
 
-        mutex_lock(&fifo->lock);
+        mutex_lock(&file->inode->lock);
         if (!ring_buf_is_empty(buf)) {
             ssize_t nread = ring_buf_read(buf, buffer, count);
-            mutex_unlock(&fifo->lock);
+            mutex_unlock(&file->inode->lock);
             return nread;
         }
 
         bool no_writer = fifo->num_writers == 0;
-        mutex_unlock(&fifo->lock);
+        mutex_unlock(&file->inode->lock);
         if (no_writer)
             return 0;
     }
@@ -131,9 +130,9 @@ static ssize_t fifo_pwrite(struct file* file, const void* buffer, size_t count,
         if (IS_ERR(rc))
             return rc;
 
-        mutex_lock(&fifo->lock);
+        mutex_lock(&file->inode->lock);
         if (fifo->num_readers == 0) {
-            mutex_unlock(&fifo->lock);
+            mutex_unlock(&file->inode->lock);
             int rc = task_send_signal(current->tid, SIGPIPE, 0);
             if (IS_ERR(rc))
                 return rc;
@@ -141,12 +140,12 @@ static ssize_t fifo_pwrite(struct file* file, const void* buffer, size_t count,
         }
 
         if (ring_buf_is_full(buf)) {
-            mutex_unlock(&fifo->lock);
+            mutex_unlock(&file->inode->lock);
             continue;
         }
 
         ssize_t nwritten = ring_buf_write(buf, buffer, count);
-        mutex_unlock(&fifo->lock);
+        mutex_unlock(&file->inode->lock);
         return nwritten;
     }
 }

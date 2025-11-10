@@ -179,16 +179,16 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
                               void* ctx) {
     proc_dir_inode* node = CONTAINER_OF(file->inode, proc_dir_inode, inode);
 
-    mutex_lock(&file->offset_lock);
+    file_lock(file);
     if ((size_t)file->offset < NUM_ITEMS) {
         int rc = dentry_getdents(file, node->children, callback, ctx);
         if (IS_ERR(rc)) {
-            mutex_unlock(&file->offset_lock);
+            file_unlock(file);
             return rc;
         }
     }
     if ((size_t)file->offset < NUM_ITEMS) {
-        mutex_unlock(&file->offset_lock);
+        file_unlock(file);
         return 0;
     }
 
@@ -212,7 +212,7 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
     }
 
     spinlock_unlock(&all_tasks_lock);
-    mutex_unlock(&file->offset_lock);
+    file_unlock(file);
     return 0;
 }
 
@@ -230,6 +230,7 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def) {
     inode->dev = parent->inode.dev;
     inode->fops = &proc_item_fops;
     inode->mode = item_def->mode;
+    inode->flags = INODE_NO_PAGE_CACHE;
     inode->ref_count = 1;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);
@@ -255,6 +256,7 @@ struct inode* proc_mount(const char* source) {
     inode->dev = vfs_generate_unnamed_block_device_number();
     inode->fops = &fops;
     inode->mode = S_IFDIR;
+    inode->flags = INODE_NO_PAGE_CACHE;
     inode->ref_count = 1;
 
     for (size_t i = 0; i < NUM_ITEMS; ++i) {

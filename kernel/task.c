@@ -47,7 +47,7 @@ struct fs* fs_clone(struct fs* fs) {
 
 void fs_ref(struct fs* fs) {
     ASSERT(fs);
-    ++fs->ref_count;
+    ASSERT(fs->ref_count++ > 0);
 }
 
 void fs_unref(struct fs* fs) {
@@ -77,7 +77,7 @@ struct files* files_clone(struct files* files) {
     memcpy(new_files->entries, files->entries, sizeof(files->entries));
     for (size_t i = 0; i < OPEN_MAX; ++i) {
         if (files->entries[i])
-            ++files->entries[i]->ref_count;
+            file_ref(files->entries[i]);
     }
     mutex_unlock(&files->lock);
 
@@ -86,7 +86,7 @@ struct files* files_clone(struct files* files) {
 
 void files_ref(struct files* files) {
     ASSERT(files);
-    ++files->ref_count;
+    ASSERT(files->ref_count++ > 0);
 }
 
 void files_unref(struct files* files) {
@@ -97,7 +97,7 @@ void files_unref(struct files* files) {
         return;
     for (size_t i = 0; i < OPEN_MAX; ++i) {
         if (files->entries[i]) {
-            file_close(files->entries[i]);
+            file_unref(files->entries[i]);
             files->entries[i] = NULL;
         }
     }
@@ -124,7 +124,7 @@ struct sighand* sighand_clone(struct sighand* sighand) {
 
 void sighand_ref(struct sighand* sighand) {
     ASSERT(sighand);
-    ++sighand->ref_count;
+    ASSERT(sighand->ref_count++ > 0);
 }
 
 void sighand_unref(struct sighand* sighand) {
@@ -146,7 +146,7 @@ struct thread_group* thread_group_create(void) {
 
 void thread_group_ref(struct thread_group* tg) {
     ASSERT(tg);
-    ++tg->ref_count;
+    ASSERT(tg->ref_count++ > 0);
 }
 
 void thread_group_unref(struct thread_group* tg) {
@@ -223,9 +223,16 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
         ret = -ENOMEM;
         goto fail;
     }
+
     task->kernel_stack_base = (uintptr_t)stack;
     task->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
     task->esp = task->ebp = task->kernel_stack_top;
+
+    // Without this eager population, page fault occurs when switching to this
+    // task, but page fault handler cannot run without a valid kernel stack.
+    ret = vm_populate(stack, (void*)task->kernel_stack_top, true);
+    if (IS_ERR(ret))
+        goto fail;
 
     task->eip = (uintptr_t)do_iret;
 
@@ -266,7 +273,7 @@ struct task* task_spawn(const char* comm, void (*entry_point)(void)) {
 
 void task_ref(struct task* task) {
     ASSERT(task);
-    ++task->ref_count;
+    ASSERT(task->ref_count++ > 0);
 }
 
 void task_unref(struct task* task) {

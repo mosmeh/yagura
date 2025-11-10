@@ -7,101 +7,84 @@
 
 typedef struct {
     struct inode inode;
-    struct mutex lock;
-    struct vec content;
     struct dentry* children;
 } tmpfs_inode;
 
 static void tmpfs_destroy_inode(struct inode* inode) {
     tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
-    vec_destroy(&node->content);
     dentry_clear(node->children);
     kfree(node);
 }
 
 static struct inode* tmpfs_lookup_child(struct inode* inode, const char* name) {
     tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
-    mutex_lock(&node->lock);
+    mutex_lock(&inode->lock);
     struct inode* child = dentry_find(node->children, name);
-    mutex_unlock(&node->lock);
+    mutex_unlock(&inode->lock);
     inode_unref(inode);
     return child;
-}
-
-static int tmpfs_stat(struct inode* inode, struct kstat* buf) {
-    tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
-    buf->st_size = node->content.size;
-    inode_unref(inode);
-    return 0;
-}
-
-static ssize_t tmpfs_pread(struct file* file, void* buffer, size_t count,
-                           uint64_t offset) {
-    tmpfs_inode* node = CONTAINER_OF(file->inode, tmpfs_inode, inode);
-    mutex_lock(&node->lock);
-    ssize_t nread = vec_pread(&node->content, buffer, count, offset);
-    mutex_unlock(&node->lock);
-    return nread;
-}
-
-static ssize_t tmpfs_pwrite(struct file* file, const void* buffer, size_t count,
-                            uint64_t offset) {
-    tmpfs_inode* node = CONTAINER_OF(file->inode, tmpfs_inode, inode);
-    mutex_lock(&node->lock);
-    ssize_t nwritten = vec_pwrite(&node->content, buffer, count, offset);
-    mutex_unlock(&node->lock);
-    return nwritten;
-}
-
-static void* tmpfs_mmap(struct file* file, size_t length, uint64_t offset,
-                        int flags) {
-    tmpfs_inode* node = (tmpfs_inode*)file->inode;
-    mutex_lock(&node->lock);
-    void* ret = vec_mmap(&node->content, length, offset, flags);
-    mutex_unlock(&node->lock);
-    return ret;
-}
-
-static int tmpfs_truncate(struct file* file, uint64_t length) {
-    tmpfs_inode* node = CONTAINER_OF(file->inode, tmpfs_inode, inode);
-    mutex_lock(&node->lock);
-    int rc = vec_resize(&node->content, length);
-    mutex_unlock(&node->lock);
-    return rc;
-}
-
-static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
-                          void* ctx) {
-    tmpfs_inode* node = CONTAINER_OF(file->inode, tmpfs_inode, inode);
-    mutex_lock(&node->lock);
-    mutex_lock(&file->offset_lock);
-    int rc = dentry_getdents(file, node->children, callback, ctx);
-    mutex_unlock(&file->offset_lock);
-    mutex_unlock(&node->lock);
-    return rc;
 }
 
 static int tmpfs_link_child(struct inode* inode, const char* name,
                             struct inode* child) {
     tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
-    mutex_lock(&node->lock);
+    mutex_lock(&inode->lock);
     int rc = dentry_append(&node->children, name, child);
-    mutex_unlock(&node->lock);
+    mutex_unlock(&inode->lock);
     inode_unref(inode);
     return rc;
 }
 
 static struct inode* tmpfs_unlink_child(struct inode* inode, const char* name) {
     tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
-    mutex_lock(&node->lock);
+    mutex_lock(&inode->lock);
     struct inode* child = dentry_remove(&node->children, name);
-    mutex_unlock(&node->lock);
+    mutex_unlock(&inode->lock);
     inode_unref(inode);
     return child;
 }
 
+static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
+                          void* ctx) {
+    struct inode* inode = file->inode;
+    tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
+    mutex_lock(&inode->lock);
+    file_lock(file);
+    int rc = dentry_getdents(file, node->children, callback, ctx);
+    file_unlock(file);
+    mutex_unlock(&inode->lock);
+    return rc;
+}
+
 static struct inode* tmpfs_create_child(struct inode* inode, const char* name,
                                         mode_t mode);
+
+// This is called only when populating the page cache.
+// Since tmpfs is empty when created, we can just return no data.
+static ssize_t tmpfs_pread(struct file* file, void* buffer, size_t count,
+                           uint64_t offset) {
+    (void)file;
+    (void)buffer;
+    (void)count;
+    (void)offset;
+    return 0;
+}
+
+// The page cache stores the actual data, so we don't need to do anything here.
+static ssize_t tmpfs_pwrite(struct file* file, const void* buffer, size_t count,
+                            uint64_t offset) {
+    (void)file;
+    (void)buffer;
+    (void)offset;
+    return count;
+}
+
+// Truncating is handled by invalidating the page cache, so nothing to do here.
+static int tmpfs_truncate(struct file* file, uint64_t length) {
+    (void)file;
+    (void)length;
+    return 0;
+}
 
 static const struct file_ops dir_fops = {
     .destroy_inode = tmpfs_destroy_inode,
@@ -109,15 +92,12 @@ static const struct file_ops dir_fops = {
     .create_child = tmpfs_create_child,
     .link_child = tmpfs_link_child,
     .unlink_child = tmpfs_unlink_child,
-    .stat = tmpfs_stat,
     .getdents = tmpfs_getdents,
 };
 static const struct file_ops non_dir_fops = {
     .destroy_inode = tmpfs_destroy_inode,
-    .stat = tmpfs_stat,
     .pread = tmpfs_pread,
     .pwrite = tmpfs_pwrite,
-    .mmap = tmpfs_mmap,
     .truncate = tmpfs_truncate,
 };
 

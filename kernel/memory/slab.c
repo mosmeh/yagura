@@ -1,5 +1,5 @@
-#include "memory.h"
 #include "private.h"
+#include "vm.h"
 #include <kernel/panic.h>
 
 void slab_cache_init(struct slab_cache* cache, size_t obj_size) {
@@ -15,37 +15,47 @@ struct slab_obj {
     struct slab_obj* next;
 };
 
-static int ensure_cache(struct slab_cache* cache) {
+NODISCARD static int ensure_cache(struct slab_cache* cache) {
     if (cache->free_list)
         return 0;
 
     int ret = 0;
+    ssize_t pfn = -1;
     mutex_lock(&kernel_vm->lock);
 
-    uintptr_t virt_addr;
-    struct vm_region* cursor = vm_find_gap(kernel_vm, PAGE_SIZE, &virt_addr);
-    if (IS_ERR(cursor)) {
-        ret = PTR_ERR(cursor);
+    size_t start;
+    struct vm_region* prev = vm_find_gap(kernel_vm, 1, &start);
+    if (IS_ERR(prev)) {
+        ret = PTR_ERR(prev);
         goto fail;
     }
 
-    ret = page_table_map_anon(virt_addr, PAGE_SIZE, PTE_WRITE | PTE_GLOBAL);
+    pfn = page_alloc_raw();
+    if (IS_ERR(pfn)) {
+        ret = pfn;
+        goto fail;
+    }
+
+    ret = page_table_map(start << PAGE_SHIFT, pfn, 1, PTE_WRITE | PTE_GLOBAL);
     if (IS_ERR(ret))
         goto fail;
 
-    struct vm_region* region = (struct vm_region*)virt_addr;
+    uintptr_t start_addr = start << PAGE_SHIFT;
+    struct vm_region* region = (struct vm_region*)start_addr;
     *region = (struct vm_region){
-        .start = virt_addr,
-        .end = virt_addr + PAGE_SIZE,
-        .flags = VM_RW,
+        .vm = kernel_vm,
+        .start = start,
+        .end = start + 1,
+        .flags = VM_READ | VM_WRITE | VM_SHARED,
     };
-    vm_insert_region_after(kernel_vm, cursor, region);
+    vm_insert_region_after(kernel_vm, prev, region);
 
     mutex_unlock(&kernel_vm->lock);
 
+    uintptr_t end_addr = start_addr + PAGE_SIZE;
     struct slab_obj* obj =
-        (struct slab_obj*)(virt_addr + sizeof(struct vm_region));
-    for (size_t i = 0; i < PAGE_SIZE / cache->obj_size - 1; ++i) {
+        (struct slab_obj*)ROUND_UP((uintptr_t)(region + 1), cache->obj_size);
+    while ((uintptr_t)obj + cache->obj_size <= end_addr) {
         obj->next = cache->free_list;
         cache->free_list = obj;
         obj = (struct slab_obj*)((uintptr_t)obj + cache->obj_size);
@@ -54,6 +64,8 @@ static int ensure_cache(struct slab_cache* cache) {
     return 0;
 
 fail:
+    if (IS_OK(pfn))
+        page_free_raw(pfn);
     mutex_unlock(&kernel_vm->lock);
     return ret;
 }
@@ -72,6 +84,8 @@ void* slab_cache_alloc(struct slab_cache* cache) {
 }
 
 void slab_cache_free(struct slab_cache* cache, void* obj) {
+    if (!obj)
+        return;
     mutex_lock(&cache->lock);
     ((struct slab_obj*)obj)->next = cache->free_list;
     cache->free_list = obj;

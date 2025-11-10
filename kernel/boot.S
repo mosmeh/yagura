@@ -35,7 +35,7 @@ _start:
     # fill page table
     movl $(PTE_PRESENT | PTE_WRITE | PTE_GLOBAL), %esi
     movl $kernel_page_table_start, %edi
-    movl $1022, %ecx # last two pages are for quickmap
+    movl $1024, %ecx
 1:
     movl %esi, (%edi)
     addl $PAGE_SIZE, %esi
@@ -96,6 +96,7 @@ read_eip:
 
     .code16
     .globl ap_trampoline_start, ap_trampoline_end
+    .align PAGE_SIZE
 ap_trampoline_start:
     cli
     cld

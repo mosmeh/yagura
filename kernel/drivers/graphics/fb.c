@@ -3,11 +3,14 @@
 #include <kernel/api/linux/fb.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
+#include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
 
 static struct fb* fb;
+static struct fb_info fb_info;
+static struct vm_obj* vm_obj;
 
 struct fb* bochs_fb_init(void);
 struct fb* multiboot_fb_init(const multiboot_info_t*);
@@ -21,43 +24,36 @@ static struct fb* find_fb(const multiboot_info_t* mb_info) {
 
 struct fb* fb_get(void) { return fb; }
 
-static void* fb_device_mmap(struct file* file, size_t length, uint64_t offset,
-                            int flags) {
-    (void)file;
-    return fb->mmap(length, offset, flags);
+struct vm_obj* fb_mmap(void) {
+    vm_obj_ref(vm_obj);
+    return vm_obj;
 }
+
+static size_t buf_size(void) { return fb_info.pitch * fb_info.height; }
 
 static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
     (void)file;
 
     switch (request) {
     case FBIOGET_FSCREENINFO: {
-        struct fb_info info;
-        int rc = fb->get_info(&info);
-        if (IS_ERR(rc))
-            return rc;
         struct fb_fix_screeninfo fix = {
-            .smem_len = info.pitch * info.height,
+            .smem_len = buf_size(),
             .type = FB_TYPE_PACKED_PIXELS,
             .visual = FB_VISUAL_TRUECOLOR,
-            .line_length = info.pitch,
+            .line_length = fb_info.pitch,
         };
-        strlcpy(fix.id, info.id, sizeof(fix.id));
+        strlcpy(fix.id, fb_info.id, sizeof(fix.id));
         if (copy_to_user(user_argp, &fix, sizeof(struct fb_fix_screeninfo)))
             return -EFAULT;
         return 0;
     }
     case FBIOGET_VSCREENINFO: {
-        struct fb_info info;
-        int rc = fb->get_info(&info);
-        if (IS_ERR(rc))
-            return rc;
         struct fb_var_screeninfo var = {
-            .xres = info.width,
-            .yres = info.height,
-            .xres_virtual = info.width,
-            .yres_virtual = info.height,
-            .bits_per_pixel = info.bpp,
+            .xres = fb_info.width,
+            .yres = fb_info.height,
+            .xres_virtual = fb_info.width,
+            .yres_virtual = fb_info.height,
+            .bits_per_pixel = fb_info.bpp,
             .red = {.offset = 16, .length = 8},
             .green = {.offset = 8, .length = 8},
             .blue = {.offset = 0, .length = 8},
@@ -70,24 +66,46 @@ static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
         struct fb_var_screeninfo var;
         if (copy_from_user(&var, user_argp, sizeof(struct fb_var_screeninfo)))
             return -EFAULT;
-        struct fb_info info;
-        int rc = fb->get_info(&info);
+        struct fb_info new_info = fb_info;
+        new_info.width = var.xres;
+        new_info.height = var.yres;
+        new_info.bpp = var.bits_per_pixel;
+        int rc = fb->set_info(&new_info);
         if (IS_ERR(rc))
             return rc;
-        info.width = var.xres;
-        info.height = var.yres;
-        info.bpp = var.bits_per_pixel;
-        return fb->set_info(&info);
+        fb_info = new_info;
+        return 0;
     }
     }
 
     return -EINVAL;
 }
 
-static struct inode* fb_device_get(void) {
+static struct vm_obj* fb_device_mmap(struct file* file) {
+    (void)file;
+    return fb_mmap();
+}
+
+void fb_init(const multiboot_info_t* mb_info) {
+    struct fb* found_fb = find_fb(mb_info);
+    if (!found_fb)
+        return;
+
+    int rc = found_fb->get_info(&fb_info);
+    if (IS_ERR(rc)) {
+        kprintf("fb: failed to get fb info: %d\n", rc);
+        return;
+    }
+    vm_obj = phys_create(fb_info.phys_addr, DIV_CEIL(buf_size(), PAGE_SIZE));
+    if (IS_ERR(vm_obj)) {
+        kprint("fb: failed to create vm object for framebuffer\n");
+        return;
+    }
+    vm_obj->flags |= VM_WC;
+
     static const struct file_ops fops = {
-        .mmap = fb_device_mmap,
         .ioctl = fb_device_ioctl,
+        .mmap = fb_device_mmap,
     };
     static struct inode inode = {
         .fops = &fops,
@@ -95,12 +113,8 @@ static struct inode* fb_device_get(void) {
         .rdev = makedev(29, 0),
         .ref_count = 1,
     };
-    return &inode;
-}
+    ASSERT_OK(vfs_register_device("fb0", &inode));
 
-void fb_init(const multiboot_info_t* mb_info) {
-    fb = find_fb(mb_info);
-    if (!fb)
-        return;
-    ASSERT_OK(vfs_register_device("fb0", fb_device_get()));
+    // Expose the framebuffer only if everything is successful.
+    fb = found_fb;
 }

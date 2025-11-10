@@ -1,28 +1,56 @@
-#include "memory.h"
+#include "vm.h"
 #include <common/string.h>
 #include <kernel/panic.h>
 
 void* kmalloc(size_t size) {
-    void* addr = vm_alloc(size, VM_READ | VM_WRITE);
-    return IS_OK(addr) ? addr : NULL;
+    size_t npages = DIV_CEIL(size, PAGE_SIZE);
+
+    struct vm_obj* anon = anon_create();
+    if (IS_ERR(anon))
+        return NULL;
+
+    void* addr = vm_obj_map(anon, 0, npages, VM_READ | VM_WRITE | VM_SHARED);
+    if (IS_ERR(addr)) {
+        vm_obj_unref(anon);
+        return NULL;
+    }
+    return addr;
 }
 
 void* kaligned_alloc(size_t alignment, size_t size) {
-    ASSERT(alignment <= PAGE_SIZE);
-    return kmalloc(size); // kmalloc already returns page-aligned addresses
+    void* addr = kmalloc(size);
+    // TODO: support non-page-aligned allocations
+    ASSERT(((uintptr_t)addr % alignment) == 0);
+    return addr;
 }
 
 void* krealloc(void* ptr, size_t new_size) {
     if (!ptr)
         return kmalloc(new_size);
-    void* addr = vm_resize(ptr, new_size);
-    return IS_OK(addr) ? addr : NULL;
+
+    mutex_lock(&kernel_vm->lock);
+
+    struct vm_region* region = vm_find(kernel_vm, ptr);
+    ASSERT(region);
+    ASSERT(ptr == vm_region_to_virt(region));
+
+    size_t new_npages = DIV_CEIL(new_size, PAGE_SIZE);
+    size_t old_npages = region->end - region->start;
+    if (new_npages == old_npages) {
+        mutex_unlock(&kernel_vm->lock);
+        return ptr;
+    }
+
+    int rc = vm_region_resize(region, new_npages);
+    mutex_unlock(&kernel_vm->lock);
+    if (IS_ERR(rc))
+        return NULL;
+
+    // The region might have been moved
+    return vm_region_to_virt(region);
 }
 
-void kfree(void* ptr) {
-    if (ptr)
-        ASSERT_OK(vm_free(ptr));
-}
+void kfree(void* ptr) { vm_obj_unmap(ptr); }
 
 char* kstrdup(const char* src) {
     if (!src)

@@ -39,33 +39,6 @@ NODISCARD static int grow_capacity(struct vec* vec, size_t requested_size) {
     return 0;
 }
 
-int vec_reserve(struct vec* vec, uint64_t additional) {
-    size_t new_size = vec->size + additional;
-    if (new_size < vec->size)
-        return -EOVERFLOW;
-    if (new_size <= vec->capacity)
-        return 0;
-    return grow_capacity(vec, new_size);
-}
-
-int vec_resize(struct vec* vec, uint64_t new_size) {
-    if (new_size == vec->size)
-        return 0;
-    if (new_size <= vec->size) {
-        memset(vec->data + new_size, 0, vec->size - new_size);
-    } else if ((size_t)new_size <= vec->capacity) {
-        memset(vec->data + vec->size, 0, new_size - vec->size);
-    } else {
-        // length > capacity
-        int rc = grow_capacity(vec, new_size);
-        if (IS_ERR(rc))
-            return rc;
-    }
-
-    vec->size = new_size;
-    return 0;
-}
-
 ssize_t vec_pwrite(struct vec* vec, const void* bytes, size_t count,
                    uint64_t offset) {
     uint64_t end = offset + count;
@@ -84,14 +57,6 @@ ssize_t vec_pwrite(struct vec* vec, const void* bytes, size_t count,
 
 ssize_t vec_append(struct vec* vec, const void* bytes, size_t count) {
     return vec_pwrite(vec, bytes, count, vec->size);
-}
-
-void* vec_mmap(struct vec* vec, size_t length, uint64_t offset, int flags) {
-    if (offset != 0)
-        return ERR_PTR(-ENOTSUP);
-    if (length > vec->size)
-        return ERR_PTR(-EINVAL);
-    return vm_virt_map(vec->data, length, flags);
 }
 
 int vec_printf(struct vec* vec, const char* format, ...) {
@@ -113,7 +78,8 @@ int vec_vsprintf(struct vec* vec, const char* format, va_list args) {
                 return len;
             }
         }
-        int rc = grow_capacity(vec, 0); // specify 0 to let grow_buf decide size
+        int rc =
+            grow_capacity(vec, 0); // specify 0 to let grow_capacity decide size
         if (IS_ERR(rc))
             return rc;
     }

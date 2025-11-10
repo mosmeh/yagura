@@ -2,7 +2,7 @@
 #include <kernel/acpi.h>
 #include <kernel/cpu.h>
 #include <kernel/kmsg.h>
-#include <kernel/memory/memory.h>
+#include <kernel/memory/vm.h>
 #include <kernel/sched.h>
 #include <kernel/time.h>
 
@@ -40,8 +40,12 @@ void lapic_init(void) {
     const struct acpi* acpi = acpi_get();
     ASSERT(acpi);
     ASSERT(acpi->lapic_addr);
-    lapic = vm_phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE);
-    ASSERT(lapic);
+
+    unsigned char* addr =
+        phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE);
+    ASSERT_OK(addr);
+    ASSERT_OK(vm_populate(addr, addr + PAGE_SIZE, true));
+    lapic = addr;
 
     idt_set_interrupt_handler(LAPIC_TIMER_VECTOR, sched_tick);
 }
@@ -167,8 +171,8 @@ void io_apic_init(void) {
     uint8_t apic_id = cpu_get_bsp()->apic_id;
 
     for (const struct io_apic** p = acpi->io_apics; *p; ++p) {
-        volatile void* io_apic =
-            vm_phys_map((*p)->io_apic_addr, PAGE_SIZE, VM_READ | VM_WRITE);
+        bool int_flag = push_cli();
+        volatile void* io_apic = kmap((*p)->io_apic_addr);
         ASSERT_OK(io_apic);
 
         size_t num_redirections =
@@ -207,6 +211,7 @@ void io_apic_init(void) {
             io_apic_write_redirection(io_apic, gsi - gsi_base, apic_id, value);
         }
 
-        kfree((void*)io_apic);
+        kunmap((void*)io_apic);
+        pop_cli(int_flag);
     }
 }

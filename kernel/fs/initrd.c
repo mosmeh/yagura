@@ -33,7 +33,7 @@ static size_t parse_octal(const char* s, size_t len) {
 #define PARSE(field) parse_octal(field, sizeof(field))
 
 void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
-    void* initrd = vm_phys_map(phys_addr, size, VM_READ | VM_WRITE);
+    void* initrd = phys_map(phys_addr, size, VM_READ);
     ASSERT_OK(initrd);
 
     struct path* root = vfs_get_root();
@@ -72,12 +72,12 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
             ASSERT_OK(nwritten);
             ASSERT((size_t)nwritten == file_size);
 
-            ASSERT_OK(file_close(file));
+            file_unref(file);
         }
 
         cursor += sizeof(struct cpio_odc_header) + name_size + file_size;
     }
 
     path_destroy_recursive(root);
-    kfree(initrd);
+    phys_unmap(initrd);
 }

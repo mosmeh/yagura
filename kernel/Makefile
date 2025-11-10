@@ -61,6 +61,7 @@ OBJS := \
 	memory/page_table.o \
 	memory/page.o \
 	memory/slab.o \
+	memory/vm_obj.o \
 	memory/vm.o \
 	random.o \
 	safe_string.o \

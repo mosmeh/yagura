@@ -1,79 +1,49 @@
 #pragma once
 
 #include "memory.h"
-#include <common/extra.h>
-#include <kernel/lock.h>
-#include <stdalign.h>
+#include <kernel/cpu.h>
 
-struct page_directory;
-typedef struct multiboot_info multiboot_info_t;
+// In the current setup, kernel image (including 1MiB offset) has to fit in
+// a single page table (< 4MiB).
+#define KERNEL_IMAGE_END (KERNEL_VIRT_ADDR + (1024 << PAGE_SHIFT))
 
-typedef union {
-    struct {
-        bool present : 1;
-        bool write : 1;
-        bool user : 1;
-        bool write_through : 1;
-        bool cache_disable : 1;
-        bool accessed : 1;
-        bool ignored1 : 1;
-        bool page_size : 1;
-        uint8_t ignored2 : 4;
-        uint32_t page_table_addr : 20;
-    };
-    uint32_t raw;
-} __attribute__((packed)) page_directory_entry;
+#define PAGES_START KERNEL_IMAGE_END
+#define PAGES_END                                                              \
+    (PAGES_START + ROUND_UP(MAX_NUM_PAGES * sizeof(struct page), PAGE_SIZE))
 
-struct page_directory {
-    alignas(PAGE_SIZE) page_directory_entry entries[1024];
-};
+#define KMAP_START PAGES_END
+#define KMAP_END (KMAP_START + MAX_NUM_KMAPS_PER_CPU * MAX_NUM_CPUS * PAGE_SIZE)
 
-void page_init(const multiboot_info_t*);
-uintptr_t page_alloc(void);
-void page_ref(uintptr_t phys_addr);
-void page_unref(uintptr_t phys_addr);
+#define KERNEL_VM_START KMAP_END
 
-// kernel heap starts right after the quickmap page
-#define KERNEL_HEAP_START (KERNEL_VIRT_ADDR + 1024 * PAGE_SIZE)
-
-// last 4MiB is for recursive mapping
-#define KERNEL_HEAP_END 0xffc00000
-
-void page_table_init(void);
-
-struct page_directory* page_directory_create(void);
-struct page_directory* page_directory_clone_current(void);
-void page_directory_destroy_current(void);
-void page_directory_switch(struct page_directory* to);
-
-struct slab_cache {
-    struct mutex lock;
-    size_t obj_size;
-    struct slab_obj* free_list;
-};
-
-void slab_cache_init(struct slab_cache*, size_t obj_size);
-void* slab_cache_alloc(struct slab_cache*);
-void slab_cache_free(struct slab_cache*, void*);
-
-#define VM_RW (VM_READ | VM_WRITE)
+// Last 4MiB is for recursive mapping
+#define KERNEL_VM_END 0xffc00000
 
 struct vm;
+typedef struct multiboot_info multiboot_info_t;
+
+#define MAX_NUM_PAGES (1 << 20)
+
+void page_init(const multiboot_info_t*);
+
+struct page_directory* page_directory_create(void);
+void page_directory_destroy(struct page_directory*);
 
 void vm_init(void);
 
-// Finds the region that contains the given address.
-// Returns NULL if no region contains the address.
-struct vm_region* vm_find_region(struct vm*, void* virt_addr);
-
 // Finds a gap in the address space that can fit a region of the given size.
 // Returns the region before the gap, or NULL if the vm is empty.
-// If virt_addr is not NULL, the address of the gap is stored in it.
-struct vm_region* vm_find_gap(struct vm*, size_t, uintptr_t* virt_addr);
+// If start is not NULL, (the start virtual address >> PAGE_SHIFT) of the gap is
+// stored in *start.
+struct vm_region* vm_find_gap(const struct vm*, size_t npages, size_t* start);
 
-// Inserts a region after the cursor. If the cursor is NULL, insert at the head.
-void vm_insert_region_after(struct vm*, struct vm_region* cursor,
+// Inserts the region `inserted` after the region `prev`.
+// If `prev` is NULL, `inserted` is inserted at the beginning of the vm's region
+// list.
+void vm_insert_region_after(struct vm*, struct vm_region* prev,
                             struct vm_region* inserted);
 
 // Removes a region from the vm's region list.
-void vm_remove_region(struct vm*, struct vm_region*);
+void vm_region_remove(struct vm_region*);
+
+void vm_obj_init(void);

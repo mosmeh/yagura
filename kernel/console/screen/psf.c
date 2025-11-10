@@ -153,7 +153,7 @@ struct font* load_psf(const char* filename) {
 
 done:
     if (file)
-        file_close(file);
+        file_unref(file);
     path_destroy_recursive(root);
     return ret;
 }

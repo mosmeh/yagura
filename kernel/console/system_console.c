@@ -1,7 +1,6 @@
 #include "private.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/sysmacros.h>
-#include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>

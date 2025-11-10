@@ -104,6 +104,13 @@ struct screen* fb_screen_init(void) {
         return ERR_PTR(-ENOTSUP);
     }
 
+    size_t npages = DIV_CEIL(fb_info.pitch * fb_info.height, PAGE_SIZE);
+    fb = vm_obj_map(fb_mmap(), 0, npages, VM_READ | VM_WRITE | VM_SHARED);
+    if (IS_ERR(fb)) {
+        kprint("fb_screen: failed to map framebuffer\n");
+        return ERR_CAST(fb);
+    }
+
     font = load_psf(font_pathname);
     if (IS_ERR(font)) {
         kprintf("fb_screen: failed to load font file %s\n", font_pathname);
@@ -113,13 +120,6 @@ struct screen* fb_screen_init(void) {
     num_columns = fb_info.width / font->glyph_width;
     num_rows = fb_info.height / font->glyph_height;
     kprintf("fb_screen: columns=%u rows=%u\n", num_columns, num_rows);
-
-    size_t fb_size = fb_info.pitch * fb_info.height;
-    fb = fb_get()->mmap(fb_size, 0, VM_READ | VM_WRITE | VM_SHARED);
-    if (IS_ERR(fb)) {
-        kprint("fb_screen: failed to mmap framebuffer\n");
-        return ERR_CAST(fb);
-    }
 
     return &fb_screen;
 }

@@ -44,6 +44,13 @@ void mutex_unlock(struct mutex* m) {
     }
 }
 
+bool mutex_is_locked_by_current(const struct mutex* m) {
+    if (m->holder != current)
+        return false;
+    ASSERT(m->level > 0);
+    return true;
+}
+
 #define SPINLOCK_LOCKED 0x1
 #define SPINLOCK_PUSHED_INTERRUPT 0x2
 #define SPINLOCK_CPU_ID_SHIFT 2
@@ -72,7 +79,7 @@ void spinlock_lock(struct spinlock* s) {
 
 void spinlock_unlock(struct spinlock* s) {
     ASSERT(!interrupts_enabled());
-    unsigned v = atomic_load(&s->lock);
+    unsigned v = s->lock;
     ASSERT(v & SPINLOCK_LOCKED);
     ASSERT((v >> SPINLOCK_CPU_ID_SHIFT) == cpu_get_id());
     ASSERT(s->level > 0);

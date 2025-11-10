@@ -10,8 +10,7 @@
 
 static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
                                size_t size) {
-    struct vm* current_vm = current->vm;
-    vm_enter(vm);
+    struct vm* current_vm = vm_enter(vm);
     int ret = copy_from_user(dst, user_src, size);
     vm_enter(current_vm);
     return ret;
@@ -175,6 +174,7 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def,
     inode->dev = parent->inode.dev;
     inode->fops = &proc_item_fops;
     inode->mode = item_def->mode;
+    inode->flags = INODE_NO_PAGE_CACHE;
     inode->ref_count = 1;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);
@@ -210,6 +210,7 @@ struct inode* proc_pid_dir_inode_create(proc_dir_inode* parent, pid_t pid) {
     inode->dev = parent->inode.dev;
     inode->fops = &fops;
     inode->mode = S_IFDIR;
+    inode->flags = INODE_NO_PAGE_CACHE;
     inode->ref_count = 1;
 
     for (size_t i = 0; i < ARRAY_SIZE(pid_items); ++i) {

@@ -214,7 +214,7 @@ static struct path* follow_symlink(const struct path* parent,
 
     char target[SYMLINK_MAX];
     ssize_t target_len = file_read_to_end(file, target, SYMLINK_MAX);
-    file_close(file);
+    file_unref(file);
     if (IS_ERR(target_len))
         return ERR_PTR(target_len);
 
@@ -478,11 +478,13 @@ struct inode* vfs_create_at(const struct path* base, const char* pathname,
     return path_into_inode(path);
 }
 
+void file_init(void);
 void tmpfs_init(void);
 void proc_init(void);
 void initrd_populate_root_fs(uintptr_t phys_addr, size_t size);
 
 void vfs_init(const multiboot_module_t* initrd_mod) {
+    file_init();
     tmpfs_init();
     proc_init();
 

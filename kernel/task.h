@@ -4,7 +4,6 @@
 #include "api/sys/limits.h"
 #include "fs/fs.h"
 #include "gdt.h"
-#include "memory/memory.h"
 #include "sched.h"
 #include "system.h"
 #include <common/extra.h>

@@ -5,6 +5,7 @@
 #include <kernel/api/sys/types.h>
 #include <kernel/api/time.h>
 #include <kernel/lock.h>
+#include <kernel/memory/vm.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 
@@ -12,17 +13,21 @@
 #define PATH_SEPARATOR_STR "/"
 #define ROOT_DIR PATH_SEPARATOR_STR
 
+#define SECTOR_SHIFT 9
+#define SECTOR_SIZE (1 << SECTOR_SHIFT)
+
 typedef struct multiboot_info multiboot_info_t;
 typedef struct multiboot_mod_list multiboot_module_t;
 
+extern const struct vm_ops file_vm_ops;
+
 // Open file description
 struct file {
+    struct vm_obj vm_obj;
     struct inode* inode;
     atomic_int flags;
     uint64_t offset;
-    struct mutex offset_lock;
     void* private_data;
-    atomic_size_t ref_count;
 };
 
 struct kstat {
@@ -51,35 +56,48 @@ struct file_ops {
     struct inode* (*create_child)(struct inode*, const char* name, mode_t mode);
     int (*link_child)(struct inode*, const char* name, struct inode* child);
     struct inode* (*unlink_child)(struct inode*, const char* name);
-    int (*open)(struct file*, mode_t mode);
-    int (*stat)(struct inode*, struct kstat* buf);
 
+    int (*open)(struct file*, mode_t mode);
     int (*close)(struct file*);
     ssize_t (*pread)(struct file*, void* buffer, size_t count, uint64_t offset);
     ssize_t (*pwrite)(struct file*, const void* buffer, size_t count,
                       uint64_t offset);
-    void* (*mmap)(struct file*, size_t length, uint64_t offset, int flags);
     int (*truncate)(struct file*, uint64_t length);
     int (*ioctl)(struct file*, int request, void* user_argp);
     int (*getdents)(struct file*, getdents_callback_fn callback, void* ctx);
     short (*poll)(struct file*, short events);
+    struct vm_obj* (*mmap)(struct file*);
 };
+
+// The contents of this inode should not be cached
+#define INODE_NO_PAGE_CACHE 0x1
+
+// inode has been modified since the last writeback
+#define INODE_DIRTY 0x2
 
 struct inode {
     const struct file_ops* fops;
-    dev_t dev;  // Device number of device containing this inode
-    dev_t rdev; // Device number (if this inode is a special file)
+    struct page* shared_pages; // Page cache
+
+    mode_t mode;
+    dev_t dev;          // Device number of device containing this inode
+    dev_t rdev;         // Device number (if this inode is a special file)
+    uint64_t size;      // Size in bytes
+    uint8_t block_bits; // Block size as 2^block_bits
+    blkcnt_t blocks;    // Number of 512 B blocks
+
     _Atomic(struct inode*) fifo;
     _Atomic(struct unix_socket*) bound_socket;
-    mode_t mode;
     _Atomic(nlink_t) num_links;
+    atomic_uint flags; // INODE_*
+
+    struct mutex lock;
     atomic_size_t ref_count;
 };
 
 void inode_ref(struct inode*);
 void inode_unref(struct inode*);
 
-void inode_destroy(struct inode*);
 NODISCARD struct inode* inode_lookup_child(struct inode*, const char* name);
 NODISCARD struct inode* inode_create_child(struct inode*, const char* name,
                                            mode_t mode);
@@ -89,7 +107,12 @@ NODISCARD int inode_unlink_child(struct inode*, const char* name);
 NODISCARD struct file* inode_open(struct inode*, int flags, mode_t mode);
 NODISCARD int inode_stat(struct inode*, struct kstat* buf);
 
-int file_close(struct file*);
+void file_ref(struct file*);
+void file_unref(struct file*);
+
+void file_lock(struct file*);
+void file_unlock(struct file*);
+
 NODISCARD ssize_t file_read(struct file*, void* buffer, size_t count);
 NODISCARD ssize_t file_pread(struct file*, void* buffer, size_t count,
                              uint64_t offset);
@@ -99,13 +122,14 @@ NODISCARD ssize_t file_pwrite(struct file*, const void* buffer, size_t count,
                               uint64_t offset);
 NODISCARD ssize_t file_write_all(struct file*, const void* buffer,
                                  size_t count);
-NODISCARD void* file_mmap(struct file*, size_t length, uint64_t offset,
-                          int flags);
 NODISCARD int file_truncate(struct file*, uint64_t length);
 NODISCARD loff_t file_seek(struct file*, loff_t offset, int whence);
 NODISCARD int file_ioctl(struct file*, int request, void* user_argp);
 NODISCARD int file_getdents(struct file*, getdents_callback_fn, void* ctx);
 NODISCARD short file_poll(struct file*, short events);
+NODISCARD int file_sync(struct file*, uint64_t offset, uint64_t nbytes);
+
+NODISCARD struct vm_obj* file_mmap(struct file*);
 
 NODISCARD int file_block(struct file*, bool (*unblock)(struct file*),
                          int flags);

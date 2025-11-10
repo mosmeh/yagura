@@ -1,6 +1,7 @@
 #pragma once
 
 #include "gdt.h"
+#include "memory/memory.h"
 #include <common/extra.h>
 #include <stdatomic.h>
 #include <stdbool.h>
@@ -216,6 +217,8 @@ struct cpu {
     struct gdt_segment gdt[NUM_GDT_ENTRIES];
     struct tss tss;
     struct gdtr gdtr;
+
+    struct kmap_ctrl kmap;
 
     struct task* current_task;
     struct task* idle_task;

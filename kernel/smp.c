@@ -3,6 +3,7 @@
 #include "interrupts/interrupts.h"
 #include "kmsg.h"
 #include "memory/memory.h"
+#include "memory/vm.h"
 #include "panic.h"
 #include "sched.h"
 #include "system.h"
@@ -66,13 +67,15 @@ void smp_start(void) {
     if (!smp_enabled)
         return;
 
-    size_t trampoline_size =
-        (uintptr_t)ap_trampoline_end - (uintptr_t)ap_trampoline_start;
-    void* trampoline =
-        vm_phys_map(AP_TRAMPOLINE_ADDR, trampoline_size, VM_READ | VM_WRITE);
-    ASSERT_OK(trampoline);
-    memcpy(trampoline, ap_trampoline_start, trampoline_size);
-    ASSERT_OK(vm_unmap(trampoline, trampoline_size));
+    ASSERT((uintptr_t)ap_trampoline_start % PAGE_SIZE == 0);
+    size_t trampoline_size = ap_trampoline_end - ap_trampoline_start;
+    for (size_t offset = 0; offset < trampoline_size; offset += PAGE_SIZE) {
+        bool int_flag = push_cli();
+        void* kaddr = kmap(AP_TRAMPOLINE_ADDR + offset);
+        memcpy(kaddr, ap_trampoline_start + offset, PAGE_SIZE);
+        kunmap(kaddr);
+        pop_cli(int_flag);
+    }
 
     const struct acpi* acpi = acpi_get();
     ASSERT(acpi);
@@ -81,14 +84,15 @@ void smp_start(void) {
     unsigned char* ap_stack = kmalloc(ap_stack_size);
     ASSERT(ap_stack);
     ap_stack_top = ap_stack + ap_stack_size;
+    ASSERT_OK(vm_populate(ap_stack, ap_stack_top, true));
 
     STATIC_ASSERT(AP_TRAMPOLINE_ADDR < 0x100000);
     STATIC_ASSERT(AP_TRAMPOLINE_ADDR % 0x1000 == 0);
 
     // APs start in real mode (no paging), so they need identity mapping of
     // the initialization code.
-    size_t init_size = ROUND_UP((uintptr_t)init_end, PAGE_SIZE);
-    ASSERT_OK(page_table_map_phys(0, 0, init_size, PTE_WRITE));
+    size_t init_npages = DIV_CEIL((uintptr_t)init_end, PAGE_SIZE);
+    ASSERT_OK(page_table_map(0, 0, init_npages, PTE_WRITE));
 
     kprintf("smp: starting %u APs\n", num_cpus - 1);
     for (size_t i = 0; i < num_cpus; ++i) {
@@ -115,7 +119,7 @@ void smp_start(void) {
     ASSERT(num_ready_cpus == num_cpus);
 
     // Remove the identity mapping
-    page_table_unmap(0, init_size);
+    page_table_unmap(0, init_npages);
 
     smp_active = true;
     kprint("smp: all APs started\n");

@@ -48,7 +48,7 @@ int sys_open(const char* user_pathname, int flags, unsigned mode) {
         return PTR_ERR(file);
     rc = task_alloc_file_descriptor(-1, file);
     if (IS_ERR(rc))
-        file_close(file);
+        file_unref(file);
     return rc;
 }
 
@@ -60,11 +60,7 @@ int sys_close(int fd) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-
-    int rc = file_close(file);
-    if (IS_ERR(rc))
-        return rc;
-
+    file_unref(file);
     return task_free_file_descriptor(fd);
 }
 
@@ -100,7 +96,7 @@ ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    mutex_lock(&file->offset_lock);
+    file_lock(file);
     ssize_t ret = 0;
     for (int i = 0; i < iovcnt; ++i) {
         struct iovec iov;
@@ -124,7 +120,7 @@ ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
         }
         ret += nread;
     }
-    mutex_unlock(&file->offset_lock);
+    file_unlock(file);
     return ret;
 }
 
@@ -153,7 +149,7 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
 
     char buf[SYMLINK_MAX];
     ssize_t nread = file_read_to_end(file, buf, bufsiz);
-    file_close(file);
+    file_unref(file);
     if (IS_ERR(nread))
         return nread;
 
@@ -194,7 +190,7 @@ ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    mutex_lock(&file->offset_lock);
+    file_lock(file);
     ssize_t ret = 0;
     for (int i = 0; i < iovcnt; ++i) {
         struct iovec iov;
@@ -218,11 +214,11 @@ ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
         }
         ret += nwritten;
     }
-    mutex_unlock(&file->offset_lock);
+    file_unlock(file);
     return ret;
 }
 
-static int truncate(const char* user_path, uint64_t length) {
+NODISCARD static int truncate(const char* user_path, uint64_t length) {
     char path[PATH_MAX];
     int rc = copy_pathname_from_user(path, user_path);
     if (IS_ERR(rc))
@@ -231,11 +227,11 @@ static int truncate(const char* user_path, uint64_t length) {
     if (IS_ERR(file))
         return PTR_ERR(file);
     rc = file_truncate(file, length);
-    file_close(file);
+    file_unref(file);
     return rc;
 }
 
-static int ftruncate(int fd, uint64_t length) {
+NODISCARD static int ftruncate(int fd, uint64_t length) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
@@ -482,6 +478,7 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
     if (IS_ERR(file))
         return PTR_ERR(file);
     rc = file_write_all(file, target, target_len);
+    file_unref(file);
     if (IS_ERR(rc))
         return rc;
     return 0;
@@ -644,7 +641,7 @@ static int ensure_empty_directory(struct inode* inode) {
 
     bool has_children = false;
     int rc = file_getdents(file, set_has_children, &has_children);
-    file_close(file);
+    file_unref(file);
     if (IS_ERR(rc))
         return rc;
 
@@ -776,8 +773,8 @@ static bool getdents_callback(const char* name, uint8_t type, void* raw_ctx) {
     return true;
 }
 
-static ssize_t getdents(int fd, void* user_buf, size_t count,
-                        fill_dir_fn fill_dir) {
+NODISCARD static ssize_t getdents(int fd, void* user_buf, size_t count,
+                                  fill_dir_fn fill_dir) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
@@ -885,7 +882,7 @@ int sys_fcntl(int fd, int cmd, unsigned long arg) {
         int ret = task_alloc_file_descriptor(-1, file);
         if (IS_ERR(ret))
             return ret;
-        ++file->ref_count;
+        file_ref(file);
         return ret;
     }
     case F_GETFL:
@@ -909,7 +906,7 @@ int sys_dup(int oldfd) {
     int new_fd = task_alloc_file_descriptor(-1, file);
     if (IS_ERR(new_fd))
         return new_fd;
-    ++file->ref_count;
+    file_ref(file);
     return new_fd;
 }
 
@@ -925,17 +922,15 @@ int sys_dup3(int oldfd, int newfd, int flags) {
         return oldfd;
     struct file* newfd_file = task_get_file(newfd);
     if (IS_OK(newfd_file)) {
-        int rc = file_close(newfd_file);
-        if (IS_ERR(rc))
-            return rc;
-        rc = task_free_file_descriptor(newfd);
+        file_unref(newfd_file);
+        int rc = task_free_file_descriptor(newfd);
         if (IS_ERR(rc))
             return rc;
     }
     int ret = task_alloc_file_descriptor(newfd, oldfd_file);
     if (IS_ERR(ret))
         return ret;
-    ++oldfd_file->ref_count;
+    file_ref(oldfd_file);
     return ret;
 }
 
@@ -955,7 +950,7 @@ int sys_pipe2(int user_pipefd[2], int flags) {
 
     struct file* writer_file = inode_open(fifo, O_WRONLY, flags);
     if (IS_ERR(writer_file)) {
-        file_close(reader_file);
+        file_unref(reader_file);
         return PTR_ERR(writer_file);
     }
 
@@ -989,7 +984,7 @@ fail:
         task_free_file_descriptor(reader_fd);
     if (IS_OK(writer_fd))
         task_free_file_descriptor(writer_fd);
-    file_close(reader_file);
-    file_close(writer_file);
+    file_unref(reader_file);
+    file_unref(writer_file);
     return rc;
 }
