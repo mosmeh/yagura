@@ -16,7 +16,7 @@ int sys_socket(int domain, int type, int protocol) {
     struct unix_socket* socket = unix_socket_create();
     if (IS_ERR(socket))
         return PTR_ERR(socket);
-    struct file* file = inode_open(&socket->inode, O_RDWR, 0);
+    struct file* file = inode_open(&socket->inode, O_RDWR);
     if (IS_ERR(file))
         return PTR_ERR(file);
     int fd = task_alloc_file_descriptor(-1, file);
@@ -103,7 +103,7 @@ int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
         return -ERESTARTSYS;
     if (IS_ERR(connector))
         return PTR_ERR(connector);
-    struct file* connector_file = inode_open(&connector->inode, O_RDWR, 0);
+    struct file* connector_file = inode_open(&connector->inode, O_RDWR);
     if (IS_ERR(connector_file))
         return PTR_ERR(connector_file);
 

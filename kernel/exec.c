@@ -193,7 +193,7 @@ static int execve(const char* pathname, struct string_vec* argv,
         goto fail_exe;
     }
 
-    struct file* file = inode_open(path_into_inode(path), O_RDONLY, 0);
+    struct file* file = inode_open(path_into_inode(path), O_RDONLY);
     if (IS_ERR(file)) {
         ret = PTR_ERR(file);
         goto fail_exe;

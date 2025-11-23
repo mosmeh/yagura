@@ -6,9 +6,7 @@
 
 static void proc_item_destroy(struct inode* inode) { kfree(inode); }
 
-static int proc_item_open(struct file* file, mode_t mode) {
-    (void)mode;
-
+static int proc_item_open(struct file* file) {
     struct vec* vec = kmalloc(sizeof(struct vec));
     if (!vec)
         return -ENOMEM;

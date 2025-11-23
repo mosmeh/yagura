@@ -34,7 +34,7 @@ struct file {
 typedef bool (*getdents_callback_fn)(const char* name, uint8_t type, void* ctx);
 
 struct file_ops {
-    int (*open)(struct file*, mode_t mode);
+    int (*open)(struct file*);
     int (*close)(struct file*);
     ssize_t (*pread)(struct file*, void* buffer, size_t count, uint64_t offset);
     ssize_t (*pwrite)(struct file*, const void* buffer, size_t count,
@@ -94,7 +94,7 @@ NODISCARD struct inode* inode_create(struct inode* parent, const char* name,
 NODISCARD int inode_link(struct inode* parent, const char* name,
                          struct inode* child);
 NODISCARD int inode_unlink(struct inode* parent, const char* name);
-NODISCARD struct file* inode_open(struct inode*, int flags, mode_t mode);
+NODISCARD struct file* inode_open(struct inode*, int flags);
 
 struct kstat {
     dev_t st_dev;         /* ID of device containing file */

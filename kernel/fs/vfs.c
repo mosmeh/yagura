@@ -208,7 +208,7 @@ static struct path* follow_symlink(const struct path* parent,
     ASSERT(S_ISLNK(inode->mode));
     ASSERT(depth <= SYMLOOP_MAX);
 
-    struct file* file = inode_open(inode, O_RDONLY, 0);
+    struct file* file = inode_open(inode, O_RDONLY);
     if (IS_ERR(file))
         return ERR_CAST(file);
 
@@ -443,7 +443,7 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
     if (IS_ERR(inode))
         return ERR_CAST(inode);
 
-    return inode_open(inode, flags, mode);
+    return inode_open(inode, flags);
 }
 
 int vfs_stat(const char* pathname, struct kstat* buf, int flags) {

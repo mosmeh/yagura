@@ -64,7 +64,7 @@ void system_console_init(void) {
         return;
     }
 
-    active_console = inode_open(device, O_RDWR, 0);
+    active_console = inode_open(device, O_RDWR);
     if (!active_console) {
         kprintf("system_console: failed to open device %s\n", console);
         return;

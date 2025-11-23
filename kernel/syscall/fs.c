@@ -141,7 +141,7 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
         return -EINVAL;
     }
 
-    struct file* file = inode_open(inode, O_RDONLY, 0);
+    struct file* file = inode_open(inode, O_RDONLY);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -635,7 +635,7 @@ static bool set_has_children(const char* name, uint8_t type, void* ctx) {
 static int ensure_empty_directory(struct inode* inode) {
     ASSERT(S_ISDIR(inode->mode));
 
-    struct file* file = inode_open(inode, O_RDONLY, 0);
+    struct file* file = inode_open(inode, O_RDONLY);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -937,18 +937,21 @@ int sys_dup3(int oldfd, int newfd, int flags) {
 int sys_pipe(int user_pipefd[2]) { return sys_pipe2(user_pipefd, 0); }
 
 int sys_pipe2(int user_pipefd[2], int flags) {
+    if (flags & O_ACCMODE)
+        return -EINVAL;
+
     struct inode* fifo = fifo_create();
     if (IS_ERR(fifo))
         return PTR_ERR(fifo);
 
     inode_ref(fifo);
-    struct file* reader_file = inode_open(fifo, O_RDONLY, flags);
+    struct file* reader_file = inode_open(fifo, flags | O_RDONLY);
     if (IS_ERR(reader_file)) {
         inode_unref(fifo);
         return PTR_ERR(reader_file);
     }
 
-    struct file* writer_file = inode_open(fifo, O_WRONLY, flags);
+    struct file* writer_file = inode_open(fifo, flags | O_WRONLY);
     if (IS_ERR(writer_file)) {
         file_unref(reader_file);
         return PTR_ERR(writer_file);

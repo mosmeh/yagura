@@ -40,9 +40,7 @@ static bool unblock_open(struct file* file) {
     }
 }
 
-static int fifo_open(struct file* file, mode_t mode) {
-    (void)mode;
-
+static int fifo_open(struct file* file) {
     struct fifo* fifo = fifo_from_file(file);
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:

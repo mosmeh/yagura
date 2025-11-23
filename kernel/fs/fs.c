@@ -120,7 +120,7 @@ unlock_inode:
     return rc;
 }
 
-struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
+struct file* inode_open(struct inode* inode, int flags) {
     switch (flags & O_ACCMODE) {
     case O_RDONLY:
         break;
@@ -149,7 +149,7 @@ struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
     };
 
     if (file->fops->open) {
-        int rc = file->fops->open(file, mode);
+        int rc = file->fops->open(file);
         if (IS_ERR(rc)) {
             inode_unref(inode);
             slab_free(&file_slab, file);
