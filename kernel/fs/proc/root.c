@@ -165,14 +165,13 @@ static proc_item_def root_items[] = {
 };
 #define NUM_ITEMS ARRAY_SIZE(root_items)
 
-static struct inode* proc_root_lookup_child(struct inode* inode,
-                                            const char* name) {
+static struct inode* proc_root_lookup(struct inode* parent, const char* name) {
     if (str_is_uint(name)) {
-        proc_dir_inode* parent = proc_dir_from_inode(inode);
+        proc_dir_inode* node = proc_dir_from_inode(parent);
         pid_t pid = atoi(name);
-        return proc_pid_dir_inode_create(parent, pid);
+        return proc_pid_dir_inode_create(node, pid);
     }
-    return proc_dir_lookup_child(inode, name);
+    return proc_dir_lookup(parent, name);
 }
 
 static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
@@ -228,9 +227,9 @@ static int add_item(proc_dir_inode* parent, const proc_item_def* item_def) {
 
     struct inode* inode = &node->inode;
     inode->dev = parent->inode.dev;
+    inode->iops = &proc_item_iops;
     inode->fops = &proc_item_fops;
     inode->mode = item_def->mode;
-    inode->flags = INODE_NO_PAGE_CACHE;
     inode->ref_count = 1;
 
     int rc = dentry_append(&parent->children, item_def->name, inode);
@@ -246,17 +245,19 @@ struct inode* proc_mount(const char* source) {
         return ERR_PTR(-ENOMEM);
     *root = (proc_dir_inode){0};
 
+    static const struct inode_ops iops = {
+        .destroy = proc_dir_destroy,
+        .lookup = proc_root_lookup,
+    };
     static const struct file_ops fops = {
-        .destroy_inode = proc_dir_destroy_inode,
-        .lookup_child = proc_root_lookup_child,
         .getdents = proc_root_getdents,
     };
 
     struct inode* inode = &root->inode;
     inode->dev = vfs_generate_unnamed_block_device_number();
+    inode->iops = &iops;
     inode->fops = &fops;
     inode->mode = S_IFDIR;
-    inode->flags = INODE_NO_PAGE_CACHE;
     inode->ref_count = 1;
 
     for (size_t i = 0; i < NUM_ITEMS; ++i) {

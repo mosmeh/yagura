@@ -25,38 +25,15 @@ extern const struct vm_ops file_vm_ops;
 struct file {
     struct vm_obj vm_obj;
     struct inode* inode;
+    const struct file_ops* fops;
     atomic_int flags;
     uint64_t offset;
     void* private_data;
 };
 
-struct kstat {
-    dev_t st_dev;         /* ID of device containing file */
-    ino_t st_ino;         /* Inode number */
-    mode_t st_mode;       /* File type and mode */
-    nlink_t st_nlink;     /* Number of hard links */
-    uid_t st_uid;         /* User ID of owner */
-    gid_t st_gid;         /* Group ID of owner */
-    dev_t st_rdev;        /* Device ID (if special file) */
-    uint64_t st_size;     /* Total size, in bytes */
-    blksize_t st_blksize; /* Block size for filesystem I/O */
-    blkcnt_t st_blocks;   /* Number of 512 B blocks allocated */
-
-    struct timespec st_atim; /* Time of last access */
-    struct timespec st_mtim; /* Time of last modification */
-    struct timespec st_ctim; /* Time of last status change */
-};
-
 typedef bool (*getdents_callback_fn)(const char* name, uint8_t type, void* ctx);
 
 struct file_ops {
-    void (*destroy_inode)(struct inode*);
-
-    struct inode* (*lookup_child)(struct inode*, const char* name);
-    struct inode* (*create_child)(struct inode*, const char* name, mode_t mode);
-    int (*link_child)(struct inode*, const char* name, struct inode* child);
-    struct inode* (*unlink_child)(struct inode*, const char* name);
-
     int (*open)(struct file*, mode_t mode);
     int (*close)(struct file*);
     ssize_t (*pread)(struct file*, void* buffer, size_t count, uint64_t offset);
@@ -69,13 +46,11 @@ struct file_ops {
     struct vm_obj* (*mmap)(struct file*);
 };
 
-// The contents of this inode should not be cached
-#define INODE_NO_PAGE_CACHE 0x1
-
 // inode has been modified since the last writeback
-#define INODE_DIRTY 0x2
+#define INODE_DIRTY 0x1
 
 struct inode {
+    const struct inode_ops* iops;
     const struct file_ops* fops;
     struct page* shared_pages; // Page cache
 
@@ -95,16 +70,49 @@ struct inode {
     atomic_size_t ref_count;
 };
 
+struct inode_ops {
+    void (*destroy)(struct inode*);
+
+    struct inode* (*lookup)(struct inode* parent, const char* name);
+    struct inode* (*create)(struct inode* parent, const char* name,
+                            mode_t mode);
+    int (*link)(struct inode* parent, const char* name, struct inode* child);
+    int (*unlink)(struct inode* parent, const char* name);
+
+    ssize_t (*pread)(struct inode*, void* buffer, size_t count,
+                     uint64_t offset);
+    ssize_t (*pwrite)(struct inode*, const void* buffer, size_t count,
+                      uint64_t offset);
+};
+
 void inode_ref(struct inode*);
 void inode_unref(struct inode*);
 
-NODISCARD struct inode* inode_lookup_child(struct inode*, const char* name);
-NODISCARD struct inode* inode_create_child(struct inode*, const char* name,
-                                           mode_t mode);
-NODISCARD int inode_link_child(struct inode*, const char* name,
-                               struct inode* child);
-NODISCARD int inode_unlink_child(struct inode*, const char* name);
+NODISCARD struct inode* inode_lookup(struct inode* parent, const char* name);
+NODISCARD struct inode* inode_create(struct inode* parent, const char* name,
+                                     mode_t mode);
+NODISCARD int inode_link(struct inode* parent, const char* name,
+                         struct inode* child);
+NODISCARD int inode_unlink(struct inode* parent, const char* name);
 NODISCARD struct file* inode_open(struct inode*, int flags, mode_t mode);
+
+struct kstat {
+    dev_t st_dev;         /* ID of device containing file */
+    ino_t st_ino;         /* Inode number */
+    mode_t st_mode;       /* File type and mode */
+    nlink_t st_nlink;     /* Number of hard links */
+    uid_t st_uid;         /* User ID of owner */
+    gid_t st_gid;         /* Group ID of owner */
+    dev_t st_rdev;        /* Device ID (if special file) */
+    uint64_t st_size;     /* Total size, in bytes */
+    blksize_t st_blksize; /* Block size for filesystem I/O */
+    blkcnt_t st_blocks;   /* Number of 512 B blocks allocated */
+
+    struct timespec st_atim; /* Time of last access */
+    struct timespec st_mtim; /* Time of last modification */
+    struct timespec st_ctim; /* Time of last status change */
+};
+
 NODISCARD int inode_stat(struct inode*, struct kstat* buf);
 
 void file_ref(struct file*);

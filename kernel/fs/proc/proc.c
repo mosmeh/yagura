@@ -4,7 +4,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
-static void proc_item_destroy_inode(struct inode* inode) { kfree(inode); }
+static void proc_item_destroy(struct inode* inode) { kfree(inode); }
 
 static int proc_item_open(struct file* file, mode_t mode) {
     (void)mode;
@@ -37,23 +37,25 @@ static ssize_t proc_item_pread(struct file* file, void* buffer, size_t count,
     return vec_pread(file->private_data, buffer, count, offset);
 }
 
+const struct inode_ops proc_item_iops = {
+    .destroy = proc_item_destroy,
+};
 const struct file_ops proc_item_fops = {
-    .destroy_inode = proc_item_destroy_inode,
     .open = proc_item_open,
     .close = proc_item_close,
     .pread = proc_item_pread,
 };
 
-void proc_dir_destroy_inode(struct inode* inode) {
+void proc_dir_destroy(struct inode* inode) {
     proc_dir_inode* node = proc_dir_from_inode(inode);
     dentry_clear(node->children);
     kfree(node);
 }
 
-struct inode* proc_dir_lookup_child(struct inode* inode, const char* name) {
-    proc_dir_inode* node = proc_dir_from_inode(inode);
+struct inode* proc_dir_lookup(struct inode* parent, const char* name) {
+    proc_dir_inode* node = proc_dir_from_inode(parent);
     struct inode* child = dentry_find(node->children, name);
-    inode_unref(inode);
+    inode_unref(parent);
     return child;
 }
 

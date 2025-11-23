@@ -22,7 +22,7 @@ static struct fifo* fifo_from_file(struct file* file) {
     return fifo_from_inode(file->inode);
 }
 
-static void fifo_destroy_inode(struct inode* inode) {
+static void fifo_destroy(struct inode* inode) {
     struct fifo* fifo = fifo_from_inode(inode);
     ring_buf_destroy(&fifo->buf);
     kfree(fifo);
@@ -185,14 +185,17 @@ struct inode* fifo_create(void) {
     }
 
     struct inode* inode = &fifo->inode;
+    static const struct inode_ops iops = {
+        .destroy = fifo_destroy,
+    };
     static const struct file_ops fops = {
-        .destroy_inode = fifo_destroy_inode,
         .open = fifo_open,
         .close = fifo_close,
         .pread = fifo_pread,
         .pwrite = fifo_pwrite,
         .poll = fifo_poll,
     };
+    inode->iops = &iops;
     inode->fops = &fops;
     inode->mode = S_IFIFO;
     inode->ref_count = 1;

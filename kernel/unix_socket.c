@@ -6,7 +6,7 @@
 #include "socket.h"
 #include "task.h"
 
-static void unix_socket_destroy_inode(struct inode* inode) {
+static void unix_socket_destroy(struct inode* inode) {
     struct unix_socket* socket = unix_socket_from_inode(inode);
     ring_buf_destroy(&socket->to_connector_buf);
     ring_buf_destroy(&socket->to_acceptor_buf);
@@ -146,13 +146,16 @@ struct unix_socket* unix_socket_create(void) {
     *socket = (struct unix_socket){0};
 
     struct inode* inode = &socket->inode;
+    static const struct inode_ops iops = {
+        .destroy = unix_socket_destroy,
+    };
     static const struct file_ops fops = {
-        .destroy_inode = unix_socket_destroy_inode,
         .close = unix_socket_close,
         .pread = unix_socket_pread,
         .pwrite = unix_socket_pwrite,
         .poll = unix_socket_poll,
     };
+    inode->iops = &iops;
     inode->fops = &fops;
     inode->mode = S_IFSOCK;
     inode->ref_count = 1;

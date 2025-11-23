@@ -265,7 +265,7 @@ static struct path* resolve_path_at(const struct path* base,
         }
 
         inode_ref(path->inode);
-        struct inode* inode = inode_lookup_child(path->inode, component);
+        struct inode* inode = inode_lookup(path->inode, component);
 
         bool has_more_components = false;
         for (char* p = saved_ptr; p && *p; ++p) {
@@ -401,13 +401,13 @@ static struct path* create_at(const struct path* base, const char* pathname,
     struct inode* inode = NULL;
     for (;;) {
         inode_ref(path->parent->inode);
-        inode = inode_create_child(path->parent->inode, path->basename, mode);
+        inode = inode_create(path->parent->inode, path->basename, mode);
         if (IS_OK(inode) || PTR_ERR(inode) != -EEXIST || exclusive)
             break;
         // Another task is creating the same file. Look up the created file.
 
         inode_ref(path->parent->inode);
-        inode = inode_lookup_child(path->parent->inode, path->basename);
+        inode = inode_lookup(path->parent->inode, path->basename);
         if (IS_OK(inode) || PTR_ERR(inode) != -ENOENT)
             break;
         // The file was removed before we could look it up. Retry creating it.

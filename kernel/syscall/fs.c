@@ -596,8 +596,8 @@ int sys_link(const char* user_oldpath, const char* user_newpath) {
 
     inode_ref(new_path->parent->inode);
     inode_ref(old_path->inode);
-    rc = inode_link_child(new_path->parent->inode, new_path->basename,
-                          old_path->inode);
+    rc = inode_link(new_path->parent->inode, new_path->basename,
+                    old_path->inode);
 
 done:
     path_destroy_recursive(new_path);
@@ -620,7 +620,7 @@ int sys_unlink(const char* user_pathname) {
     }
 
     inode_ref(path->parent->inode);
-    rc = inode_unlink_child(path->parent->inode, path->basename);
+    rc = inode_unlink(path->parent->inode, path->basename);
     path_destroy_recursive(path);
     return rc;
 }
@@ -692,20 +692,20 @@ int sys_rename(const char* user_oldpath, const char* user_newpath) {
         }
 
         inode_ref(new_path->parent->inode);
-        rc = inode_unlink_child(new_path->parent->inode, new_path->basename);
+        rc = inode_unlink(new_path->parent->inode, new_path->basename);
         if (IS_ERR(rc))
             goto done;
     }
 
     inode_ref(new_path->parent->inode);
     inode_ref(old_path->inode);
-    rc = inode_link_child(new_path->parent->inode, new_path->basename,
-                          old_path->inode);
+    rc = inode_link(new_path->parent->inode, new_path->basename,
+                    old_path->inode);
     if (IS_ERR(rc))
         goto done;
 
     inode_ref(old_path->parent->inode);
-    rc = inode_unlink_child(old_path->parent->inode, old_path->basename);
+    rc = inode_unlink(old_path->parent->inode, old_path->basename);
 
 done:
     path_destroy_recursive(new_path);
@@ -737,7 +737,7 @@ int sys_rmdir(const char* user_pathname) {
         return rc;
     }
     inode_ref(path->parent->inode);
-    rc = inode_unlink_child(path->parent->inode, path->basename);
+    rc = inode_unlink(path->parent->inode, path->basename);
     path_destroy_recursive(path);
     return rc;
 }

@@ -19,7 +19,7 @@ static virtio_blk_device* device_from_inode(struct inode* inode) {
     return CONTAINER_OF(inode, virtio_blk_device, inode);
 }
 
-static void virtio_blk_destroy_inode(struct inode* inode) {
+static void virtio_blk_destroy(struct inode* inode) {
     virtio_blk_device* node = device_from_inode(inode);
     virtio_device_destroy(node->virtio);
     kfree(node);
@@ -152,11 +152,14 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
     device->capacity = capacity;
 
     struct inode* inode = &device->inode;
+    static const struct inode_ops iops = {
+        .destroy = virtio_blk_destroy,
+    };
     static const struct file_ops fops = {
-        .destroy_inode = virtio_blk_destroy_inode,
         .pread = virtio_blk_pread,
         .pwrite = virtio_blk_pwrite,
     };
+    inode->iops = &iops;
     inode->fops = &fops;
     inode->mode = S_IFBLK;
     inode->rdev = rdev;
