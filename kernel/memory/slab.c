@@ -2,11 +2,11 @@
 #include "vm.h"
 #include <kernel/panic.h>
 
-void slab_cache_init(struct slab_cache* cache, size_t obj_size) {
+void slab_init(struct slab* slab, size_t obj_size) {
     // Ensure that the slab fits in a single page
     ASSERT(sizeof(struct vm_region) + obj_size <= PAGE_SIZE);
 
-    *cache = (struct slab_cache){
+    *slab = (struct slab){
         .obj_size = obj_size,
     };
 }
@@ -15,8 +15,8 @@ struct slab_obj {
     struct slab_obj* next;
 };
 
-NODISCARD static int ensure_cache(struct slab_cache* cache) {
-    if (cache->free_list)
+NODISCARD static int ensure_cache(struct slab* slab) {
+    if (slab->free_list)
         return 0;
 
     int ret = 0;
@@ -54,11 +54,11 @@ NODISCARD static int ensure_cache(struct slab_cache* cache) {
 
     uintptr_t end_addr = start_addr + PAGE_SIZE;
     struct slab_obj* obj =
-        (struct slab_obj*)ROUND_UP((uintptr_t)(region + 1), cache->obj_size);
-    while ((uintptr_t)obj + cache->obj_size <= end_addr) {
-        obj->next = cache->free_list;
-        cache->free_list = obj;
-        obj = (struct slab_obj*)((uintptr_t)obj + cache->obj_size);
+        (struct slab_obj*)ROUND_UP((uintptr_t)(region + 1), slab->obj_size);
+    while ((uintptr_t)obj + slab->obj_size <= end_addr) {
+        obj->next = slab->free_list;
+        slab->free_list = obj;
+        obj = (struct slab_obj*)((uintptr_t)obj + slab->obj_size);
     }
 
     return 0;
@@ -70,24 +70,24 @@ fail:
     return ret;
 }
 
-void* slab_cache_alloc(struct slab_cache* cache) {
-    mutex_lock(&cache->lock);
-    int rc = ensure_cache(cache);
+void* slab_alloc(struct slab* slab) {
+    mutex_lock(&slab->lock);
+    int rc = ensure_cache(slab);
     if (IS_ERR(rc)) {
-        mutex_unlock(&cache->lock);
+        mutex_unlock(&slab->lock);
         return ERR_PTR(rc);
     }
-    struct slab_obj* obj = cache->free_list;
-    cache->free_list = obj->next;
-    mutex_unlock(&cache->lock);
+    struct slab_obj* obj = slab->free_list;
+    slab->free_list = obj->next;
+    mutex_unlock(&slab->lock);
     return obj;
 }
 
-void slab_cache_free(struct slab_cache* cache, void* obj) {
+void slab_free(struct slab* slab, void* obj) {
     if (!obj)
         return;
-    mutex_lock(&cache->lock);
-    ((struct slab_obj*)obj)->next = cache->free_list;
-    cache->free_list = obj;
-    mutex_unlock(&cache->lock);
+    mutex_lock(&slab->lock);
+    ((struct slab_obj*)obj)->next = slab->free_list;
+    slab->free_list = obj;
+    mutex_unlock(&slab->lock);
 }

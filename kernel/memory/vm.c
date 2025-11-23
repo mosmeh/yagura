@@ -5,17 +5,17 @@
 #include <kernel/panic.h>
 #include <kernel/task.h>
 
-static struct slab_cache vm_cache;
+static struct slab vm_slab;
 
 struct vm* vm_create(void* start, void* end) {
     if (end <= start || KERNEL_VM_END <= (uintptr_t)start)
         return ERR_PTR(-EINVAL);
-    struct vm* vm = slab_cache_alloc(&vm_cache);
+    struct vm* vm = slab_alloc(&vm_slab);
     if (IS_ERR(vm))
         return vm;
     struct page_directory* page_directory = page_directory_create();
     if (IS_ERR(page_directory)) {
-        slab_cache_free(&vm_cache, vm);
+        slab_free(&vm_slab, vm);
         return ERR_CAST(page_directory);
     }
     *vm = (struct vm){
@@ -73,7 +73,7 @@ static void vm_region_unset_obj(struct vm_region* region) {
     mutex_unlock(&obj->lock);
 }
 
-static struct slab_cache region_cache;
+static struct slab region_slab;
 
 static void vm_region_destroy(struct vm_region* region) {
     ASSERT(!region->prev);
@@ -87,7 +87,7 @@ static void vm_region_destroy(struct vm_region* region) {
     if (region->flags & VM_SHARED)
         ASSERT(!region->private_pages);
     pages_clear(&region->private_pages);
-    slab_cache_free(&region_cache, region);
+    slab_free(&region_slab, region);
 }
 
 void vm_unref(struct vm* vm) {
@@ -109,7 +109,7 @@ void vm_unref(struct vm* vm) {
     }
 
     page_directory_destroy(vm->page_directory);
-    slab_cache_free(&vm_cache, vm);
+    slab_free(&vm_slab, vm);
 }
 
 struct vm* vm_get_current(void) { return current ? current->vm : kernel_vm; }
@@ -129,7 +129,7 @@ struct vm* vm_enter(struct vm* vm) {
 
 static struct vm_region* vm_region_clone(struct vm* new_vm,
                                          const struct vm_region* region) {
-    struct vm_region* cloned = slab_cache_alloc(&region_cache);
+    struct vm_region* cloned = slab_alloc(&region_slab);
     if (IS_ERR(cloned))
         return cloned;
 
@@ -162,7 +162,7 @@ static struct vm_region* vm_region_clone(struct vm* new_vm,
 struct vm* vm_clone(struct vm* vm) {
     ASSERT(vm != kernel_vm);
 
-    struct vm* new_vm = slab_cache_alloc(&vm_cache);
+    struct vm* new_vm = slab_alloc(&vm_slab);
     if (IS_ERR(new_vm))
         return new_vm;
 
@@ -460,16 +460,16 @@ struct vm_region* vm_alloc(struct vm* vm, size_t npages) {
     if (npages == 0)
         return ERR_PTR(-EINVAL);
 
-    // slab_cache_alloc() can allocate a new region, so it should be called
+    // slab_alloc() can allocate a new region, so it should be called
     // before vm_find_gap().
-    struct vm_region* region = slab_cache_alloc(&region_cache);
+    struct vm_region* region = slab_alloc(&region_slab);
     if (IS_ERR(region))
         return region;
 
     size_t start;
     struct vm_region* prev = vm_find_gap(vm, npages, &start);
     if (IS_ERR(prev)) {
-        slab_cache_free(&region_cache, region);
+        slab_free(&region_slab, region);
         return prev;
     }
 
@@ -497,7 +497,7 @@ struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
     if (start < vm->start || vm->end < end)
         return ERR_PTR(-ERANGE);
 
-    struct vm_region* new_region = slab_cache_alloc(&region_cache);
+    struct vm_region* new_region = slab_alloc(&region_slab);
     if (IS_ERR(new_region))
         return new_region;
 
@@ -528,7 +528,7 @@ struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
             // In this case, it is the only region that overlaps with
             // the new_region, so we don't have to worry about recovering
             // other regions that have been already removed.
-            slab_cache_free(&region_cache, new_region);
+            slab_free(&region_slab, new_region);
             return ERR_CAST(rc);
         }
         region = next;
@@ -644,7 +644,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         // Left (`region`): [start, end) with new flags
         // Right (`right_region`): [end, region->end) with old flags
 
-        struct vm_region* right_region = slab_cache_alloc(&region_cache);
+        struct vm_region* right_region = slab_alloc(&region_slab);
         if (IS_ERR(right_region))
             return PTR_ERR(right_region);
 
@@ -672,7 +672,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         // Left (`region`): [region->start, start) with old flags
         // Right (`right_region`): [start, end) with new flags
 
-        struct vm_region* right_region = slab_cache_alloc(&region_cache);
+        struct vm_region* right_region = slab_alloc(&region_slab);
         if (IS_ERR(right_region))
             return PTR_ERR(right_region);
 
@@ -701,12 +701,12 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         // Middle (`middle_region`): [start, end) with new flags
         // Right (`right_region`): [end, region->end) with old flags
 
-        struct vm_region* middle_region = slab_cache_alloc(&region_cache);
+        struct vm_region* middle_region = slab_alloc(&region_slab);
         if (IS_ERR(middle_region))
             return PTR_ERR(middle_region);
-        struct vm_region* right_region = slab_cache_alloc(&region_cache);
+        struct vm_region* right_region = slab_alloc(&region_slab);
         if (IS_ERR(right_region)) {
-            slab_cache_free(&region_cache, middle_region);
+            slab_free(&region_slab, middle_region);
             return PTR_ERR(right_region);
         }
 
@@ -787,7 +787,7 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
         // Left (`region`): [region->start, start)
         // Right (`right_region`): [end, region->end)
 
-        struct vm_region* right_region = slab_cache_alloc(&region_cache);
+        struct vm_region* right_region = slab_alloc(&region_slab);
         if (IS_ERR(right_region))
             return PTR_ERR(right_region);
 
@@ -856,6 +856,6 @@ void vm_init(void) {
         .ref_count = 1,
     };
 
-    slab_cache_init(&vm_cache, sizeof(struct vm));
-    slab_cache_init(&region_cache, sizeof(struct vm_region));
+    slab_init(&vm_slab, sizeof(struct vm));
+    slab_init(&region_slab, sizeof(struct vm_region));
 }

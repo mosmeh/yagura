@@ -77,9 +77,9 @@ int inode_unlink_child(struct inode* inode, const char* name) {
     return 0;
 }
 
-static struct slab_cache file_cache;
+static struct slab file_slab;
 
-void file_init(void) { slab_cache_init(&file_cache, sizeof(struct file)); }
+void file_init(void) { slab_init(&file_slab, sizeof(struct file)); }
 
 NODISCARD static int do_truncate(struct file* file, uint64_t length) {
     struct inode* inode = file->inode;
@@ -140,7 +140,7 @@ struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
         return ERR_PTR(-EINVAL);
     }
 
-    struct file* file = slab_cache_alloc(&file_cache);
+    struct file* file = slab_alloc(&file_slab);
     if (IS_ERR(file)) {
         inode_unref(inode);
         return file;
@@ -155,7 +155,7 @@ struct file* inode_open(struct inode* inode, int flags, mode_t mode) {
         int rc = inode->fops->open(file, mode);
         if (IS_ERR(rc)) {
             inode_unref(inode);
-            slab_cache_free(&file_cache, file);
+            slab_free(&file_slab, file);
             return ERR_PTR(rc);
         }
     }
@@ -325,7 +325,7 @@ static void file_destroy(struct vm_obj* obj) {
     struct inode* inode = file->inode;
     if (inode->fops->close)
         inode->fops->close(file);
-    slab_cache_free(&file_cache, file);
+    slab_free(&file_slab, file);
     inode_unref(inode);
 }
 

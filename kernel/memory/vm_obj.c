@@ -92,12 +92,12 @@ struct anon {
     struct page* shared_pages; // Pages referenced by VM_SHARED regions
 };
 
-static struct slab_cache anon_cache;
+static struct slab anon_slab;
 
 static void anon_destroy(struct vm_obj* obj) {
     struct anon* anon = CONTAINER_OF(obj, struct anon, vm_obj);
     pages_clear(&anon->shared_pages);
-    slab_cache_free(&anon_cache, obj);
+    slab_free(&anon_slab, obj);
 }
 
 static struct page* zero_page;
@@ -132,7 +132,7 @@ static const struct vm_ops anon_vm_ops = {
 };
 
 struct vm_obj* anon_create(void) {
-    struct anon* anon = slab_cache_alloc(&anon_cache);
+    struct anon* anon = slab_alloc(&anon_slab);
     if (IS_ERR(anon))
         return ERR_CAST(anon);
     *anon = (struct anon){
@@ -151,11 +151,11 @@ struct phys {
     size_t end;   // End pfn (exclusive)
 };
 
-static struct slab_cache phys_cache;
+static struct slab phys_slab;
 
 static void phys_destroy(struct vm_obj* obj) {
     struct phys* phys = CONTAINER_OF(obj, struct phys, vm_obj);
-    slab_cache_free(&phys_cache, phys);
+    slab_free(&phys_slab, phys);
 }
 
 static struct page* phys_get_page(struct vm_obj* obj, size_t index,
@@ -181,7 +181,7 @@ struct vm_obj* phys_create(uintptr_t phys_addr, size_t npages) {
     if (end <= start)
         return ERR_PTR(-EOVERFLOW);
 
-    struct phys* phys = slab_cache_alloc(&phys_cache);
+    struct phys* phys = slab_alloc(&phys_slab);
     if (IS_ERR(phys))
         return ERR_CAST(phys);
     *phys = (struct phys){
@@ -215,8 +215,8 @@ void* phys_map(uintptr_t phys_addr, size_t size, unsigned vm_flags) {
 void phys_unmap(void* virt_addr) { vm_obj_unmap(virt_addr); }
 
 void vm_obj_init(void) {
-    slab_cache_init(&anon_cache, sizeof(struct anon));
-    slab_cache_init(&phys_cache, sizeof(struct phys));
+    slab_init(&anon_slab, sizeof(struct anon));
+    slab_init(&phys_slab, sizeof(struct phys));
 
     zero_page = page_alloc();
     ASSERT_OK(zero_page);

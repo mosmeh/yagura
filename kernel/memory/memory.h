@@ -162,14 +162,14 @@ NODISCARD void* kmap_page(struct page*);
 // kunmap must be called in the reverse order of kmap.
 void kunmap(void* virt_addr);
 
-struct slab_cache {
+struct slab {
     struct mutex lock;
     size_t obj_size;
     struct slab_obj* free_list;
 };
 
-void slab_cache_init(struct slab_cache*, size_t obj_size);
-void* slab_cache_alloc(struct slab_cache*);
-void slab_cache_free(struct slab_cache*, void*);
+void slab_init(struct slab*, size_t obj_size);
+void* slab_alloc(struct slab*);
+void slab_free(struct slab*, void*);
 
 #endif
