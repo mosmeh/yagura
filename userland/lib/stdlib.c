@@ -95,6 +95,8 @@ void* realloc(void* ptr, size_t new_size) {
     }
 
     struct malloc_header* old_header = header_from_ptr(ptr);
+    if (old_header->size >= new_size)
+        return ptr;
 
     void* new_ptr = malloc(new_size);
     if (!new_ptr)
