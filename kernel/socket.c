@@ -1,14 +1,13 @@
+#include "api/sys/socket.h"
 #include "api/signal.h"
 #include "api/sys/poll.h"
-#include "api/sys/socket.h"
 #include "containers/ring_buf.h"
-#include "memory/memory.h"
 #include "panic.h"
 #include "socket.h"
 #include "task.h"
 
 struct unix_socket {
-    struct inode inode;
+    struct inode vfs_inode;
 
     bool is_bound;
     enum {
@@ -32,8 +31,28 @@ struct unix_socket {
     atomic_bool is_open_for_writing_to_acceptor;
 };
 
+static struct slab unix_socket_slab;
+static struct mount* sock_mount;
+
+void socket_init(void) {
+    slab_init(&unix_socket_slab, sizeof(struct unix_socket));
+
+    static struct file_system sock_fs = {
+        .name = "sockfs",
+        .flags = FILE_SYSTEM_KERNEL_ONLY,
+    };
+    ASSERT_OK(file_system_register(&sock_fs));
+
+    sock_mount = file_system_mount(&sock_fs, "sockfs");
+    ASSERT_OK(sock_mount);
+}
+
+static bool is_unix_socket(const struct inode* inode) {
+    return S_ISSOCK(inode->mode) && inode->mount == sock_mount;
+}
+
 static struct unix_socket* unix_socket_from_inode(struct inode* inode) {
-    return CONTAINER_OF(inode, struct unix_socket, inode);
+    return CONTAINER_OF(inode, struct unix_socket, vfs_inode);
 }
 
 static struct unix_socket* unix_socket_from_file(struct file* file) {
@@ -41,18 +60,18 @@ static struct unix_socket* unix_socket_from_file(struct file* file) {
 }
 
 static void socket_lock(struct unix_socket* socket) {
-    mutex_lock(&socket->inode.lock);
+    mutex_lock(&socket->vfs_inode.lock);
 }
 
 static void socket_unlock(struct unix_socket* socket) {
-    mutex_unlock(&socket->inode.lock);
+    mutex_unlock(&socket->vfs_inode.lock);
 }
 
 static void unix_socket_destroy(struct inode* inode) {
     struct unix_socket* socket = unix_socket_from_inode(inode);
     ring_buf_destroy(&socket->to_connector_buf);
     ring_buf_destroy(&socket->to_acceptor_buf);
-    kfree(socket);
+    slab_free(&unix_socket_slab, socket);
 }
 
 static int unix_socket_close(struct file* file) {
@@ -181,13 +200,18 @@ static short unix_socket_poll(struct file* file, short events) {
     return revents;
 }
 
-struct inode* unix_socket_create(void) {
-    struct unix_socket* socket = kmalloc(sizeof(struct unix_socket));
-    if (!socket)
-        return ERR_PTR(-ENOMEM);
-    *socket = (struct unix_socket){0};
+static _Atomic(ino_t) next_ino = 1;
 
-    struct inode* inode = &socket->inode;
+struct inode* unix_socket_create(void) {
+    struct unix_socket* socket = slab_alloc(&unix_socket_slab);
+    if (IS_ERR(socket))
+        return ERR_CAST(socket);
+    *socket = (struct unix_socket){
+        .vfs_inode = INODE_INIT,
+    };
+
+    struct inode* inode = &socket->vfs_inode;
+    inode->ino = atomic_fetch_add(&next_ino, 1);
     static const struct inode_ops iops = {
         .destroy = unix_socket_destroy,
     };
@@ -200,7 +224,6 @@ struct inode* unix_socket_create(void) {
     inode->iops = &iops;
     inode->fops = &fops;
     inode->mode = S_IFSOCK;
-    inode->ref_count = 1;
 
     socket->state = SOCKET_STATE_OPENED;
     socket->is_open_for_writing_to_connector = true;
@@ -208,21 +231,24 @@ struct inode* unix_socket_create(void) {
 
     int rc = ring_buf_init(&socket->to_acceptor_buf, PAGE_SIZE);
     if (IS_ERR(rc)) {
-        kfree(socket);
+        slab_free(&unix_socket_slab, socket);
         return ERR_PTR(rc);
     }
     rc = ring_buf_init(&socket->to_connector_buf, PAGE_SIZE);
     if (IS_ERR(rc)) {
         ring_buf_destroy(&socket->to_acceptor_buf);
-        kfree(socket);
+        slab_free(&unix_socket_slab, socket);
         return ERR_PTR(rc);
     }
+
+    inode_ref(inode);
+    mount_commit_inode(sock_mount, inode);
 
     return inode;
 }
 
 int unix_socket_bind(struct inode* inode, struct inode* addr_inode) {
-    if (!S_ISSOCK(inode->mode))
+    if (!is_unix_socket(inode))
         return -ENOTSOCK;
     struct unix_socket* socket = unix_socket_from_inode(inode);
     socket_lock(socket);
@@ -237,7 +263,7 @@ int unix_socket_bind(struct inode* inode, struct inode* addr_inode) {
 }
 
 int unix_socket_listen(struct inode* inode, int backlog) {
-    if (!S_ISSOCK(inode->mode))
+    if (!is_unix_socket(inode))
         return -ENOTSOCK;
     struct unix_socket* socket = unix_socket_from_inode(inode);
     socket_lock(socket);
@@ -265,7 +291,7 @@ static bool is_acceptable(struct file* file) {
 }
 
 struct inode* unix_socket_accept(struct file* file) {
-    if (!S_ISSOCK(file->inode->mode))
+    if (!is_unix_socket(file->inode))
         return ERR_PTR(-ENOTSOCK);
 
     struct unix_socket* listener = unix_socket_from_file(file);
@@ -299,7 +325,7 @@ struct inode* unix_socket_accept(struct file* file) {
         connector->state = SOCKET_STATE_CONNECTED;
         connector->is_connected = true;
         socket_unlock(connector);
-        return &connector->inode;
+        return &connector->vfs_inode;
     }
 }
 
@@ -308,12 +334,13 @@ static bool is_connectable(struct file* file) {
 }
 
 int unix_socket_connect(struct file* file, struct inode* addr_inode) {
-    if (!S_ISSOCK(file->inode->mode))
+    if (!is_unix_socket(file->inode))
         return -ENOTSOCK;
 
     struct inode* bound_socket = addr_inode->bound_socket;
     if (!bound_socket)
         return -ECONNREFUSED;
+    ASSERT(is_unix_socket(bound_socket));
     struct unix_socket* listener = unix_socket_from_inode(bound_socket);
 
     struct unix_socket* connector = unix_socket_from_file(file);
@@ -346,7 +373,7 @@ int unix_socket_connect(struct file* file, struct inode* addr_inode) {
     connector->state = SOCKET_STATE_PENDING;
     connector->next = NULL;
 
-    inode_ref(&connector->inode);
+    inode_ref(&connector->vfs_inode);
 
     if (listener->next) {
         struct unix_socket* it = listener->next;
@@ -364,7 +391,7 @@ int unix_socket_connect(struct file* file, struct inode* addr_inode) {
 }
 
 int unix_socket_shutdown(struct file* file, int how) {
-    if (!S_ISSOCK(file->inode->mode))
+    if (!is_unix_socket(file->inode))
         return -ENOTSOCK;
 
     switch (how) {

@@ -11,13 +11,13 @@
 #include <kernel/sched.h>
 
 struct virtio_blk {
-    struct inode inode;
+    struct inode vfs_inode;
     struct virtio_device* virtio;
     uint64_t capacity;
 };
 
 static struct virtio_blk* blk_from_inode(struct inode* inode) {
-    return CONTAINER_OF(inode, struct virtio_blk, inode);
+    return CONTAINER_OF(inode, struct virtio_blk, vfs_inode);
 }
 
 static void virtio_blk_destroy(struct inode* inode) {
@@ -154,11 +154,12 @@ static void init_device(const struct pci_addr* addr) {
     if (!blk)
         goto fail;
     *blk = (struct virtio_blk){
+        .vfs_inode = INODE_INIT,
         .virtio = virtio,
         .capacity = capacity,
     };
 
-    struct inode* inode = &blk->inode;
+    struct inode* inode = &blk->vfs_inode;
     block_dev->inode = inode;
     static const struct inode_ops iops = {
         .destroy = virtio_blk_destroy,
@@ -174,7 +175,6 @@ static void init_device(const struct pci_addr* addr) {
     inode->size = capacity << SECTOR_SHIFT;
     inode->block_bits = SECTOR_SHIFT;
     inode->blocks = capacity;
-    inode->ref_count = 1;
 
     ASSERT_OK(block_dev_register(block_dev));
     return;

@@ -1,11 +1,13 @@
 #pragma once
 
 #include <common/extra.h>
+#include <kernel/api/dirent.h>
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/api/time.h>
 #include <kernel/lock.h>
 #include <kernel/memory/vm.h>
+#include <kernel/panic.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 
@@ -16,8 +18,9 @@
 #define SECTOR_SHIFT 9
 #define SECTOR_SIZE (1 << SECTOR_SHIFT)
 
-typedef struct multiboot_info multiboot_info_t;
 typedef struct multiboot_mod_list multiboot_module_t;
+
+void fs_init(const multiboot_module_t* initrd_mod);
 
 extern const struct vm_ops file_vm_ops;
 
@@ -31,7 +34,8 @@ struct file {
     void* private_data;
 };
 
-typedef bool (*getdents_callback_fn)(const char* name, uint8_t type, void* ctx);
+typedef bool (*getdents_callback_fn)(const char* name, ino_t,
+                                     unsigned char type, void* ctx);
 
 struct file_ops {
     int (*open)(struct file*);
@@ -41,21 +45,47 @@ struct file_ops {
                       uint64_t offset);
     int (*truncate)(struct file*, uint64_t length);
     int (*ioctl)(struct file*, int request, void* user_argp);
-    int (*getdents)(struct file*, getdents_callback_fn callback, void* ctx);
+    int (*getdents)(struct file*, getdents_callback_fn, void* ctx);
     short (*poll)(struct file*, short events);
     struct vm_obj* (*mmap)(struct file*);
 };
 
+static inline unsigned mode_to_dirent_type(mode_t mode) {
+    switch (mode & S_IFMT) {
+    case S_IFDIR:
+        return DT_DIR;
+    case S_IFCHR:
+        return DT_CHR;
+    case S_IFBLK:
+        return DT_BLK;
+    case S_IFREG:
+        return DT_REG;
+    case S_IFIFO:
+        return DT_FIFO;
+    case S_IFLNK:
+        return DT_LNK;
+    case S_IFSOCK:
+        return DT_SOCK;
+    }
+    UNREACHABLE();
+}
+
+// inode is fully initialized and ready to be used
+#define INODE_READY 0x1
+
 // inode has been modified since the last writeback
-#define INODE_DIRTY 0x1
+#define INODE_DIRTY 0x2
+
+#define INODE_INIT {.ref_count = 1}
 
 struct inode {
+    struct mount* mount;
     const struct inode_ops* iops;
     const struct file_ops* fops;
     struct page* shared_pages; // Page cache
 
+    ino_t ino;
     mode_t mode;
-    dev_t dev;          // Device number of device containing this inode
     dev_t rdev;         // Device number (if this inode is a special file)
     uint64_t size;      // Size in bytes
     uint8_t block_bits; // Block size as 2^block_bits
@@ -63,9 +93,9 @@ struct inode {
 
     _Atomic(struct inode*) pipe;
     _Atomic(struct inode*) bound_socket;
-    _Atomic(nlink_t) num_links;
     atomic_uint flags; // INODE_*
 
+    struct inode* next; // mount->inodes
     struct mutex lock;
     atomic_size_t ref_count;
 };
@@ -74,8 +104,6 @@ struct inode_ops {
     void (*destroy)(struct inode*);
 
     struct inode* (*lookup)(struct inode* parent, const char* name);
-    struct inode* (*create)(struct inode* parent, const char* name,
-                            mode_t mode);
     int (*link)(struct inode* parent, const char* name, struct inode* child);
     int (*unlink)(struct inode* parent, const char* name);
 
@@ -89,8 +117,6 @@ void inode_ref(struct inode*);
 void inode_unref(struct inode*);
 
 NODISCARD struct inode* inode_lookup(struct inode* parent, const char* name);
-NODISCARD struct inode* inode_create(struct inode* parent, const char* name,
-                                     mode_t mode);
 NODISCARD int inode_link(struct inode* parent, const char* name,
                          struct inode* child);
 NODISCARD int inode_unlink(struct inode* parent, const char* name);
@@ -114,6 +140,31 @@ struct kstat {
 };
 
 NODISCARD int inode_stat(struct inode*, struct kstat* buf);
+
+struct mount {
+    const struct file_system* fs;
+    dev_t dev;
+    struct inode* root;
+    struct inode* inodes; // inode cache
+    struct mount* next;
+    struct mutex lock;
+};
+
+// Marks the given inode as ready to be used, adding it to the mount's inode
+// cache.
+void mount_commit_inode(struct mount*, struct inode*);
+
+// Creates a new inode for the given mount with the specified mode.
+// The file system is responsible for allocating inode numbers.
+// The returned inode is committed and ready to be used.
+struct inode* mount_create_inode(struct mount*, mode_t);
+
+// Looks up an inode by its inode number in the mount's inode cache.
+struct inode* mount_lookup_inode(struct mount*, ino_t);
+
+// Sets the root inode of the mount.
+// Panics if the root is already set.
+void mount_set_root(struct mount*, struct inode*);
 
 void file_ref(struct file*);
 void file_unref(struct file*);
@@ -142,23 +193,33 @@ NODISCARD struct vm_obj* file_mmap(struct file*);
 NODISCARD int file_block(struct file*, bool (*unblock)(struct file*),
                          int flags);
 
-void vfs_init(const multiboot_module_t* initrd_mod);
-
-struct path* vfs_get_root(void);
+// Disallow mounting this file system from user space
+#define FILE_SYSTEM_KERNEL_ONLY 0x1
 
 struct file_system {
     char name[16];
-    struct inode* (*mount)(const char* source);
+    const struct fs_ops* fs_ops;
+    unsigned flags;
     struct file_system* next;
+};
+
+struct fs_ops {
+    struct mount* (*mount)(const char* source);
+    struct inode* (*create_inode)(struct mount*, mode_t);
 };
 
 extern struct file_system* file_systems;
 
-NODISCARD int vfs_register_file_system(struct file_system*);
-NODISCARD int vfs_mount(const char* source, const char* target,
-                        const char* type);
-NODISCARD int vfs_mount_at(const struct path* base, const char* source,
-                           const char* target, const char* type);
+NODISCARD int file_system_register(struct file_system*);
+const struct file_system* file_system_find(const char* name);
+struct mount* file_system_mount(const struct file_system*, const char* source);
+
+struct path* vfs_get_root(void);
+
+NODISCARD int vfs_mount(const struct file_system*, const char* source,
+                        const char* target);
+NODISCARD int vfs_mount_at(const struct file_system*, const struct path* base,
+                           const char* source, const char* target);
 
 // Return a path even if the last component of the path does not exist.
 // The last component of the returned path will have NULL inode in this case.
@@ -184,3 +245,5 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
                                  int flags);
 
 struct inode* pipe_create(void);
+
+extern const struct file_ops pipe_fops;

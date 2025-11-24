@@ -2,11 +2,16 @@
 #include <common/string.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/containers/vec.h>
-#include <kernel/fs/dentry.h>
 #include <kernel/fs/path.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
 #include <kernel/task.h>
+
+static pid_t pid_from_ino(ino_t ino) {
+    pid_t pid = ino >> PROC_PID_INO_SHIFT;
+    ASSERT(pid > 0);
+    return pid;
+}
 
 static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
                                size_t size) {
@@ -16,18 +21,9 @@ static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
     return ret;
 }
 
-typedef struct {
-    proc_item_inode item_inode;
-    pid_t pid;
-} proc_pid_item_inode;
-
-static proc_pid_item_inode* item_from_file(struct file* file) {
-    return CONTAINER_OF(file->inode, proc_pid_item_inode, item_inode.inode);
-}
-
-static int populate_cmdline(struct file* file, struct vec* vec) {
-    proc_pid_item_inode* node = item_from_file(file);
-    struct task* task = task_find_by_tid(node->pid);
+static int print_cmdline(struct file* file, struct vec* vec) {
+    pid_t pid = pid_from_ino(file->inode->ino);
+    struct task* task = task_find_by_tid(pid);
     if (!task)
         return -ENOENT;
 
@@ -59,9 +55,9 @@ done:
     return ret;
 }
 
-static int populate_comm(struct file* file, struct vec* vec) {
-    proc_pid_item_inode* node = item_from_file(file);
-    struct task* task = task_find_by_tid(node->pid);
+static int print_comm(struct file* file, struct vec* vec) {
+    pid_t pid = pid_from_ino(file->inode->ino);
+    struct task* task = task_find_by_tid(pid);
     if (!task)
         return -ENOENT;
 
@@ -76,9 +72,9 @@ static int populate_comm(struct file* file, struct vec* vec) {
     return vec_printf(vec, "%s\n", comm);
 }
 
-static int populate_cwd(struct file* file, struct vec* vec) {
-    proc_pid_item_inode* node = item_from_file(file);
-    struct task* task = task_find_by_tid(node->pid);
+static int print_cwd(struct file* file, struct vec* vec) {
+    pid_t pid = pid_from_ino(file->inode->ino);
+    struct task* task = task_find_by_tid(pid);
     if (!task)
         return -ENOENT;
 
@@ -98,9 +94,9 @@ static int populate_cwd(struct file* file, struct vec* vec) {
     return rc;
 }
 
-static int populate_environ(struct file* file, struct vec* vec) {
-    proc_pid_item_inode* node = item_from_file(file);
-    struct task* task = task_find_by_tid(node->pid);
+static int print_environ(struct file* file, struct vec* vec) {
+    pid_t pid = pid_from_ino(file->inode->ino);
+    struct task* task = task_find_by_tid(pid);
     if (!task)
         return -ENOENT;
 
@@ -132,9 +128,9 @@ done:
     return ret;
 }
 
-static int populate_maps(struct file* file, struct vec* vec) {
-    proc_pid_item_inode* node = item_from_file(file);
-    struct task* task = task_find_by_tid(node->pid);
+static int print_maps(struct file* file, struct vec* vec) {
+    pid_t pid = pid_from_ino(file->inode->ino);
+    struct task* task = task_find_by_tid(pid);
     if (!task)
         return -ENOENT;
 
@@ -158,70 +154,17 @@ static int populate_maps(struct file* file, struct vec* vec) {
     return ret;
 }
 
-static int add_item(proc_dir_inode* parent, const proc_item_def* item_def,
-                    pid_t pid) {
-    proc_pid_item_inode* node = kmalloc(sizeof(proc_pid_item_inode));
-    if (!node) {
-        inode_unref(&parent->inode);
-        return -ENOMEM;
-    }
-    *node = (proc_pid_item_inode){0};
-
-    node->pid = pid;
-    node->item_inode.populate = item_def->populate;
-
-    struct inode* inode = &node->item_inode.inode;
-    inode->dev = parent->inode.dev;
-    inode->iops = &proc_item_iops;
-    inode->fops = &proc_item_fops;
-    inode->mode = item_def->mode;
-    inode->ref_count = 1;
-
-    int rc = dentry_append(&parent->children, item_def->name, inode);
-    inode_unref(&parent->inode);
-    return rc;
-}
-
-static proc_item_def pid_items[] = {
-    {"cmdline", S_IFREG, populate_cmdline},
-    {"comm", S_IFREG, populate_comm},
-    {"cwd", S_IFLNK, populate_cwd},
-    {"environ", S_IFREG, populate_environ},
-    {"maps", S_IFREG, populate_maps},
+static struct proc_entry entries[] = {
+    {"cmdline", S_IFREG, print_cmdline}, {"comm", S_IFREG, print_comm},
+    {"cwd", S_IFLNK, print_cwd},         {"environ", S_IFREG, print_environ},
+    {"maps", S_IFREG, print_maps},
 };
 
-struct inode* proc_pid_dir_inode_create(proc_dir_inode* parent, pid_t pid) {
-    struct task* task = task_find_by_tid(pid);
-    if (!task)
-        return ERR_PTR(-ENOENT);
-    task_unref(task);
+struct inode* proc_pid_lookup(struct inode* parent, const char* name) {
+    return proc_lookup(parent, name, entries, ARRAY_SIZE(entries));
+}
 
-    proc_dir_inode* node = kmalloc(sizeof(proc_dir_inode));
-    if (!node)
-        return ERR_PTR(-ENOMEM);
-    *node = (proc_dir_inode){0};
-
-    static const struct inode_ops iops = {
-        .destroy = proc_dir_destroy,
-        .lookup = proc_dir_lookup,
-    };
-    static const struct file_ops fops = {
-        .getdents = proc_dir_getdents,
-    };
-    struct inode* inode = &node->inode;
-    inode->dev = parent->inode.dev;
-    inode->iops = &iops;
-    inode->fops = &fops;
-    inode->mode = S_IFDIR;
-    inode->ref_count = 1;
-
-    for (size_t i = 0; i < ARRAY_SIZE(pid_items); ++i) {
-        inode_ref(inode);
-        int rc = add_item(node, pid_items + i, pid);
-        if (IS_ERR(rc))
-            return ERR_PTR(rc);
-    }
-
-    inode_unref(&parent->inode);
-    return inode;
+int proc_pid_getdents(struct file* file, getdents_callback_fn callback,
+                      void* ctx) {
+    return proc_getdents(file, callback, ctx, entries, ARRAY_SIZE(entries));
 }

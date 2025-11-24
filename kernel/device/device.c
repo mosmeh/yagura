@@ -1,7 +1,6 @@
 #include "device.h"
 #include <common/string.h>
 #include <kernel/api/errno.h>
-#include <kernel/api/linux/major.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
@@ -84,10 +83,4 @@ struct block_dev* block_dev_get(dev_t rdev) {
             return it;
     }
     return NULL;
-}
-
-dev_t block_dev_generate_unnamed_device_number(void) {
-    static int next_id = 1;
-    int id = next_id++;
-    return makedev(UNNAMED_MAJOR, id);
 }

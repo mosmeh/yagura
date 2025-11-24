@@ -559,7 +559,13 @@ int sys_mount(const char* user_source, const char* user_target,
         return -ENODEV;
     }
 
-    return vfs_mount(source, target, fs_type);
+    const struct file_system* fs = file_system_find(fs_type);
+    if (!fs)
+        return -ENODEV;
+    if (fs->flags & FILE_SYSTEM_KERNEL_ONLY)
+        return -EINVAL;
+
+    return vfs_mount(fs, source, target);
 }
 
 int sys_link(const char* user_oldpath, const char* user_newpath) {
@@ -625,8 +631,10 @@ int sys_unlink(const char* user_pathname) {
     return rc;
 }
 
-static bool set_has_children(const char* name, uint8_t type, void* ctx) {
+static bool set_has_children(const char* name, ino_t ino, unsigned char type,
+                             void* ctx) {
     (void)name;
+    (void)ino;
     (void)type;
     *(bool*)ctx = true;
     return false;
@@ -743,7 +751,7 @@ int sys_rmdir(const char* user_pathname) {
 }
 
 typedef ssize_t (*fill_dir_fn)(void* user_buf, size_t buf_size,
-                               const char* name, uint8_t type);
+                               const char* name, ino_t, unsigned char type);
 
 struct fill_dir_ctx {
     fill_dir_fn fill_dir;
@@ -753,10 +761,11 @@ struct fill_dir_ctx {
     int rc;
 };
 
-static bool getdents_callback(const char* name, uint8_t type, void* raw_ctx) {
+static bool getdents_callback(const char* name, ino_t ino, unsigned char type,
+                              void* raw_ctx) {
     struct fill_dir_ctx* ctx = (struct fill_dir_ctx*)raw_ctx;
     ssize_t nwritten =
-        ctx->fill_dir(ctx->user_buf, ctx->nremaining, name, type);
+        ctx->fill_dir(ctx->user_buf, ctx->nremaining, name, ino, type);
     if (IS_ERR(nwritten)) {
         ctx->rc = nwritten;
         return false;
@@ -793,7 +802,7 @@ NODISCARD static ssize_t getdents(int fd, void* user_buf, size_t count,
 }
 
 static ssize_t fill_dir_old(void* user_buf, size_t buf_size, const char* name,
-                            uint8_t type) {
+                            ino_t ino, unsigned char type) {
     (void)type;
 
     size_t name_len = strlen(name);
@@ -805,7 +814,10 @@ static ssize_t fill_dir_old(void* user_buf, size_t buf_size, const char* name,
         return 0;
 
     struct linux_old_dirent* user_dent = user_buf;
-    struct linux_old_dirent dent = {.d_namlen = name_len};
+    struct linux_old_dirent dent = {
+        .d_ino = ino,
+        .d_namlen = name_len,
+    };
     if (copy_to_user(user_dent, &dent,
                      offsetof(struct linux_old_dirent, d_name)))
         return -EFAULT;
@@ -820,7 +832,7 @@ ssize_t sys_readdir(int fd, struct linux_old_dirent* user_dirp, size_t count) {
 }
 
 static ssize_t fill_dir(void* user_buf, size_t buf_size, const char* name,
-                        uint8_t type) {
+                        ino_t ino, unsigned char type) {
     size_t name_size = strlen(name) + 1;
     size_t rec_len = offsetof(struct linux_dirent, d_name) //
                      + name_size                           // d_name
@@ -831,7 +843,10 @@ static ssize_t fill_dir(void* user_buf, size_t buf_size, const char* name,
         return 0;
 
     struct linux_dirent* user_dent = user_buf;
-    struct linux_dirent dent = {.d_reclen = rec_len};
+    struct linux_dirent dent = {
+        .d_ino = ino,
+        .d_reclen = rec_len,
+    };
     if (copy_to_user(user_dent, &dent, offsetof(struct linux_dirent, d_name)))
         return -EFAULT;
     if (copy_to_user(user_dent->d_name, name, name_size))
@@ -848,7 +863,7 @@ ssize_t sys_getdents(int fd, struct linux_dirent* user_dirp, size_t count) {
 }
 
 static ssize_t fill_dir64(void* user_buf, size_t buf_size, const char* name,
-                          uint8_t type) {
+                          ino_t ino, unsigned char type) {
     size_t name_size = strlen(name) + 1;
     size_t rec_len = offsetof(struct linux_dirent64, d_name) //
                      + name_size;                            // d_name
@@ -858,6 +873,7 @@ static ssize_t fill_dir64(void* user_buf, size_t buf_size, const char* name,
 
     struct linux_dirent64* user_dent = user_buf;
     struct linux_dirent64 dent = {
+        .d_ino = ino,
         .d_reclen = rec_len,
         .d_type = type,
     };

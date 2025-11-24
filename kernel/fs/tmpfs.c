@@ -1,65 +1,182 @@
-#include "dentry.h"
 #include "fs.h"
+#include <common/string.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
 #include <kernel/device/device.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
-typedef struct {
-    struct inode inode;
-    struct dentry* children;
-} tmpfs_inode;
+static struct slab tmpfs_inode_slab;
+static struct slab tmpfs_dentry_slab;
 
-static void tmpfs_destroy(struct inode* inode) {
-    tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
-    dentry_clear(node->children);
-    kfree(node);
+struct tmpfs_inode {
+    struct inode vfs_inode;
+    struct tmpfs_dentry* children;
+};
+
+struct tmpfs_dentry {
+    char* name;
+    struct inode* inode;
+    struct tmpfs_dentry* next;
+};
+
+static void tmpf_dentry_destroy(struct tmpfs_dentry* dentry) {
+    kfree(dentry->name);
+    inode_unref(dentry->inode);
+    slab_free(&tmpfs_dentry_slab, dentry);
 }
 
-static struct inode* tmpfs_lookup(struct inode* parent, const char* name) {
-    tmpfs_inode* node = CONTAINER_OF(parent, tmpfs_inode, inode);
-    mutex_lock(&parent->lock);
-    struct inode* child = dentry_find(node->children, name);
-    mutex_unlock(&parent->lock);
-    inode_unref(parent);
-    return child;
+static void tmpfs_destroy(struct inode* vfs_inode) {
+    struct tmpfs_inode* inode =
+        CONTAINER_OF(vfs_inode, struct tmpfs_inode, vfs_inode);
+    for (struct tmpfs_dentry* child = inode->children; child;) {
+        struct tmpfs_dentry* next = child->next;
+        tmpf_dentry_destroy(child);
+        child = next;
+    }
+    slab_free(&tmpfs_inode_slab, inode);
 }
 
-static int tmpfs_link(struct inode* parent, const char* name,
-                      struct inode* child) {
-    tmpfs_inode* node = CONTAINER_OF(parent, tmpfs_inode, inode);
-    mutex_lock(&parent->lock);
-    int rc = dentry_append(&node->children, name, child);
-    mutex_unlock(&parent->lock);
-    inode_unref(parent);
+static struct inode* tmpfs_lookup(struct inode* vfs_parent, const char* name) {
+    struct tmpfs_inode* parent =
+        CONTAINER_OF(vfs_parent, struct tmpfs_inode, vfs_inode);
+
+    mutex_lock(&vfs_parent->lock);
+
+    struct inode* inode = NULL;
+    for (struct tmpfs_dentry* child = parent->children; child;
+         child = child->next) {
+        ASSERT(child->name);
+        if (!strcmp(child->name, name)) {
+            inode = child->inode;
+            inode_ref(inode);
+            break;
+        }
+    }
+
+    mutex_unlock(&vfs_parent->lock);
+    inode_unref(vfs_parent);
+
+    return inode ? inode : ERR_PTR(-ENOENT);
+}
+
+static int tmpfs_link(struct inode* vfs_parent, const char* name,
+                      struct inode* vfs_child) {
+    struct tmpfs_inode* parent =
+        CONTAINER_OF(vfs_parent, struct tmpfs_inode, vfs_inode);
+
+    int rc = 0;
+    struct tmpfs_dentry* dentry = NULL;
+    mutex_lock(&vfs_parent->lock);
+
+    struct tmpfs_dentry* prev = NULL;
+    for (struct tmpfs_dentry* it = parent->children; it;) {
+        ASSERT(it->name);
+        if (!strcmp(it->name, name)) {
+            rc = -EEXIST;
+            goto fail;
+        }
+        prev = it;
+        it = it->next;
+    }
+
+    dentry = slab_alloc(&tmpfs_dentry_slab);
+    if (IS_ERR(dentry)) {
+        rc = PTR_ERR(dentry);
+        goto fail;
+    }
+    *dentry = (struct tmpfs_dentry){0};
+    dentry->name = kstrdup(name);
+    if (!dentry->name) {
+        rc = -ENOMEM;
+        goto fail;
+    }
+    dentry->inode = vfs_child;
+    if (prev) {
+        prev->next = dentry;
+    } else {
+        ASSERT(!parent->children);
+        parent->children = dentry;
+    }
+
+    goto exit;
+
+fail:
+    slab_free(&tmpfs_dentry_slab, dentry);
+    inode_unref(vfs_child);
+exit:
+    mutex_unlock(&vfs_parent->lock);
+    inode_unref(vfs_parent);
     return rc;
 }
 
-static int tmpfs_unlink(struct inode* parent, const char* name) {
-    tmpfs_inode* node = CONTAINER_OF(parent, tmpfs_inode, inode);
-    mutex_lock(&parent->lock);
-    struct inode* child = dentry_remove(&node->children, name);
-    mutex_unlock(&parent->lock);
-    inode_unref(parent);
-    inode_unref(child);
-    return 0;
+static int tmpfs_unlink(struct inode* vfs_parent, const char* name) {
+    struct tmpfs_inode* parent =
+        CONTAINER_OF(vfs_parent, struct tmpfs_inode, vfs_inode);
+
+    int rc = -ENOENT;
+    mutex_lock(&vfs_parent->lock);
+
+    struct tmpfs_dentry* prev = NULL;
+    struct tmpfs_dentry* dentry = parent->children;
+    while (dentry) {
+        ASSERT(dentry->name);
+        if (!strcmp(dentry->name, name))
+            break;
+        prev = dentry;
+        dentry = dentry->next;
+    }
+    if (dentry) {
+        if (prev)
+            prev->next = dentry->next;
+        else
+            parent->children = dentry->next;
+
+        tmpf_dentry_destroy(dentry);
+        rc = 0;
+    }
+
+    mutex_unlock(&vfs_parent->lock);
+    inode_unref(vfs_parent);
+    return rc;
 }
 
 static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
                           void* ctx) {
-    struct inode* inode = file->inode;
-    tmpfs_inode* node = CONTAINER_OF(inode, tmpfs_inode, inode);
-    mutex_lock(&inode->lock);
-    file_lock(file);
-    int rc = dentry_getdents(file, node->children, callback, ctx);
-    file_unlock(file);
-    mutex_unlock(&inode->lock);
-    return rc;
-}
+    struct inode* vfs_inode = file->inode;
+    struct tmpfs_inode* inode =
+        CONTAINER_OF(vfs_inode, struct tmpfs_inode, vfs_inode);
 
-static struct inode* tmpfs_create(struct inode* parent, const char* name,
-                                  mode_t mode);
+    mutex_lock(&vfs_inode->lock);
+
+    struct tmpfs_dentry* child = inode->children;
+    if (!child)
+        goto unlock_inode;
+
+    file_lock(file);
+
+    for (uint64_t i = 0; i < file->offset; ++i) {
+        child = child->next;
+        if (!child)
+            goto unlock_file;
+    }
+
+    for (; child; child = child->next) {
+        ASSERT(child->name);
+        struct inode* inode = child->inode;
+        unsigned char type = mode_to_dirent_type(inode->mode);
+        if (!callback(child->name, inode->ino, type, ctx))
+            break;
+        ++file->offset;
+    }
+
+unlock_file:
+    file_unlock(file);
+unlock_inode:
+    mutex_unlock(&vfs_inode->lock);
+
+    return 0;
+}
 
 // This is called only when populating the page cache.
 // Since tmpfs is empty when created, we can just return no data.
@@ -91,7 +208,6 @@ static int tmpfs_truncate(struct file* file, uint64_t length) {
 static const struct inode_ops dir_iops = {
     .destroy = tmpfs_destroy,
     .lookup = tmpfs_lookup,
-    .create = tmpfs_create,
     .link = tmpfs_link,
     .unlink = tmpfs_unlink,
 };
@@ -107,52 +223,64 @@ static const struct file_ops file_fops = {
     .truncate = tmpfs_truncate,
 };
 
-static struct inode* tmpfs_create(struct inode* parent, const char* name,
-                                  mode_t mode) {
-    tmpfs_inode* child = kmalloc(sizeof(tmpfs_inode));
-    if (!child)
-        return ERR_PTR(-ENOMEM);
-    *child = (tmpfs_inode){0};
+struct tmpfs_mount {
+    struct mount vfs_mount;
+    _Atomic(ino_t) next_ino;
+};
 
-    struct inode* child_inode = &child->inode;
-    child_inode->dev = parent->dev;
-    child_inode->iops = S_ISDIR(mode) ? &dir_iops : &file_iops;
-    child_inode->fops = S_ISDIR(mode) ? &dir_fops : &file_fops;
-    child_inode->mode = mode;
-    child_inode->ref_count = 1;
+static struct inode* tmpfs_create_inode(struct mount* vfs_mount, mode_t mode) {
+    struct tmpfs_mount* mount =
+        CONTAINER_OF(vfs_mount, struct tmpfs_mount, vfs_mount);
 
-    inode_ref(child_inode);
-    int rc = tmpfs_link(parent, name, child_inode);
-    if (IS_ERR(rc)) {
-        inode_unref(child_inode);
-        return ERR_PTR(rc);
-    }
+    struct tmpfs_inode* inode = slab_alloc(&tmpfs_inode_slab);
+    if (IS_ERR(inode))
+        return ERR_CAST(inode);
+    *inode = (struct tmpfs_inode){
+        .vfs_inode = INODE_INIT,
+    };
 
-    return child_inode;
+    struct inode* vfs_inode = &inode->vfs_inode;
+    vfs_inode->ino = atomic_fetch_add(&mount->next_ino, 1);
+    vfs_inode->iops = S_ISDIR(mode) ? &dir_iops : &file_iops;
+    vfs_inode->fops = S_ISDIR(mode) ? &dir_fops : &file_fops;
+    vfs_inode->mode = mode;
+    return vfs_inode;
 }
 
-static struct inode* tmpfs_mount(const char* source) {
+static struct mount* tmpfs_mount(const char* source) {
     (void)source;
 
-    tmpfs_inode* root = kmalloc(sizeof(tmpfs_inode));
-    if (!root)
+    struct tmpfs_mount* mount = kmalloc(sizeof(struct tmpfs_mount));
+    if (!mount)
         return ERR_PTR(-ENOMEM);
-    *root = (tmpfs_inode){0};
+    *mount = (struct tmpfs_mount){
+        .next_ino = 1,
+    };
 
-    struct inode* inode = &root->inode;
-    inode->dev = block_dev_generate_unnamed_device_number();
-    inode->iops = &dir_iops;
-    inode->fops = &dir_fops;
-    inode->mode = S_IFDIR;
-    inode->ref_count = 1;
+    struct mount* vfs_mount = &mount->vfs_mount;
+    struct inode* root = tmpfs_create_inode(vfs_mount, S_IFDIR);
+    if (IS_ERR(root)) {
+        kfree(mount);
+        return ERR_CAST(root);
+    }
+    inode_ref(root);
+    mount_commit_inode(vfs_mount, root);
+    mount_set_root(vfs_mount, root);
 
-    return inode;
+    return vfs_mount;
 }
 
 void tmpfs_init(void) {
+    slab_init(&tmpfs_inode_slab, sizeof(struct tmpfs_inode));
+    slab_init(&tmpfs_dentry_slab, sizeof(struct tmpfs_dentry));
+
+    static const struct fs_ops fs_ops = {
+        .mount = tmpfs_mount,
+        .create_inode = tmpfs_create_inode,
+    };
     static struct file_system fs = {
         .name = "tmpfs",
-        .mount = tmpfs_mount,
+        .fs_ops = &fs_ops,
     };
-    ASSERT_OK(vfs_register_file_system(&fs));
+    ASSERT_OK(file_system_register(&fs));
 }

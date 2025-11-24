@@ -38,7 +38,6 @@ OBJS := \
 	drivers/virtio/virtio_blk.o \
 	drivers/virtio/virtio.o \
 	exec.o \
-	fs/dentry.o \
 	fs/fs.o \
 	fs/initrd.o \
 	fs/path.o \
@@ -68,6 +67,7 @@ OBJS := \
 	safe_string.o \
 	sched.o \
 	smp.o \
+	socket.o \
 	syscall/fs.o \
 	syscall/mmap.o \
 	syscall/select.o \
@@ -80,7 +80,6 @@ OBJS := \
 	system.o \
 	task.o \
 	time.o \
-	unix_socket.o \
 	../common/libgen.o \
 	../common/math.o \
 	../common/string.o \

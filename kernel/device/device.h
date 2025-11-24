@@ -26,4 +26,3 @@ struct block_dev {
 
 NODISCARD int block_dev_register(struct block_dev*);
 struct block_dev* block_dev_get(dev_t);
-dev_t block_dev_generate_unnamed_device_number(void);

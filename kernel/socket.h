@@ -2,6 +2,8 @@
 
 #include "fs/fs.h"
 
+void socket_init(void);
+
 struct inode* unix_socket_create(void);
 NODISCARD int unix_socket_bind(struct inode* socket, struct inode* addr_inode);
 NODISCARD int unix_socket_listen(struct inode* socket, int backlog);

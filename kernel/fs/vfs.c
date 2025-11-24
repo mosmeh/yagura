@@ -27,7 +27,24 @@ struct path* vfs_get_root(void) {
 
 struct file_system* file_systems;
 
-static struct file_system* find_file_system(const char* name) {
+int file_system_register(struct file_system* fs) {
+    ASSERT(!fs->next);
+
+    if (file_system_find(fs->name))
+        return -EEXIST;
+
+    static const struct fs_ops noop_fs_ops = {0};
+    if (!fs->fs_ops)
+        fs->fs_ops = &noop_fs_ops;
+
+    fs->next = file_systems;
+    file_systems = fs;
+
+    kprintf("vfs: registered filesystem %s\n", fs->name);
+    return 0;
+}
+
+const struct file_system* file_system_find(const char* name) {
     for (struct file_system* it = file_systems; it; it = it->next) {
         if (!strcmp(it->name, name))
             return it;
@@ -35,43 +52,44 @@ static struct file_system* find_file_system(const char* name) {
     return NULL;
 }
 
-int vfs_register_file_system(struct file_system* fs) {
-    if (find_file_system(fs->name))
-        return -EEXIST;
-    fs->next = file_systems;
-    file_systems = fs;
-    kprintf("vfs: registered filesystem %s\n", fs->name);
-    return 0;
-}
-
 struct mount_point {
     struct inode* host;
-    struct inode* guest;
+    struct mount* guest;
     struct mount_point* next;
 };
 
+static struct mount* mounts;
 static struct mount_point* mount_points;
 static struct mutex mount_lock;
 
-static int mount_at(struct inode* host, struct inode* guest) {
-    if (!S_ISDIR(host->mode)) {
-        inode_unref(host);
-        inode_unref(guest);
-        return -ENOTDIR;
+struct mount* file_system_mount(const struct file_system* fs,
+                                const char* source) {
+    struct mount* mount;
+    if (fs->fs_ops->mount) {
+        mount = fs->fs_ops->mount(source);
+        if (IS_ERR(mount))
+            return mount;
+    } else {
+        mount = kmalloc(sizeof(struct mount));
+        if (!mount)
+            return ERR_PTR(-ENOMEM);
+        *mount = (struct mount){0};
     }
-    struct mount_point* mp = kmalloc(sizeof(struct mount_point));
-    if (!mp) {
-        inode_unref(host);
-        inode_unref(guest);
-        return -ENOMEM;
+
+    mount->fs = fs;
+
+    if (!mount->dev) {
+        static int next_id = 1;
+        int id = next_id++;
+        mount->dev = makedev(UNNAMED_MAJOR, id);
     }
-    mp->host = host;
-    mp->guest = guest;
+
     mutex_lock(&mount_lock);
-    mp->next = mount_points;
-    mount_points = mp;
+    mount->next = mounts;
+    mounts = mount;
     mutex_unlock(&mount_lock);
-    return 0;
+
+    return mount;
 }
 
 static struct inode* resolve_mounts(struct inode* host) {
@@ -86,38 +104,57 @@ static struct inode* resolve_mounts(struct inode* host) {
         }
         if (!it)
             break;
-        needle = it->guest;
+        needle = it->guest->root;
     }
-    mutex_unlock(&mount_lock);
     if (needle != host)
         inode_ref(needle);
+    mutex_unlock(&mount_lock);
     return needle;
 }
 
-int vfs_mount(const char* source, const char* target, const char* type) {
+int vfs_mount(const struct file_system* fs, const char* source,
+              const char* target) {
     mutex_lock(&current->fs->lock);
-    int ret = vfs_mount_at(current->fs->cwd, source, target, type);
+    int ret = vfs_mount_at(fs, current->fs->cwd, source, target);
     mutex_unlock(&current->fs->lock);
     return ret;
 }
 
-int vfs_mount_at(const struct path* base, const char* source,
-                 const char* target, const char* type) {
-    struct file_system* fs = find_file_system(type);
-    if (!fs)
-        return -ENODEV;
-
+int vfs_mount_at(const struct file_system* fs, const struct path* base,
+                 const char* source, const char* target) {
     struct path* target_path = vfs_resolve_path_at(base, target, 0);
     if (IS_ERR(target_path))
         return PTR_ERR(target_path);
 
-    struct inode* inode = fs->mount(source);
-    if (IS_ERR(inode)) {
-        path_destroy_recursive(target_path);
-        return PTR_ERR(inode);
+    struct inode* host = path_into_inode(target_path);
+    if (!S_ISDIR(host->mode)) {
+        inode_unref(host);
+        return -ENOTDIR;
     }
 
-    return mount_at(path_into_inode(target_path), inode);
+    struct mount_point* mp = kmalloc(sizeof(struct mount_point));
+    if (!mp) {
+        inode_unref(host);
+        return -ENOMEM;
+    }
+
+    struct mount* mount = file_system_mount(fs, source);
+    if (IS_ERR(mount)) {
+        inode_unref(host);
+        kfree(mp);
+        return PTR_ERR(mount);
+    }
+    ASSERT(mount->root);
+
+    mp->host = host;
+    mp->guest = mount;
+
+    mutex_lock(&mount_lock);
+    mp->next = mount_points;
+    mount_points = mp;
+    mutex_unlock(&mount_lock);
+
+    return 0;
 }
 
 static bool is_absolute_path(const char* path) {
@@ -275,45 +312,10 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
     return resolve_path_at(base, pathname, flags, 0);
 }
 
-static struct inode* resolve_special_file(struct inode* inode) {
-    if (S_ISBLK(inode->mode)) {
-        struct block_dev* dev = block_dev_get(inode->rdev);
-        inode_unref(inode);
-        if (!dev)
-            return ERR_PTR(-ENODEV);
-        inode_ref(dev->inode);
-        return dev->inode;
-    }
-
-    if (S_ISFIFO(inode->mode)) {
-        if (inode->pipe) {
-            struct inode* pipe = inode->pipe;
-            inode_ref(pipe);
-            inode_unref(inode);
-            return pipe;
-        }
-
-        struct inode* new_pipe = pipe_create();
-        if (IS_ERR(new_pipe))
-            return ERR_CAST(new_pipe);
-        new_pipe->dev = inode->dev; // Signal that this pipe is bound to a file
-        inode_ref(new_pipe);
-
-        struct inode* expected = NULL;
-        if (atomic_compare_exchange_strong(&inode->pipe, &expected, new_pipe)) {
-            inode_unref(inode);
-            return new_pipe;
-        }
-        inode_ref(expected);
-        inode_unref(new_pipe);
-        return expected;
-    }
-
-    return inode;
-}
-
 static struct path* create_at(const struct path* base, const char* pathname,
                               mode_t mode, bool exclusive) {
+    ASSERT(mode & S_IFMT);
+
     struct path* path = vfs_resolve_path_at(base, pathname, O_ALLOW_NOENT);
     if (IS_ERR(path))
         return ERR_CAST(path);
@@ -326,26 +328,52 @@ static struct path* create_at(const struct path* base, const char* pathname,
         return path;
     }
 
-    struct inode* inode = NULL;
-    for (;;) {
-        inode_ref(path->parent->inode);
-        inode = inode_create(path->parent->inode, path->basename, mode);
-        if (IS_OK(inode) || PTR_ERR(inode) != -EEXIST || exclusive)
-            break;
-        // Another task is creating the same file. Look up the created file.
-
-        inode_ref(path->parent->inode);
-        inode = inode_lookup(path->parent->inode, path->basename);
-        if (IS_OK(inode) || PTR_ERR(inode) != -ENOENT)
-            break;
-        // The file was removed before we could look it up. Retry creating it.
-    }
-    if (IS_ERR(inode)) {
+    struct path* parent = path->parent;
+    if (!S_ISDIR(parent->inode->mode)) {
         path_destroy_recursive(path);
-        return ERR_CAST(inode);
+        return ERR_PTR(-ENOTDIR);
     }
 
-    path->inode = inode;
+    inode_ref(parent->inode);
+    struct inode* new_inode = mount_create_inode(parent->inode->mount, mode);
+    if (IS_ERR(new_inode)) {
+        path_destroy_recursive(path);
+        return ERR_CAST(new_inode);
+    }
+
+    int rc = 0;
+    for (;;) {
+        inode_ref(parent->inode);
+        inode_ref(new_inode);
+        rc = inode_link(parent->inode, path->basename, new_inode);
+        if (IS_OK(rc)) {
+            path->inode = new_inode;
+            break;
+        }
+        if (rc != -EEXIST || exclusive)
+            break;
+        // Another task is linking the same file. Look up the linked file.
+        rc = 0;
+
+        inode_ref(parent->inode);
+        struct inode* inode = inode_lookup(parent->inode, path->basename);
+        if (IS_OK(inode)) {
+            inode_unref(new_inode);
+            path->inode = inode;
+            break;
+        }
+        if (PTR_ERR(inode) != -ENOENT) {
+            inode_unref(new_inode);
+            rc = PTR_ERR(inode);
+            break;
+        }
+        // The file was unlinked before we could look it up. Retry linking it.
+    }
+    if (IS_ERR(rc)) {
+        path_destroy_recursive(path);
+        return ERR_PTR(rc);
+    }
+
     return path;
 }
 
@@ -367,9 +395,14 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
     struct inode* inode = path_into_inode(path);
     ASSERT(inode);
 
-    inode = resolve_special_file(inode);
-    if (IS_ERR(inode))
-        return ERR_CAST(inode);
+    if (S_ISBLK(inode->mode)) {
+        struct block_dev* dev = block_dev_get(inode->rdev);
+        inode_unref(inode);
+        if (!dev)
+            return ERR_PTR(-ENODEV);
+        inode_ref(dev->inode);
+        inode = dev->inode;
+    }
 
     return inode_open(inode, flags);
 }
@@ -406,21 +439,21 @@ struct inode* vfs_create_at(const struct path* base, const char* pathname,
     return path_into_inode(path);
 }
 
-void file_init(void);
 void tmpfs_init(void);
 void proc_init(void);
 void initrd_populate_root_fs(uintptr_t phys_addr, size_t size);
 
 void vfs_init(const multiboot_module_t* initrd_mod) {
-    file_init();
     tmpfs_init();
     proc_init();
 
     kprint("vfs: mounting root filesystem\n");
-    struct file_system* fs = find_file_system("tmpfs");
+    const struct file_system* fs = file_system_find("tmpfs");
     ASSERT(fs);
-    root = fs->mount(NULL);
-    ASSERT_OK(root);
+    struct mount* mount = file_system_mount(fs, "tmpfs");
+    ASSERT_OK(mount);
+    root = mount->root;
+    ASSERT(root);
 
     kprintf("vfs: populating root fs with initrd at P%#x - P%#x\n",
             initrd_mod->mod_start, initrd_mod->mod_end);

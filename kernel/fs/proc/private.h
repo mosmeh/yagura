@@ -4,35 +4,25 @@
 
 struct vec;
 
-struct inode* proc_mount(const char* source);
+#define PROC_ROOT_INO 1
+#define PROC_PID_INO_SHIFT 10
 
-typedef int (*proc_populate_fn)(struct file*, struct vec*);
+typedef int (*proc_print_fn)(struct file*, struct vec*);
 
-typedef struct {
+struct proc_entry {
     const char* name;
     mode_t mode;
-    proc_populate_fn populate;
-} proc_item_def;
+    proc_print_fn print;
+};
 
-typedef struct {
-    struct inode inode;
-    proc_populate_fn populate;
-} proc_item_inode;
+struct inode* proc_create_inode(struct mount*, ino_t, struct proc_entry*);
+struct inode* proc_lookup(struct inode* parent, const char* name,
+                          struct proc_entry* entries, size_t num_entries);
+int proc_getdents(struct file*, getdents_callback_fn, void* ctx,
+                  const struct proc_entry* entries, size_t num_entries);
 
-extern const struct inode_ops proc_item_iops;
-extern const struct file_ops proc_item_fops;
+struct inode* proc_root_lookup(struct inode* parent, const char* name);
+int proc_root_getdents(struct file*, getdents_callback_fn, void* ctx);
 
-typedef struct {
-    struct inode inode;
-    struct dentry* children;
-} proc_dir_inode;
-
-static inline proc_dir_inode* proc_dir_from_inode(struct inode* inode) {
-    return CONTAINER_OF(inode, proc_dir_inode, inode);
-}
-
-void proc_dir_destroy(struct inode*);
-struct inode* proc_dir_lookup(struct inode* parent, const char* name);
-int proc_dir_getdents(struct file*, getdents_callback_fn callback, void* ctx);
-
-struct inode* proc_pid_dir_inode_create(proc_dir_inode* parent, pid_t pid);
+struct inode* proc_pid_lookup(struct inode* parent, const char* name);
+int proc_pid_getdents(struct file*, getdents_callback_fn, void* ctx);

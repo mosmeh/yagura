@@ -12,6 +12,17 @@
 #include <kernel/safe_string.h>
 #include <kernel/sched.h>
 
+static struct slab file_slab;
+
+void vfs_init(const multiboot_module_t* initrd_mod);
+void pipe_init(void);
+
+void fs_init(const multiboot_module_t* initrd_mod) {
+    slab_init(&file_slab, sizeof(struct file));
+    vfs_init(initrd_mod);
+    pipe_init();
+}
+
 void inode_ref(struct inode* inode) {
     ASSERT(inode);
     ASSERT(inode->ref_count++ > 0);
@@ -39,28 +50,22 @@ struct inode* inode_lookup(struct inode* parent, const char* name) {
     return parent->iops->lookup(parent, name);
 }
 
-struct inode* inode_create(struct inode* parent, const char* name,
-                           mode_t mode) {
-    if (!parent->iops->create || !S_ISDIR(parent->mode)) {
-        inode_unref(parent);
-        return ERR_PTR(-ENOTDIR);
-    }
-    ASSERT(mode & S_IFMT);
-    return parent->iops->create(parent, name, mode);
-}
-
 int inode_link(struct inode* parent, const char* name, struct inode* child) {
+    int rc = 0;
     if (!parent->iops->link || !S_ISDIR(parent->mode)) {
-        inode_unref(parent);
-        inode_unref(child);
-        return -ENOTDIR;
+        rc = -ENOTDIR;
+        goto fail;
     }
-    if (parent->dev != child->dev) {
-        inode_unref(parent);
-        inode_unref(child);
-        return -EXDEV;
+    if (parent->mount != child->mount) {
+        rc = -EXDEV;
+        goto fail;
     }
     return parent->iops->link(parent, name, child);
+
+fail:
+    inode_unref(parent);
+    inode_unref(child);
+    return rc;
 }
 
 int inode_unlink(struct inode* parent, const char* name) {
@@ -70,10 +75,6 @@ int inode_unlink(struct inode* parent, const char* name) {
     }
     return parent->iops->unlink(parent, name);
 }
-
-static struct slab file_slab;
-
-void file_init(void) { slab_init(&file_slab, sizeof(struct file)); }
 
 NODISCARD static int do_truncate(struct file* file, uint64_t length) {
     struct inode* inode = file->inode;
@@ -140,6 +141,9 @@ struct file* inode_open(struct inode* inode, int flags) {
     case S_IFCHR:
         fops = &char_dev_fops;
         break;
+    case S_IFIFO:
+        fops = &pipe_fops;
+        break;
     default:
         fops = inode->fops;
         break;
@@ -187,9 +191,9 @@ struct file* inode_open(struct inode* inode, int flags) {
 int inode_stat(struct inode* inode, struct kstat* buf) {
     mutex_lock(&inode->lock);
     *buf = (struct kstat){
-        .st_dev = inode->dev,
+        .st_ino = inode->ino,
+        .st_dev = inode->mount->dev,
         .st_mode = inode->mode,
-        .st_nlink = inode->num_links,
         .st_rdev = inode->rdev,
         .st_size = inode->size,
         .st_blksize = 1 << inode->block_bits,
@@ -198,6 +202,66 @@ int inode_stat(struct inode* inode, struct kstat* buf) {
     mutex_unlock(&inode->lock);
     inode_unref(inode);
     return 0;
+}
+
+void mount_commit_inode(struct mount* mount, struct inode* inode) {
+    ASSERT(!(inode->flags & INODE_READY));
+    ASSERT(inode->iops);
+    ASSERT(inode->fops);
+    ASSERT(inode->ino > 0);
+    ASSERT(inode->mode & S_IFMT);
+    ASSERT(inode->ref_count > 0);
+    ASSERT(!inode->next);
+
+    inode->mount = mount;
+    inode->flags |= INODE_READY;
+
+    mutex_lock(&mount->lock);
+    for (struct inode* it = mount->inodes; it; it = it->next)
+        ASSERT(it->ino != inode->ino);
+    inode->next = mount->inodes;
+    mount->inodes = inode;
+    mutex_unlock(&mount->lock);
+}
+
+struct inode* mount_create_inode(struct mount* mount, mode_t mode) {
+    ASSERT(mode & S_IFMT);
+
+    const struct fs_ops* fs_ops = mount->fs->fs_ops;
+    if (!fs_ops->create_inode)
+        return ERR_PTR(-EROFS);
+
+    struct inode* child = fs_ops->create_inode(mount, mode);
+    if (IS_ERR(child))
+        return child;
+
+    inode_ref(child);
+    mount_commit_inode(mount, child);
+    return child;
+}
+
+struct inode* mount_lookup_inode(struct mount* mount, ino_t ino) {
+    ASSERT(ino > 0);
+    mutex_lock(&mount->lock);
+    struct inode* inode = mount->inodes;
+    for (; inode; inode = inode->next) {
+        if (inode->ino == ino)
+            break;
+    }
+    if (inode)
+        inode_ref(inode);
+    mutex_unlock(&mount->lock);
+    return inode;
+}
+
+void mount_set_root(struct mount* mount, struct inode* inode) {
+    ASSERT(inode->flags & INODE_READY);
+    ASSERT(inode->ref_count > 0);
+
+    mutex_lock(&mount->lock);
+    ASSERT(!mount->root);
+    mount->root = inode;
+    mutex_unlock(&mount->lock);
 }
 
 NODISCARD static int populate_page(struct page* page, struct inode* inode) {

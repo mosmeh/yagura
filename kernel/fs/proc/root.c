@@ -6,13 +6,12 @@
 #include <kernel/containers/vec.h>
 #include <kernel/cpu.h>
 #include <kernel/device/device.h>
-#include <kernel/fs/dentry.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
 #include <kernel/task.h>
 #include <kernel/time.h>
 
-static int populate_cmdline(struct file* file, struct vec* vec) {
+static int print_cmdline(struct file* file, struct vec* vec) {
     (void)file;
     return vec_printf(vec, "%s\n", cmdline_get_raw());
 }
@@ -28,7 +27,7 @@ static int print_flag(struct vec* vec, const struct cpu* cpu, int feature,
     return vec_printf(vec, "%s ", name);
 }
 
-static int populate_cpuinfo(struct file* file, struct vec* vec) {
+static int print_cpuinfo(struct file* file, struct vec* vec) {
     (void)file;
 
     for (size_t i = 0; i < num_cpus; ++i) {
@@ -78,7 +77,7 @@ static int populate_cpuinfo(struct file* file, struct vec* vec) {
     return 0;
 }
 
-static int populate_filesystems(struct file* file, struct vec* vec) {
+static int print_filesystems(struct file* file, struct vec* vec) {
     (void)file;
     for (struct file_system* fs = file_systems; fs; fs = fs->next) {
         int rc = vec_printf(vec, "%s\n", fs->name);
@@ -88,7 +87,7 @@ static int populate_filesystems(struct file* file, struct vec* vec) {
     return 0;
 }
 
-static int populate_kallsyms(struct file* file, struct vec* vec) {
+static int print_kallsyms(struct file* file, struct vec* vec) {
     (void)file;
     const struct symbol* symbol = NULL;
     while ((symbol = ksyms_next(symbol))) {
@@ -100,7 +99,7 @@ static int populate_kallsyms(struct file* file, struct vec* vec) {
     return 0;
 }
 
-static int populate_meminfo(struct file* file, struct vec* vec) {
+static int print_meminfo(struct file* file, struct vec* vec) {
     (void)file;
     struct memory_stats stats;
     memory_get_stats(&stats);
@@ -111,7 +110,7 @@ static int populate_meminfo(struct file* file, struct vec* vec) {
                       stats.total_kibibytes, stats.free_kibibytes);
 }
 
-static int populate_self(struct file* file, struct vec* vec) {
+static int print_self(struct file* file, struct vec* vec) {
     (void)file;
     return vec_printf(vec, "%d", current->tgid);
 }
@@ -123,7 +122,7 @@ NODISCARD static int sprintf_ticks(struct vec* vec, int64_t ticks) {
     return vec_printf(vec, "%d.%02d", q, r);
 }
 
-static int populate_uptime(struct file* file, struct vec* vec) {
+static int print_uptime(struct file* file, struct vec* vec) {
     (void)file;
 
     int rc = sprintf_ticks(vec, uptime);
@@ -146,7 +145,7 @@ static int populate_uptime(struct file* file, struct vec* vec) {
     return vec_append(vec, "\n", 1);
 }
 
-static int populate_version(struct file* file, struct vec* vec) {
+static int print_version(struct file* file, struct vec* vec) {
     (void)file;
     struct utsname utsname;
     utsname_get(&utsname);
@@ -154,47 +153,45 @@ static int populate_version(struct file* file, struct vec* vec) {
                       utsname.release, utsname.version);
 }
 
-static proc_item_def root_items[] = {
-    {"cmdline", S_IFREG, populate_cmdline},
-    {"cpuinfo", S_IFREG, populate_cpuinfo},
-    {"filesystems", S_IFREG, populate_filesystems},
-    {"kallsyms", S_IFREG, populate_kallsyms},
-    {"meminfo", S_IFREG, populate_meminfo},
-    {"self", S_IFLNK, populate_self},
-    {"uptime", S_IFREG, populate_uptime},
-    {"version", S_IFREG, populate_version},
+static struct proc_entry entries[] = {
+    {"cmdline", S_IFREG, print_cmdline},
+    {"cpuinfo", S_IFREG, print_cpuinfo},
+    {"filesystems", S_IFREG, print_filesystems},
+    {"kallsyms", S_IFREG, print_kallsyms},
+    {"meminfo", S_IFREG, print_meminfo},
+    {"self", S_IFLNK, print_self},
+    {"uptime", S_IFREG, print_uptime},
+    {"version", S_IFREG, print_version},
 };
-#define NUM_ITEMS ARRAY_SIZE(root_items)
 
-static struct inode* proc_root_lookup(struct inode* parent, const char* name) {
+struct inode* proc_root_lookup(struct inode* parent, const char* name) {
     if (str_is_uint(name)) {
-        proc_dir_inode* node = proc_dir_from_inode(parent);
         pid_t pid = atoi(name);
-        return proc_pid_dir_inode_create(node, pid);
+        return proc_create_inode(parent->mount, pid << PROC_PID_INO_SHIFT,
+                                 NULL);
     }
-    return proc_dir_lookup(parent, name);
+    return proc_lookup(parent, name, entries, ARRAY_SIZE(entries));
 }
 
-static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
-                              void* ctx) {
-    proc_dir_inode* node = CONTAINER_OF(file->inode, proc_dir_inode, inode);
-
+int proc_root_getdents(struct file* file, getdents_callback_fn callback,
+                       void* ctx) {
     file_lock(file);
-    if ((size_t)file->offset < NUM_ITEMS) {
-        int rc = dentry_getdents(file, node->children, callback, ctx);
+    if (file->offset < ARRAY_SIZE(entries)) {
+        int rc =
+            proc_getdents(file, callback, ctx, entries, ARRAY_SIZE(entries));
         if (IS_ERR(rc)) {
             file_unlock(file);
             return rc;
         }
     }
-    if ((size_t)file->offset < NUM_ITEMS) {
+    if (file->offset < ARRAY_SIZE(entries)) {
         file_unlock(file);
         return 0;
     }
 
     spinlock_lock(&all_tasks_lock);
 
-    pid_t offset_pid = (pid_t)(file->offset - NUM_ITEMS);
+    pid_t offset_pid = (pid_t)(file->offset - ARRAY_SIZE(entries));
     struct task* it = all_tasks;
     while (it->tid <= offset_pid) {
         it = it->all_tasks_next;
@@ -205,68 +202,17 @@ static int proc_root_getdents(struct file* file, getdents_callback_fn callback,
     while (it) {
         char name[16];
         (void)snprintf(name, sizeof(name), "%d", it->tid);
-        if (!callback(name, DT_DIR, ctx))
+
+        ino_t ino = it->tid << PROC_PID_INO_SHIFT;
+
+        if (!callback(name, ino, DT_DIR, ctx))
             break;
-        file->offset = it->tid + NUM_ITEMS;
+
+        file->offset = it->tid + ARRAY_SIZE(entries);
         it = it->all_tasks_next;
     }
 
     spinlock_unlock(&all_tasks_lock);
     file_unlock(file);
     return 0;
-}
-
-static int add_item(proc_dir_inode* parent, const proc_item_def* item_def) {
-    proc_item_inode* node = kmalloc(sizeof(proc_item_inode));
-    if (!node) {
-        inode_unref(&parent->inode);
-        return -ENOMEM;
-    }
-    *node = (proc_item_inode){0};
-
-    node->populate = item_def->populate;
-
-    struct inode* inode = &node->inode;
-    inode->dev = parent->inode.dev;
-    inode->iops = &proc_item_iops;
-    inode->fops = &proc_item_fops;
-    inode->mode = item_def->mode;
-    inode->ref_count = 1;
-
-    int rc = dentry_append(&parent->children, item_def->name, inode);
-    inode_unref(&parent->inode);
-    return rc;
-}
-
-struct inode* proc_mount(const char* source) {
-    (void)source;
-
-    proc_dir_inode* root = kmalloc(sizeof(proc_dir_inode));
-    if (!root)
-        return ERR_PTR(-ENOMEM);
-    *root = (proc_dir_inode){0};
-
-    static const struct inode_ops iops = {
-        .destroy = proc_dir_destroy,
-        .lookup = proc_root_lookup,
-    };
-    static const struct file_ops fops = {
-        .getdents = proc_root_getdents,
-    };
-
-    struct inode* inode = &root->inode;
-    inode->dev = block_dev_generate_unnamed_device_number();
-    inode->iops = &iops;
-    inode->fops = &fops;
-    inode->mode = S_IFDIR;
-    inode->ref_count = 1;
-
-    for (size_t i = 0; i < NUM_ITEMS; ++i) {
-        inode_ref(inode);
-        int rc = add_item(root, root_items + i);
-        if (IS_ERR(rc))
-            return ERR_PTR(rc);
-    }
-
-    return inode;
 }

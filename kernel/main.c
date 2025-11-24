@@ -10,6 +10,7 @@
 #include "multiboot.h"
 #include "panic.h"
 #include "sched.h"
+#include "socket.h"
 #include "task.h"
 #include "time.h"
 
@@ -82,9 +83,10 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     device_init();
     drivers_init(mb_info);
     smp_init();
-    vfs_init(&initrd_mod);
+    fs_init(&initrd_mod);
     random_init();
     console_init();
+    socket_init();
     syscall_init();
     sched_init();
     smp_start();
