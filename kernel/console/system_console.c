@@ -1,51 +1,18 @@
 #include "private.h"
-#include <kernel/api/fcntl.h>
+#include <kernel/api/linux/major.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/device/device.h>
 #include <kernel/kmsg.h>
-#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
 
-static struct file* active_console;
+static struct tty* backing_tty;
 
-static ssize_t system_console_device_pread(struct file* file, void* buffer,
-                                           size_t count, uint64_t offset) {
-    (void)file;
-    return file_pread(active_console, buffer, count, offset);
-}
-
-static ssize_t system_console_device_pwrite(struct file* file,
-                                            const void* buffer, size_t count,
-                                            uint64_t offset) {
-    (void)file;
-    return file_pwrite(active_console, buffer, count, offset);
-}
-
-static int system_console_device_ioctl(struct file* file, int request,
-                                       void* user_argp) {
-    (void)file;
-    return file_ioctl(active_console, request, user_argp);
-}
-
-static short system_console_device_poll(struct file* file, short events) {
-    (void)file;
-    return file_poll(active_console, events);
-}
-
-static struct inode* system_console_device_get(void) {
-    static const struct file_ops fops = {
-        .pread = system_console_device_pread,
-        .pwrite = system_console_device_pwrite,
-        .ioctl = system_console_device_ioctl,
-        .poll = system_console_device_poll,
-    };
-    static struct inode inode = {
-        .fops = &fops,
-        .mode = S_IFCHR,
-        .rdev = makedev(5, 1),
-        .ref_count = 1,
-    };
-    return &inode;
+static int system_console_open(struct file* file) {
+    ASSERT(backing_tty);
+    file->private_data = backing_tty;
+    file->fops = &tty_fops;
+    return 0;
 }
 
 void system_console_init(void) {
@@ -53,24 +20,30 @@ void system_console_init(void) {
     if (!console)
         console = "tty1";
 
-    struct inode* device = vfs_get_device_by_name(console);
-    if (!device) {
+    struct char_dev* backing_dev = char_dev_find_by_name(console);
+    if (!backing_dev) {
         kprintf("system_console: device %s not found\n", console);
         return;
     }
-    if (!S_ISCHR(device->mode)) {
-        kprintf("system_console: device %s is not a character device\n",
-                console);
+    switch (major(backing_dev->dev)) {
+    case TTY_MAJOR:
+    case TTYAUX_MAJOR:
+        break;
+    default:
+        kprintf("system_console: device %s is not a tty\n", console);
         return;
     }
 
-    active_console = inode_open(device, O_RDWR);
-    if (!active_console) {
-        kprintf("system_console: failed to open device %s\n", console);
-        return;
-    }
-
+    backing_tty = CONTAINER_OF(backing_dev, struct tty, char_dev);
     kprintf("system_console: using %s\n", console);
 
-    ASSERT_OK(vfs_register_device("console", system_console_device_get()));
+    static const struct file_ops fops = {
+        .open = system_console_open,
+    };
+    static struct char_dev char_dev = {
+        .name = "console",
+        .dev = makedev(TTYAUX_MAJOR, 1),
+        .fops = &fops,
+    };
+    ASSERT_OK(char_dev_register(&char_dev));
 }

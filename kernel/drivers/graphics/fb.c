@@ -1,7 +1,9 @@
 #include "graphics.h"
 #include <common/string.h>
 #include <kernel/api/linux/fb.h>
+#include <kernel/api/linux/major.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/device/device.h>
 #include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
@@ -107,13 +109,12 @@ void fb_init(const multiboot_info_t* mb_info) {
         .ioctl = fb_device_ioctl,
         .mmap = fb_device_mmap,
     };
-    static struct inode inode = {
+    static struct char_dev char_dev = {
+        .name = "fb0",
+        .dev = makedev(FB_MAJOR, 0),
         .fops = &fops,
-        .mode = S_IFBLK,
-        .rdev = makedev(29, 0),
-        .ref_count = 1,
     };
-    ASSERT_OK(vfs_register_device("fb0", &inode));
+    ASSERT_OK(char_dev_register(&char_dev));
 
     // Expose the framebuffer only if everything is successful.
     fb = found_fb;

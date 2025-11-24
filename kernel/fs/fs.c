@@ -5,6 +5,7 @@
 #include <kernel/api/stdio.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/poll.h>
+#include <kernel/device/device.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
@@ -136,6 +137,16 @@ struct file* inode_open(struct inode* inode, int flags) {
         return ERR_PTR(-EINVAL);
     }
 
+    const struct file_ops* fops;
+    switch (inode->mode & S_IFMT) {
+    case S_IFCHR:
+        fops = &char_dev_fops;
+        break;
+    default:
+        fops = inode->fops;
+        break;
+    }
+
     struct file* file = slab_alloc(&file_slab);
     if (IS_ERR(file)) {
         inode_unref(inode);
@@ -144,7 +155,7 @@ struct file* inode_open(struct inode* inode, int flags) {
     *file = (struct file){
         .vm_obj = {.vm_ops = &file_vm_ops, .ref_count = 1},
         .inode = inode,
-        .fops = inode->fops,
+        .fops = fops,
         .flags = flags,
     };
 

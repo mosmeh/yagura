@@ -3,24 +3,23 @@
 #include <common/stdio.h>
 #include <common/string.h>
 #include <kernel/api/hid.h>
+#include <kernel/api/linux/major.h>
 #include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/drivers/hid/hid.h>
-#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 
-typedef struct {
+struct virtual_console {
     struct tty tty;
     struct vt* vt;
-} virtual_console_device;
+};
 
-static virtual_console_device* devices[6];
-static virtual_console_device* active_device;
+static struct virtual_console* consoles[6];
+static struct virtual_console* active_console;
 
 static void emit_str(const char* s) {
-    tty_emit(&active_device->tty, s, strlen(s));
+    tty_emit(&active_console->tty, s, strlen(s));
 }
 
 #define CTRL_ALT (KEY_MODIFIER_CTRL | KEY_MODIFIER_ALT)
@@ -58,9 +57,9 @@ static void on_key_event(const struct key_event* event) {
     case KEYCODE_F5:
     case KEYCODE_F6:
         if ((event->modifiers & CTRL_ALT) == CTRL_ALT) {
-            active_device = devices[event->keycode - KEYCODE_F1];
-            vt_invalidate_all(active_device->vt);
-            vt_flush(active_device->vt);
+            active_console = consoles[event->keycode - KEYCODE_F1];
+            vt_invalidate_all(active_console->vt);
+            vt_flush(active_console->vt);
             return;
         }
         break;
@@ -75,66 +74,52 @@ static void on_key_event(const struct key_event* event) {
         else if (key == '\\')
             key = 0x1c;
     }
-    tty_emit(&active_device->tty, &key, 1);
+    tty_emit(&active_console->tty, &key, 1);
 }
 
-static void echo(const char* buf, size_t count, void* ctx) {
-    virtual_console_device* dev = (virtual_console_device*)ctx;
-    vt_write(dev->vt, buf, count);
-    vt_flush(dev->vt);
+static void echo(struct tty* tty, const char* buf, size_t count) {
+    struct virtual_console* console =
+        CONTAINER_OF(tty, struct virtual_console, tty);
+    vt_write(console->vt, buf, count);
+    vt_flush(console->vt);
 }
 
-static virtual_console_device*
-virtual_console_device_create(uint8_t tty, struct screen* screen) {
-    virtual_console_device* dev = kmalloc(sizeof(virtual_console_device));
-    if (!dev)
-        return ERR_PTR(-ENOMEM);
-    *dev = (virtual_console_device){0};
+static struct virtual_console* virtual_console_create(uint8_t tty_num,
+                                                      struct screen* screen) {
+    struct virtual_console* console = kmalloc(sizeof(struct virtual_console));
+    ASSERT(console);
+    *console = (struct virtual_console){0};
 
-    int ret = 0;
-    dev->vt = vt_create(screen);
-    if (IS_ERR(dev->vt)) {
-        ret = PTR_ERR(dev->vt);
-        dev->vt = NULL;
-        goto fail;
-    }
+    console->vt = vt_create(screen);
+    ASSERT_OK(console->vt);
 
-    ret = tty_init(&dev->tty, tty);
-    if (IS_ERR(ret))
-        goto fail;
+    struct tty* tty = &console->tty;
 
-    tty_set_echo(&dev->tty, echo, dev);
+    char name[16];
+    (void)sprintf(name, "tty%u", tty_num);
+    ASSERT_OK(tty_init(tty, name, makedev(TTY_MAJOR, tty_num)));
+
+    tty_set_echo(tty, echo);
 
     size_t num_columns;
     size_t num_rows;
     screen->get_size(screen, &num_columns, &num_rows);
-    tty_set_size(&dev->tty, num_columns, num_rows);
+    tty_set_size(tty, num_columns, num_rows);
 
-    return dev;
+    ASSERT_OK(char_dev_register(&tty->char_dev));
 
-fail:
-    kfree(dev->vt);
-    kfree(dev);
-    return ERR_PTR(ret);
+    return console;
 }
 
 void virtual_console_init(struct screen* screen) {
-    for (size_t i = 0; i < ARRAY_SIZE(devices); ++i) {
-        uint8_t tty = i + 1;
-        virtual_console_device* dev =
-            virtual_console_device_create(tty, screen);
-        ASSERT_OK(dev);
-
-        char name[8];
-        (void)sprintf(name, "tty%u", tty);
-
-        struct inode* inode = &dev->tty.inode;
-        inode_ref(inode);
-        ASSERT_OK(vfs_register_device(name, inode));
-
-        devices[i] = dev;
+    for (size_t i = 0; i < ARRAY_SIZE(consoles); ++i) {
+        uint8_t tty_num = i + 1;
+        struct virtual_console* console =
+            virtual_console_create(tty_num, screen);
+        ASSERT_OK(console);
+        consoles[i] = console;
     }
-    active_device = devices[0];
+    active_console = consoles[0];
 
     ps2_set_key_event_handler(on_key_event);
 }

@@ -1,61 +1,59 @@
 #include "private.h"
 #include <common/stdio.h>
+#include <kernel/api/linux/major.h>
+#include <kernel/api/sys/sysmacros.h>
+#include <kernel/device/device.h>
 #include <kernel/drivers/serial.h>
+#include <kernel/fs/proc/private.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
-typedef struct {
+#define MINOR_BASE 64
+
+struct serial_console {
     struct tty tty;
     uint8_t index;
-} serial_console_device;
+};
 
-static serial_console_device* devices[SERIAL_NUM_PORTS];
+static struct serial_console* consoles[SERIAL_NUM_PORTS];
 
 static void on_char(uint8_t index, char ch) {
     ASSERT(index < SERIAL_NUM_PORTS);
-    serial_console_device* dev = devices[index];
-    if (dev)
-        tty_emit(&dev->tty, &ch, 1);
+    struct serial_console* console = consoles[index];
+    if (console)
+        tty_emit(&console->tty, &ch, 1);
 }
 
-static void echo(const char* buf, size_t count, void* ctx) {
-    serial_console_device* dev = (serial_console_device*)ctx;
-    serial_write(dev->index, buf, count);
+static void echo(struct tty* tty, const char* buf, size_t count) {
+    struct serial_console* console =
+        CONTAINER_OF(tty, struct serial_console, tty);
+    serial_write(console->index, buf, count);
 }
 
-static serial_console_device* serial_console_device_create(uint8_t index) {
-    serial_console_device* dev = kmalloc(sizeof(serial_console_device));
-    if (!dev)
-        return ERR_PTR(-ENOMEM);
-    *dev = (serial_console_device){0};
+static struct serial_console* serial_console_create(uint8_t index) {
+    struct serial_console* console = kmalloc(sizeof(struct serial_console));
+    ASSERT(console);
+    *console = (struct serial_console){0};
 
-    dev->index = index;
+    console->index = index;
 
-    uint8_t minor = 64 + index;
-    int rc = tty_init(&dev->tty, minor);
-    if (IS_ERR(rc)) {
-        kfree(dev);
-        return ERR_PTR(rc);
-    }
-    tty_set_echo(&dev->tty, echo, dev);
+    struct tty* tty = &console->tty;
+    char name[16];
+    (void)snprintf(name, sizeof(name), "ttyS%u", index);
+    ASSERT_OK(tty_init(tty, name, makedev(TTY_MAJOR, MINOR_BASE + index)));
+    tty_set_echo(tty, echo);
 
-    return dev;
+    ASSERT_OK(char_dev_register(&tty->char_dev));
+
+    return console;
 }
 
 void serial_console_init(void) {
     for (uint8_t i = 0; i < SERIAL_NUM_PORTS; ++i) {
         if (serial_is_port_enabled(i)) {
-            serial_console_device* dev = serial_console_device_create(i);
-            ASSERT_OK(dev);
-
-            char name[8];
-            (void)snprintf(name, sizeof(name), "ttyS%u", i);
-
-            struct inode* inode = &dev->tty.inode;
-            inode_ref(inode);
-            ASSERT_OK(vfs_register_device(name, inode));
-
-            devices[i] = dev;
+            struct serial_console* console = serial_console_create(i);
+            ASSERT_OK(console);
+            consoles[i] = console;
         }
     }
     serial_set_input_handler(on_char);

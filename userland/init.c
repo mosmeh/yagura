@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/major.h>
 #include <panic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,7 +71,7 @@ int main(void) {
 
     ASSERT_OK(mount("tmpfs", "/dev", "tmpfs", 0, NULL));
 
-    ASSERT_OK(mknod("/dev/console", S_IFCHR, makedev(5, 1)));
+    ASSERT_OK(mknod("/dev/console", S_IFCHR, makedev(TTYAUX_MAJOR, 1)));
     int fd = open("/dev/console", O_RDWR);
     ASSERT(fd == STDIN_FILENO);
     ASSERT_OK(dup2(fd, STDOUT_FILENO));
@@ -80,16 +81,16 @@ int main(void) {
         perror("chdir");
 
     static const struct device_file device_files[] = {
-        {"/dev/null", S_IFCHR, makedev(1, 3)},
-        {"/dev/zero", S_IFCHR, makedev(1, 5)},
-        {"/dev/full", S_IFCHR, makedev(1, 7)},
-        {"/dev/random", S_IFCHR, makedev(1, 8)},
-        {"/dev/urandom", S_IFCHR, makedev(1, 9)},
-        {"/dev/kmsg", S_IFCHR, makedev(1, 11)},
-        {"/dev/psaux", S_IFCHR, makedev(10, 1)},
+        {"/dev/null", S_IFCHR, makedev(MEM_MAJOR, 3)},
+        {"/dev/zero", S_IFCHR, makedev(MEM_MAJOR, 5)},
+        {"/dev/full", S_IFCHR, makedev(MEM_MAJOR, 7)},
+        {"/dev/random", S_IFCHR, makedev(MEM_MAJOR, 8)},
+        {"/dev/urandom", S_IFCHR, makedev(MEM_MAJOR, 9)},
+        {"/dev/kmsg", S_IFCHR, makedev(MEM_MAJOR, 11)},
+        {"/dev/psaux", S_IFCHR, makedev(MISC_MAJOR, 1)},
         {"/dev/kbd", S_IFCHR, makedev(11, 0)},
-        {"/dev/dsp", S_IFCHR, makedev(14, 3)},
-        {"/dev/fb0", S_IFBLK, makedev(29, 0)},
+        {"/dev/dsp", S_IFCHR, makedev(SOUND_MAJOR, 3)},
+        {"/dev/fb0", S_IFCHR, makedev(FB_MAJOR, 0)},
     };
     for (size_t i = 0; i < ARRAY_SIZE(device_files); ++i)
         try_mknod(&device_files[i]);
@@ -100,7 +101,7 @@ int main(void) {
         struct device_file file = {
             .pathname = pathname,
             .mode = S_IFCHR,
-            .dev = makedev(4, i),
+            .dev = makedev(TTY_MAJOR, i),
         };
         if (try_mknod(&file))
             spawn_getty(pathname);
@@ -112,7 +113,7 @@ int main(void) {
         struct device_file file = {
             .pathname = pathname,
             .mode = S_IFCHR,
-            .dev = makedev(4, 64 + i),
+            .dev = makedev(TTY_MAJOR, 64 + i),
         };
         if (try_mknod(&file))
             spawn_getty(pathname);

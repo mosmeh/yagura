@@ -5,6 +5,7 @@
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
 #include <kernel/cpu.h>
+#include <kernel/device/device.h>
 #include <kernel/fs/dentry.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
@@ -254,7 +255,7 @@ struct inode* proc_mount(const char* source) {
     };
 
     struct inode* inode = &root->inode;
-    inode->dev = vfs_generate_unnamed_block_device_number();
+    inode->dev = block_dev_generate_unnamed_device_number();
     inode->iops = &iops;
     inode->fops = &fops;
     inode->mode = S_IFDIR;

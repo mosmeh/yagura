@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <linux/major.h>
 #include <panic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,7 +32,7 @@ int main(void) {
 
     ASSERT_OK(mount("tmpfs", "/dev", "tmpfs", 0, NULL));
 
-    ASSERT_OK(mknod("/dev/console", S_IFCHR, makedev(5, 1)));
+    ASSERT_OK(mknod("/dev/console", S_IFCHR, makedev(TTYAUX_MAJOR, 1)));
     int fd = open("/dev/console", O_RDWR);
     ASSERT(fd == STDIN_FILENO);
     ASSERT_OK(dup2(fd, STDOUT_FILENO));

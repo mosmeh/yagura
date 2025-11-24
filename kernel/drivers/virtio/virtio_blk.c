@@ -2,6 +2,7 @@
 #include "virtio.h"
 #include <common/stdio.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/device/device.h>
 #include <kernel/drivers/pci.h>
 #include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
@@ -9,32 +10,32 @@
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 
-typedef struct {
+struct virtio_blk {
     struct inode inode;
     struct virtio_device* virtio;
     uint64_t capacity;
-} virtio_blk_device;
+};
 
-static virtio_blk_device* device_from_inode(struct inode* inode) {
-    return CONTAINER_OF(inode, virtio_blk_device, inode);
+static struct virtio_blk* blk_from_inode(struct inode* inode) {
+    return CONTAINER_OF(inode, struct virtio_blk, inode);
 }
 
 static void virtio_blk_destroy(struct inode* inode) {
-    virtio_blk_device* node = device_from_inode(inode);
-    virtio_device_destroy(node->virtio);
-    kfree(node);
+    struct virtio_blk* blk = blk_from_inode(inode);
+    virtio_device_destroy(blk->virtio);
+    kfree(blk);
 }
 
 static bool unblock_request(struct file* file) {
-    virtio_blk_device* node = device_from_inode(file->inode);
-    return node->virtio->virtqs[0]->num_free_descs >= 3;
+    struct virtio_blk* blk = blk_from_inode(file->inode);
+    return blk->virtio->virtqs[0]->num_free_descs >= 3;
 }
 
 static int submit_request(struct file* file, void* buffer, size_t count,
                           uint64_t sector, uint32_t type,
                           bool device_writable) {
-    virtio_blk_device* node = device_from_inode(file->inode);
-    struct virtq* virtq = node->virtio->virtqs[0];
+    struct virtio_blk* blk = blk_from_inode(file->inode);
+    struct virtq* virtq = blk->virtio->virtqs[0];
     struct virtio_blk_req_header header = {
         .type = type,
         .sector = sector,
@@ -81,10 +82,10 @@ static ssize_t virtio_blk_do_io(struct file* file, void* buffer, size_t count,
         return -EINVAL;
     uint64_t sector = offset >> SECTOR_SHIFT;
 
-    virtio_blk_device* node = device_from_inode(file->inode);
-    if (sector >= node->capacity)
+    struct virtio_blk* blk = blk_from_inode(file->inode);
+    if (sector >= blk->capacity)
         return 0;
-    count = MIN(count, (node->capacity - sector) << SECTOR_SHIFT);
+    count = MIN(count, (blk->capacity - sector) << SECTOR_SHIFT);
 
     int rc = submit_request(file, buffer, count, sector, type, device_writable);
     if (IS_ERR(rc))
@@ -104,7 +105,7 @@ static ssize_t virtio_blk_pwrite(struct file* file, const void* buffer,
                             VIRTIO_BLK_T_OUT, false);
 }
 
-static void virtio_blk_device_init(const struct pci_addr* addr) {
+static void init_device(const struct pci_addr* addr) {
     struct virtio_pci_cap device_cfg_cap;
     if (!virtio_find_pci_cap(addr, VIRTIO_PCI_CAP_DEVICE_CFG,
                              &device_cfg_cap)) {
@@ -124,6 +125,8 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
         return;
     }
 
+    struct block_dev* block_dev = NULL;
+
     unsigned char* device_cfg_space = pci_map_bar(addr, device_cfg_cap.bar);
     if (IS_ERR(device_cfg_space))
         goto fail;
@@ -134,24 +137,29 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
     phys_unmap(device_cfg_space);
 
     size_t id = next_id++;
-    dev_t rdev = makedev(254, id);
-    char name[8] = "vd";
+    block_dev = kmalloc(sizeof(struct block_dev));
+    if (!block_dev)
+        goto fail;
+    *block_dev = (struct block_dev){
+        .name = "vd",
+    };
     if (id < 26) {
-        name[2] = 'a' + id;
+        block_dev->name[2] = 'a' + id;
     } else {
-        name[2] = 'a' + id / 26 - 1;
-        name[3] = 'a' + id % 26;
+        block_dev->name[2] = 'a' + id / 26 - 1;
+        block_dev->name[3] = 'a' + id % 26;
     }
 
-    virtio_blk_device* device = kmalloc(sizeof(virtio_blk_device));
-    if (!device)
+    struct virtio_blk* blk = kmalloc(sizeof(struct virtio_blk));
+    if (!blk)
         goto fail;
-    *device = (virtio_blk_device){0};
+    *blk = (struct virtio_blk){
+        .virtio = virtio,
+        .capacity = capacity,
+    };
 
-    device->virtio = virtio;
-    device->capacity = capacity;
-
-    struct inode* inode = &device->inode;
+    struct inode* inode = &blk->inode;
+    block_dev->inode = inode;
     static const struct inode_ops iops = {
         .destroy = virtio_blk_destroy,
     };
@@ -162,16 +170,17 @@ static void virtio_blk_device_init(const struct pci_addr* addr) {
     inode->iops = &iops;
     inode->fops = &fops;
     inode->mode = S_IFBLK;
-    inode->rdev = rdev;
+    inode->rdev = makedev(254, id);
     inode->size = capacity << SECTOR_SHIFT;
     inode->block_bits = SECTOR_SHIFT;
     inode->blocks = capacity;
     inode->ref_count = 1;
 
-    ASSERT_OK(vfs_register_device(name, inode));
+    ASSERT_OK(block_dev_register(block_dev));
     return;
 
 fail:
+    kfree(block_dev);
     virtio_device_destroy(virtio);
 }
 
@@ -179,7 +188,7 @@ static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,
                                 uint16_t device_id, void* ctx) {
     (void)ctx;
     if (vendor_id == 0x1af4 && device_id == 0x1001)
-        virtio_blk_device_init(addr);
+        init_device(addr);
 }
 
 void virtio_blk_init(void) { pci_enumerate_devices(pci_device_callback, NULL); }

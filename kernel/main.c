@@ -1,6 +1,7 @@
 #include "acpi.h"
 #include "console/console.h"
 #include "cpu.h"
+#include "device/device.h"
 #include "drivers/drivers.h"
 #include "drivers/serial.h"
 #include "interrupts/interrupts.h"
@@ -78,6 +79,7 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     task_init();
     acpi_init();
     time_init();
+    device_init();
     drivers_init(mb_info);
     smp_init();
     vfs_init(&initrd_mod);

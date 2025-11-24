@@ -2,9 +2,11 @@
 
 #include <kernel/api/termios.h>
 #include <kernel/containers/ring_buf.h>
+#include <kernel/device/device.h>
 #include <kernel/fs/fs.h>
 
 struct screen;
+struct tty;
 
 void serial_console_init(void);
 void virtual_console_init(struct screen*);
@@ -15,10 +17,10 @@ struct attr_char {
     bool eol;
 };
 
-typedef void (*tty_echo_fn)(const char*, size_t, void* ctx);
+typedef void (*tty_echo_fn)(struct tty*, const char*, size_t);
 
 struct tty {
-    struct inode inode;
+    struct char_dev char_dev;
     struct termios termios;
 
     struct ring_buf input_buf;
@@ -26,7 +28,6 @@ struct tty {
     size_t line_len;
 
     tty_echo_fn echo;
-    void* echo_ctx;
 
     pid_t pgid;
     size_t num_columns, num_rows;
@@ -34,15 +35,16 @@ struct tty {
     struct spinlock lock;
 };
 
-// Initializes a tty structure in place, with the given minor device number.
-NODISCARD int tty_init(struct tty*, uint8_t minor);
+extern const struct file_ops tty_fops;
+
+// Initializes a tty structure in place.
+NODISCARD int tty_init(struct tty*, const char* name, dev_t);
 
 // Inputs the given string into the tty.
 ssize_t tty_emit(struct tty*, const char* buf, size_t count);
 
-// Sets the echo callback for the tty. The callback is called with the given
-// context.
-void tty_set_echo(struct tty*, tty_echo_fn, void* ctx);
+// Sets the echo callback for the tty.
+void tty_set_echo(struct tty*, tty_echo_fn);
 
 // Sets the size of the tty.
 void tty_set_size(struct tty*, size_t num_columns, size_t num_rows);

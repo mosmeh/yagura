@@ -1,6 +1,7 @@
 #include "private.h"
 #include <common/extra.h>
 #include <common/string.h>
+#include <kernel/api/linux/major.h>
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/poll.h>
@@ -10,8 +11,48 @@
 #include <kernel/safe_string.h>
 #include <kernel/task.h>
 
+static const struct termios default_termios = {
+    .c_iflag = TTYDEF_IFLAG,
+    .c_oflag = TTYDEF_OFLAG,
+    .c_cflag = TTYDEF_CFLAG,
+    .c_lflag = TTYDEF_LFLAG,
+    .c_ispeed = TTYDEF_SPEED,
+    .c_ospeed = TTYDEF_SPEED,
+};
+
+int tty_init(struct tty* tty, const char* name, dev_t dev) {
+    switch (major(dev)) {
+    case TTY_MAJOR:
+    case TTYAUX_MAJOR:
+        break;
+    default:
+        return -EINVAL;
+    }
+
+    *tty = (struct tty){
+        .char_dev = {.dev = dev, .fops = &tty_fops},
+        .termios = default_termios,
+        .num_columns = 80,
+        .num_rows = 25,
+    };
+    strlcpy(tty->char_dev.name, name, sizeof(tty->char_dev.name));
+    memcpy(tty->termios.c_cc, ttydefchars, sizeof(tty->termios.c_cc));
+
+    STATIC_ASSERT(PAGE_SIZE % sizeof(struct attr_char) == 0);
+    return ring_buf_init(&tty->input_buf, PAGE_SIZE);
+}
+
+static int tty_open(struct file* file) {
+    struct char_dev* char_dev = char_dev_get(file->inode->rdev);
+    if (!char_dev)
+        return -ENODEV;
+    struct tty* tty = CONTAINER_OF(char_dev, struct tty, char_dev);
+    file->private_data = tty;
+    return 0;
+}
+
 static struct tty* tty_from_file(struct file* file) {
-    return CONTAINER_OF(file->inode, struct tty, inode);
+    return file->private_data;
 }
 
 static bool can_read(const struct tty* tty) {
@@ -63,13 +104,12 @@ static ssize_t tty_pread(struct file* file, void* buf, size_t count,
     return ret;
 }
 
-static void echo(const struct tty* tty, const char* buf, size_t count) {
+static void echo(struct tty* tty, const char* buf, size_t count) {
     if (tty->echo)
-        tty->echo(buf, count, tty->echo_ctx);
+        tty->echo(tty, buf, count);
 }
 
-static void processed_echo(const struct tty* tty, const char* buf,
-                           size_t count) {
+static void processed_echo(struct tty* tty, const char* buf, size_t count) {
     const struct termios* termios = &tty->termios;
     if (!(termios->c_oflag & OPOST)) {
         echo(tty, buf, count);
@@ -175,42 +215,13 @@ static short tty_poll(struct file* file, short events) {
     return revents;
 }
 
-static const struct termios default_termios = {
-    .c_iflag = TTYDEF_IFLAG,
-    .c_oflag = TTYDEF_OFLAG,
-    .c_cflag = TTYDEF_CFLAG,
-    .c_lflag = TTYDEF_LFLAG,
-    .c_ispeed = TTYDEF_SPEED,
-    .c_ospeed = TTYDEF_SPEED,
+const struct file_ops tty_fops = {
+    .open = tty_open,
+    .pread = tty_pread,
+    .pwrite = tty_pwrite,
+    .ioctl = tty_ioctl,
+    .poll = tty_poll,
 };
-
-int tty_init(struct tty* tty, uint8_t minor) {
-    *tty = (struct tty){
-        .termios = default_termios,
-        .num_columns = 80,
-        .num_rows = 25,
-    };
-    memcpy(tty->termios.c_cc, ttydefchars, sizeof(tty->termios.c_cc));
-
-    STATIC_ASSERT(PAGE_SIZE % sizeof(struct attr_char) == 0);
-    int rc = ring_buf_init(&tty->input_buf, PAGE_SIZE);
-    if (IS_ERR(rc))
-        return rc;
-
-    struct inode* inode = &tty->inode;
-    static const struct file_ops fops = {
-        .pread = tty_pread,
-        .pwrite = tty_pwrite,
-        .ioctl = tty_ioctl,
-        .poll = tty_poll,
-    };
-    inode->fops = &fops;
-    inode->mode = S_IFCHR;
-    inode->rdev = makedev(4, minor);
-    inode->ref_count = 1;
-
-    return 0;
-}
 
 static bool do_backspace(struct tty* tty) {
     if (tty->line_len) {
@@ -317,10 +328,9 @@ ssize_t tty_emit(struct tty* tty, const char* buf, size_t count) {
     return count;
 }
 
-void tty_set_echo(struct tty* tty, tty_echo_fn echo, void* ctx) {
+void tty_set_echo(struct tty* tty, tty_echo_fn echo) {
     spinlock_lock(&tty->lock);
     tty->echo = echo;
-    tty->echo_ctx = ctx;
     spinlock_unlock(&tty->lock);
 }
 

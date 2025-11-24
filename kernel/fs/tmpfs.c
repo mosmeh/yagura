@@ -2,6 +2,7 @@
 #include "fs.h"
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
+#include <kernel/device/device.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
@@ -139,7 +140,7 @@ static struct inode* tmpfs_mount(const char* source) {
     *root = (tmpfs_inode){0};
 
     struct inode* inode = &root->inode;
-    inode->dev = vfs_generate_unnamed_block_device_number();
+    inode->dev = block_dev_generate_unnamed_device_number();
     inode->iops = &dir_iops;
     inode->fops = &dir_fops;
     inode->mode = S_IFDIR;

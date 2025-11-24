@@ -1,9 +1,11 @@
 #include "pci.h"
 #include <common/string.h>
 #include <kernel/api/err.h>
+#include <kernel/api/linux/major.h>
 #include <kernel/api/sound.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/device/device.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
@@ -243,21 +245,6 @@ static short ac97_device_poll(struct file* file, short events) {
     return revents;
 }
 
-static struct inode* ac97_device_get(void) {
-    static const struct file_ops fops = {
-        .pwrite = ac97_device_pwrite,
-        .ioctl = ac97_device_ioctl,
-        .poll = ac97_device_poll,
-    };
-    static struct inode inode = {
-        .fops = &fops,
-        .mode = S_IFCHR,
-        .rdev = makedev(14, 3),
-        .ref_count = 1,
-    };
-    return &inode;
-}
-
 void ac97_init(void) {
     bool detected = false;
     pci_enumerate_devices((pci_device_callback_fn)pci_device_callback,
@@ -292,5 +279,15 @@ void ac97_init(void) {
     uint8_t irq_num = pci_get_interrupt_line(&device_addr);
     idt_set_interrupt_handler(IRQ(irq_num), irq_handler);
 
-    ASSERT_OK(vfs_register_device("dsp", ac97_device_get()));
+    static const struct file_ops fops = {
+        .pwrite = ac97_device_pwrite,
+        .ioctl = ac97_device_ioctl,
+        .poll = ac97_device_poll,
+    };
+    static struct char_dev char_dev = {
+        .name = "dsp",
+        .fops = &fops,
+        .dev = makedev(SOUND_MAJOR, 3),
+    };
+    ASSERT_OK(char_dev_register(&char_dev));
 }

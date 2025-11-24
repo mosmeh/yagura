@@ -1,7 +1,9 @@
 #include "ps2.h"
 #include <kernel/api/hid.h>
+#include <kernel/api/linux/major.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/device/device.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/memory.h>
@@ -110,25 +112,20 @@ static short ps2_mouse_device_poll(struct file* file, short events) {
     return revents;
 }
 
-static struct inode* ps2_mouse_device_get(void) {
-    static const struct file_ops fops = {
-        .pread = ps2_mouse_device_pread,
-        .poll = ps2_mouse_device_poll,
-    };
-    static struct inode inode = {
-        .fops = &fops,
-        .mode = S_IFCHR,
-        .rdev = makedev(10, 1),
-        .ref_count = 1,
-    };
-    return &inode;
-}
-
 void ps2_mouse_init(void) {
     ps2_write(PS2_COMMAND, PS2_ENABLE_PORT2);
     write_mouse(PS2_MOUSE_SET_DEFAULTS);
     write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
     idt_set_interrupt_handler(IRQ(12), irq_handler);
 
-    ASSERT_OK(vfs_register_device("psaux", ps2_mouse_device_get()));
+    static const struct file_ops fops = {
+        .pread = ps2_mouse_device_pread,
+        .poll = ps2_mouse_device_poll,
+    };
+    static struct char_dev char_dev = {
+        .name = "psaux",
+        .dev = makedev(MISC_MAJOR, 1),
+        .fops = &fops,
+    };
+    ASSERT_OK(char_dev_register(&char_dev));
 }

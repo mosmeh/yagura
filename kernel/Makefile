@@ -21,6 +21,8 @@ OBJS := \
 	console/vt.o \
 	containers/vec.o \
 	cpu.o \
+	device/device.o \
+	device/pseudo.o \
 	drivers/ac97.o \
 	drivers/drivers.o \
 	drivers/graphics/bochs.o \
@@ -31,7 +33,6 @@ OBJS := \
 	drivers/hid/ps2.o \
 	drivers/pci.o \
 	drivers/pit.o \
-	drivers/pseudo_devices.o \
 	drivers/rtc.o \
 	drivers/serial.o \
 	drivers/virtio/virtio_blk.o \
