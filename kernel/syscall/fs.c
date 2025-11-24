@@ -940,18 +940,18 @@ int sys_pipe2(int user_pipefd[2], int flags) {
     if (flags & O_ACCMODE)
         return -EINVAL;
 
-    struct inode* fifo = fifo_create();
-    if (IS_ERR(fifo))
-        return PTR_ERR(fifo);
+    struct inode* pipe = pipe_create();
+    if (IS_ERR(pipe))
+        return PTR_ERR(pipe);
 
-    inode_ref(fifo);
-    struct file* reader_file = inode_open(fifo, flags | O_RDONLY);
+    inode_ref(pipe);
+    struct file* reader_file = inode_open(pipe, flags | O_RDONLY);
     if (IS_ERR(reader_file)) {
-        inode_unref(fifo);
+        inode_unref(pipe);
         return PTR_ERR(reader_file);
     }
 
-    struct file* writer_file = inode_open(fifo, flags | O_WRONLY);
+    struct file* writer_file = inode_open(pipe, flags | O_WRONLY);
     if (IS_ERR(writer_file)) {
         file_unref(reader_file);
         return PTR_ERR(writer_file);

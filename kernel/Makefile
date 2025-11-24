@@ -39,10 +39,10 @@ OBJS := \
 	drivers/virtio/virtio.o \
 	exec.o \
 	fs/dentry.o \
-	fs/fifo.o \
 	fs/fs.o \
 	fs/initrd.o \
 	fs/path.o \
+	fs/pipe.o \
 	fs/proc/pid.o \
 	fs/proc/proc.o \
 	fs/proc/root.o \

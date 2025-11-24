@@ -7,54 +7,54 @@
 #include <kernel/panic.h>
 #include <kernel/task.h>
 
-struct fifo {
+struct pipe {
     struct inode inode;
     struct ring_buf buf;
     atomic_size_t num_readers;
     atomic_size_t num_writers;
 };
 
-static struct fifo* fifo_from_inode(struct inode* inode) {
-    return CONTAINER_OF(inode, struct fifo, inode);
+static struct pipe* pipe_from_inode(struct inode* inode) {
+    return CONTAINER_OF(inode, struct pipe, inode);
 }
 
-static struct fifo* fifo_from_file(struct file* file) {
-    return fifo_from_inode(file->inode);
+static struct pipe* pipe_from_file(struct file* file) {
+    return pipe_from_inode(file->inode);
 }
 
-static void fifo_destroy(struct inode* inode) {
-    struct fifo* fifo = fifo_from_inode(inode);
-    ring_buf_destroy(&fifo->buf);
-    kfree(fifo);
+static void pipe_destroy(struct inode* inode) {
+    struct pipe* pipe = pipe_from_inode(inode);
+    ring_buf_destroy(&pipe->buf);
+    kfree(pipe);
 }
 
 static bool unblock_open(struct file* file) {
-    const struct fifo* fifo = fifo_from_file(file);
+    const struct pipe* pipe = pipe_from_file(file);
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
-        return fifo->num_writers > 0;
+        return pipe->num_writers > 0;
     case O_WRONLY:
-        return fifo->num_readers > 0;
+        return pipe->num_readers > 0;
     default:
         UNREACHABLE();
     }
 }
 
-static int fifo_open(struct file* file) {
-    struct fifo* fifo = fifo_from_file(file);
+static int pipe_open(struct file* file) {
+    struct pipe* pipe = pipe_from_file(file);
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
-        ++fifo->num_readers;
+        ++pipe->num_readers;
         break;
     case O_WRONLY:
-        ++fifo->num_writers;
+        ++pipe->num_writers;
         break;
     default:
         return -EINVAL;
     }
 
     if (file->inode->dev == 0) {
-        // This is a fifo created by pipe syscall.
+        // This is a pipe created by pipe syscall.
         // We don't need to block here.
         return 0;
     }
@@ -65,14 +65,14 @@ static int fifo_open(struct file* file) {
     return rc;
 }
 
-static int fifo_close(struct file* file) {
-    struct fifo* fifo = fifo_from_file(file);
+static int pipe_close(struct file* file) {
+    struct pipe* pipe = pipe_from_file(file);
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
-        --fifo->num_readers;
+        --pipe->num_readers;
         break;
     case O_WRONLY:
-        --fifo->num_writers;
+        --pipe->num_writers;
         break;
     default:
         UNREACHABLE();
@@ -81,16 +81,16 @@ static int fifo_close(struct file* file) {
 }
 
 static bool unblock_read(struct file* file) {
-    const struct fifo* fifo = fifo_from_file(file);
-    return fifo->num_writers == 0 || !ring_buf_is_empty(&fifo->buf);
+    const struct pipe* pipe = pipe_from_file(file);
+    return pipe->num_writers == 0 || !ring_buf_is_empty(&pipe->buf);
 }
 
-static ssize_t fifo_pread(struct file* file, void* buffer, size_t count,
+static ssize_t pipe_pread(struct file* file, void* buffer, size_t count,
                           uint64_t offset) {
     (void)offset;
 
-    struct fifo* fifo = fifo_from_file(file);
-    struct ring_buf* buf = &fifo->buf;
+    struct pipe* pipe = pipe_from_file(file);
+    struct ring_buf* buf = &pipe->buf;
 
     for (;;) {
         int rc = file_block(file, unblock_read, 0);
@@ -104,7 +104,7 @@ static ssize_t fifo_pread(struct file* file, void* buffer, size_t count,
             return nread;
         }
 
-        bool no_writer = fifo->num_writers == 0;
+        bool no_writer = pipe->num_writers == 0;
         mutex_unlock(&file->inode->lock);
         if (no_writer)
             return 0;
@@ -112,16 +112,16 @@ static ssize_t fifo_pread(struct file* file, void* buffer, size_t count,
 }
 
 static bool unblock_write(struct file* file) {
-    const struct fifo* fifo = fifo_from_file(file);
-    return fifo->num_readers == 0 || !ring_buf_is_full(&fifo->buf);
+    const struct pipe* pipe = pipe_from_file(file);
+    return pipe->num_readers == 0 || !ring_buf_is_full(&pipe->buf);
 }
 
-static ssize_t fifo_pwrite(struct file* file, const void* buffer, size_t count,
+static ssize_t pipe_pwrite(struct file* file, const void* buffer, size_t count,
                            uint64_t offset) {
     (void)offset;
 
-    struct fifo* fifo = fifo_from_file(file);
-    struct ring_buf* buf = &fifo->buf;
+    struct pipe* pipe = pipe_from_file(file);
+    struct ring_buf* buf = &pipe->buf;
 
     for (;;) {
         int rc = file_block(file, unblock_write, 0);
@@ -129,7 +129,7 @@ static ssize_t fifo_pwrite(struct file* file, const void* buffer, size_t count,
             return rc;
 
         mutex_lock(&file->inode->lock);
-        if (fifo->num_readers == 0) {
+        if (pipe->num_readers == 0) {
             mutex_unlock(&file->inode->lock);
             int rc = task_send_signal(current->tid, SIGPIPE, 0);
             if (IS_ERR(rc))
@@ -148,20 +148,20 @@ static ssize_t fifo_pwrite(struct file* file, const void* buffer, size_t count,
     }
 }
 
-static short fifo_poll(struct file* file, short events) {
+static short pipe_poll(struct file* file, short events) {
     short revents = 0;
-    const struct fifo* fifo = fifo_from_file(file);
-    if ((events & POLLIN) && !ring_buf_is_empty(&fifo->buf))
+    const struct pipe* pipe = pipe_from_file(file);
+    if ((events & POLLIN) && !ring_buf_is_empty(&pipe->buf))
         revents |= POLLIN;
-    if ((events & POLLOUT) && !ring_buf_is_full(&fifo->buf))
+    if ((events & POLLOUT) && !ring_buf_is_full(&pipe->buf))
         revents |= POLLOUT;
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
-        if ((events & POLLHUP) && (fifo->num_writers == 0))
+        if ((events & POLLHUP) && (pipe->num_writers == 0))
             revents |= POLLHUP;
         break;
     case O_WRONLY:
-        if ((events & POLLERR) && (fifo->num_readers == 0))
+        if ((events & POLLERR) && (pipe->num_readers == 0))
             revents |= POLLERR;
         break;
     default:
@@ -170,28 +170,28 @@ static short fifo_poll(struct file* file, short events) {
     return revents;
 }
 
-struct inode* fifo_create(void) {
-    struct fifo* fifo = kmalloc(sizeof(struct fifo));
-    if (!fifo)
+struct inode* pipe_create(void) {
+    struct pipe* pipe = kmalloc(sizeof(struct pipe));
+    if (!pipe)
         return ERR_PTR(-ENOMEM);
-    *fifo = (struct fifo){0};
+    *pipe = (struct pipe){0};
 
-    int rc = ring_buf_init(&fifo->buf, PIPE_BUF);
+    int rc = ring_buf_init(&pipe->buf, PIPE_BUF);
     if (IS_ERR(rc)) {
-        kfree(fifo);
+        kfree(pipe);
         return ERR_PTR(rc);
     }
 
-    struct inode* inode = &fifo->inode;
+    struct inode* inode = &pipe->inode;
     static const struct inode_ops iops = {
-        .destroy = fifo_destroy,
+        .destroy = pipe_destroy,
     };
     static const struct file_ops fops = {
-        .open = fifo_open,
-        .close = fifo_close,
-        .pread = fifo_pread,
-        .pwrite = fifo_pwrite,
-        .poll = fifo_poll,
+        .open = pipe_open,
+        .close = pipe_close,
+        .pread = pipe_pread,
+        .pwrite = pipe_pwrite,
+        .poll = pipe_poll,
     };
     inode->iops = &iops;
     inode->fops = &fops;

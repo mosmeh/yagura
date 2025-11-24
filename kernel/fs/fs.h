@@ -61,7 +61,7 @@ struct inode {
     uint8_t block_bits; // Block size as 2^block_bits
     blkcnt_t blocks;    // Number of 512 B blocks
 
-    _Atomic(struct inode*) fifo;
+    _Atomic(struct inode*) pipe;
     _Atomic(struct unix_socket*) bound_socket;
     _Atomic(nlink_t) num_links;
     atomic_uint flags; // INODE_*
@@ -183,4 +183,4 @@ struct path* vfs_resolve_path(const char* pathname, int flags);
 struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
                                  int flags);
 
-struct inode* fifo_create(void);
+struct inode* pipe_create(void);

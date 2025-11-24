@@ -286,26 +286,26 @@ static struct inode* resolve_special_file(struct inode* inode) {
     }
 
     if (S_ISFIFO(inode->mode)) {
-        if (inode->fifo) {
-            struct inode* fifo = inode->fifo;
-            inode_ref(fifo);
+        if (inode->pipe) {
+            struct inode* pipe = inode->pipe;
+            inode_ref(pipe);
             inode_unref(inode);
-            return fifo;
+            return pipe;
         }
 
-        struct inode* new_fifo = fifo_create();
-        if (IS_ERR(new_fifo))
-            return ERR_CAST(new_fifo);
-        new_fifo->dev = inode->dev; // Signal that this fifo is bound to a file
-        inode_ref(new_fifo);
+        struct inode* new_pipe = pipe_create();
+        if (IS_ERR(new_pipe))
+            return ERR_CAST(new_pipe);
+        new_pipe->dev = inode->dev; // Signal that this pipe is bound to a file
+        inode_ref(new_pipe);
 
         struct inode* expected = NULL;
-        if (atomic_compare_exchange_strong(&inode->fifo, &expected, new_fifo)) {
+        if (atomic_compare_exchange_strong(&inode->pipe, &expected, new_pipe)) {
             inode_unref(inode);
-            return new_fifo;
+            return new_pipe;
         }
         inode_ref(expected);
-        inode_unref(new_fifo);
+        inode_unref(new_pipe);
         return expected;
     }
 
