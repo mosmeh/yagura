@@ -13,10 +13,10 @@ int sys_socket(int domain, int type, int protocol) {
     if (domain != AF_UNIX || type != SOCK_STREAM)
         return -EAFNOSUPPORT;
 
-    struct unix_socket* socket = unix_socket_create();
+    struct inode* socket = unix_socket_create();
     if (IS_ERR(socket))
         return PTR_ERR(socket);
-    struct file* file = inode_open(&socket->inode, O_RDWR);
+    struct file* file = inode_open(socket, O_RDWR);
     if (IS_ERR(file))
         return PTR_ERR(file);
     int fd = task_alloc_file_descriptor(-1, file);
@@ -31,7 +31,6 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
-    struct unix_socket* socket = unix_socket_from_file(file);
 
     if (addrlen <= sizeof(sa_family_t) || sizeof(struct sockaddr_un) < addrlen)
         return -EINVAL;
@@ -53,7 +52,7 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
         return PTR_ERR(addr_file);
     }
 
-    int rc = unix_socket_bind(socket, addr_file->inode);
+    int rc = unix_socket_bind(file->inode, addr_file->inode);
     if (IS_ERR(rc)) {
         file_unref(addr_file);
         return rc;
@@ -68,9 +67,7 @@ int sys_listen(int sockfd, int backlog) {
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
-
-    struct unix_socket* socket = unix_socket_from_file(file);
-    return unix_socket_listen(socket, backlog);
+    return unix_socket_listen(file->inode, backlog);
 }
 
 int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
@@ -98,12 +95,12 @@ int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
             return -EFAULT;
     }
 
-    struct unix_socket* connector = unix_socket_accept(file);
+    struct inode* connector = unix_socket_accept(file);
     if (PTR_ERR(connector) == -EINTR)
         return -ERESTARTSYS;
     if (IS_ERR(connector))
         return PTR_ERR(connector);
-    struct file* connector_file = inode_open(&connector->inode, O_RDWR);
+    struct file* connector_file = inode_open(connector, O_RDWR);
     if (IS_ERR(connector_file))
         return PTR_ERR(connector_file);
 

@@ -62,7 +62,7 @@ struct inode {
     blkcnt_t blocks;    // Number of 512 B blocks
 
     _Atomic(struct inode*) pipe;
-    _Atomic(struct unix_socket*) bound_socket;
+    _Atomic(struct inode*) bound_socket;
     _Atomic(nlink_t) num_links;
     atomic_uint flags; // INODE_*
 

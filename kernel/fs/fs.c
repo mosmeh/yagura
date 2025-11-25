@@ -11,7 +11,6 @@
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
 #include <kernel/sched.h>
-#include <kernel/socket.h>
 
 void inode_ref(struct inode* inode) {
     ASSERT(inode);
@@ -28,8 +27,7 @@ void inode_unref(struct inode* inode) {
     ASSERT(inode->iops->destroy);
     pages_clear(&inode->shared_pages);
     inode_unref(inode->pipe);
-    if (inode->bound_socket)
-        inode_unref(&inode->bound_socket->inode);
+    inode_unref(inode->bound_socket);
     inode->iops->destroy(inode);
 }
 
