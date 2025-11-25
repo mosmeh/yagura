@@ -12,7 +12,7 @@
 
 struct virtio_blk {
     struct inode vfs_inode;
-    struct virtio_device* virtio;
+    struct virtio* virtio;
     uint64_t capacity;
 };
 
@@ -22,7 +22,7 @@ static struct virtio_blk* blk_from_inode(struct inode* inode) {
 
 static void virtio_blk_destroy(struct inode* inode) {
     struct virtio_blk* blk = blk_from_inode(inode);
-    virtio_device_destroy(blk->virtio);
+    virtio_destroy(blk->virtio);
     kfree(blk);
 }
 
@@ -119,7 +119,7 @@ static void init_device(const struct pci_addr* addr) {
         return;
     }
 
-    struct virtio_device* virtio = virtio_device_create(addr, 1);
+    struct virtio* virtio = virtio_create(addr, 1);
     if (IS_ERR(virtio)) {
         kprint("virtio_blk: failed to initialize a virtio device\n");
         return;
@@ -181,7 +181,7 @@ static void init_device(const struct pci_addr* addr) {
 
 fail:
     kfree(block_dev);
-    virtio_device_destroy(virtio);
+    virtio_destroy(virtio);
 }
 
 static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,

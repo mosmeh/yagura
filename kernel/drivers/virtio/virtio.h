@@ -5,15 +5,14 @@
 
 struct pci_addr;
 
-struct virtio_device {
+struct virtio {
     void* notify_space;
     size_t num_virtqs;
     struct virtq* virtqs[];
 };
 
-struct virtio_device* virtio_device_create(const struct pci_addr*,
-                                           size_t num_virtqs);
-void virtio_device_destroy(struct virtio_device*);
+struct virtio* virtio_create(const struct pci_addr*, size_t num_virtqs);
+void virtio_destroy(struct virtio*);
 
 NODISCARD bool virtio_find_pci_cap(const struct pci_addr*, uint8_t cfg_type,
                                    struct virtio_pci_cap* out_cap);

@@ -218,8 +218,7 @@ bool virtio_find_pci_cap(const struct pci_addr* addr, uint8_t cfg_type,
     return true;
 }
 
-struct virtio_device* virtio_device_create(const struct pci_addr* addr,
-                                           size_t num_virtqs) {
+struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
     struct virtio_pci_cap common_cfg_cap;
     if (!virtio_find_pci_cap(addr, VIRTIO_PCI_CAP_COMMON_CFG,
                              &common_cfg_cap)) {
@@ -227,11 +226,11 @@ struct virtio_device* virtio_device_create(const struct pci_addr* addr,
         return false;
     }
 
-    struct virtio_device* virtio = kmalloc(sizeof(struct virtio_device) +
-                                           num_virtqs * sizeof(struct virtq*));
+    struct virtio* virtio =
+        kmalloc(sizeof(struct virtio) + num_virtqs * sizeof(struct virtq*));
     if (!virtio)
         return ERR_PTR(-ENOMEM);
-    *virtio = (struct virtio_device){
+    *virtio = (struct virtio){
         .num_virtqs = num_virtqs,
     };
 
@@ -343,11 +342,11 @@ fail_initialization:
     common_cfg->device_status |= VIRTIO_CONFIG_S_FAILED;
 fail_discovery:
     phys_unmap(common_cfg_space);
-    virtio_device_destroy(virtio);
+    virtio_destroy(virtio);
     return ERR_PTR(ret);
 }
 
-void virtio_device_destroy(struct virtio_device* virtio) {
+void virtio_destroy(struct virtio* virtio) {
     if (!virtio)
         return;
     for (size_t i = 0; i < virtio->num_virtqs; ++i) {
