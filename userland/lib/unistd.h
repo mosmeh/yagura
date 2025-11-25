@@ -45,6 +45,11 @@ int dup3(int oldfd, int newfd, int flags);
 int pipe(int pipefd[2]);
 int pipe2(int pipefd[2], int flags);
 
+void sync(void);
+int syncfs(int fd);
+int fsync(int fd);
+int fdatasync(int fd);
+
 char* getcwd(char* buf, size_t size);
 int chdir(const char* path);
 

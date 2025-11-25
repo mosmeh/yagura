@@ -45,6 +45,7 @@ struct file_ops {
     int (*getdents)(struct file*, getdents_callback_fn, void* ctx);
     short (*poll)(struct file*, short events);
     struct vm_obj* (*mmap)(struct file*);
+    int (*fsync)(struct file*);
 };
 
 static inline unsigned mode_to_dirent_type(mode_t mode) {
@@ -108,6 +109,8 @@ struct inode_ops {
                      uint64_t offset);
     ssize_t (*pwrite)(struct inode*, const void* buffer, size_t count,
                       uint64_t offset);
+
+    int (*fsync)(struct inode*);
 };
 
 void inode_ref(struct inode*);
@@ -162,6 +165,9 @@ struct inode* mount_lookup_inode(struct mount*, ino_t);
 // Sets the root inode of the mount.
 // Panics if the root is already set.
 void mount_set_root(struct mount*, struct inode*);
+
+// Writes back all dirty inodes in the mount.
+NODISCARD int mount_sync(struct mount*);
 
 void file_ref(struct file*);
 void file_unref(struct file*);
@@ -240,6 +246,9 @@ NODISCARD struct inode* vfs_create_at(const struct path* base,
 struct path* vfs_resolve_path(const char* pathname, int flags);
 struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
                                  int flags);
+
+// Writes back all dirty inodes.
+NODISCARD int vfs_sync(void);
 
 struct inode* pipe_create(void);
 

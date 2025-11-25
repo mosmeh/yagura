@@ -15,7 +15,6 @@
     F(alarm)                                                                   \
     F(utime)                                                                   \
     F(nice)                                                                    \
-    F(sync)                                                                    \
     F(brk)                                                                     \
     F(setgid)                                                                  \
     F(signal)                                                                  \
@@ -51,7 +50,6 @@
     F(vhangup)                                                                 \
     F(swapoff)                                                                 \
     F(ipc)                                                                     \
-    F(fsync)                                                                   \
     F(modify_ldt)                                                              \
     F(adjtimex)                                                                \
     F(init_module)                                                             \
@@ -64,7 +62,6 @@
     F(setfsgid)                                                                \
     F(flock)                                                                   \
     F(getsid)                                                                  \
-    F(fdatasync)                                                               \
     F(mlock)                                                                   \
     F(munlock)                                                                 \
     F(mlockall)                                                                \
@@ -211,7 +208,6 @@
     F(name_to_handle_at)                                                       \
     F(open_by_handle_at)                                                       \
     F(clock_adjtime)                                                           \
-    F(syncfs)                                                                  \
     F(sendmmsg)                                                                \
     F(setns)                                                                   \
     F(process_vm_readv)                                                        \
