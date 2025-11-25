@@ -230,21 +230,26 @@ struct inode* unix_socket_create(void) {
     socket->is_open_for_writing_to_acceptor = true;
 
     int rc = ring_buf_init(&socket->to_acceptor_buf, PAGE_SIZE);
-    if (IS_ERR(rc)) {
-        slab_free(&unix_socket_slab, socket);
-        return ERR_PTR(rc);
-    }
+    if (IS_ERR(rc))
+        goto fail;
     rc = ring_buf_init(&socket->to_connector_buf, PAGE_SIZE);
-    if (IS_ERR(rc)) {
-        ring_buf_destroy(&socket->to_acceptor_buf);
-        slab_free(&unix_socket_slab, socket);
-        return ERR_PTR(rc);
-    }
+    if (IS_ERR(rc))
+        goto fail;
 
     inode_ref(inode);
-    mount_commit_inode(sock_mount, inode);
+    rc = mount_commit_inode(sock_mount, inode);
+    if (IS_ERR(rc)) {
+        inode_unref(inode);
+        goto fail;
+    }
 
     return inode;
+
+fail:
+    ring_buf_destroy(&socket->to_connector_buf);
+    ring_buf_destroy(&socket->to_acceptor_buf);
+    slab_free(&unix_socket_slab, socket);
+    return ERR_PTR(rc);
 }
 
 int unix_socket_bind(struct inode* inode, struct inode* addr_inode) {

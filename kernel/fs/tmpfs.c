@@ -264,7 +264,12 @@ static struct mount* tmpfs_mount(const char* source) {
         return ERR_CAST(root);
     }
     inode_ref(root);
-    mount_commit_inode(vfs_mount, root);
+    int rc = mount_commit_inode(vfs_mount, root);
+    if (IS_ERR(rc)) {
+        inode_unref(root);
+        kfree(mount);
+        return ERR_PTR(rc);
+    }
     mount_set_root(vfs_mount, root);
 
     return vfs_mount;

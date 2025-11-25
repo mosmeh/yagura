@@ -244,10 +244,8 @@ struct inode* pipe_create(void) {
     };
 
     int rc = ring_buf_init(&pipe->buf, PIPE_BUF);
-    if (IS_ERR(rc)) {
-        slab_free(&pipe_slab, pipe);
-        return ERR_PTR(rc);
-    }
+    if (IS_ERR(rc))
+        goto fail;
 
     struct inode* inode = &pipe->vfs_inode;
     inode->ino = atomic_fetch_add(&next_ino, 1);
@@ -259,7 +257,16 @@ struct inode* pipe_create(void) {
     inode->mode = S_IFIFO;
 
     inode_ref(inode);
-    mount_commit_inode(pipe_mount, inode);
+    rc = mount_commit_inode(pipe_mount, inode);
+    if (IS_ERR(rc)) {
+        inode_unref(inode);
+        goto fail;
+    }
 
     return inode;
+
+fail:
+    ring_buf_destroy(&pipe->buf);
+    slab_free(&pipe_slab, pipe);
+    return ERR_PTR(rc);
 }

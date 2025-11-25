@@ -61,12 +61,17 @@ void block_dev_unlock(struct block_dev* block_dev) {
     mutex_unlock(&block_dev->vfs_inode.lock);
 }
 
+static struct block_dev* block_dev_from_inode(struct inode* inode) {
+    return CONTAINER_OF(inode, struct block_dev, vfs_inode);
+}
+
 static size_t get_block_size(const struct block_dev* block_dev) {
     return 1 << block_dev->block_bits;
 }
 
-static ssize_t block_dev_pread(struct block_dev* block_dev, void* buffer,
-                               size_t count, uint64_t offset) {
+static ssize_t bdev_pread(struct inode* inode, void* buffer, size_t count,
+                          uint64_t offset) {
+    struct block_dev* block_dev = block_dev_from_inode(inode);
     ASSERT(block_dev->bops->read);
     size_t block_size = get_block_size(block_dev);
     uint32_t rem;
@@ -82,8 +87,9 @@ static ssize_t block_dev_pread(struct block_dev* block_dev, void* buffer,
     return count;
 }
 
-static ssize_t block_dev_pwrite(struct block_dev* block_dev, const void* buffer,
-                                size_t count, uint64_t offset) {
+static ssize_t bdev_pwrite(struct inode* inode, const void* buffer,
+                           size_t count, uint64_t offset) {
+    struct block_dev* block_dev = block_dev_from_inode(inode);
     if (!block_dev->bops->write)
         return -EPERM;
     size_t block_size = get_block_size(block_dev);
@@ -100,22 +106,6 @@ static ssize_t block_dev_pwrite(struct block_dev* block_dev, const void* buffer,
     return count;
 }
 
-static struct block_dev* block_dev_from_inode(struct inode* inode) {
-    return CONTAINER_OF(inode, struct block_dev, vfs_inode);
-}
-
-static ssize_t bdev_inode_pread(struct inode* inode, void* buffer, size_t count,
-                                uint64_t offset) {
-    struct block_dev* block_dev = block_dev_from_inode(inode);
-    return block_dev_pread(block_dev, buffer, count, offset);
-}
-
-static ssize_t bdev_inode_pwrite(struct inode* inode, const void* buffer,
-                                 size_t count, uint64_t offset) {
-    struct block_dev* block_dev = block_dev_from_inode(inode);
-    return block_dev_pwrite(block_dev, buffer, count, offset);
-}
-
 static int bdev_fsync(struct inode* inode) {
     struct block_dev* block_dev = block_dev_from_inode(inode);
     if (block_dev->bops->flush)
@@ -123,40 +113,12 @@ static int bdev_fsync(struct inode* inode) {
     return 0;
 }
 
-static struct block_dev* block_dev_from_file(struct file* file) {
-    return file->private_data;
-}
-
-static ssize_t bdev_file_pread(struct file* file, void* buffer, size_t count,
-                               uint64_t offset) {
-    struct block_dev* block_dev = block_dev_from_file(file);
-    return block_dev_pread(block_dev, buffer, count, offset);
-}
-
-static ssize_t bdev_file_pwrite(struct file* file, const void* buffer,
-                                size_t count, uint64_t offset) {
-    struct block_dev* block_dev = block_dev_from_file(file);
-    return block_dev_pwrite(block_dev, buffer, count, offset);
-}
-
-static int bdev_open(struct file* file) {
-    struct block_dev* block_dev = block_dev_get(file->inode->rdev);
-    if (!block_dev)
-        return -ENODEV;
-    file->private_data = block_dev;
-    return 0;
-}
-
-static const struct inode_ops block_dev_iops = {
-    .pread = bdev_inode_pread,
-    .pwrite = bdev_inode_pwrite,
+static const struct inode_ops bdev_iops = {
+    .pread = bdev_pread,
+    .pwrite = bdev_pwrite,
     .fsync = bdev_fsync,
 };
-const struct file_ops block_dev_fops = {
-    .open = bdev_open,
-    .pread = bdev_file_pread,
-    .pwrite = bdev_file_pwrite,
-};
+static const struct file_ops bdev_fops = {0};
 
 static struct mount* bdev_mount;
 
@@ -179,8 +141,8 @@ int block_dev_register(struct block_dev* block_dev) {
     }
 
     struct inode* inode = &block_dev->vfs_inode;
-    inode->iops = &block_dev_iops;
-    inode->fops = &block_dev_fops;
+    inode->iops = &bdev_iops;
+    inode->fops = &bdev_fops;
 
     inode->ino = block_dev->dev;
     inode->mode = S_IFBLK;
@@ -193,12 +155,32 @@ int block_dev_register(struct block_dev* block_dev) {
 
     inode->size = (uint64_t)block_dev->num_blocks << block_dev->block_bits;
 
-    mount_commit_inode(bdev_mount, inode);
+    int rc = mount_commit_inode(bdev_mount, inode);
+    if (IS_ERR(rc))
+        return PTR_ERR(rc);
 
     kprintf("block_dev: registered %s %u,%u\n", block_dev->name,
             major(block_dev->dev), minor(block_dev->dev));
     return 0;
 }
+
+static int block_dev_open(struct file* file) {
+    if (file->inode->mount == bdev_mount) {
+        // Opening the block device inode itself
+        return 0;
+    }
+
+    // Opening a block device file
+    struct block_dev* block_dev = block_dev_get(file->inode->rdev);
+    if (!block_dev)
+        return -ENODEV;
+    file->filemap = block_dev->vfs_inode.filemap;
+    return 0;
+}
+
+const struct file_ops block_dev_fops = {
+    .open = block_dev_open,
+};
 
 struct block_dev* block_dev_get(dev_t rdev) {
     struct inode* inode = mount_lookup_inode(bdev_mount, rdev);
