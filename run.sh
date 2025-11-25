@@ -41,6 +41,8 @@ if command -v wslpath >/dev/null; then
     INITRD=$(wslpath -w "${INITRD}")
 fi
 
+dd if=/dev/urandom of=virtio-blk bs=1024 count=16
+
 QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
 "${QEMU_BIN}" \
     -kernel "${KERNEL}" \
@@ -55,4 +57,5 @@ QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
     -cpu max \
     -m 512M \
     -smp "sockets=1,cores=${NUM_CPUS},threads=1" \
+    -drive id=drive0,file=virtio-blk,format=raw,if=none -device virtio-blk,drive=drive0 \
     "${QEMU_VIRT_TECH_ARGS[@]}"

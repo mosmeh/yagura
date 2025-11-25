@@ -6,51 +6,19 @@ CFLAGS += \
 LDFLAGS += -L.
 
 BIN_TARGET_NAMES := \
-	cal \
-	cat \
-	clear \
-	cp \
-	date \
-	dd \
-	echo \
-	env \
 	eyes \
 	fib \
 	getty \
-	grep \
-	halt \
-	hexdump \
 	imgview \
 	init \
 	init-test \
-	kill \
-	less \
-	ln \
-	ls \
 	mandelbrot \
-	mkdir \
-	mkfifo \
-	mknod \
-	mount \
 	mouse-cursor \
 	moused \
-	mv \
 	play \
-	poweroff \
 	ps \
-	pwd \
-	readlink \
-	reboot \
-	rm \
-	rmdir \
 	sh \
-	sleep \
-	stat \
-	stty \
-	touch \
-	uname \
 	usertests \
-	wc \
 	xv6-usertests
 OUTDIR := ../base/bin
 

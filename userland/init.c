@@ -95,6 +95,16 @@ int main(void) {
     for (size_t i = 0; i < ARRAY_SIZE(device_files); ++i)
         try_mknod(&device_files[i]);
 
+    pid_t pid = do_spawn("/bin/busybox", (char*[]){
+                                             "/bin/busybox",
+                                             "--install",
+                                             "-s",
+                                             "/bin",
+                                             NULL,
+                                         });
+    ASSERT_OK(pid);
+    waitpid(pid, NULL, 0);
+
     for (size_t i = 0; i < 64; ++i) {
         char pathname[16];
         (void)sprintf(pathname, "/dev/tty%u", i);
@@ -146,7 +156,7 @@ int main(void) {
     if (mount("proc", "/proc", "proc", 0, NULL) < 0)
         perror("mount");
 
-    pid_t pid = spawn("/bin/moused");
+    pid = spawn("/bin/moused");
     if (pid > 0) {
         waitpid(pid, NULL, 0);
         spawn("/bin/mouse-cursor");
