@@ -15,7 +15,9 @@
 #include "time.h"
 
 static noreturn void userland_init(void) {
-    current->tid = current->tgid = current->pgid = task_generate_next_tid();
+    ASSERT(current->tid == 1);
+    ASSERT(current->tgid == 1);
+    ASSERT(current->pgid == 1);
 
     static const char* envp[] = {NULL};
 
@@ -49,6 +51,16 @@ static noreturn void userland_init(void) {
     }
 
     PANIC("No working init found");
+}
+
+static noreturn void ksyncd(void) {
+    static const struct timespec interval = {.tv_sec = 5};
+    for (;;) {
+        int rc = vfs_sync();
+        if (IS_ERR(rc))
+            kprintf("ksyncd: sync failed (error %d)\n", rc);
+        sched_sleep(&interval);
+    }
 }
 
 noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
@@ -93,6 +105,7 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
     ASSERT_OK(task_spawn("userland_init", userland_init));
+    ASSERT_OK(task_spawn("ksyncd", ksyncd));
 
     sched_start();
 }

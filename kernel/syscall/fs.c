@@ -1007,3 +1007,25 @@ fail:
     file_unref(writer_file);
     return rc;
 }
+
+int sys_sync(void) {
+    int rc = vfs_sync();
+    (void)rc;
+    return 0;
+}
+
+int sys_syncfs(int fd) {
+    struct file* file = task_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return mount_sync(file->inode->mount);
+}
+
+int sys_fsync(int fd) {
+    struct file* file = task_get_file(fd);
+    if (IS_ERR(file))
+        return PTR_ERR(file);
+    return file_sync(file, 0, UINT64_MAX);
+}
+
+int sys_fdatasync(int fd) { return sys_fsync(fd); }

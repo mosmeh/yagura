@@ -38,6 +38,7 @@ struct block_ops {
                 uint64_t nblocks);
     int (*write)(struct block_dev*, const void* buffer, uint64_t index,
                  uint64_t nblocks);
+    int (*flush)(struct block_dev*);
 };
 
 extern const struct file_ops block_dev_fops;

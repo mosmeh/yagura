@@ -2,6 +2,7 @@
 #include "asm_wrapper.h"
 #include "cpu.h"
 #include "drivers/hid/ps2.h"
+#include "fs/fs.h"
 #include "kmsg.h"
 #include "memory/memory.h"
 #include "panic.h"
@@ -165,6 +166,12 @@ void handle_sysrq(char ch) {
     case 'c':
         kprint("sysrq: Trigger a crash\n");
         PANIC("sysrq triggered crash");
+        break;
+    case 's':
+        kprint("sysrq: Emergency Sync\n");
+        int rc = vfs_sync();
+        (void)rc;
+        kprint("Emergency Sync complete\n");
         break;
     }
 }

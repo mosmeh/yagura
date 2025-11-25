@@ -35,6 +35,10 @@ static int submit_request(struct block_dev* block_dev, void* buffer,
     uint64_t count = nsectors << block_dev->block_bits;
     struct virtio_blk_req_footer footer = {0};
 
+    size_t num_descriptors = 2;
+    if (buffer)
+        ++num_descriptors;
+
     int rc;
 retry:
     rc = sched_block(unblock_request, block_dev, BLOCK_UNINTERRUPTIBLE);
@@ -43,12 +47,13 @@ retry:
 
     block_dev_lock(block_dev);
     struct virtq_desc_chain chain;
-    if (!virtq_desc_chain_init(&chain, virtq, 3)) {
+    if (!virtq_desc_chain_init(&chain, virtq, num_descriptors)) {
         block_dev_unlock(block_dev);
         goto retry;
     }
     virtq_desc_chain_push_buf(&chain, &header, sizeof(header), false);
-    virtq_desc_chain_push_buf(&chain, buffer, count, device_writable);
+    if (buffer)
+        virtq_desc_chain_push_buf(&chain, buffer, count, device_writable);
     virtq_desc_chain_push_buf(&chain, &footer, sizeof(footer), true);
     rc = virtq_desc_chain_submit(&chain);
     block_dev_unlock(block_dev);
@@ -75,6 +80,10 @@ static ssize_t virtio_blk_write(struct block_dev* block_dev, const void* buffer,
                                 uint64_t index, uint64_t nblocks) {
     return submit_request(block_dev, (void*)buffer, index, nblocks,
                           VIRTIO_BLK_T_OUT, false);
+}
+
+static int virtio_blk_flush(struct block_dev* block_dev) {
+    return submit_request(block_dev, NULL, 1, 0, VIRTIO_BLK_T_FLUSH, false);
 }
 
 static void init_device(const struct pci_addr* addr) {
@@ -126,6 +135,7 @@ static void init_device(const struct pci_addr* addr) {
     static const struct block_ops bops = {
         .read = virtio_blk_read,
         .write = virtio_blk_write,
+        .flush = virtio_blk_flush,
     };
 
     struct block_dev* block_dev = &blk->block_dev;

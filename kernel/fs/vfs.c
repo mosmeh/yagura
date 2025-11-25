@@ -428,6 +428,18 @@ struct inode* vfs_create_at(const struct path* base, const char* pathname,
     return path_into_inode(path);
 }
 
+int vfs_sync(void) {
+    int rc = 0;
+    mutex_lock(&mount_lock);
+    for (struct mount* it = mounts; it; it = it->next) {
+        rc = mount_sync(it);
+        if (IS_ERR(rc))
+            break;
+    }
+    mutex_unlock(&mount_lock);
+    return rc;
+}
+
 void tmpfs_init(void);
 void proc_init(void);
 void initrd_populate_root_fs(uintptr_t phys_addr, size_t size);

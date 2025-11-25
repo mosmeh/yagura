@@ -41,6 +41,7 @@
     F(oldfstat, sys_fstat, 0)                                                  \
     F(pause, sys_pause, 0)                                                     \
     F(access, sys_access, 0)                                                   \
+    F(sync, sys_sync, 0)                                                       \
     F(kill, sys_kill, 0)                                                       \
     F(rename, sys_rename, 0)                                                   \
     F(mkdir, sys_mkdir, 0)                                                     \
@@ -80,6 +81,7 @@
     F(olduname, sys_uname, 0)                                                  \
     F(wait4, sys_wait4, 0)                                                     \
     F(sysinfo, sys_sysinfo, 0)                                                 \
+    F(fsync, sys_fsync, 0)                                                     \
     F(sigreturn, sys_sigreturn, SYSCALL_RAW_REGISTERS | SYSCALL_NO_ERROR)      \
     F(clone, sys_clone, SYSCALL_RAW_REGISTERS)                                 \
     F(setdomainname, sys_setdomainname, 0)                                     \
@@ -93,6 +95,7 @@
     F(msync, sys_msync, 0)                                                     \
     F(readv, sys_readv, 0)                                                     \
     F(writev, sys_writev, 0)                                                   \
+    F(fdatasync, sys_fdatasync, 0)                                             \
     F(sched_yield, sys_sched_yield, 0)                                         \
     F(nanosleep, sys_nanosleep_time32, 0)                                      \
     F(poll, sys_poll, 0)                                                       \
@@ -123,6 +126,7 @@
     F(getcpu, sys_getcpu, 0)                                                   \
     F(dup3, sys_dup3, 0)                                                       \
     F(pipe2, sys_pipe2, 0)                                                     \
+    F(syncfs, sys_syncfs, 0)                                                   \
     F(socket, sys_socket, 0)                                                   \
     F(bind, sys_bind, 0)                                                       \
     F(connect, sys_connect, 0)                                                 \
@@ -181,6 +185,7 @@ int sys_stime32(const time32_t* t);
 int sys_fstat(int fd, struct linux_old_stat* buf);
 int sys_pause(void);
 int sys_access(const char* pathname, int mode);
+int sys_sync(void);
 int sys_kill(pid_t pid, int sig);
 int sys_rename(const char* oldpath, const char* newpath);
 int sys_mkdir(const char* pathname, mode_t mode);
@@ -221,6 +226,7 @@ int sys_newfstat(int fd, struct linux_stat* buf);
 int sys_uname(struct linux_old_utsname* buf);
 pid_t sys_wait4(pid_t pid, int* wstatus, int options, struct rusage* rusage);
 int sys_sysinfo(struct sysinfo* info);
+int sys_fsync(int fd);
 int sys_sigreturn(struct registers*);
 int sys_clone(struct registers*, unsigned long flags, void* stack,
               pid_t* parent_tid, pid_t* child_tid, void* tls);
@@ -237,6 +243,7 @@ int sys_select(int nfds, unsigned long* readfds, unsigned long* writefds,
 int sys_msync(void* addr, size_t length, int flags);
 ssize_t sys_readv(int fd, const struct iovec* iov, int iovcnt);
 ssize_t sys_writev(int fd, const struct iovec* iov, int iovcnt);
+int sys_fdatasync(int fd);
 int sys_sched_yield(void);
 int sys_nanosleep_time32(const struct timespec32* duration,
                          struct timespec32* rem);
@@ -277,6 +284,7 @@ int sys_getcpu(unsigned int* cpu, unsigned int* node,
                struct getcpu_cache* tcache);
 int sys_dup3(int oldfd, int newfd, int flags);
 int sys_pipe2(int pipefd[2], int flags);
+int sys_syncfs(int fd);
 int sys_socket(int domain, int type, int protocol);
 int sys_bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
 int sys_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen);

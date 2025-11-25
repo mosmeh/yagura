@@ -154,6 +154,14 @@ int pipe2(int pipefd[2], int flags) {
     RETURN_WITH_ERRNO(int, SYSCALL2(pipe2, pipefd, flags));
 }
 
+void sync(void) { SYSCALL0(sync); }
+
+int syncfs(int fd) { RETURN_WITH_ERRNO(int, SYSCALL1(syncfs, fd)); }
+
+int fsync(int fd) { RETURN_WITH_ERRNO(int, SYSCALL1(fsync, fd)); }
+
+int fdatasync(int fd) { RETURN_WITH_ERRNO(int, SYSCALL1(fdatasync, fd)); }
+
 char* getcwd(char* buf, size_t size) {
     int rc = SYSCALL2(getcwd, buf, size);
     if (IS_ERR(rc)) {

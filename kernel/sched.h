@@ -7,6 +7,7 @@
 
 struct task;
 struct registers;
+struct timespec;
 
 void sched_init(void);
 
@@ -30,3 +31,6 @@ typedef bool (*unblock_fn)(void*);
 // Blocks the current task until the unblock function returns true.
 // Returns -EINTR if the task was interrupted.
 NODISCARD int sched_block(unblock_fn, void* data, int flags);
+
+// Blocks the current task for the specified duration.
+void sched_sleep(const struct timespec*);

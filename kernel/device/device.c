@@ -100,28 +100,43 @@ static ssize_t block_dev_pwrite(struct block_dev* block_dev, const void* buffer,
     return count;
 }
 
+static struct block_dev* block_dev_from_inode(struct inode* inode) {
+    return CONTAINER_OF(inode, struct block_dev, vfs_inode);
+}
+
 static ssize_t bdev_inode_pread(struct inode* inode, void* buffer, size_t count,
                                 uint64_t offset) {
-    struct block_dev* block_dev =
-        CONTAINER_OF(inode, struct block_dev, vfs_inode);
+    struct block_dev* block_dev = block_dev_from_inode(inode);
     return block_dev_pread(block_dev, buffer, count, offset);
 }
 
 static ssize_t bdev_inode_pwrite(struct inode* inode, const void* buffer,
                                  size_t count, uint64_t offset) {
-    struct block_dev* block_dev =
-        CONTAINER_OF(inode, struct block_dev, vfs_inode);
+    struct block_dev* block_dev = block_dev_from_inode(inode);
     return block_dev_pwrite(block_dev, buffer, count, offset);
+}
+
+static int bdev_fsync(struct inode* inode) {
+    struct block_dev* block_dev = block_dev_from_inode(inode);
+    if (block_dev->bops->flush)
+        return block_dev->bops->flush(block_dev);
+    return 0;
+}
+
+static struct block_dev* block_dev_from_file(struct file* file) {
+    return file->private_data;
 }
 
 static ssize_t bdev_file_pread(struct file* file, void* buffer, size_t count,
                                uint64_t offset) {
-    return block_dev_pread(file->private_data, buffer, count, offset);
+    struct block_dev* block_dev = block_dev_from_file(file);
+    return block_dev_pread(block_dev, buffer, count, offset);
 }
 
 static ssize_t bdev_file_pwrite(struct file* file, const void* buffer,
                                 size_t count, uint64_t offset) {
-    return block_dev_pwrite(file->private_data, buffer, count, offset);
+    struct block_dev* block_dev = block_dev_from_file(file);
+    return block_dev_pwrite(block_dev, buffer, count, offset);
 }
 
 static int bdev_open(struct file* file) {
@@ -135,6 +150,7 @@ static int bdev_open(struct file* file) {
 static const struct inode_ops block_dev_iops = {
     .pread = bdev_inode_pread,
     .pwrite = bdev_inode_pwrite,
+    .fsync = bdev_fsync,
 };
 const struct file_ops block_dev_fops = {
     .open = bdev_open,

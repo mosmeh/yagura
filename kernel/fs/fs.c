@@ -267,6 +267,29 @@ void mount_set_root(struct mount* mount, struct inode* inode) {
     mutex_unlock(&mount->lock);
 }
 
+int mount_sync(struct mount* mount) {
+    int rc = 0;
+    mutex_lock(&mount->lock);
+    for (struct inode* inode = mount->inodes; inode; inode = inode->next) {
+        if (!(inode->flags & INODE_DIRTY))
+            continue;
+
+        inode_ref(inode);
+        struct file* file = inode_open(inode, O_WRONLY);
+        if (IS_ERR(file)) {
+            rc = PTR_ERR(file);
+            break;
+        }
+
+        rc = file_sync(file, 0, UINT64_MAX);
+        file_unref(file);
+        if (IS_ERR(rc))
+            break;
+    }
+    mutex_unlock(&mount->lock);
+    return rc;
+}
+
 NODISCARD static int populate_page(struct page* page, struct inode* inode) {
     ASSERT(mutex_is_locked_by_current(&inode->lock));
     ASSERT(inode->iops->pread);
@@ -369,8 +392,6 @@ static struct page* ensure_page(struct inode* inode, size_t index, bool write) {
 
 static void file_destroy(struct vm_obj* obj) {
     struct file* file = CONTAINER_OF(obj, struct file, vm_obj);
-    int rc = file_sync(file, 0, UINT64_MAX);
-    (void)rc;
     struct inode* inode = file->inode;
     if (file->fops->close)
         file->fops->close(file);
@@ -643,6 +664,15 @@ short file_poll(struct file* file, short events) {
     return revents;
 }
 
+NODISCARD static int do_fsync(struct file* file) {
+    if (file->fops->fsync)
+        return file->fops->fsync(file);
+    struct inode* inode = file->inode;
+    if (inode->iops->fsync)
+        return inode->iops->fsync(inode);
+    return 0;
+}
+
 int file_sync(struct file* file, uint64_t offset, uint64_t nbytes) {
     if (nbytes == 0)
         return 0;
@@ -662,6 +692,7 @@ int file_sync(struct file* file, uint64_t offset, uint64_t nbytes) {
     mutex_lock(&inode->lock);
     file_lock(file);
 
+    size_t num_successful = 0;
     for (struct page* page = inode->shared_pages; page; page = page->next) {
         if (end <= page->index)
             break;
@@ -670,6 +701,13 @@ int file_sync(struct file* file, uint64_t offset, uint64_t nbytes) {
         rc = writeback_page(page, file);
         if (IS_ERR(rc))
             break;
+        ++num_successful;
+    }
+
+    if (num_successful > 0) {
+        int fsync_rc = do_fsync(file);
+        if (IS_OK(rc))
+            rc = fsync_rc;
     }
 
     bool has_any_dirty_pages = false;
