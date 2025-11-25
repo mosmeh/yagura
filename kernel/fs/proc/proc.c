@@ -109,14 +109,27 @@ static struct inode* alloc_inode(ino_t ino, struct proc_entry* entry) {
 struct inode* proc_create_inode(struct mount* mount, ino_t ino,
                                 struct proc_entry* entry) {
     mutex_lock(&mount->lock);
+
     struct inode* inode = mount_lookup_inode(mount, ino);
-    if (!inode) {
-        inode = alloc_inode(ino, entry);
-        if (IS_OK(inode)) {
-            inode_ref(inode);
-            mount_commit_inode(mount, inode);
-        }
+    if (inode) {
+        mutex_unlock(&mount->lock);
+        return inode;
     }
+
+    inode = alloc_inode(ino, entry);
+    if (IS_ERR(inode)) {
+        mutex_unlock(&mount->lock);
+        return inode;
+    }
+
+    inode_ref(inode);
+    int rc = mount_commit_inode(mount, inode);
+    if (IS_ERR(rc)) {
+        inode_unref(inode);
+        mutex_unlock(&mount->lock);
+        return ERR_PTR(rc);
+    }
+
     mutex_unlock(&mount->lock);
     return inode;
 }

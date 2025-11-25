@@ -26,6 +26,7 @@ struct file {
     struct vm_obj vm_obj;
     struct inode* inode;
     const struct file_ops* fops;
+    struct filemap* filemap;
     atomic_int flags;
     uint64_t offset;
     void* private_data;
@@ -80,7 +81,7 @@ struct inode {
     struct mount* mount;
     const struct inode_ops* iops;
     const struct file_ops* fops;
-    struct page* shared_pages; // Page cache
+    struct filemap* filemap;
 
     ino_t ino;
     mode_t mode;
@@ -141,6 +142,12 @@ struct kstat {
 
 NODISCARD int inode_stat(struct inode*, struct kstat* buf);
 
+// Page cache
+struct filemap {
+    struct inode* inode;
+    struct page* pages;
+};
+
 struct mount {
     const struct file_system* fs;
     dev_t dev;
@@ -152,7 +159,7 @@ struct mount {
 
 // Marks the given inode as ready to be used, adding it to the mount's inode
 // cache.
-void mount_commit_inode(struct mount*, struct inode*);
+NODISCARD int mount_commit_inode(struct mount*, struct inode*);
 
 // Creates a new inode for the given mount with the specified mode.
 // The file system is responsible for allocating inode numbers.

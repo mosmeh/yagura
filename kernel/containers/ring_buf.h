@@ -19,7 +19,12 @@ NODISCARD static inline int ring_buf_init(struct ring_buf* b, size_t capacity) {
     return 0;
 }
 
-static inline void ring_buf_destroy(struct ring_buf* b) { kfree(b->ring); }
+static inline void ring_buf_destroy(struct ring_buf* b) {
+    if (!b)
+        return;
+    kfree(b->ring);
+    b->ring = NULL;
+}
 
 static inline bool ring_buf_is_empty(const struct ring_buf* b) {
     return b->write_index == b->read_index;

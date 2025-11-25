@@ -13,14 +13,23 @@
 #include <kernel/sched.h>
 
 static struct slab file_slab;
+static struct slab filemap_slab;
 
 void vfs_init(const multiboot_module_t* initrd_mod);
 void pipe_init(void);
 
 void fs_init(const multiboot_module_t* initrd_mod) {
     slab_init(&file_slab, sizeof(struct file));
+    slab_init(&filemap_slab, sizeof(struct filemap));
     vfs_init(initrd_mod);
     pipe_init();
+}
+
+static void filemap_destroy(struct filemap* filemap) {
+    if (!filemap)
+        return;
+    pages_clear(&filemap->pages);
+    slab_free(&filemap_slab, filemap);
 }
 
 void inode_ref(struct inode* inode) {
@@ -36,7 +45,7 @@ void inode_unref(struct inode* inode) {
         return;
 
     ASSERT(inode->iops->destroy);
-    pages_clear(&inode->shared_pages);
+    filemap_destroy(inode->filemap);
     inode_unref(inode->pipe);
     inode_unref(inode->bound_socket);
     inode->iops->destroy(inode);
@@ -77,7 +86,8 @@ int inode_unlink(struct inode* parent, const char* name) {
 }
 
 NODISCARD static int do_truncate(struct file* file, uint64_t length) {
-    struct inode* inode = file->inode;
+    struct filemap* filemap = file->filemap;
+    struct inode* inode = filemap->inode;
     if (S_ISDIR(inode->mode))
         return -EISDIR;
 
@@ -101,10 +111,10 @@ NODISCARD static int do_truncate(struct file* file, uint64_t length) {
     if (length < old_size) {
         size_t end = DIV_CEIL(length, PAGE_SIZE);
 
-        bool freed_pages = pages_truncate(&inode->shared_pages, end);
+        bool freed_pages = pages_truncate(&filemap->pages, end);
         size_t page_offset = length % PAGE_SIZE;
         if (page_offset > 0) {
-            struct page* page = pages_get(inode->shared_pages, end - 1);
+            struct page* page = pages_get(filemap->pages, end - 1);
             if (page)
                 page_fill(page, 0, page_offset, PAGE_SIZE - page_offset);
         }
@@ -161,6 +171,7 @@ struct file* inode_open(struct inode* inode, int flags) {
         .vm_obj = {.vm_ops = &file_vm_ops, .ref_count = 1},
         .inode = inode,
         .fops = fops,
+        .filemap = inode->filemap,
         .flags = flags,
     };
 
@@ -207,7 +218,7 @@ int inode_stat(struct inode* inode, struct kstat* buf) {
     return 0;
 }
 
-void mount_commit_inode(struct mount* mount, struct inode* inode) {
+int mount_commit_inode(struct mount* mount, struct inode* inode) {
     ASSERT(!(inode->flags & INODE_READY));
     ASSERT(inode->iops);
     ASSERT(inode->fops);
@@ -215,6 +226,16 @@ void mount_commit_inode(struct mount* mount, struct inode* inode) {
     ASSERT(inode->mode & S_IFMT);
     ASSERT(inode->ref_count > 0);
     ASSERT(!inode->next);
+
+    struct filemap* filemap = slab_alloc(&filemap_slab);
+    if (IS_ERR(filemap)) {
+        inode_unref(inode);
+        return PTR_ERR(filemap);
+    }
+    *filemap = (struct filemap){
+        .inode = inode,
+    };
+    inode->filemap = filemap;
 
     inode->mount = mount;
     inode->flags |= INODE_READY;
@@ -225,6 +246,8 @@ void mount_commit_inode(struct mount* mount, struct inode* inode) {
     inode->next = mount->inodes;
     mount->inodes = inode;
     mutex_unlock(&mount->lock);
+
+    return 0;
 }
 
 struct inode* mount_create_inode(struct mount* mount, mode_t mode) {
@@ -239,7 +262,12 @@ struct inode* mount_create_inode(struct mount* mount, mode_t mode) {
         return child;
 
     inode_ref(child);
-    mount_commit_inode(mount, child);
+    int rc = mount_commit_inode(mount, child);
+    if (IS_ERR(rc)) {
+        inode_unref(child);
+        return ERR_PTR(rc);
+    }
+
     return child;
 }
 
@@ -317,7 +345,8 @@ NODISCARD static int populate_page(struct page* page, struct inode* inode) {
 }
 
 NODISCARD static int writeback_page(struct page* page, struct file* file) {
-    struct inode* inode = file->inode;
+    struct filemap* filemap = file->filemap;
+    struct inode* inode = filemap->inode;
     ASSERT(mutex_is_locked_by_current(&inode->lock));
     ASSERT(mutex_is_locked_by_current(&file->vm_obj.lock));
     if (!(page->flags & PAGE_DIRTY))
@@ -358,17 +387,19 @@ NODISCARD static int writeback_page(struct page* page, struct file* file) {
     return 0;
 }
 
-static struct page* ensure_page(struct inode* inode, size_t index, bool write) {
+static struct page* ensure_page(struct filemap* filemap, size_t index,
+                                bool write) {
+    struct inode* inode = filemap->inode;
     ASSERT(mutex_is_locked_by_current(&inode->lock));
 
-    struct page* page = pages_get(inode->shared_pages, index);
+    struct page* page = pages_get(filemap->pages, index);
     if (page)
         return page;
 
     uint64_t byte_offset = (uint64_t)index << PAGE_SHIFT;
     if (byte_offset >= inode->size) {
         if (write) {
-            page = pages_alloc_at(&inode->shared_pages, index);
+            page = pages_alloc_at(&filemap->pages, index);
             if (IS_ERR(page))
                 return page;
             page_fill(page, 0, 0, PAGE_SIZE);
@@ -377,13 +408,13 @@ static struct page* ensure_page(struct inode* inode, size_t index, bool write) {
         return NULL;
     }
 
-    page = pages_alloc_at(&inode->shared_pages, index);
+    page = pages_alloc_at(&filemap->pages, index);
     if (IS_ERR(page))
         return page;
 
     int rc = populate_page(page, inode);
     if (IS_ERR(rc)) {
-        pages_free(&inode->shared_pages, page);
+        pages_free(&filemap->pages, page);
         return ERR_PTR(rc);
     }
 
@@ -403,9 +434,10 @@ static struct page* file_get_page(struct vm_obj* obj, size_t index,
                                   uint32_t error_code) {
     ASSERT(mutex_is_locked_by_current(&obj->lock));
     struct file* file = CONTAINER_OF(obj, struct file, vm_obj);
-    struct inode* inode = file->inode;
+    struct filemap* filemap = file->filemap;
+    struct inode* inode = filemap->inode;
     mutex_lock(&inode->lock);
-    struct page* page = ensure_page(inode, index, true);
+    struct page* page = ensure_page(filemap, index, true);
     mutex_unlock(&inode->lock);
     if (IS_ERR(page))
         return page;
@@ -448,7 +480,8 @@ ssize_t file_read(struct file* file, void* buffer, size_t count) {
 
 static ssize_t default_file_pread(struct file* file, void* buffer, size_t count,
                                   uint64_t offset) {
-    struct inode* inode = file->inode;
+    struct filemap* filemap = file->filemap;
+    struct inode* inode = filemap->inode;
     if (!inode->iops->pread)
         return -EINVAL;
     mutex_lock(&inode->lock);
@@ -465,7 +498,7 @@ static ssize_t default_file_pread(struct file* file, void* buffer, size_t count,
     size_t page_index = offset >> PAGE_SHIFT;
     size_t page_offset = offset % PAGE_SIZE;
     while (nread < count) {
-        struct page* page = ensure_page(inode, page_index, false);
+        struct page* page = ensure_page(filemap, page_index, false);
         if (IS_ERR(page)) {
             mutex_unlock(&inode->lock);
             return PTR_ERR(page);
@@ -524,7 +557,8 @@ ssize_t file_write(struct file* file, const void* buffer, size_t count) {
 
 static ssize_t default_file_pwrite(struct file* file, const void* buffer,
                                    size_t count, uint64_t offset) {
-    struct inode* inode = file->inode;
+    struct filemap* filemap = file->filemap;
+    struct inode* inode = filemap->inode;
     if (!inode->iops->pwrite)
         return -EINVAL;
     const unsigned char* src = buffer;
@@ -533,7 +567,7 @@ static ssize_t default_file_pwrite(struct file* file, const void* buffer,
     size_t page_offset = offset % PAGE_SIZE;
     mutex_lock(&inode->lock);
     while (nwritten < count) {
-        struct page* page = ensure_page(inode, page_index, true);
+        struct page* page = ensure_page(filemap, page_index, true);
         if (IS_ERR(page)) {
             mutex_unlock(&inode->lock);
             return PTR_ERR(page);
@@ -592,7 +626,7 @@ int file_truncate(struct file* file, uint64_t length) {
 }
 
 loff_t file_seek(struct file* file, loff_t offset, int whence) {
-    struct inode* inode = file->inode;
+    struct inode* inode = file->filemap->inode;
     switch (inode->mode & S_IFMT) {
     case S_IFREG:
     case S_IFBLK:
@@ -667,7 +701,7 @@ short file_poll(struct file* file, short events) {
 NODISCARD static int do_fsync(struct file* file) {
     if (file->fops->fsync)
         return file->fops->fsync(file);
-    struct inode* inode = file->inode;
+    struct inode* inode = file->filemap->inode;
     if (inode->iops->fsync)
         return inode->iops->fsync(inode);
     return 0;
@@ -677,7 +711,8 @@ int file_sync(struct file* file, uint64_t offset, uint64_t nbytes) {
     if (nbytes == 0)
         return 0;
 
-    struct inode* inode = file->inode;
+    struct filemap* filemap = file->filemap;
+    struct inode* inode = filemap->inode;
     if (!(inode->flags & INODE_DIRTY))
         return 0;
 
@@ -693,7 +728,7 @@ int file_sync(struct file* file, uint64_t offset, uint64_t nbytes) {
     file_lock(file);
 
     size_t num_successful = 0;
-    for (struct page* page = inode->shared_pages; page; page = page->next) {
+    for (struct page* page = filemap->pages; page; page = page->next) {
         if (end <= page->index)
             break;
         if (page->index < start)
@@ -711,8 +746,7 @@ int file_sync(struct file* file, uint64_t offset, uint64_t nbytes) {
     }
 
     bool has_any_dirty_pages = false;
-    for (const struct page* page = inode->shared_pages; page;
-         page = page->next) {
+    for (const struct page* page = filemap->pages; page; page = page->next) {
         if (page->flags & PAGE_DIRTY) {
             has_any_dirty_pages = true;
             break;
