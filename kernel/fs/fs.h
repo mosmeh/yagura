@@ -15,9 +15,6 @@
 #define PATH_SEPARATOR_STR "/"
 #define ROOT_DIR PATH_SEPARATOR_STR
 
-#define SECTOR_SHIFT 9
-#define SECTOR_SIZE (1 << SECTOR_SHIFT)
-
 typedef struct multiboot_mod_list multiboot_module_t;
 
 void fs_init(const multiboot_module_t* initrd_mod);

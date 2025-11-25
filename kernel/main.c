@@ -81,9 +81,9 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     acpi_init();
     time_init();
     device_init();
+    fs_init(&initrd_mod);
     drivers_init(mb_info);
     smp_init();
-    fs_init(&initrd_mod);
     random_init();
     console_init();
     socket_init();

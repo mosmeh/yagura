@@ -5,7 +5,6 @@
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/sysmacros.h>
-#include <kernel/device/device.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
@@ -394,16 +393,6 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
 
     struct inode* inode = path_into_inode(path);
     ASSERT(inode);
-
-    if (S_ISBLK(inode->mode)) {
-        struct block_dev* dev = block_dev_get(inode->rdev);
-        inode_unref(inode);
-        if (!dev)
-            return ERR_PTR(-ENODEV);
-        inode_ref(dev->inode);
-        inode = dev->inode;
-    }
-
     return inode_open(inode, flags);
 }
 

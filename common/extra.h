@@ -70,6 +70,18 @@ static inline int32_t divmodi64(int64_t a, int32_t b, int32_t* rem) {
     return q;
 }
 
+static inline uint32_t divmodu64(uint64_t a, uint32_t b, uint32_t* rem) {
+    uint32_t q;
+    uint32_t r;
+    __asm__("divl %[b]"
+            : "=a"(q), "=d"(r)
+            : "d"((uint32_t)(a >> 32)),
+              "a"((uint32_t)(a & 0xffffffff)), [b] "rm"(b));
+    if (rem)
+        *rem = r;
+    return q;
+}
+
 static inline bool str_is_uint(const char* s) {
     while (*s) {
         if (!isdigit(*s))

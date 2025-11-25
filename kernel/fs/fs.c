@@ -141,6 +141,9 @@ struct file* inode_open(struct inode* inode, int flags) {
     case S_IFCHR:
         fops = &char_dev_fops;
         break;
+    case S_IFBLK:
+        fops = &block_dev_fops;
+        break;
     case S_IFIFO:
         fops = &pipe_fops;
         break;

@@ -1,64 +1,57 @@
 #include "virtio_blk.h"
 #include "virtio.h"
 #include <common/stdio.h>
+#include <common/string.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/device/device.h>
 #include <kernel/drivers/pci.h>
-#include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
-#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 
 struct virtio_blk {
-    struct inode vfs_inode;
+    struct block_dev block_dev;
     struct virtio* virtio;
-    uint64_t capacity;
 };
 
-static struct virtio_blk* blk_from_inode(struct inode* inode) {
-    return CONTAINER_OF(inode, struct virtio_blk, vfs_inode);
+static struct virtio_blk* blk_from_block_dev(struct block_dev* block_dev) {
+    return CONTAINER_OF(block_dev, struct virtio_blk, block_dev);
 }
 
-static void virtio_blk_destroy(struct inode* inode) {
-    struct virtio_blk* blk = blk_from_inode(inode);
-    virtio_destroy(blk->virtio);
-    kfree(blk);
-}
-
-static bool unblock_request(struct file* file) {
-    struct virtio_blk* blk = blk_from_inode(file->inode);
+static bool unblock_request(void* ctx) {
+    struct virtio_blk* blk = ctx;
     return blk->virtio->virtqs[0]->num_free_descs >= 3;
 }
 
-static int submit_request(struct file* file, void* buffer, size_t count,
-                          uint64_t sector, uint32_t type,
+static int submit_request(struct block_dev* block_dev, void* buffer,
+                          uint64_t sector, uint64_t nsectors, uint32_t type,
                           bool device_writable) {
-    struct virtio_blk* blk = blk_from_inode(file->inode);
+    struct virtio_blk* blk = blk_from_block_dev(block_dev);
     struct virtq* virtq = blk->virtio->virtqs[0];
     struct virtio_blk_req_header header = {
         .type = type,
         .sector = sector,
     };
+    uint64_t count = nsectors << block_dev->block_bits;
     struct virtio_blk_req_footer footer = {0};
 
     int rc;
 retry:
-    rc = file_block(file, unblock_request, BLOCK_UNINTERRUPTIBLE);
+    rc = sched_block(unblock_request, block_dev, BLOCK_UNINTERRUPTIBLE);
     if (IS_ERR(rc))
         return rc;
 
-    mutex_lock(&file->inode->lock);
+    block_dev_lock(block_dev);
     struct virtq_desc_chain chain;
     if (!virtq_desc_chain_init(&chain, virtq, 3)) {
-        mutex_unlock(&file->inode->lock);
+        block_dev_unlock(block_dev);
         goto retry;
     }
     virtq_desc_chain_push_buf(&chain, &header, sizeof(header), false);
     virtq_desc_chain_push_buf(&chain, buffer, count, device_writable);
     virtq_desc_chain_push_buf(&chain, &footer, sizeof(footer), true);
     rc = virtq_desc_chain_submit(&chain);
-    mutex_unlock(&file->inode->lock);
+    block_dev_unlock(block_dev);
     if (IS_ERR(rc))
         return rc;
 
@@ -72,37 +65,16 @@ retry:
     }
 }
 
-static ssize_t virtio_blk_do_io(struct file* file, void* buffer, size_t count,
-                                uint64_t offset, uint32_t type,
-                                bool device_writable) {
-    if (count % SECTOR_SIZE != 0)
-        return -EINVAL;
-
-    if (offset % SECTOR_SIZE != 0)
-        return -EINVAL;
-    uint64_t sector = offset >> SECTOR_SHIFT;
-
-    struct virtio_blk* blk = blk_from_inode(file->inode);
-    if (sector >= blk->capacity)
-        return 0;
-    count = MIN(count, (blk->capacity - sector) << SECTOR_SHIFT);
-
-    int rc = submit_request(file, buffer, count, sector, type, device_writable);
-    if (IS_ERR(rc))
-        return rc;
-
-    return count;
+static ssize_t virtio_blk_read(struct block_dev* block_dev, void* buffer,
+                               uint64_t index, uint64_t nblocks) {
+    return submit_request(block_dev, buffer, index, nblocks, VIRTIO_BLK_T_IN,
+                          true);
 }
 
-static ssize_t virtio_blk_pread(struct file* file, void* buffer, size_t count,
-                                uint64_t offset) {
-    return virtio_blk_do_io(file, buffer, count, offset, VIRTIO_BLK_T_IN, true);
-}
-
-static ssize_t virtio_blk_pwrite(struct file* file, const void* buffer,
-                                 size_t count, uint64_t offset) {
-    return virtio_blk_do_io(file, (void*)buffer, count, offset,
-                            VIRTIO_BLK_T_OUT, false);
+static ssize_t virtio_blk_write(struct block_dev* block_dev, const void* buffer,
+                                uint64_t index, uint64_t nblocks) {
+    return submit_request(block_dev, (void*)buffer, index, nblocks,
+                          VIRTIO_BLK_T_OUT, false);
 }
 
 static void init_device(const struct pci_addr* addr) {
@@ -125,8 +97,6 @@ static void init_device(const struct pci_addr* addr) {
         return;
     }
 
-    struct block_dev* block_dev = NULL;
-
     unsigned char* device_cfg_space = pci_map_bar(addr, device_cfg_cap.bar);
     if (IS_ERR(device_cfg_space))
         goto fail;
@@ -136,51 +106,39 @@ static void init_device(const struct pci_addr* addr) {
     uint64_t capacity = blk_config->capacity;
     phys_unmap(device_cfg_space);
 
-    size_t id = next_id++;
-    block_dev = kmalloc(sizeof(struct block_dev));
-    if (!block_dev)
-        goto fail;
-    *block_dev = (struct block_dev){
-        .name = "vd",
-    };
-    if (id < 26) {
-        block_dev->name[2] = 'a' + id;
-    } else {
-        block_dev->name[2] = 'a' + id / 26 - 1;
-        block_dev->name[3] = 'a' + id % 26;
-    }
-
     struct virtio_blk* blk = kmalloc(sizeof(struct virtio_blk));
     if (!blk)
         goto fail;
     *blk = (struct virtio_blk){
-        .vfs_inode = INODE_INIT,
+        .block_dev = BLOCK_DEV_INIT,
         .virtio = virtio,
-        .capacity = capacity,
     };
 
-    struct inode* inode = &blk->vfs_inode;
-    block_dev->inode = inode;
-    static const struct inode_ops iops = {
-        .destroy = virtio_blk_destroy,
+    size_t id = next_id++;
+    char name[8] = "vd";
+    if (id < 26) {
+        name[2] = 'a' + id;
+    } else {
+        name[2] = 'a' + id / 26 - 1;
+        name[3] = 'a' + id % 26;
+    }
+
+    static const struct block_ops bops = {
+        .read = virtio_blk_read,
+        .write = virtio_blk_write,
     };
-    static const struct file_ops fops = {
-        .pread = virtio_blk_pread,
-        .pwrite = virtio_blk_pwrite,
-    };
-    inode->iops = &iops;
-    inode->fops = &fops;
-    inode->mode = S_IFBLK;
-    inode->rdev = makedev(254, id);
-    inode->size = capacity << SECTOR_SHIFT;
-    inode->block_bits = SECTOR_SHIFT;
-    inode->blocks = capacity;
+
+    struct block_dev* block_dev = &blk->block_dev;
+    strlcpy(block_dev->name, name, sizeof(block_dev->name));
+    block_dev->dev = makedev(254, id);
+    block_dev->bops = &bops;
+    block_dev->block_bits = SECTOR_SHIFT;
+    block_dev->num_blocks = capacity;
 
     ASSERT_OK(block_dev_register(block_dev));
     return;
 
 fail:
-    kfree(block_dev);
     virtio_destroy(virtio);
 }
 
