@@ -175,17 +175,17 @@ struct inode* proc_root_lookup(struct inode* parent, const char* name) {
 
 int proc_root_getdents(struct file* file, getdents_callback_fn callback,
                        void* ctx) {
-    file_lock(file);
+    mutex_lock(&file->lock);
     if (file->offset < ARRAY_SIZE(entries)) {
         int rc =
             proc_getdents(file, callback, ctx, entries, ARRAY_SIZE(entries));
         if (IS_ERR(rc)) {
-            file_unlock(file);
+            mutex_unlock(&file->lock);
             return rc;
         }
     }
     if (file->offset < ARRAY_SIZE(entries)) {
-        file_unlock(file);
+        mutex_unlock(&file->lock);
         return 0;
     }
 
@@ -213,6 +213,6 @@ int proc_root_getdents(struct file* file, getdents_callback_fn callback,
     }
 
     spinlock_unlock(&all_tasks_lock);
-    file_unlock(file);
+    mutex_unlock(&file->lock);
     return 0;
 }

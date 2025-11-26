@@ -41,7 +41,7 @@ static struct inode* tmpfs_lookup(struct inode* vfs_parent, const char* name) {
     struct tmpfs_inode* parent =
         CONTAINER_OF(vfs_parent, struct tmpfs_inode, vfs_inode);
 
-    mutex_lock(&vfs_parent->lock);
+    inode_lock(vfs_parent);
 
     struct inode* inode = NULL;
     for (struct tmpfs_dentry* child = parent->children; child;
@@ -54,7 +54,7 @@ static struct inode* tmpfs_lookup(struct inode* vfs_parent, const char* name) {
         }
     }
 
-    mutex_unlock(&vfs_parent->lock);
+    inode_unlock(vfs_parent);
     inode_unref(vfs_parent);
 
     return inode ? inode : ERR_PTR(-ENOENT);
@@ -67,7 +67,7 @@ static int tmpfs_link(struct inode* vfs_parent, const char* name,
 
     int rc = 0;
     struct tmpfs_dentry* dentry = NULL;
-    mutex_lock(&vfs_parent->lock);
+    inode_lock(vfs_parent);
 
     struct tmpfs_dentry* prev = NULL;
     for (struct tmpfs_dentry* it = parent->children; it;) {
@@ -105,7 +105,7 @@ fail:
     slab_free(&tmpfs_dentry_slab, dentry);
     inode_unref(vfs_child);
 exit:
-    mutex_unlock(&vfs_parent->lock);
+    inode_unlock(vfs_parent);
     inode_unref(vfs_parent);
     return rc;
 }
@@ -115,7 +115,7 @@ static int tmpfs_unlink(struct inode* vfs_parent, const char* name) {
         CONTAINER_OF(vfs_parent, struct tmpfs_inode, vfs_inode);
 
     int rc = -ENOENT;
-    mutex_lock(&vfs_parent->lock);
+    inode_lock(vfs_parent);
 
     struct tmpfs_dentry* prev = NULL;
     struct tmpfs_dentry* dentry = parent->children;
@@ -136,7 +136,7 @@ static int tmpfs_unlink(struct inode* vfs_parent, const char* name) {
         rc = 0;
     }
 
-    mutex_unlock(&vfs_parent->lock);
+    inode_unlock(vfs_parent);
     inode_unref(vfs_parent);
     return rc;
 }
@@ -147,13 +147,13 @@ static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
     struct tmpfs_inode* inode =
         CONTAINER_OF(vfs_inode, struct tmpfs_inode, vfs_inode);
 
-    mutex_lock(&vfs_inode->lock);
+    inode_lock(vfs_inode);
 
     struct tmpfs_dentry* child = inode->children;
     if (!child)
         goto unlock_inode;
 
-    file_lock(file);
+    mutex_lock(&file->lock);
 
     for (uint64_t i = 0; i < file->offset; ++i) {
         child = child->next;
@@ -171,9 +171,9 @@ static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
     }
 
 unlock_file:
-    file_unlock(file);
+    mutex_unlock(&file->lock);
 unlock_inode:
-    mutex_unlock(&vfs_inode->lock);
+    inode_unlock(vfs_inode);
 
     return 0;
 }
@@ -199,8 +199,8 @@ static ssize_t tmpfs_pwrite(struct inode* inode, const void* buffer,
 }
 
 // Truncating is handled by invalidating the page cache, so nothing to do here.
-static int tmpfs_truncate(struct file* file, uint64_t length) {
-    (void)file;
+static int tmpfs_truncate(struct inode* inode, uint64_t length) {
+    (void)inode;
     (void)length;
     return 0;
 }
@@ -218,10 +218,9 @@ static const struct inode_ops file_iops = {
     .destroy = tmpfs_destroy,
     .pread = tmpfs_pread,
     .pwrite = tmpfs_pwrite,
-};
-static const struct file_ops file_fops = {
     .truncate = tmpfs_truncate,
 };
+static const struct file_ops file_fops = {0};
 
 struct tmpfs_mount {
     struct mount vfs_mount;

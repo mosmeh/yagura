@@ -96,7 +96,7 @@ ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    file_lock(file);
+    mutex_lock(&file->lock);
     ssize_t ret = 0;
     for (int i = 0; i < iovcnt; ++i) {
         struct iovec iov;
@@ -120,7 +120,7 @@ ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
         }
         ret += nread;
     }
-    file_unlock(file);
+    mutex_unlock(&file->lock);
     return ret;
 }
 
@@ -190,7 +190,7 @@ ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    file_lock(file);
+    mutex_lock(&file->lock);
     ssize_t ret = 0;
     for (int i = 0; i < iovcnt; ++i) {
         struct iovec iov;
@@ -214,7 +214,7 @@ ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
         }
         ret += nwritten;
     }
-    file_unlock(file);
+    mutex_unlock(&file->lock);
     return ret;
 }
 
@@ -1025,7 +1025,9 @@ int sys_fsync(int fd) {
     struct file* file = task_get_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    return file_sync(file, 0, UINT64_MAX);
+    struct inode* inode = file->inode;
+    inode_ref(inode);
+    return inode_sync(inode, 0, UINT64_MAX);
 }
 
 int sys_fdatasync(int fd) { return sys_fsync(fd); }
