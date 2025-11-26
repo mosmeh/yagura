@@ -54,11 +54,11 @@ const struct file_ops char_dev_fops = {
 };
 
 void block_dev_lock(struct block_dev* block_dev) {
-    mutex_lock(&block_dev->vfs_inode.lock);
+    inode_lock(&block_dev->vfs_inode);
 }
 
 void block_dev_unlock(struct block_dev* block_dev) {
-    mutex_unlock(&block_dev->vfs_inode.lock);
+    inode_unlock(&block_dev->vfs_inode);
 }
 
 static struct block_dev* block_dev_from_inode(struct inode* inode) {
@@ -106,7 +106,7 @@ static ssize_t bdev_pwrite(struct inode* inode, const void* buffer,
     return count;
 }
 
-static int bdev_fsync(struct inode* inode) {
+static int bdev_sync(struct inode* inode) {
     struct block_dev* block_dev = block_dev_from_inode(inode);
     if (block_dev->bops->flush)
         return block_dev->bops->flush(block_dev);
@@ -116,7 +116,7 @@ static int bdev_fsync(struct inode* inode) {
 static const struct inode_ops bdev_iops = {
     .pread = bdev_pread,
     .pwrite = bdev_pwrite,
-    .fsync = bdev_fsync,
+    .sync = bdev_sync,
 };
 static const struct file_ops bdev_fops = {0};
 

@@ -1,4 +1,5 @@
 #include "fs.h"
+#include "private.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/limits.h>
@@ -31,11 +32,9 @@ void pipe_init(void) {
     ASSERT_OK(pipe_mount);
 }
 
-static void pipe_lock(struct pipe* pipe) { mutex_lock(&pipe->vfs_inode.lock); }
+static void pipe_lock(struct pipe* pipe) { inode_lock(&pipe->vfs_inode); }
 
-static void pipe_unlock(struct pipe* pipe) {
-    mutex_unlock(&pipe->vfs_inode.lock);
-}
+static void pipe_unlock(struct pipe* pipe) { inode_unlock(&pipe->vfs_inode); }
 
 static struct pipe* pipe_from_inode(struct inode* inode) {
     return CONTAINER_OF(inode, struct pipe, vfs_inode);

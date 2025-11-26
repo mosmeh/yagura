@@ -60,11 +60,11 @@ static struct unix_socket* unix_socket_from_file(struct file* file) {
 }
 
 static void socket_lock(struct unix_socket* socket) {
-    mutex_lock(&socket->vfs_inode.lock);
+    inode_lock(&socket->vfs_inode);
 }
 
 static void socket_unlock(struct unix_socket* socket) {
-    mutex_unlock(&socket->vfs_inode.lock);
+    inode_unlock(&socket->vfs_inode);
 }
 
 static void unix_socket_destroy(struct inode* inode) {

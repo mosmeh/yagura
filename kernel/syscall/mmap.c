@@ -161,13 +161,13 @@ static int sync(struct vm_region* region, size_t offset, size_t npages,
                 void* ctx) {
     (void)ctx;
     struct vm_obj* obj = region->obj;
-    if (!obj || obj->vm_ops != &file_vm_ops)
+    if (!obj || obj->vm_ops != &inode_vm_ops)
         return 0;
 
-    struct file* file = CONTAINER_OF(obj, struct file, vm_obj);
+    struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
     uint64_t byte_offset = ((uint64_t)region->offset + offset) << PAGE_SHIFT;
     uint64_t nbytes = (uint64_t)npages << PAGE_SHIFT;
-    int ret = file_sync(file, byte_offset, nbytes);
+    int ret = inode_sync(inode, byte_offset, nbytes);
     return ret;
 }
 

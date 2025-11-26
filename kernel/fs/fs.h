@@ -19,17 +19,17 @@ typedef struct multiboot_mod_list multiboot_module_t;
 
 void fs_init(const multiboot_module_t* initrd_mod);
 
-extern const struct vm_ops file_vm_ops;
-
 // Open file description
 struct file {
-    struct vm_obj vm_obj;
     struct inode* inode;
     const struct file_ops* fops;
     struct filemap* filemap;
     atomic_int flags;
     uint64_t offset;
     void* private_data;
+
+    struct mutex lock;
+    atomic_size_t ref_count;
 };
 
 typedef bool (*getdents_callback_fn)(const char* name, ino_t,
@@ -41,12 +41,10 @@ struct file_ops {
     ssize_t (*pread)(struct file*, void* buffer, size_t count, uint64_t offset);
     ssize_t (*pwrite)(struct file*, const void* buffer, size_t count,
                       uint64_t offset);
-    int (*truncate)(struct file*, uint64_t length);
     int (*ioctl)(struct file*, int request, void* user_argp);
     int (*getdents)(struct file*, getdents_callback_fn, void* ctx);
     short (*poll)(struct file*, short events);
     struct vm_obj* (*mmap)(struct file*);
-    int (*fsync)(struct file*);
 };
 
 static inline unsigned mode_to_dirent_type(mode_t mode) {
@@ -69,19 +67,22 @@ static inline unsigned mode_to_dirent_type(mode_t mode) {
     UNREACHABLE();
 }
 
+extern const struct vm_ops inode_vm_ops;
+
 // inode is fully initialized and ready to be used
 #define INODE_READY 0x1
 
 // inode has been modified since the last writeback
 #define INODE_DIRTY 0x2
 
-#define INODE_INIT {.ref_count = 1}
+#define INODE_INIT {.vm_obj = {.vm_ops = &inode_vm_ops, .ref_count = 1}}
 
 struct inode {
+    struct vm_obj vm_obj;
     struct mount* mount;
     const struct inode_ops* iops;
     const struct file_ops* fops;
-    struct filemap* filemap;
+    struct filemap* filemap; // Page cache
 
     ino_t ino;
     mode_t mode;
@@ -95,8 +96,6 @@ struct inode {
     atomic_uint flags; // INODE_*
 
     struct inode* next; // mount->inodes
-    struct mutex lock;
-    atomic_size_t ref_count;
 };
 
 struct inode_ops {
@@ -111,16 +110,24 @@ struct inode_ops {
     ssize_t (*pwrite)(struct inode*, const void* buffer, size_t count,
                       uint64_t offset);
 
-    int (*fsync)(struct inode*);
+    int (*truncate)(struct inode*, uint64_t length);
+    int (*sync)(struct inode*);
 };
 
 void inode_ref(struct inode*);
 void inode_unref(struct inode*);
 
+void inode_lock(struct inode*);
+void inode_unlock(struct inode*);
+
 NODISCARD struct inode* inode_lookup(struct inode* parent, const char* name);
 NODISCARD int inode_link(struct inode* parent, const char* name,
                          struct inode* child);
 NODISCARD int inode_unlink(struct inode* parent, const char* name);
+
+NODISCARD int inode_truncate(struct inode*, uint64_t length);
+NODISCARD int inode_sync(struct inode*, uint64_t offset, uint64_t nbytes);
+
 NODISCARD struct file* inode_open(struct inode*, int flags);
 
 struct kstat {
@@ -141,12 +148,6 @@ struct kstat {
 };
 
 NODISCARD int inode_stat(struct inode*, struct kstat* buf);
-
-// Page cache
-struct filemap {
-    struct inode* inode;
-    struct page* pages;
-};
 
 struct mount {
     const struct file_system* fs;
@@ -179,9 +180,6 @@ NODISCARD int mount_sync(struct mount*);
 void file_ref(struct file*);
 void file_unref(struct file*);
 
-void file_lock(struct file*);
-void file_unlock(struct file*);
-
 NODISCARD ssize_t file_read(struct file*, void* buffer, size_t count);
 NODISCARD ssize_t file_pread(struct file*, void* buffer, size_t count,
                              uint64_t offset);
@@ -196,7 +194,6 @@ NODISCARD loff_t file_seek(struct file*, loff_t offset, int whence);
 NODISCARD int file_ioctl(struct file*, int request, void* user_argp);
 NODISCARD int file_getdents(struct file*, getdents_callback_fn, void* ctx);
 NODISCARD short file_poll(struct file*, short events);
-NODISCARD int file_sync(struct file*, uint64_t offset, uint64_t nbytes);
 
 NODISCARD struct vm_obj* file_mmap(struct file*);
 
@@ -258,5 +255,3 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
 NODISCARD int vfs_sync(void);
 
 struct inode* pipe_create(void);
-
-extern const struct file_ops pipe_fops;

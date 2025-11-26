@@ -153,7 +153,7 @@ struct inode* proc_lookup(struct inode* parent, const char* name,
 
 int proc_getdents(struct file* file, getdents_callback_fn callback, void* ctx,
                   const struct proc_entry* entries, size_t num_entries) {
-    file_lock(file);
+    mutex_lock(&file->lock);
     ino_t parent_ino = file->inode->ino;
     for (size_t i = file->offset; i < num_entries; ++i) {
         const struct proc_entry* entry = &entries[i];
@@ -162,7 +162,7 @@ int proc_getdents(struct file* file, getdents_callback_fn callback, void* ctx,
             break;
         ++file->offset;
     }
-    file_unlock(file);
+    mutex_unlock(&file->lock);
     return 0;
 }
 
