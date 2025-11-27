@@ -5,6 +5,7 @@
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/containers/vec.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
@@ -52,6 +53,7 @@ const struct file_system* file_system_find(const char* name) {
 }
 
 struct mount_point {
+    struct path* path;
     struct inode* host;
     struct mount* guest;
     struct mount_point* next;
@@ -125,26 +127,28 @@ int vfs_mount_at(const struct file_system* fs, const struct path* base,
     if (IS_ERR(target_path))
         return PTR_ERR(target_path);
 
-    struct inode* host = path_into_inode(target_path);
+    struct inode* host = target_path->inode;
     if (!S_ISDIR(host->mode)) {
-        inode_unref(host);
+        path_destroy_recursive(target_path);
         return -ENOTDIR;
     }
 
     struct mount_point* mp = kmalloc(sizeof(struct mount_point));
     if (!mp) {
-        inode_unref(host);
+        path_destroy_recursive(target_path);
         return -ENOMEM;
     }
 
     struct mount* mount = file_system_mount(fs, source);
     if (IS_ERR(mount)) {
-        inode_unref(host);
         kfree(mp);
+        path_destroy_recursive(target_path);
         return PTR_ERR(mount);
     }
     ASSERT(mount->root);
 
+    mp->path = target_path;
+    inode_ref(host);
     mp->host = host;
     mp->guest = mount;
 
@@ -154,6 +158,24 @@ int vfs_mount_at(const struct file_system* fs, const struct path* base,
     mutex_unlock(&mount_lock);
 
     return 0;
+}
+
+int proc_print_mounts(struct file* file, struct vec* vec) {
+    (void)file;
+    int rc = 0;
+    mutex_lock(&mount_lock);
+    for (struct mount_point* it = mount_points; it; it = it->next) {
+        const struct file_system* fs = it->guest->fs;
+        char* path = path_to_string(it->path);
+        if (!path) {
+            rc = -ENOMEM;
+            break;
+        }
+        vec_printf(vec, "%s %s %s rw 0 0\n", fs->name, path, fs->name);
+        kfree(path);
+    }
+    mutex_unlock(&mount_lock);
+    return rc;
 }
 
 static bool is_absolute_path(const char* path) {
