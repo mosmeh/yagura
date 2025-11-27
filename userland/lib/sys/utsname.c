@@ -1,4 +1,6 @@
 #include "utsname.h"
 #include <private.h>
 
-int uname(struct utsname* buf) { RETURN_WITH_ERRNO(int, SYSCALL1(uname, buf)); }
+int uname(struct utsname* buf) {
+    return __syscall_return(SYSCALL1(uname, buf));
+}

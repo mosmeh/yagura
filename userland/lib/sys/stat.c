@@ -1,4 +1,6 @@
 #include "stat.h"
+#include <err.h>
+#include <errno.h>
 #include <private.h>
 #include <unistd.h>
 
@@ -55,7 +57,7 @@ int fstat(int fd, struct stat* buf) {
 }
 
 int mkdir(const char* pathname, mode_t mode) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(mkdir, pathname, mode));
+    return __syscall_return(SYSCALL2(mkdir, pathname, mode));
 }
 
 int mkfifo(const char* pathname, mode_t mode) {

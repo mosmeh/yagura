@@ -1,4 +1,5 @@
 #include "sched.h"
+#include "errno.h"
 #include <private.h>
 #include <stdarg.h>
 #include <sys/types.h>
@@ -18,12 +19,12 @@ int clone(int (*fn)(void*), void* stack, int flags, void* arg, ...) {
         tls = va_arg(ap, void*);
     va_end(ap);
 
-    RETURN_WITH_ERRNO(int,
+    return __syscall_return(
                       __clone(fn, stack, flags, arg, parent_tid, tls, NULL));
 }
 
-int sched_yield(void) { RETURN_WITH_ERRNO(int, SYSCALL0(sched_yield)); }
+int sched_yield(void) { return __syscall_return(SYSCALL0(sched_yield)); }
 
 int getcpu(unsigned int* cpu, unsigned int* node) {
-    RETURN_WITH_ERRNO(int, SYSCALL3(getcpu, cpu, node, NULL));
+    return __syscall_return(SYSCALL3(getcpu, cpu, node, NULL));
 }

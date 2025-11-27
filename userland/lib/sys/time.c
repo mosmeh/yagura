@@ -1,4 +1,6 @@
 #include "time.h"
+#include <err.h>
+#include <errno.h>
 #include <private.h>
 
 int gettimeofday(struct timeval* tv, struct timezone* tz) {
@@ -20,5 +22,5 @@ int settimeofday(const struct timeval* tv, const struct timezone* tz) {
         .tv_sec = tv->tv_sec,
         .tv_usec = tv->tv_usec,
     };
-    RETURN_WITH_ERRNO(int, SYSCALL2(settimeofday, &linux_tv, NULL));
+    return __syscall_return(SYSCALL2(settimeofday, &linux_tv, NULL));
 }

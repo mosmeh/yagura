@@ -1,7 +1,7 @@
 #pragma once
 
-#include "errno.h"
-#include <err.h>
+#include <stdatomic.h>
+#include <stddef.h>
 #include <sys/types.h>
 #include <syscall.h>
 
@@ -32,15 +32,7 @@ int syscall(int num, int, int, int, int, int, int);
     syscall(SYS_##name, (int)(arg1), (int)(arg2), (int)(arg3), (int)(arg4),    \
             (int)(arg5), (int)(arg6))
 
-#define RETURN_WITH_ERRNO(type, rc)                                            \
-    do {                                                                       \
-        int __rc = (rc);                                                       \
-        if (IS_ERR(__rc)) {                                                    \
-            errno = -__rc;                                                     \
-            return (type)(-1);                                                 \
-        }                                                                      \
-        return (type)__rc;                                                     \
-    } while (0)
+uintptr_t __syscall_return(uintptr_t rc);
 
 int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
             pid_t* parent_tid, void* tls, pid_t* child_tid);

@@ -66,5 +66,5 @@ int remove(const char* pathname) {
 }
 
 int dbgprint(const char* str) {
-    RETURN_WITH_ERRNO(int, SYSCALL1(dbgprint, str));
+    return __syscall_return(SYSCALL1(dbgprint, str));
 }

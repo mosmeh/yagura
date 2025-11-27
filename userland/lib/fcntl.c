@@ -10,11 +10,11 @@ int open(const char* pathname, int flags, ...) {
         mode = va_arg(args, unsigned);
         va_end(args);
     }
-    RETURN_WITH_ERRNO(int, SYSCALL3(open, pathname, flags, mode));
+    return __syscall_return(SYSCALL3(open, pathname, flags, mode));
 }
 
 int creat(const char* pathname, mode_t mode) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(creat, pathname, mode));
+    return __syscall_return(SYSCALL2(creat, pathname, mode));
 }
 
 int fcntl(int fd, int cmd, ...) {
@@ -22,7 +22,7 @@ int fcntl(int fd, int cmd, ...) {
     va_start(args, cmd);
     int arg = va_arg(args, int);
     va_end(args);
-    RETURN_WITH_ERRNO(int, SYSCALL3(fcntl, fd, cmd, arg));
+    return __syscall_return(SYSCALL3(fcntl, fd, cmd, arg));
 }
 
 int fcntl64(int fd, int cmd, ...) {
@@ -30,5 +30,5 @@ int fcntl64(int fd, int cmd, ...) {
     va_start(args, cmd);
     int arg = va_arg(args, int);
     va_end(args);
-    RETURN_WITH_ERRNO(int, SYSCALL3(fcntl64, fd, cmd, arg));
+    return __syscall_return(SYSCALL3(fcntl64, fd, cmd, arg));
 }
