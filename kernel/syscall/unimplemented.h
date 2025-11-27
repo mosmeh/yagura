@@ -90,7 +90,6 @@
     F(capset)                                                                  \
     F(sigaltstack)                                                             \
     F(sendfile)                                                                \
-    F(vfork)                                                                   \
     F(ugetrlimit)                                                              \
     F(lchown32)                                                                \
     F(setreuid32)                                                              \

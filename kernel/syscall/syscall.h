@@ -103,6 +103,7 @@
     F(pread64, sys_ia32_pread64, 0)                                            \
     F(pwrite64, sys_ia32_pwrite64, 0)                                          \
     F(getcwd, sys_getcwd, 0)                                                   \
+    F(vfork, sys_vfork, SYSCALL_RAW_REGISTERS)                                 \
     F(mmap2, sys_mmap_pgoff, 0)                                                \
     F(truncate64, sys_ia32_truncate64, 0)                                      \
     F(ftruncate64, sys_ia32_ftruncate64, 0)                                    \
@@ -255,6 +256,7 @@ ssize_t sys_ia32_pread64(int fd, void* buf, size_t count, uint32_t pos_lo,
 ssize_t sys_ia32_pwrite64(int fd, const void* buf, size_t count,
                           uint32_t pos_lo, uint32_t pos_hi);
 int sys_getcwd(char* buf, size_t size);
+pid_t sys_vfork(struct registers*);
 void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
                      unsigned long pgoff);
 int sys_ia32_truncate64(const char* path, unsigned long offset_low,

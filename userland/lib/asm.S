@@ -71,6 +71,23 @@ child:
     int $SYSCALL_VECTOR   // exit(fn(arg))
     ud2
 
+// int __syscall_return(int rc);
+    .hidden __syscall_return
+    .type __syscall_return, @function
+
+// pid_t vfork(void);
+    .globl vfork
+    .type vfork, @function
+vfork:
+    popl %edx // save return address
+    movl $SYS_vfork, %eax
+    int $SYSCALL_VECTOR
+    pushl %edx
+    pushl %eax
+    call __syscall_return
+    popl %eax
+    ret
+
 // void __sa_restorer(void);
     .globl __sa_restorer
     .hidden __sa_restorer

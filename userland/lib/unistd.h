@@ -14,6 +14,7 @@ pid_t getpgid(pid_t pid);
 pid_t getpgrp(void);
 
 pid_t fork(void);
+pid_t vfork(void);
 int execve(const char* pathname, char* const argv[], char* const envp[]);
 int execvpe(const char* file, char* const argv[], char* const envp[]);
 
