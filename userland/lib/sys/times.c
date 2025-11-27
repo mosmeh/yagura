@@ -2,5 +2,5 @@
 #include <private.h>
 
 clock_t times(struct tms* buf) {
-    RETURN_WITH_ERRNO(clock_t, SYSCALL1(times, buf));
+    return __syscall_return(SYSCALL1(times, buf));
 }

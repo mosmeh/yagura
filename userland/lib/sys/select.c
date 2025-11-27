@@ -15,5 +15,5 @@ int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
         timeout->tv_sec = linux_timeout.tv_sec;
         timeout->tv_usec = linux_timeout.tv_usec;
     }
-    RETURN_WITH_ERRNO(int, rc);
+    return __syscall_return(rc);
 }

@@ -9,5 +9,5 @@ int prctl(int op, ...) {
     for (int i = 0; i < 4; ++i)
         x[i] = va_arg(ap, unsigned long);
     va_end(ap);
-    RETURN_WITH_ERRNO(int, SYSCALL5(prctl, op, x[0], x[1], x[2], x[3]));
+    return __syscall_return(SYSCALL5(prctl, op, x[0], x[1], x[2], x[3]));
 }

@@ -1,9 +1,10 @@
 #include "signal.h"
+#include "errno.h"
 #include <private.h>
 #include <unistd.h>
 
 int kill(pid_t pid, int sig) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(kill, pid, sig));
+    return __syscall_return(SYSCALL2(kill, pid, sig));
 }
 
 int raise(int sig) { return kill(gettid(), sig); }
@@ -26,19 +27,19 @@ int sigaction(int signum, const struct sigaction* act,
     struct sigaction sa = *act;
     sa.sa_flags |= SA_RESTORER;
     sa.sa_restorer = __sa_restorer;
-    RETURN_WITH_ERRNO(int, SYSCALL3(sigaction, signum, &sa, oldact));
+    return __syscall_return(SYSCALL3(sigaction, signum, &sa, oldact));
 }
 
 int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
-    RETURN_WITH_ERRNO(int, SYSCALL3(sigprocmask, how, set, oldset));
+    return __syscall_return(SYSCALL3(sigprocmask, how, set, oldset));
 }
 
 int sigsuspend(const sigset_t* mask) {
-    RETURN_WITH_ERRNO(int, SYSCALL1(sigsuspend, mask));
+    return __syscall_return(SYSCALL1(sigsuspend, mask));
 }
 
 int sigpending(sigset_t* set) {
-    RETURN_WITH_ERRNO(int, SYSCALL1(sigpending, set));
+    return __syscall_return(SYSCALL1(sigpending, set));
 }
 
 int sigemptyset(sigset_t* set) {

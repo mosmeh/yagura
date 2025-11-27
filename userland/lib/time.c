@@ -4,6 +4,7 @@
 #include "sys/auxv.h"
 #include "sys/times.h"
 #include <calendar.h>
+#include <err.h>
 
 clock_t clock(void) {
     struct tms tms;
@@ -81,19 +82,19 @@ char* asctime_r(const struct tm* time_ptr, char* buf) {
 }
 
 int nanosleep(const struct timespec* req, struct timespec* rem) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(nanosleep, req, rem));
+    return __syscall_return(SYSCALL2(nanosleep, req, rem));
 }
 
 int clock_gettime(clockid_t clockid, struct timespec* tp) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(clock_gettime64, clockid, tp));
+    return __syscall_return(SYSCALL2(clock_gettime64, clockid, tp));
 }
 
 int clock_settime(clockid_t clockid, const struct timespec* tp) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(clock_settime64, clockid, tp));
+    return __syscall_return(SYSCALL2(clock_settime64, clockid, tp));
 }
 
 int clock_getres(clockid_t clockid, struct timespec* res) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(clock_getres_time64, clockid, res));
+    return __syscall_return(SYSCALL2(clock_getres_time64, clockid, res));
 }
 
 int clock_nanosleep(clockid_t clockid, int flags,

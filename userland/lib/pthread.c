@@ -1,4 +1,5 @@
 #include "pthread.h"
+#include "errno.h"
 #include "panic.h"
 #include "private.h"
 #include "sched.h"
@@ -6,6 +7,7 @@
 #include "string.h"
 #include "sys/auxv.h"
 #include <asm/ldt.h>
+#include <err.h>
 
 #define PTHREAD_RETURN(rc)                                                     \
     do {                                                                       \

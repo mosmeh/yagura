@@ -1,4 +1,5 @@
 #include "unistd.h"
+#include "errno.h"
 #include "fcntl.h"
 #include "panic.h"
 #include "stdio.h"
@@ -9,29 +10,30 @@
 #include "sys/reboot.h"
 #include "sys/utsname.h"
 #include "time.h"
+#include <err.h>
 #include <private.h>
 #include <sys/limits.h>
 
 char** environ;
 
-pid_t getpid(void) { RETURN_WITH_ERRNO(pid_t, SYSCALL0(getpid)); }
+pid_t getpid(void) { return __syscall_return(SYSCALL0(getpid)); }
 
-pid_t getppid(void) { RETURN_WITH_ERRNO(pid_t, SYSCALL0(getppid)); }
+pid_t getppid(void) { return __syscall_return(SYSCALL0(getppid)); }
 
-pid_t gettid(void) { RETURN_WITH_ERRNO(pid_t, SYSCALL0(gettid)); }
+pid_t gettid(void) { return __syscall_return(SYSCALL0(gettid)); }
 
 int setpgid(pid_t pid, pid_t pgid) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(setpgid, pid, pgid));
+    return __syscall_return(SYSCALL2(setpgid, pid, pgid));
 }
 
-pid_t getpgid(pid_t pid) { RETURN_WITH_ERRNO(pid_t, SYSCALL1(getpgid, pid)); }
+pid_t getpgid(pid_t pid) { return __syscall_return(SYSCALL1(getpgid, pid)); }
 
-pid_t getpgrp(void) { RETURN_WITH_ERRNO(pid_t, SYSCALL0(getpgrp)); }
+pid_t getpgrp(void) { return __syscall_return(SYSCALL0(getpgrp)); }
 
-pid_t fork(void) { RETURN_WITH_ERRNO(pid_t, SYSCALL0(fork)); }
+pid_t fork(void) { return __syscall_return(SYSCALL0(fork)); }
 
 int execve(const char* pathname, char* const argv[], char* const envp[]) {
-    RETURN_WITH_ERRNO(int, SYSCALL3(execve, pathname, argv, envp));
+    return __syscall_return(SYSCALL3(execve, pathname, argv, envp));
 }
 
 int execvpe(const char* file, char* const argv[], char* const envp[]) {
@@ -68,99 +70,99 @@ int execvpe(const char* file, char* const argv[], char* const envp[]) {
     return -1;
 }
 
-uid_t getuid(void) { RETURN_WITH_ERRNO(uid_t, SYSCALL0(getuid32)); }
+uid_t getuid(void) { return __syscall_return(SYSCALL0(getuid32)); }
 
-uid_t geteuid(void) { RETURN_WITH_ERRNO(uid_t, SYSCALL0(geteuid32)); }
+uid_t geteuid(void) { return __syscall_return(SYSCALL0(geteuid32)); }
 
-gid_t getgid(void) { RETURN_WITH_ERRNO(gid_t, SYSCALL0(getgid32)); }
+gid_t getgid(void) { return __syscall_return(SYSCALL0(getgid32)); }
 
-gid_t getegid(void) { RETURN_WITH_ERRNO(gid_t, SYSCALL0(getegid32)); }
+gid_t getegid(void) { return __syscall_return(SYSCALL0(getegid32)); }
 
 int access(const char* pathname, int mode) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(access, pathname, mode));
+    return __syscall_return(SYSCALL2(access, pathname, mode));
 }
 
-int close(int fd) { RETURN_WITH_ERRNO(int, SYSCALL1(close, fd)); }
+int close(int fd) { return __syscall_return(SYSCALL1(close, fd)); }
 
 ssize_t read(int fd, void* buf, size_t count) {
-    RETURN_WITH_ERRNO(ssize_t, SYSCALL3(read, fd, buf, count));
+    return __syscall_return(SYSCALL3(read, fd, buf, count));
 }
 
 ssize_t write(int fd, const void* buf, size_t count) {
-    RETURN_WITH_ERRNO(ssize_t, SYSCALL3(write, fd, buf, count));
+    return __syscall_return(SYSCALL3(write, fd, buf, count));
 }
 
 ssize_t pread(int fd, void* buf, size_t count, off_t offset) {
-    RETURN_WITH_ERRNO(ssize_t, SYSCALL5(pread64, fd, buf, count, offset, 0));
+    return __syscall_return(SYSCALL5(pread64, fd, buf, count, offset, 0));
 }
 
 ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
-    RETURN_WITH_ERRNO(ssize_t, SYSCALL5(pwrite64, fd, buf, count, offset, 0));
+    return __syscall_return(SYSCALL5(pwrite64, fd, buf, count, offset, 0));
 }
 
 int truncate(const char* path, off_t length) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(truncate, path, length));
+    return __syscall_return(SYSCALL2(truncate, path, length));
 }
 
 int ftruncate(int fd, off_t length) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(ftruncate, fd, length));
+    return __syscall_return(SYSCALL2(ftruncate, fd, length));
 }
 
 off_t lseek(int fd, off_t offset, int whence) {
-    RETURN_WITH_ERRNO(off_t, SYSCALL3(lseek, fd, offset, whence));
+    return __syscall_return(SYSCALL3(lseek, fd, offset, whence));
 }
 
 int mknod(const char* pathname, mode_t mode, dev_t dev) {
-    RETURN_WITH_ERRNO(int, SYSCALL3(mknod, pathname, mode, dev));
+    return __syscall_return(SYSCALL3(mknod, pathname, mode, dev));
 }
 
 int link(const char* oldpath, const char* newpath) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(link, oldpath, newpath));
+    return __syscall_return(SYSCALL2(link, oldpath, newpath));
 }
 
 int symlink(const char* target, const char* linkpath) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(symlink, target, linkpath));
+    return __syscall_return(SYSCALL2(symlink, target, linkpath));
 }
 
 int unlink(const char* pathname) {
-    RETURN_WITH_ERRNO(int, SYSCALL1(unlink, pathname));
+    return __syscall_return(SYSCALL1(unlink, pathname));
 }
 
 ssize_t readlink(const char* pathname, char* buf, size_t bufsiz) {
-    RETURN_WITH_ERRNO(ssize_t, SYSCALL3(readlink, pathname, buf, bufsiz));
+    return __syscall_return(SYSCALL3(readlink, pathname, buf, bufsiz));
 }
 
 int rename(const char* oldpath, const char* newpath) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(rename, oldpath, newpath));
+    return __syscall_return(SYSCALL2(rename, oldpath, newpath));
 }
 
 int rmdir(const char* pathname) {
-    RETURN_WITH_ERRNO(int, SYSCALL1(rmdir, pathname));
+    return __syscall_return(SYSCALL1(rmdir, pathname));
 }
 
 int dup(int oldfd) { return fcntl(oldfd, F_DUPFD); }
 
 int dup2(int oldfd, int newfd) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(dup2, oldfd, newfd));
+    return __syscall_return(SYSCALL2(dup2, oldfd, newfd));
 }
 
 int dup3(int oldfd, int newfd, int flags) {
-    RETURN_WITH_ERRNO(int, SYSCALL3(dup3, oldfd, newfd, flags));
+    return __syscall_return(SYSCALL3(dup3, oldfd, newfd, flags));
 }
 
-int pipe(int pipefd[2]) { RETURN_WITH_ERRNO(int, SYSCALL1(pipe, pipefd)); }
+int pipe(int pipefd[2]) { return __syscall_return(SYSCALL1(pipe, pipefd)); }
 
 int pipe2(int pipefd[2], int flags) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(pipe2, pipefd, flags));
+    return __syscall_return(SYSCALL2(pipe2, pipefd, flags));
 }
 
 void sync(void) { SYSCALL0(sync); }
 
-int syncfs(int fd) { RETURN_WITH_ERRNO(int, SYSCALL1(syncfs, fd)); }
+int syncfs(int fd) { return __syscall_return(SYSCALL1(syncfs, fd)); }
 
-int fsync(int fd) { RETURN_WITH_ERRNO(int, SYSCALL1(fsync, fd)); }
+int fsync(int fd) { return __syscall_return(SYSCALL1(fsync, fd)); }
 
-int fdatasync(int fd) { RETURN_WITH_ERRNO(int, SYSCALL1(fdatasync, fd)); }
+int fdatasync(int fd) { return __syscall_return(SYSCALL1(fdatasync, fd)); }
 
 char* getcwd(char* buf, size_t size) {
     int rc = SYSCALL2(getcwd, buf, size);
@@ -171,7 +173,7 @@ char* getcwd(char* buf, size_t size) {
     return buf;
 }
 
-int chdir(const char* path) { RETURN_WITH_ERRNO(int, SYSCALL1(chdir, path)); }
+int chdir(const char* path) { return __syscall_return(SYSCALL1(chdir, path)); }
 
 pid_t tcgetpgrp(int fd) { return ioctl(fd, TIOCGPGRP, NULL); }
 
@@ -193,7 +195,7 @@ int usleep(useconds_t usec) {
     return nanosleep(&req, NULL);
 }
 
-int pause(void) { RETURN_WITH_ERRNO(int, SYSCALL0(pause)); }
+int pause(void) { return __syscall_return(SYSCALL0(pause)); }
 
 int gethostname(char* name, size_t len) {
     struct utsname buf;
@@ -204,7 +206,7 @@ int gethostname(char* name, size_t len) {
 }
 
 int sethostname(const char* name, size_t len) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(sethostname, name, len));
+    return __syscall_return(SYSCALL2(sethostname, name, len));
 }
 
 int getdomainname(char* name, size_t len) {
@@ -216,12 +218,12 @@ int getdomainname(char* name, size_t len) {
 }
 
 int setdomainname(const char* name, size_t len) {
-    RETURN_WITH_ERRNO(int, SYSCALL2(setdomainname, name, len));
+    return __syscall_return(SYSCALL2(setdomainname, name, len));
 }
 
 int reboot(int howto) {
-    RETURN_WITH_ERRNO(int, SYSCALL4(reboot, LINUX_REBOOT_MAGIC1,
-                                    LINUX_REBOOT_MAGIC2, howto, NULL));
+    return __syscall_return(SYSCALL4(reboot, LINUX_REBOOT_MAGIC1,
+                                     LINUX_REBOOT_MAGIC2, howto, NULL));
 }
 
 long sysconf(int name) {
