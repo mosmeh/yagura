@@ -1,13 +1,10 @@
 #pragma once
 
 #include <kernel/fs/fs.h>
-
-struct vec;
+#include <kernel/fs/private.h>
 
 #define PROC_ROOT_INO 1
 #define PROC_PID_INO_SHIFT 10
-
-typedef int (*proc_print_fn)(struct file*, struct vec*);
 
 struct proc_entry {
     const char* name;
