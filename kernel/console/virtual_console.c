@@ -16,7 +16,7 @@ struct virtual_console {
 };
 
 static struct virtual_console* consoles[6];
-static struct virtual_console* active_console;
+static _Atomic(struct virtual_console*) active_console;
 
 static void emit_str(const char* s) {
     tty_emit(&active_console->tty, s, strlen(s));
@@ -57,9 +57,11 @@ static void on_key_event(const struct key_event* event) {
     case KEYCODE_F5:
     case KEYCODE_F6:
         if ((event->modifiers & CTRL_ALT) == CTRL_ALT) {
-            active_console = consoles[event->keycode - KEYCODE_F1];
-            vt_invalidate_all(active_console->vt);
-            vt_flush(active_console->vt);
+            struct virtual_console* console =
+                consoles[event->keycode - KEYCODE_F1];
+            vt_invalidate_all(console->vt);
+            vt_flush(console->vt);
+            active_console = console;
             return;
         }
         break;
@@ -111,6 +113,12 @@ static struct virtual_console* virtual_console_create(uint8_t tty_num,
     return console;
 }
 
+static int tty0_open(struct file* file) {
+    file->private_data = &active_console->tty;
+    file->fops = &tty_fops;
+    return 0;
+}
+
 void virtual_console_init(struct screen* screen) {
     for (size_t i = 0; i < ARRAY_SIZE(consoles); ++i) {
         uint8_t tty_num = i + 1;
@@ -120,6 +128,16 @@ void virtual_console_init(struct screen* screen) {
         consoles[i] = console;
     }
     active_console = consoles[0];
+
+    static const struct file_ops tty0_fops = {
+        .open = tty0_open,
+    };
+    static struct char_dev tty0_char_dev = {
+        .name = "tty0",
+        .dev = makedev(TTY_MAJOR, 0),
+        .fops = &tty0_fops,
+    };
+    ASSERT_OK(char_dev_register(&tty0_char_dev));
 
     ps2_set_key_event_handler(on_key_event);
 }
