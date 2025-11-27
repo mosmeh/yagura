@@ -12,6 +12,9 @@
 // Set if signal handlers and blocked signals shared
 #define CLONE_SIGHAND 0x00000800
 
+// Set if the parent wants the child to wake it up on mm_release
+#define CLONE_VFORK 0x00004000
+
 // Set to add to same thread group.
 #define CLONE_THREAD 0x00010000
 

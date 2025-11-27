@@ -146,6 +146,16 @@ pid_t sys_fork(struct registers* regs) {
     return sys_clone(regs, SIGCHLD, NULL, NULL, NULL, NULL);
 }
 
+pid_t sys_vfork(struct registers* regs) {
+    return sys_clone(regs, CLONE_VM | CLONE_VFORK | SIGCHLD, NULL, NULL, NULL,
+                     NULL);
+}
+
+static bool unblock_vfork(void* ctx) {
+    struct task* task = ctx;
+    return task->state == TASK_DEAD;
+}
+
 int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
               pid_t* user_parent_tid, pid_t* user_child_tid, void* user_tls) {
     (void)user_child_tid;
@@ -303,7 +313,18 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
 
     ++task->thread_group->num_running;
 
+    if (flags & CLONE_VFORK)
+        task_ref(task); // ensure task struct is alive during vfork wait
+
     sched_register(task);
+
+    if (flags & CLONE_VFORK) {
+        rc = sched_block(unblock_vfork, task, TASK_UNINTERRUPTIBLE);
+        task_unref(task);
+        if (IS_ERR(rc))
+            return rc;
+    }
+
     return tid;
 
 fail:
