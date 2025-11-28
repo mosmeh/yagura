@@ -1,6 +1,7 @@
 #pragma once
 
 #include "memory.h"
+#include <kernel/resource.h>
 
 // Region may be read
 #define VM_READ 0x1
@@ -29,11 +30,13 @@ struct vm_obj {
     struct vm_region* shared_regions; // Regions mapping this obj with VM_SHARED
     unsigned flags;                   // VM_* flags applied to all regions
     struct mutex lock;
-    atomic_size_t ref_count;
+    refcount_t refcount;
 };
 
-void vm_obj_ref(struct vm_obj*);
+struct vm_obj* vm_obj_ref(struct vm_obj*);
 void vm_obj_unref(struct vm_obj*);
+
+DEFINE_FREE(vm_obj, struct vm_obj*, vm_obj_unref)
 
 // Maps the given vm_obj into kernel virtual address space.
 // Returns the virtual address.
@@ -53,13 +56,15 @@ struct vm_obj* phys_create(uintptr_t phys_addr, size_t npages);
 void* phys_map(uintptr_t phys_addr, size_t size, unsigned vm_flags);
 void phys_unmap(void*);
 
+DEFINE_FREE(phys, void*, phys_unmap)
+
 struct vm {
     size_t start; // Start virtual address >> PAGE_SHIFT (inclusive)
     size_t end;   // End virtual address >> PAGE_SHIFT (exclusive)
     struct page_directory* page_directory;
     struct vm_region* regions;
     struct mutex lock;
-    atomic_size_t ref_count;
+    refcount_t refcount;
 };
 
 struct vm_region {
@@ -78,7 +83,7 @@ struct vm_region {
 extern struct vm* kernel_vm;
 
 struct vm* vm_create(void* start, void* end);
-void vm_ref(struct vm*);
+struct vm* vm_ref(struct vm*);
 void vm_unref(struct vm*);
 
 struct vm* vm_get_current(void);

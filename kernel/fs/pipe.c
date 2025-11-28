@@ -107,6 +107,7 @@ static int pipe_open(struct file* file) {
         rc = file_block(file, unblock_open, 0);
         if (rc == -EAGAIN && (file->flags & O_ACCMODE) == O_WRONLY) {
             rc = -ENXIO;
+            file->private_data = NULL;
             goto fail;
         }
     }
@@ -255,7 +256,6 @@ struct inode* pipe_create(void) {
     inode->fops = &pipe_fops;
     inode->mode = S_IFIFO;
 
-    inode_ref(inode);
     rc = mount_commit_inode(pipe_mount, inode);
     if (IS_ERR(rc)) {
         inode_unref(inode);

@@ -21,7 +21,7 @@ static struct fs* fs_create(void) {
     struct fs* fs = kmalloc(sizeof(struct fs));
     if (!fs)
         return ERR_PTR(-ENOMEM);
-    *fs = (struct fs){.ref_count = 1};
+    *fs = (struct fs){.refcount = REFCOUNT_INIT_ONE};
     fs->cwd = vfs_get_root();
     if (IS_ERR(fs->cwd)) {
         kfree(fs);
@@ -34,7 +34,7 @@ struct fs* fs_clone(struct fs* fs) {
     struct fs* new_fs = kmalloc(sizeof(struct fs));
     if (!new_fs)
         return ERR_PTR(-ENOMEM);
-    *new_fs = (struct fs){.ref_count = 1};
+    *new_fs = (struct fs){.refcount = REFCOUNT_INIT_ONE};
     mutex_lock(&fs->lock);
     new_fs->cwd = path_dup(fs->cwd);
     mutex_unlock(&fs->lock);
@@ -45,16 +45,16 @@ struct fs* fs_clone(struct fs* fs) {
     return new_fs;
 }
 
-void fs_ref(struct fs* fs) {
+struct fs* fs_ref(struct fs* fs) {
     ASSERT(fs);
-    ASSERT(fs->ref_count++ > 0);
+    refcount_inc(&fs->refcount);
+    return fs;
 }
 
 void fs_unref(struct fs* fs) {
     if (!fs)
         return;
-    ASSERT(fs->ref_count > 0);
-    if (--fs->ref_count > 0)
+    if (refcount_dec(&fs->refcount))
         return;
     path_destroy_recursive(fs->cwd);
     kfree(fs);
@@ -64,7 +64,7 @@ static struct files* files_create(void) {
     struct files* files = kmalloc(sizeof(struct files));
     if (!files)
         return ERR_PTR(-ENOMEM);
-    *files = (struct files){.ref_count = 1};
+    *files = (struct files){.refcount = REFCOUNT_INIT_ONE};
     return files;
 }
 
@@ -84,16 +84,16 @@ struct files* files_clone(struct files* files) {
     return new_files;
 }
 
-void files_ref(struct files* files) {
+struct files* files_ref(struct files* files) {
     ASSERT(files);
-    ASSERT(files->ref_count++ > 0);
+    refcount_inc(&files->refcount);
+    return files;
 }
 
 void files_unref(struct files* files) {
     if (!files)
         return;
-    ASSERT(files->ref_count > 0);
-    if (--files->ref_count > 0)
+    if (refcount_dec(&files->refcount))
         return;
     for (size_t i = 0; i < OPEN_MAX; ++i) {
         if (files->entries[i]) {
@@ -108,7 +108,7 @@ static struct sighand* sighand_create(void) {
     struct sighand* sighand = kmalloc(sizeof(struct sighand));
     if (!sighand)
         return ERR_PTR(-ENOMEM);
-    *sighand = (struct sighand){.ref_count = 1};
+    *sighand = (struct sighand){.refcount = REFCOUNT_INIT_ONE};
     return sighand;
 }
 
@@ -122,16 +122,16 @@ struct sighand* sighand_clone(struct sighand* sighand) {
     return new_sighand;
 }
 
-void sighand_ref(struct sighand* sighand) {
+struct sighand* sighand_ref(struct sighand* sighand) {
     ASSERT(sighand);
-    ASSERT(sighand->ref_count++ > 0);
+    refcount_inc(&sighand->refcount);
+    return sighand;
 }
 
 void sighand_unref(struct sighand* sighand) {
     if (!sighand)
         return;
-    ASSERT(sighand->ref_count > 0);
-    if (--sighand->ref_count > 0)
+    if (refcount_dec(&sighand->refcount))
         return;
     kfree(sighand);
 }
@@ -140,20 +140,20 @@ struct thread_group* thread_group_create(void) {
     struct thread_group* tg = kmalloc(sizeof(struct thread_group));
     if (!tg)
         return ERR_PTR(-ENOMEM);
-    *tg = (struct thread_group){.ref_count = 1};
+    *tg = (struct thread_group){.refcount = REFCOUNT_INIT_ONE};
     return tg;
 }
 
-void thread_group_ref(struct thread_group* tg) {
+struct thread_group* thread_group_ref(struct thread_group* tg) {
     ASSERT(tg);
-    ASSERT(tg->ref_count++ > 0);
+    refcount_inc(&tg->refcount);
+    return tg;
 }
 
 void thread_group_unref(struct thread_group* tg) {
     if (!tg)
         return;
-    ASSERT(tg->ref_count > 0);
-    if (--tg->ref_count > 0)
+    if (refcount_dec(&tg->refcount))
         return;
     kfree(tg);
 }
@@ -178,7 +178,7 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
         kaligned_alloc(alignof(struct task), sizeof(struct task));
     if (!task)
         return ERR_PTR(-ENOMEM);
-    *task = (struct task){.ref_count = 1};
+    *task = (struct task){.refcount = REFCOUNT_INIT_ONE};
 
     task->fpu_state = initial_fpu_state;
     task->state = TASK_RUNNING;
@@ -272,16 +272,16 @@ struct task* task_spawn(const char* comm, void (*entry_point)(void)) {
     return task;
 }
 
-void task_ref(struct task* task) {
+struct task* task_ref(struct task* task) {
     ASSERT(task);
-    ASSERT(task->ref_count++ > 0);
+    refcount_inc(&task->refcount);
+    return task;
 }
 
 void task_unref(struct task* task) {
     if (!task)
         return;
-    ASSERT(task->ref_count > 0);
-    if (--task->ref_count > 0)
+    if (refcount_dec(&task->refcount))
         return;
 
     if (task->tid == 0) {
@@ -377,7 +377,7 @@ void task_crash(int signum) {
     do_exit_thread_group(signum);
 }
 
-int task_alloc_file_descriptor(int fd, struct file* file) {
+int task_alloc_fd(int fd, struct file* file) {
     if (fd >= OPEN_MAX)
         return -EBADF;
 
@@ -386,11 +386,8 @@ int task_alloc_file_descriptor(int fd, struct file* file) {
 
     if (fd >= 0) {
         struct file** entry = current->files->entries + fd;
-        if (*entry) {
-            ret = -EEXIST;
-            goto done;
-        }
-        *entry = file;
+        file_unref(*entry);
+        *entry = file_ref(file);
         ret = fd;
         goto done;
     }
@@ -400,7 +397,7 @@ int task_alloc_file_descriptor(int fd, struct file* file) {
     for (int i = 0; i < OPEN_MAX; ++i, ++it) {
         if (*it)
             continue;
-        *it = file;
+        *it = file_ref(file);
         ret = i;
         goto done;
     }
@@ -410,7 +407,7 @@ done:
     return ret;
 }
 
-int task_free_file_descriptor(int fd) {
+int task_free_fd(int fd) {
     if (fd < 0 || OPEN_MAX <= fd)
         return -EBADF;
 
@@ -420,17 +417,20 @@ int task_free_file_descriptor(int fd) {
         mutex_unlock(&current->files->lock);
         return -EBADF;
     }
+    file_unref(*file);
     *file = NULL;
     mutex_unlock(&current->files->lock);
     return 0;
 }
 
-struct file* task_get_file(int fd) {
+struct file* task_ref_file(int fd) {
     if (fd < 0 || OPEN_MAX <= fd)
         return ERR_PTR(-EBADF);
 
     mutex_lock(&current->files->lock);
     struct file* file = current->files->entries[fd];
+    if (file)
+        file_ref(file);
     mutex_unlock(&current->files->lock);
     if (!file)
         return ERR_PTR(-EBADF);

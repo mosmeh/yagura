@@ -28,10 +28,9 @@ int sys_access(const char* user_pathname, int mode) {
     int rc = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(rc))
         return rc;
-    struct path* path = vfs_resolve_path(pathname, 0);
+    struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
     if (IS_ERR(path))
         return PTR_ERR(path);
-    path_destroy_recursive(path);
     return 0;
 }
 
@@ -41,33 +40,25 @@ int sys_open(const char* user_pathname, int flags, unsigned mode) {
     if (IS_ERR(rc))
         return rc;
 
-    struct file* file = vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
+    struct file* file FREE(file) =
+        vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
     if (PTR_ERR(file) == -EINTR)
         return -ERESTARTSYS;
     if (IS_ERR(file))
         return PTR_ERR(file);
-    rc = task_alloc_file_descriptor(-1, file);
-    if (IS_ERR(rc))
-        file_unref(file);
-    return rc;
+    return task_alloc_fd(-1, file);
 }
 
 int sys_creat(const char* user_pathname, mode_t mode) {
     return sys_open(user_pathname, O_CREAT | O_WRONLY | O_TRUNC, mode);
 }
 
-int sys_close(int fd) {
-    struct file* file = task_get_file(fd);
-    if (IS_ERR(file))
-        return PTR_ERR(file);
-    file_unref(file);
-    return task_free_file_descriptor(fd);
-}
+int sys_close(int fd) { return task_free_fd(fd); }
 
 ssize_t sys_read(int fd, void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     int rc = file_read(file, user_buf, count);
@@ -80,7 +71,7 @@ ssize_t sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
                          uint32_t pos_hi) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
@@ -93,7 +84,7 @@ ssize_t sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
 ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     mutex_lock(&file->lock);
@@ -130,18 +121,14 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
     if (IS_ERR(rc))
         return rc;
 
-    struct path* path =
+    struct path* path FREE(path) =
         vfs_resolve_path(pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
     if (IS_ERR(path))
         return PTR_ERR(path);
-
-    struct inode* inode = path_into_inode(path);
-    if (!S_ISLNK(inode->mode)) {
-        inode_unref(inode);
+    if (!S_ISLNK(path->inode->mode))
         return -EINVAL;
-    }
 
-    struct file* file = inode_open(inode, O_RDONLY);
+    struct file* file FREE(file) = inode_open(path->inode, O_RDONLY);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -149,7 +136,6 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
 
     char buf[SYMLINK_MAX];
     ssize_t nread = file_read_to_end(file, buf, bufsiz);
-    file_unref(file);
     if (IS_ERR(nread))
         return nread;
 
@@ -161,7 +147,7 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
 ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     int rc = file_write(file, user_buf, count);
@@ -174,7 +160,7 @@ ssize_t sys_ia32_pwrite64(int fd, const void* buf, size_t count,
                           uint32_t pos_lo, uint32_t pos_hi) {
     if (!buf || !is_user_range(buf, count))
         return -EFAULT;
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
@@ -187,7 +173,7 @@ ssize_t sys_ia32_pwrite64(int fd, const void* buf, size_t count,
 ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     mutex_lock(&file->lock);
@@ -223,16 +209,14 @@ NODISCARD static int truncate(const char* user_path, uint64_t length) {
     int rc = copy_pathname_from_user(path, user_path);
     if (IS_ERR(rc))
         return rc;
-    struct file* file = vfs_open(path, O_WRONLY, 0);
+    struct file* file FREE(file) = vfs_open(path, O_WRONLY, 0);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    rc = file_truncate(file, length);
-    file_unref(file);
-    return rc;
+    return file_truncate(file, length);
 }
 
 NODISCARD static int ftruncate(int fd, uint64_t length) {
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_truncate(file, length);
@@ -255,7 +239,7 @@ int sys_ia32_ftruncate64(int fd, unsigned long offset_low,
 }
 
 off_t sys_lseek(int fd, off_t offset, int whence) {
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_seek(file, offset, whence);
@@ -264,7 +248,7 @@ off_t sys_lseek(int fd, off_t offset, int whence) {
 int sys_llseek(unsigned int fd, unsigned long offset_high,
                unsigned long offset_low, loff_t* user_result,
                unsigned int whence) {
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     loff_t offset = ((loff_t)offset_high << 32) | offset_low;
@@ -299,10 +283,9 @@ NODISCARD static int lstat(const char* user_pathname, struct kstat* buf) {
 }
 
 NODISCARD static int fstat(int fd, struct kstat* buf) {
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    inode_ref(file->inode);
     return inode_stat(file->inode, buf);
 }
 
@@ -473,12 +456,11 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
     if (IS_ERR(rc))
         return rc;
 
-    struct file* file =
+    struct file* file FREE(file) =
         vfs_open(linkpath, O_CREAT | O_EXCL | O_WRONLY, S_IFLNK);
     if (IS_ERR(file))
         return PTR_ERR(file);
     rc = file_write_all(file, target, target_len);
-    file_unref(file);
     if (IS_ERR(rc))
         return rc;
     return 0;
@@ -487,7 +469,7 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
 int sys_ioctl(int fd, int request, void* user_argp) {
     if (!is_user_address(user_argp))
         return -EFAULT;
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     int rc = file_ioctl(file, request, user_argp);
@@ -501,10 +483,10 @@ int sys_mkdir(const char* user_pathname, mode_t mode) {
     int rc = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(rc))
         return rc;
-    struct inode* inode = vfs_create(pathname, (mode & 0777) | S_IFDIR);
+    struct inode* inode FREE(inode) =
+        vfs_create(pathname, (mode & 0777) | S_IFDIR);
     if (IS_ERR(inode))
         return PTR_ERR(inode);
-    inode_unref(inode);
     return 0;
 }
 
@@ -525,11 +507,10 @@ int sys_mknod(const char* user_pathname, mode_t mode, dev_t dev) {
     if (IS_ERR(rc))
         return rc;
 
-    struct inode* inode = vfs_create(pathname, mode);
+    struct inode* inode FREE(inode) = vfs_create(pathname, mode);
     if (IS_ERR(inode))
         return PTR_ERR(inode);
     inode->rdev = dev;
-    inode_unref(inode);
     return 0;
 }
 
@@ -578,37 +559,23 @@ int sys_link(const char* user_oldpath, const char* user_newpath) {
     if (IS_ERR(rc))
         return rc;
 
-    struct path* old_path = vfs_resolve_path(old_pathname, 0);
+    struct path* old_path FREE(path) = vfs_resolve_path(old_pathname, 0);
     if (IS_ERR(old_path))
         return PTR_ERR(old_path);
-    if (S_ISDIR(old_path->inode->mode)) {
-        path_destroy_recursive(old_path);
+    if (S_ISDIR(old_path->inode->mode))
         return -EPERM;
-    }
 
-    struct path* new_path = vfs_resolve_path(new_pathname, O_ALLOW_NOENT);
-    if (IS_ERR(new_path)) {
-        path_destroy_recursive(old_path);
+    struct path* new_path FREE(path) =
+        vfs_resolve_path(new_pathname, O_ALLOW_NOENT);
+    if (IS_ERR(new_path))
         return PTR_ERR(new_path);
-    }
-    if (new_path->inode) {
-        rc = -EEXIST;
-        goto done;
-    }
-    if (!new_path->parent) {
-        rc = -EPERM;
-        goto done;
-    }
+    if (new_path->inode)
+        return -EEXIST;
+    if (!new_path->parent)
+        return -EPERM;
 
-    inode_ref(new_path->parent->inode);
-    inode_ref(old_path->inode);
-    rc = inode_link(new_path->parent->inode, new_path->basename,
-                    old_path->inode);
-
-done:
-    path_destroy_recursive(new_path);
-    path_destroy_recursive(old_path);
-    return rc;
+    return inode_link(new_path->parent->inode, new_path->basename,
+                      old_path->inode);
 }
 
 int sys_unlink(const char* user_pathname) {
@@ -617,18 +584,13 @@ int sys_unlink(const char* user_pathname) {
     if (IS_ERR(rc))
         return rc;
 
-    struct path* path = vfs_resolve_path(pathname, 0);
+    struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
     if (IS_ERR(path))
         return PTR_ERR(path);
-    if (!path->parent || S_ISDIR(path->inode->mode)) {
-        path_destroy_recursive(path);
+    if (!path->parent || S_ISDIR(path->inode->mode))
         return -EPERM;
-    }
 
-    inode_ref(path->parent->inode);
-    rc = inode_unlink(path->parent->inode, path->basename);
-    path_destroy_recursive(path);
-    return rc;
+    return inode_unlink(path->parent->inode, path->basename);
 }
 
 static bool set_has_children(const char* name, ino_t ino, unsigned char type,
@@ -643,13 +605,12 @@ static bool set_has_children(const char* name, ino_t ino, unsigned char type,
 static int ensure_empty_directory(struct inode* inode) {
     ASSERT(S_ISDIR(inode->mode));
 
-    struct file* file = inode_open(inode, O_RDONLY);
+    struct file* file FREE(file) = inode_open(inode, O_RDONLY);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
     bool has_children = false;
     int rc = file_getdents(file, set_has_children, &has_children);
-    file_unref(file);
     if (IS_ERR(rc))
         return rc;
 
@@ -666,59 +627,42 @@ int sys_rename(const char* user_oldpath, const char* user_newpath) {
     if (IS_ERR(rc))
         return rc;
 
-    struct path* old_path = vfs_resolve_path(old_pathname, 0);
+    struct path* old_path FREE(path) = vfs_resolve_path(old_pathname, 0);
     if (IS_ERR(old_path))
         return PTR_ERR(old_path);
-    if (!old_path->parent) {
-        path_destroy_recursive(old_path);
+    if (!old_path->parent)
         return -EPERM;
-    }
 
-    struct path* new_path = vfs_resolve_path(new_pathname, O_ALLOW_NOENT);
-    if (IS_ERR(new_path)) {
-        path_destroy_recursive(old_path);
+    struct path* new_path FREE(path) =
+        vfs_resolve_path(new_pathname, O_ALLOW_NOENT);
+    if (IS_ERR(new_path))
         return PTR_ERR(new_path);
-    }
-    if (!new_path->parent) {
-        rc = -EPERM;
-        goto done;
-    }
+    if (!new_path->parent)
+        return -EPERM;
 
     if (new_path->inode) {
         if (new_path->inode == old_path->inode)
-            goto done;
+            return 0;
 
         if (S_ISDIR(new_path->inode->mode)) {
-            if (!S_ISDIR(old_path->inode->mode)) {
-                rc = -EISDIR;
-                goto done;
-            }
-            inode_ref(new_path->inode);
+            if (!S_ISDIR(old_path->inode->mode))
+                return -EISDIR;
             rc = ensure_empty_directory(new_path->inode);
             if (IS_ERR(rc))
-                goto done;
+                return rc;
         }
 
-        inode_ref(new_path->parent->inode);
         rc = inode_unlink(new_path->parent->inode, new_path->basename);
         if (IS_ERR(rc))
-            goto done;
+            return rc;
     }
 
-    inode_ref(new_path->parent->inode);
-    inode_ref(old_path->inode);
     rc = inode_link(new_path->parent->inode, new_path->basename,
                     old_path->inode);
     if (IS_ERR(rc))
-        goto done;
+        return rc;
 
-    inode_ref(old_path->parent->inode);
-    rc = inode_unlink(old_path->parent->inode, old_path->basename);
-
-done:
-    path_destroy_recursive(new_path);
-    path_destroy_recursive(old_path);
-    return rc;
+    return inode_unlink(old_path->parent->inode, old_path->basename);
 }
 
 int sys_rmdir(const char* user_pathname) {
@@ -727,27 +671,17 @@ int sys_rmdir(const char* user_pathname) {
     if (IS_ERR(rc))
         return rc;
 
-    struct path* path = vfs_resolve_path(pathname, 0);
+    struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
     if (IS_ERR(path))
         return PTR_ERR(path);
-    if (!path->parent) {
-        path_destroy_recursive(path);
+    if (!path->parent)
         return -EPERM;
-    }
-    if (!S_ISDIR(path->inode->mode)) {
-        path_destroy_recursive(path);
+    if (!S_ISDIR(path->inode->mode))
         return -ENOTDIR;
-    }
-    inode_ref(path->inode);
     rc = ensure_empty_directory(path->inode);
-    if (IS_ERR(rc)) {
-        path_destroy_recursive(path);
+    if (IS_ERR(rc))
         return rc;
-    }
-    inode_ref(path->parent->inode);
-    rc = inode_unlink(path->parent->inode, path->basename);
-    path_destroy_recursive(path);
-    return rc;
+    return inode_unlink(path->parent->inode, path->basename);
 }
 
 typedef ssize_t (*fill_dir_fn)(void* user_buf, size_t buf_size,
@@ -784,7 +718,7 @@ static bool getdents_callback(const char* name, ino_t ino, unsigned char type,
 
 NODISCARD static ssize_t getdents(int fd, void* user_buf, size_t count,
                                   fill_dir_fn fill_dir) {
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -890,17 +824,12 @@ ssize_t sys_getdents64(int fd, struct linux_dirent* user_dirp, size_t count) {
 }
 
 int sys_fcntl(int fd, int cmd, unsigned long arg) {
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     switch (cmd) {
-    case F_DUPFD: {
-        int ret = task_alloc_file_descriptor(-1, file);
-        if (IS_ERR(ret))
-            return ret;
-        file_ref(file);
-        return ret;
-    }
+    case F_DUPFD:
+        return task_alloc_fd(-1, file);
     case F_GETFL:
         return file->flags;
     case F_SETFL:
@@ -916,14 +845,10 @@ int sys_fcntl64(int fd, int cmd, unsigned long arg) {
 }
 
 int sys_dup(int oldfd) {
-    struct file* file = task_get_file(oldfd);
+    struct file* file FREE(file) = task_ref_file(oldfd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    int new_fd = task_alloc_file_descriptor(-1, file);
-    if (IS_ERR(new_fd))
-        return new_fd;
-    file_ref(file);
-    return new_fd;
+    return task_alloc_fd(-1, file);
 }
 
 int sys_dup2(int oldfd, int newfd) { return sys_dup3(oldfd, newfd, 0); }
@@ -931,23 +856,12 @@ int sys_dup2(int oldfd, int newfd) { return sys_dup3(oldfd, newfd, 0); }
 int sys_dup3(int oldfd, int newfd, int flags) {
     (void)flags;
 
-    struct file* oldfd_file = task_get_file(oldfd);
+    struct file* oldfd_file FREE(file) = task_ref_file(oldfd);
     if (IS_ERR(oldfd_file))
         return PTR_ERR(oldfd_file);
     if (oldfd == newfd)
         return oldfd;
-    struct file* newfd_file = task_get_file(newfd);
-    if (IS_OK(newfd_file)) {
-        file_unref(newfd_file);
-        int rc = task_free_file_descriptor(newfd);
-        if (IS_ERR(rc))
-            return rc;
-    }
-    int ret = task_alloc_file_descriptor(newfd, oldfd_file);
-    if (IS_ERR(ret))
-        return ret;
-    file_ref(oldfd_file);
-    return ret;
+    return task_alloc_fd(newfd, oldfd_file);
 }
 
 int sys_pipe(int user_pipefd[2]) { return sys_pipe2(user_pipefd, 0); }
@@ -956,56 +870,36 @@ int sys_pipe2(int user_pipefd[2], int flags) {
     if (flags & O_ACCMODE)
         return -EINVAL;
 
-    struct inode* pipe = pipe_create();
+    struct inode* pipe FREE(inode) = pipe_create();
     if (IS_ERR(pipe))
         return PTR_ERR(pipe);
 
-    inode_ref(pipe);
-    struct file* reader_file = inode_open(pipe, flags | O_RDONLY);
-    if (IS_ERR(reader_file)) {
-        inode_unref(pipe);
+    struct file* reader_file FREE(file) = inode_open(pipe, flags | O_RDONLY);
+    if (IS_ERR(reader_file))
         return PTR_ERR(reader_file);
-    }
 
-    struct file* writer_file = inode_open(pipe, flags | O_WRONLY);
-    if (IS_ERR(writer_file)) {
-        file_unref(reader_file);
+    struct file* writer_file FREE(file) = inode_open(pipe, flags | O_WRONLY);
+    if (IS_ERR(writer_file))
         return PTR_ERR(writer_file);
-    }
 
-    int rc = 0;
-    int writer_fd = -1;
+    int reader_fd = task_alloc_fd(-1, reader_file);
+    if (IS_ERR(reader_fd))
+        return reader_fd;
 
-    int reader_fd = task_alloc_file_descriptor(-1, reader_file);
-    if (IS_ERR(reader_fd)) {
-        rc = reader_fd;
-        goto fail;
-    }
-
-    writer_fd = task_alloc_file_descriptor(-1, writer_file);
+    int writer_fd = task_alloc_fd(-1, writer_file);
     if (IS_ERR(writer_fd)) {
-        rc = writer_fd;
-        goto fail;
+        task_free_fd(reader_fd);
+        return writer_fd;
     }
 
     int fds[2] = {reader_fd, writer_fd};
     if (copy_to_user(user_pipefd, fds, sizeof(int[2]))) {
-        rc = -EFAULT;
-        goto fail;
+        task_free_fd(writer_fd);
+        task_free_fd(reader_fd);
+        return -EFAULT;
     }
 
-    ASSERT(IS_OK(rc));
     return 0;
-
-fail:
-    ASSERT(IS_ERR(rc));
-    if (IS_OK(reader_fd))
-        task_free_file_descriptor(reader_fd);
-    if (IS_OK(writer_fd))
-        task_free_file_descriptor(writer_fd);
-    file_unref(reader_file);
-    file_unref(writer_file);
-    return rc;
 }
 
 int sys_sync(void) {
@@ -1015,19 +909,17 @@ int sys_sync(void) {
 }
 
 int sys_syncfs(int fd) {
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
     return mount_sync(file->inode->mount);
 }
 
 int sys_fsync(int fd) {
-    struct file* file = task_get_file(fd);
+    struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(file))
         return PTR_ERR(file);
-    struct inode* inode = file->inode;
-    inode_ref(inode);
-    return inode_sync(inode, 0, UINT64_MAX);
+    return inode_sync(file->inode, 0, UINT64_MAX);
 }
 
 int sys_fdatasync(int fd) { return sys_fsync(fd); }

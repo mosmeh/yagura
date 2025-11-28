@@ -38,53 +38,51 @@ char* path_to_string(const struct path* path) {
 struct path* path_dup(const struct path* path) {
     if (!path)
         return NULL;
+
+    char* basename FREE(kfree) = NULL;
+    if (path->basename) {
+        basename = kstrdup(path->basename);
+        if (!basename)
+            return ERR_PTR(-ENOMEM);
+    }
+
+    struct path* parent FREE(path) = path_dup(path->parent);
+    if (IS_ERR(parent))
+        return parent;
+
     struct path* new_path = kmalloc(sizeof(struct path));
     if (!new_path)
         return ERR_PTR(-ENOMEM);
-    *new_path = (struct path){0};
-    if (path->basename) {
-        new_path->basename = kstrdup(path->basename);
-        if (!new_path->basename) {
-            kfree(new_path);
-            return ERR_PTR(-ENOMEM);
-        }
-    }
-    new_path->parent = path_dup(path->parent);
-    if (IS_ERR(new_path->parent)) {
-        kfree(new_path->basename);
-        kfree(new_path);
-        return new_path->parent;
-    }
-    new_path->inode = path->inode;
-    inode_ref(new_path->inode);
+    *new_path = (struct path){
+        .inode = inode_ref(path->inode),
+        .basename = TAKE_PTR(basename),
+        .parent = TAKE_PTR(parent),
+    };
     return new_path;
 }
 
 struct path* path_join(struct path* parent, struct inode* inode,
                        const char* basename) {
-    struct path* path = kmalloc(sizeof(struct path));
-    if (!path) {
-        inode_unref(inode);
-        return ERR_PTR(-ENOMEM);
-    }
-    path->basename = kstrdup(basename);
-    if (!path->basename) {
-        kfree(path);
-        inode_unref(inode);
-        return ERR_PTR(-ENOMEM);
-    }
-    path->inode = inode;
-    path->parent = parent;
-    return path;
-}
+    struct path* dup_parent FREE(path) = path_dup(parent);
+    if (IS_ERR(dup_parent))
+        return dup_parent;
 
-struct inode* path_into_inode(struct path* path) {
+    char* dup_basename FREE(kfree) = kstrdup(basename);
+    if (!basename)
+        return ERR_PTR(-ENOMEM);
+
+    struct path* path = kmalloc(sizeof(struct path));
     if (!path)
-        return NULL;
-    struct inode* inode = path->inode;
-    path->inode = NULL;
-    path_destroy_recursive(path);
-    return inode;
+        return ERR_PTR(-ENOMEM);
+
+    if (inode)
+        inode_ref(inode);
+    *path = (struct path){
+        .inode = inode,
+        .basename = TAKE_PTR(dup_basename),
+        .parent = TAKE_PTR(dup_parent),
+    };
+    return path;
 }
 
 void path_destroy_last(struct path* path) {

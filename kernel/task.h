@@ -54,37 +54,37 @@ struct task {
     struct task* ready_queue_next;
 
     struct mutex lock;
-    atomic_size_t ref_count;
+    refcount_t refcount;
 };
 
 struct fs {
     struct path* cwd;
     struct mutex lock;
-    atomic_size_t ref_count;
+    refcount_t refcount;
 };
 
 struct fs* fs_clone(struct fs*);
-void fs_ref(struct fs*);
+struct fs* fs_ref(struct fs*);
 void fs_unref(struct fs*);
 
 struct files {
     struct file* entries[OPEN_MAX];
     struct mutex lock;
-    atomic_size_t ref_count;
+    refcount_t refcount;
 };
 
 struct files* files_clone(struct files*);
-void files_ref(struct files*);
+struct files* files_ref(struct files*);
 void files_unref(struct files*);
 
 struct sighand {
     struct sigaction actions[NSIG - 1];
     struct spinlock lock;
-    atomic_size_t ref_count;
+    refcount_t refcount;
 };
 
 struct sighand* sighand_clone(struct sighand*);
-void sighand_ref(struct sighand*);
+struct sighand* sighand_ref(struct sighand*);
 void sighand_unref(struct sighand*);
 
 struct sigcontext {
@@ -94,11 +94,11 @@ struct sigcontext {
 
 struct thread_group {
     atomic_size_t num_running;
-    atomic_size_t ref_count;
+    refcount_t refcount;
 };
 
 struct thread_group* thread_group_create(void);
-void thread_group_ref(struct thread_group*);
+struct thread_group* thread_group_ref(struct thread_group*);
 void thread_group_unref(struct thread_group*);
 
 extern struct task* all_tasks;
@@ -113,8 +113,10 @@ struct task* task_get_current(void);
 struct task* task_create(const char* comm, void (*entry_point)(void));
 struct task* task_spawn(const char* comm, void (*entry_point)(void));
 
-void task_ref(struct task*);
+struct task* task_ref(struct task*);
 void task_unref(struct task*);
+
+DEFINE_FREE(task, struct task*, task_unref)
 
 pid_t task_generate_next_tid(void);
 struct task* task_find_by_tid(pid_t);
@@ -128,11 +130,14 @@ int task_user_execve(const char* pathname, const char* const* user_argv,
 int task_kernel_execve(const char* pathname, const char* const* argv,
                        const char* const* envp);
 
-// if fd < 0, allocates lowest-numbered file descriptor that was unused
-NODISCARD int task_alloc_file_descriptor(int fd, struct file*);
+// If fd >= 0, allocates given file descriptor. If it is already used,
+// replacing and freeing the old file.
+// If fd < 0, allocates lowest-numbered file descriptor that was unused.
+NODISCARD int task_alloc_fd(int fd, struct file*);
 
-int task_free_file_descriptor(int fd);
-struct file* task_get_file(int fd);
+struct file* task_ref_file(int fd);
+
+int task_free_fd(int fd);
 
 // Send to all tasks with tid > 1. pid_t argument is ignored.
 #define SIGNAL_DEST_ALL_USER_TASKS 0x1

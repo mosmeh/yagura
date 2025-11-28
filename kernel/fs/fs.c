@@ -21,9 +21,10 @@ void fs_init(const multiboot_module_t* initrd_mod) {
     pipe_init();
 }
 
-void inode_ref(struct inode* inode) {
+struct inode* inode_ref(struct inode* inode) {
     ASSERT(inode);
     vm_obj_ref(&inode->vm_obj);
+    return inode;
 }
 
 void inode_unref(struct inode* inode) {
@@ -66,46 +67,30 @@ const struct vm_ops inode_vm_ops = {
 };
 
 struct inode* inode_lookup(struct inode* parent, const char* name) {
-    if (!parent->iops->lookup || !S_ISDIR(parent->mode)) {
-        inode_unref(parent);
+    if (!parent->iops->lookup || !S_ISDIR(parent->mode))
         return ERR_PTR(-ENOTDIR);
-    }
     return parent->iops->lookup(parent, name);
 }
 
 int inode_link(struct inode* parent, const char* name, struct inode* child) {
-    int rc = 0;
-    if (!parent->iops->link || !S_ISDIR(parent->mode)) {
-        rc = -ENOTDIR;
-        goto fail;
-    }
-    if (parent->mount != child->mount) {
-        rc = -EXDEV;
-        goto fail;
-    }
+    if (!parent->iops->link || !S_ISDIR(parent->mode))
+        return -ENOTDIR;
+    if (parent->mount != child->mount)
+        return -EXDEV;
     return parent->iops->link(parent, name, child);
-
-fail:
-    inode_unref(parent);
-    inode_unref(child);
-    return rc;
 }
 
 int inode_unlink(struct inode* parent, const char* name) {
-    if (!parent->iops->unlink || !S_ISDIR(parent->mode)) {
-        inode_unref(parent);
+    if (!parent->iops->unlink || !S_ISDIR(parent->mode))
         return -ENOTDIR;
-    }
     return parent->iops->unlink(parent, name);
 }
 
 int inode_sync(struct inode* inode, uint64_t offset, uint64_t nbytes) {
-    int rc = 0;
     if (nbytes == 0)
-        goto exit;
-
+        return 0;
     if (!(inode->flags & INODE_DIRTY))
-        goto exit;
+        return 0;
 
     size_t start = offset >> PAGE_SHIFT;
     size_t end = DIV_CEIL(offset + nbytes, PAGE_SIZE);
@@ -115,44 +100,35 @@ int inode_sync(struct inode* inode, uint64_t offset, uint64_t nbytes) {
     }
 
     inode_lock(inode);
-    rc = filemap_sync(inode->filemap, start, end);
+    int rc = filemap_sync(inode->filemap, start, end);
     inode_unlock(inode);
-
-exit:
-    inode_unref(inode);
     return rc;
 }
 
 int inode_truncate(struct inode* inode, uint64_t length) {
-    int rc = 0;
-    if (!inode->iops->truncate) {
-        rc = -EINVAL;
-        goto exit;
-    }
-    if (S_ISDIR(inode->mode)) {
-        rc = -EISDIR;
-        goto exit;
-    }
+    if (!inode->iops->truncate)
+        return -EINVAL;
+    if (S_ISDIR(inode->mode))
+        return -EISDIR;
 
+    int rc = 0;
     inode_lock(inode);
 
     uint64_t old_size = inode->size;
     if (old_size == length)
-        goto unlock;
+        goto exit;
 
     rc = inode->iops->truncate(inode, length);
     if (IS_ERR(rc))
-        goto unlock;
+        goto exit;
 
     inode->size = length;
 
     if (length < old_size)
         rc = filemap_truncate(inode->filemap, length);
 
-unlock:
-    inode_unlock(inode);
 exit:
-    inode_unref(inode);
+    inode_unlock(inode);
     return rc;
 }
 
@@ -162,13 +138,10 @@ struct file* inode_open(struct inode* inode, int flags) {
         break;
     case O_WRONLY:
     case O_RDWR:
-        if (S_ISDIR(inode->mode)) {
-            inode_unref(inode);
+        if (S_ISDIR(inode->mode))
             return ERR_PTR(-EISDIR);
-        }
         break;
     default:
-        inode_unref(inode);
         return ERR_PTR(-EINVAL);
     }
 
@@ -189,26 +162,26 @@ struct file* inode_open(struct inode* inode, int flags) {
     }
 
     struct file* file = slab_alloc(&file_slab);
-    if (IS_ERR(file)) {
-        inode_unref(inode);
+    if (IS_ERR(file))
         return file;
-    }
     *file = (struct file){
         .inode = inode,
         .fops = fops,
         .filemap = inode->filemap,
         .flags = flags,
-        .ref_count = 1,
+        .refcount = REFCOUNT_INIT_ONE,
     };
 
     if (file->fops->open) {
         int rc = file->fops->open(file);
         if (IS_ERR(rc)) {
-            inode_unref(inode);
             slab_free(&file_slab, file);
             return ERR_PTR(rc);
         }
     }
+
+    // Now the file struct is fully initialized.
+    inode_ref(inode);
 
     if (flags & O_TRUNC) {
         if (S_ISDIR(inode->mode)) {
@@ -217,7 +190,6 @@ struct file* inode_open(struct inode* inode, int flags) {
         }
         // Truncation is performed even with O_RDONLY.
         if (inode->iops->truncate) {
-            inode_ref(inode);
             int rc = inode_truncate(inode, 0);
             if (IS_ERR(rc)) {
                 file_unref(file);
@@ -241,7 +213,6 @@ int inode_stat(struct inode* inode, struct kstat* buf) {
         .st_blocks = inode->blocks,
     };
     inode_unlock(inode);
-    inode_unref(inode);
     return 0;
 }
 
@@ -251,25 +222,22 @@ int mount_commit_inode(struct mount* mount, struct inode* inode) {
     ASSERT(inode->fops);
     ASSERT(inode->ino > 0);
     ASSERT(inode->mode & S_IFMT);
-    ASSERT(inode->vm_obj.ref_count > 0);
+    ASSERT(refcount_get(&inode->vm_obj.refcount) > 0);
     ASSERT(!inode->next);
 
-    inode_ref(inode);
     struct filemap* filemap = filemap_create(inode);
-    if (IS_ERR(filemap)) {
-        inode_unref(inode);
+    if (IS_ERR(filemap))
         return PTR_ERR(filemap);
-    }
     inode->filemap = filemap;
 
     inode->mount = mount;
-    inode->flags |= INODE_READY;
 
     mutex_lock(&mount->lock);
+    inode->flags |= INODE_READY;
     for (struct inode* it = mount->inodes; it; it = it->next)
         ASSERT(it->ino != inode->ino);
     inode->next = mount->inodes;
-    mount->inodes = inode;
+    mount->inodes = inode_ref(inode);
     mutex_unlock(&mount->lock);
 
     return 0;
@@ -282,18 +250,15 @@ struct inode* mount_create_inode(struct mount* mount, mode_t mode) {
     if (!fs_ops->create_inode)
         return ERR_PTR(-EROFS);
 
-    struct inode* child = fs_ops->create_inode(mount, mode);
+    struct inode* child FREE(inode) = fs_ops->create_inode(mount, mode);
     if (IS_ERR(child))
         return child;
 
-    inode_ref(child);
     int rc = mount_commit_inode(mount, child);
-    if (IS_ERR(rc)) {
-        inode_unref(child);
+    if (IS_ERR(rc))
         return ERR_PTR(rc);
-    }
 
-    return child;
+    return TAKE_PTR(child);
 }
 
 struct inode* mount_lookup_inode(struct mount* mount, ino_t ino) {
@@ -312,11 +277,11 @@ struct inode* mount_lookup_inode(struct mount* mount, ino_t ino) {
 
 void mount_set_root(struct mount* mount, struct inode* inode) {
     ASSERT(inode->flags & INODE_READY);
-    ASSERT(inode->vm_obj.ref_count > 0);
+    ASSERT(refcount_get(&inode->vm_obj.refcount) > 0);
 
     mutex_lock(&mount->lock);
     ASSERT(!mount->root);
-    mount->root = inode;
+    mount->root = inode_ref(inode);
     mutex_unlock(&mount->lock);
 }
 
@@ -326,7 +291,6 @@ int mount_sync(struct mount* mount) {
     for (struct inode* inode = mount->inodes; inode; inode = inode->next) {
         if (!(inode->flags & INODE_DIRTY))
             continue;
-        inode_ref(inode);
         rc = inode_sync(inode, 0, UINT64_MAX);
         if (IS_ERR(rc))
             break;
@@ -335,15 +299,16 @@ int mount_sync(struct mount* mount) {
     return rc;
 }
 
-void file_ref(struct file* file) {
+struct file* file_ref(struct file* file) {
     ASSERT(file);
-    ASSERT(file->ref_count++ > 0);
+    refcount_inc(&file->refcount);
+    return file;
 }
 
 void file_unref(struct file* file) {
     if (!file)
         return;
-    if (--file->ref_count > 0)
+    if (refcount_dec(&file->refcount))
         return;
 
     struct inode* inode = file->inode;
@@ -504,9 +469,7 @@ ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
 int file_truncate(struct file* file, uint64_t length) {
     if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EINVAL;
-    struct inode* inode = file->inode;
-    inode_ref(inode);
-    return inode_truncate(inode, length);
+    return inode_truncate(file->inode, length);
 }
 
 loff_t file_seek(struct file* file, loff_t offset, int whence) {
@@ -585,9 +548,7 @@ short file_poll(struct file* file, short events) {
 struct vm_obj* file_mmap(struct file* file) {
     if (file->fops->mmap)
         return file->fops->mmap(file);
-    struct vm_obj* obj = &file->filemap->inode->vm_obj;
-    vm_obj_ref(obj);
-    return obj;
+    return vm_obj_ref(&file->filemap->inode->vm_obj);
 }
 
 int file_block(struct file* file, bool (*unblock)(struct file*), int flags) {

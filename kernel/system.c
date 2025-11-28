@@ -61,7 +61,7 @@ noreturn void halt(void) {
         struct ipi_message* msg = cpu_alloc_message();
         *msg = (struct ipi_message){
             .type = IPI_MESSAGE_HALT,
-            .ref_count = num_cpus - 1,
+            .refcount = REFCOUNT_INIT(num_cpus - 1),
         };
         cpu_broadcast_message(msg);
     }

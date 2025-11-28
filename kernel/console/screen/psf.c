@@ -17,7 +17,7 @@ static struct font* load_psf1(struct file* file) {
     if (header.magic[0] != PSF1_MAGIC0 || header.magic[1] != PSF1_MAGIC1)
         return ERR_PTR(-EINVAL);
 
-    struct font* font = kmalloc(sizeof(struct font));
+    struct font* font FREE(kfree) = kmalloc(sizeof(struct font));
     if (!font)
         return ERR_PTR(-ENOMEM);
 
@@ -26,16 +26,12 @@ static struct font* load_psf1(struct file* file) {
 
     size_t num_glyphs = (header.mode & PSF1_MODE512) ? 512 : 256;
     size_t buf_size = num_glyphs * font->glyph_height;
-    font->glyphs = kmalloc(buf_size);
-    if (!font->glyphs) {
-        kfree(font);
+    unsigned char* glyphs FREE(kfree) = kmalloc(buf_size);
+    if (!glyphs)
         return ERR_PTR(-ENOMEM);
-    }
-    if ((size_t)file_read_to_end(file, font->glyphs, buf_size) != buf_size) {
-        kfree(font->glyphs);
-        kfree(font);
+    font->glyphs = glyphs;
+    if ((size_t)file_read_to_end(file, font->glyphs, buf_size) != buf_size)
         return ERR_PTR(-EINVAL);
-    }
 
     if (header.mode & PSF1_MODEHASTAB) {
         memset(font->ascii_to_glyph, 0, sizeof(font->ascii_to_glyph));
@@ -43,11 +39,8 @@ static struct font* load_psf1(struct file* file) {
             for (;;) {
                 uint16_t uc;
                 if (file_read_to_end(file, &uc, sizeof(uint16_t)) !=
-                    sizeof(uint16_t)) {
-                    kfree(font->glyphs);
-                    kfree(font);
+                    sizeof(uint16_t))
                     return ERR_PTR(-EINVAL);
-                }
                 if (uc == PSF1_SEPARATOR)
                     break;
                 if (uc < 128)
@@ -59,7 +52,8 @@ static struct font* load_psf1(struct file* file) {
             font->ascii_to_glyph[i] = i;
     }
 
-    return font;
+    TAKE_PTR(glyphs);
+    return TAKE_PTR(font);
 }
 
 static struct font* load_psf2(struct file* file) {
@@ -71,7 +65,7 @@ static struct font* load_psf2(struct file* file) {
         header.headersize != sizeof(struct psf2_header))
         return ERR_PTR(-EINVAL);
 
-    struct font* font = kmalloc(sizeof(struct font));
+    struct font* font FREE(kfree) = kmalloc(sizeof(struct font));
     if (!font)
         return ERR_PTR(-ENOMEM);
 
@@ -79,22 +73,16 @@ static struct font* load_psf2(struct file* file) {
     font->glyph_height = header.height;
     font->bytes_per_glyph = header.bytesperglyph;
     if (DIV_CEIL(font->glyph_width, 8) * font->glyph_height !=
-        font->bytes_per_glyph) {
-        kfree(font);
+        font->bytes_per_glyph)
         return ERR_PTR(-EINVAL);
-    }
 
     size_t buf_size = header.numglyph * font->bytes_per_glyph;
-    font->glyphs = kmalloc(buf_size);
-    if (!font->glyphs) {
-        kfree(font);
+    unsigned char* glyphs FREE(kfree) = kmalloc(buf_size);
+    if (!glyphs)
         return ERR_PTR(-ENOMEM);
-    }
-    if ((size_t)file_read_to_end(file, font->glyphs, buf_size) != buf_size) {
-        kfree(font->glyphs);
-        kfree(font);
+    font->glyphs = glyphs;
+    if ((size_t)file_read_to_end(file, font->glyphs, buf_size) != buf_size)
         return ERR_PTR(-EINVAL);
-    }
 
     if (header.flags & PSF2_HAS_UNICODE_TABLE) {
         memset(font->ascii_to_glyph, 0, sizeof(font->ascii_to_glyph));
@@ -102,11 +90,8 @@ static struct font* load_psf2(struct file* file) {
             for (;;) {
                 uint8_t uc;
                 if (file_read_to_end(file, &uc, sizeof(uint8_t)) !=
-                    sizeof(uint8_t)) {
-                    kfree(font->glyphs);
-                    kfree(font);
+                    sizeof(uint8_t))
                     return ERR_PTR(-EINVAL);
-                }
                 if (uc == PSF2_SEPARATOR)
                     break;
                 if (uc < 128)
@@ -118,42 +103,30 @@ static struct font* load_psf2(struct file* file) {
             font->ascii_to_glyph[i] = i;
     }
 
-    return font;
+    TAKE_PTR(glyphs);
+    return TAKE_PTR(font);
 }
 
 struct font* load_psf(const char* filename) {
-    struct path* root = vfs_get_root();
+    struct path* root FREE(path) = vfs_get_root();
     if (IS_ERR(root))
         return ERR_CAST(root);
 
-    struct font* ret = NULL;
+    struct file* file FREE(file) = vfs_open_at(root, filename, O_RDONLY, 0);
+    if (IS_ERR(file))
+        return ERR_CAST(file);
 
-    struct file* file = vfs_open_at(root, filename, O_RDONLY, 0);
-    if (IS_ERR(file)) {
-        ret = ERR_CAST(file);
-        file = NULL;
-        goto done;
-    }
-
-    ret = load_psf1(file);
-    if (IS_OK(ret))
-        goto done;
+    struct font* font = load_psf1(file);
+    if (IS_OK(font))
+        return font;
 
     int rc = file_seek(file, 0, SEEK_SET);
-    if (IS_ERR(rc)) {
-        ret = ERR_PTR(rc);
-        goto done;
-    }
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
 
-    ret = load_psf2(file);
-    if (IS_OK(ret))
-        goto done;
+    font = load_psf2(file);
+    if (IS_OK(font))
+        return font;
 
-    ret = ERR_PTR(-EINVAL);
-
-done:
-    if (file)
-        file_unref(file);
-    path_destroy_recursive(root);
-    return ret;
+    return ERR_PTR(-EINVAL);
 }

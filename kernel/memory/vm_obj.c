@@ -4,16 +4,16 @@
 #include <kernel/panic.h>
 #include <kernel/task.h>
 
-void vm_obj_ref(struct vm_obj* obj) {
+struct vm_obj* vm_obj_ref(struct vm_obj* obj) {
     ASSERT(obj);
-    ASSERT(obj->ref_count++ > 0);
+    refcount_inc(&obj->refcount);
+    return obj;
 }
 
 void vm_obj_unref(struct vm_obj* obj) {
     if (!obj)
         return;
-    ASSERT(obj->ref_count > 0);
-    if (--obj->ref_count > 0)
+    if (refcount_dec(&obj->refcount))
         return;
 
     ASSERT(!obj->shared_regions);
@@ -35,7 +35,6 @@ void* vm_obj_map(struct vm_obj* obj, size_t offset, size_t npages,
     }
 
     ASSERT_OK(vm_region_set_flags(region, 0, npages, flags, ~0));
-    vm_obj_ref(obj);
     vm_region_set_obj(region, obj, offset);
 
     mutex_unlock(&kernel_vm->lock);
@@ -139,7 +138,7 @@ struct vm_obj* anon_create(void) {
         .vm_obj =
             {
                 .vm_ops = &anon_vm_ops,
-                .ref_count = 1,
+                .refcount = REFCOUNT_INIT_ONE,
             },
     };
     return &anon->vm_obj;
@@ -188,7 +187,7 @@ struct vm_obj* phys_create(uintptr_t phys_addr, size_t npages) {
         .vm_obj =
             {
                 .vm_ops = &phys_vm_ops,
-                .ref_count = 1,
+                .refcount = REFCOUNT_INIT_ONE,
             },
         .start = start,
         .end = end,
@@ -200,15 +199,13 @@ void* phys_map(uintptr_t phys_addr, size_t size, unsigned vm_flags) {
     uintptr_t aligned_addr = ROUND_DOWN(phys_addr, PAGE_SIZE);
     size_t npages = DIV_CEIL(phys_addr - aligned_addr + size, PAGE_SIZE);
 
-    struct vm_obj* phys = phys_create(aligned_addr, npages);
+    struct vm_obj* phys FREE(vm_obj) = phys_create(aligned_addr, npages);
     if (IS_ERR(phys))
         return ERR_CAST(phys);
 
     unsigned char* addr = vm_obj_map(phys, 0, npages, vm_flags | VM_SHARED);
-    if (IS_ERR(addr)) {
-        vm_obj_unref(phys);
+    if (IS_ERR(addr))
         return addr;
-    }
     return addr + (phys_addr - aligned_addr);
 }
 

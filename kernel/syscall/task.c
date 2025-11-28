@@ -27,12 +27,10 @@ pid_t sys_getpgrp(void) { return current->pgid; }
 pid_t sys_getpgid(pid_t pid) {
     if (pid == 0)
         return current->pgid;
-    struct task* task = task_find_by_tid(pid);
+    struct task* task FREE(task) = task_find_by_tid(pid);
     if (!task)
         return -ESRCH;
-    pid_t pgid = task->pgid;
-    task_unref(task);
-    return pgid;
+    return task->pgid;
 }
 
 int sys_setpgid(pid_t pid, pid_t pgid) {
@@ -40,12 +38,11 @@ int sys_setpgid(pid_t pid, pid_t pgid) {
         return -EINVAL;
 
     pid_t target_tgid = pid ? pid : current->tgid;
-    struct task* target = task_find_by_tid(target_tgid);
+    struct task* target FREE(task) = task_find_by_tid(target_tgid);
     if (!target)
         return -ESRCH;
 
     target->pgid = pgid ? pgid : target_tgid;
-    task_unref(target);
     return 0;
 }
 
@@ -184,7 +181,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         .blocked_signals = current->blocked_signals,
         .user_ticks = current->user_ticks,
         .kernel_ticks = current->kernel_ticks,
-        .ref_count = 1,
+        .refcount = REFCOUNT_INIT_ONE,
     };
 
     pid_t tid = task_generate_next_tid();
@@ -226,8 +223,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         child_regs->esp = (uintptr_t)user_stack;
 
     if (flags & CLONE_VM) {
-        task->vm = current->vm;
-        vm_ref(task->vm);
+        task->vm = vm_ref(current->vm);
     } else {
         task->vm = vm_clone(current->vm);
         if (IS_ERR(task->vm)) {
@@ -238,8 +234,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     }
 
     if (flags & CLONE_FS) {
-        task->fs = current->fs;
-        fs_ref(task->fs);
+        task->fs = fs_ref(current->fs);
     } else {
         task->fs = fs_clone(current->fs);
         if (IS_ERR(task->fs)) {
@@ -250,8 +245,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     }
 
     if (flags & CLONE_FILES) {
-        task->files = current->files;
-        files_ref(task->files);
+        task->files = files_ref(current->files);
     } else {
         task->files = files_clone(current->files);
         if (IS_ERR(task->files)) {
@@ -262,8 +256,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     }
 
     if (flags & CLONE_SIGHAND) {
-        task->sighand = current->sighand;
-        sighand_ref(task->sighand);
+        task->sighand = sighand_ref(current->sighand);
     } else {
         task->sighand = sighand_clone(current->sighand);
         if (IS_ERR(task->sighand)) {
@@ -274,8 +267,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     }
 
     if (flags & CLONE_THREAD) {
-        task->thread_group = current->thread_group;
-        thread_group_ref(task->thread_group);
+        task->thread_group = thread_group_ref(current->thread_group);
     } else {
         task->thread_group = thread_group_create();
         if (IS_ERR(task->thread_group)) {
@@ -521,22 +513,17 @@ int sys_getcwd(char* user_buf, size_t size) {
         return -ERANGE;
 
     mutex_lock(&current->fs->lock);
-    char* cwd_str = path_to_string(current->fs->cwd);
+    char* cwd_str FREE(kfree) = path_to_string(current->fs->cwd);
     mutex_unlock(&current->fs->lock);
     if (!cwd_str)
         return -ENOMEM;
 
     size_t len = strlen(cwd_str) + 1;
-    if (size < len) {
-        kfree(cwd_str);
+    if (size < len)
         return -ERANGE;
-    }
-    if (copy_to_user(user_buf, cwd_str, len)) {
-        kfree(cwd_str);
+    if (copy_to_user(user_buf, cwd_str, len))
         return -EFAULT;
-    }
 
-    kfree(cwd_str);
     return len;
 }
 
@@ -550,20 +537,20 @@ int sys_chdir(const char* user_path) {
 
     mutex_lock(&current->fs->lock);
 
-    struct path* new_cwd = vfs_resolve_path_at(current->fs->cwd, path, 0);
+    struct path* new_cwd FREE(path) =
+        vfs_resolve_path_at(current->fs->cwd, path, 0);
     if (IS_ERR(new_cwd)) {
         mutex_unlock(&current->fs->lock);
         return PTR_ERR(new_cwd);
     }
 
     if (!S_ISDIR(new_cwd->inode->mode)) {
-        path_destroy_recursive(new_cwd);
         mutex_unlock(&current->fs->lock);
         return -ENOTDIR;
     }
 
     path_destroy_recursive(current->fs->cwd);
-    current->fs->cwd = new_cwd;
+    current->fs->cwd = TAKE_PTR(new_cwd);
 
     mutex_unlock(&current->fs->lock);
     return 0;

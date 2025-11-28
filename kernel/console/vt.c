@@ -466,7 +466,7 @@ struct vt* vt_create(struct screen* screen) {
     size_t num_rows;
     screen->get_size(screen, &num_columns, &num_rows);
 
-    struct vt* vt = kmalloc(sizeof(struct vt));
+    struct vt* vt FREE(kfree) = kmalloc(sizeof(struct vt));
     if (!vt)
         return ERR_PTR(-ENOMEM);
 
@@ -480,21 +480,19 @@ struct vt* vt_create(struct screen* screen) {
         .bg_color = DEFAULT_BG_COLOR,
     };
 
-    vt->cells = kmalloc(num_columns * num_rows * sizeof(struct cell));
-    if (!vt->cells)
-        goto fail;
-    vt->line_is_dirty = kmalloc(num_rows * sizeof(bool));
-    if (!vt->line_is_dirty)
-        goto fail;
+    struct cell* cells FREE(kfree) =
+        kmalloc(num_columns * num_rows * sizeof(struct cell));
+    if (!cells)
+        return ERR_PTR(-ENOMEM);
+    bool* line_is_dirty FREE(kfree) = kmalloc(num_rows * sizeof(bool));
+    if (!line_is_dirty)
+        return ERR_PTR(-ENOMEM);
+
+    vt->cells = TAKE_PTR(cells);
+    vt->line_is_dirty = TAKE_PTR(line_is_dirty);
 
     clear_screen(vt);
     vt_flush(vt);
 
-    return vt;
-
-fail:
-    kfree(vt->line_is_dirty);
-    kfree(vt->cells);
-    kfree(vt);
-    return ERR_PTR(-ENOMEM);
+    return TAKE_PTR(vt);
 }

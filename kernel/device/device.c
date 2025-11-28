@@ -53,6 +53,14 @@ const struct file_ops char_dev_fops = {
     .open = char_dev_open,
 };
 
+void block_dev_ref(struct block_dev* block_dev) {
+    inode_ref(&block_dev->vfs_inode);
+}
+
+void block_dev_unref(struct block_dev* block_dev) {
+    inode_unref(&block_dev->vfs_inode);
+}
+
 void block_dev_lock(struct block_dev* block_dev) {
     inode_lock(&block_dev->vfs_inode);
 }
@@ -156,11 +164,15 @@ int block_dev_register(struct block_dev* block_dev) {
     inode->size = (uint64_t)block_dev->num_blocks << block_dev->block_bits;
 
     int rc = mount_commit_inode(bdev_mount, inode);
-    if (IS_ERR(rc))
+    if (IS_ERR(rc)) {
+        block_dev_unref(block_dev);
         return PTR_ERR(rc);
+    }
 
     kprintf("block_dev: registered %s %u,%u\n", block_dev->name,
             major(block_dev->dev), minor(block_dev->dev));
+
+    block_dev_unref(block_dev);
     return 0;
 }
 
@@ -178,8 +190,18 @@ static int block_dev_open(struct file* file) {
     return 0;
 }
 
+static int block_dev_close(struct file* file) {
+    if (file->private_data) {
+        ASSERT(file->inode->mount != bdev_mount);
+        struct block_dev* block_dev = file->private_data;
+        inode_unref(&block_dev->vfs_inode);
+    }
+    return 0;
+}
+
 const struct file_ops block_dev_fops = {
     .open = block_dev_open,
+    .close = block_dev_close,
 };
 
 struct block_dev* block_dev_get(dev_t rdev) {

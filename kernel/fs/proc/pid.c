@@ -57,7 +57,7 @@ done:
 
 static int print_comm(struct file* file, struct vec* vec) {
     pid_t pid = pid_from_ino(file->inode->ino);
-    struct task* task = task_find_by_tid(pid);
+    struct task* task FREE(task) = task_find_by_tid(pid);
     if (!task)
         return -ENOENT;
 
@@ -67,31 +67,25 @@ static int print_comm(struct file* file, struct vec* vec) {
     strlcpy(comm, task->comm, sizeof(task->comm));
 
     mutex_unlock(&task->lock);
-    task_unref(task);
 
     return vec_printf(vec, "%s\n", comm);
 }
 
 static int print_cwd(struct file* file, struct vec* vec) {
     pid_t pid = pid_from_ino(file->inode->ino);
-    struct task* task = task_find_by_tid(pid);
+    struct task* task FREE(task) = task_find_by_tid(pid);
     if (!task)
         return -ENOENT;
 
     mutex_lock(&task->lock);
     mutex_lock(&task->fs->lock);
-    char* cwd = path_to_string(task->fs->cwd);
+    char* cwd FREE(kfree) = path_to_string(task->fs->cwd);
     mutex_unlock(&task->fs->lock);
     mutex_unlock(&task->lock);
-    if (!cwd) {
-        task_unref(task);
+    if (!cwd)
         return -ENOMEM;
-    }
 
-    int rc = vec_printf(vec, "%s", cwd);
-    kfree(cwd);
-    task_unref(task);
-    return rc;
+    return vec_printf(vec, "%s", cwd);
 }
 
 static int print_environ(struct file* file, struct vec* vec) {
@@ -130,7 +124,7 @@ done:
 
 static int print_maps(struct file* file, struct vec* vec) {
     pid_t pid = pid_from_ino(file->inode->ino);
-    struct task* task = task_find_by_tid(pid);
+    struct task* task FREE(task) = task_find_by_tid(pid);
     if (!task)
         return -ENOENT;
 
@@ -150,7 +144,6 @@ static int print_maps(struct file* file, struct vec* vec) {
     }
     mutex_unlock(&vm->lock);
     mutex_unlock(&task->lock);
-    task_unref(task);
     return ret;
 }
 

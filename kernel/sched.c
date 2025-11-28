@@ -111,8 +111,7 @@ static void unblock_tasks(void) {
             it->block_data = NULL;
             it->interrupted = interrupted;
             it->state = TASK_RUNNING;
-            task_ref(it);
-            enqueue_ready(it);
+            enqueue_ready(task_ref(it));
         }
     }
 

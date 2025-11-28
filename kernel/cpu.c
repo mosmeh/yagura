@@ -375,7 +375,7 @@ struct ipi_message* cpu_alloc_message(void) {
     for (;;) {
         struct ipi_message* msg = mpsc_dequeue(msg_pool);
         if (msg) {
-            ASSERT(msg->ref_count == 0);
+            ASSERT(refcount_get(&msg->refcount) == 0);
             return msg;
         }
         cpu_pause();
@@ -384,7 +384,7 @@ struct ipi_message* cpu_alloc_message(void) {
 
 void cpu_free_message(struct ipi_message* msg) {
     ASSERT(msg);
-    ASSERT(msg->ref_count == 0);
+    ASSERT(refcount_get(&msg->refcount) == 0);
     while (!mpsc_enqueue(msg_pool, msg))
         cpu_pause();
 }
@@ -414,8 +414,7 @@ void cpu_process_messages(void) {
         default:
             UNREACHABLE();
         }
-        ASSERT(msg->ref_count);
-        --msg->ref_count;
+        refcount_dec(&msg->refcount);
     }
     pop_cli(int_flag);
 }

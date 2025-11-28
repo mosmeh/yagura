@@ -33,10 +33,10 @@ static size_t parse_octal(const char* s, size_t len) {
 #define PARSE(field) parse_octal(field, sizeof(field))
 
 void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
-    void* initrd = phys_map(phys_addr, size, VM_READ);
+    void* initrd FREE(phys) = phys_map(phys_addr, size, VM_READ);
     ASSERT_OK(initrd);
 
-    struct path* root = vfs_get_root();
+    struct path* root FREE(path) = vfs_get_root();
     ASSERT_OK(root);
 
     uintptr_t cursor = (uintptr_t)initrd;
@@ -55,11 +55,11 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
         size_t file_size = PARSE(header->c_filesize);
 
         if (S_ISDIR(mode)) {
-            struct inode* inode = vfs_create_at(root, filename, mode);
+            struct inode* inode FREE(inode) =
+                vfs_create_at(root, filename, mode);
             ASSERT_OK(inode);
-            inode_unref(inode);
         } else {
-            struct file* file =
+            struct file* file FREE(file) =
                 vfs_open_at(root, filename, O_CREAT | O_EXCL | O_WRONLY, mode);
             ASSERT_OK(file);
 
@@ -71,13 +71,8 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
             ssize_t nwritten = file_write_all(file, file_content, file_size);
             ASSERT_OK(nwritten);
             ASSERT((size_t)nwritten == file_size);
-
-            file_unref(file);
         }
 
         cursor += sizeof(struct cpio_odc_header) + name_size + file_size;
     }
-
-    path_destroy_recursive(root);
-    phys_unmap(initrd);
 }

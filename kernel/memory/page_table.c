@@ -147,7 +147,7 @@ static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
             *msg = (struct ipi_message){
                 .type = IPI_MESSAGE_FLUSH_TLB,
                 .flush_tlb = {.virt_addr = virt_addr, .size = size},
-                .ref_count = num_cpus - 1,
+                .refcount = REFCOUNT_INIT(num_cpus - 1),
             };
             cpu_broadcast_message(msg);
         } else {
@@ -172,7 +172,7 @@ static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
                         .flush_tlb = {.virt_addr = virt_addr, .size = size},
                     };
                 }
-                ++msg->ref_count;
+                refcount_inc(&msg->refcount);
                 cpu_unicast_message(cpu, msg);
             }
         }
@@ -184,7 +184,7 @@ static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
 
     // Wait for other CPUs to finish flushing TLBs
     if (msg) {
-        while (msg->ref_count)
+        while (refcount_get(&msg->refcount) > 0)
             cpu_pause();
         cpu_free_message(msg);
     }

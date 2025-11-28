@@ -8,6 +8,7 @@
 #include <kernel/lock.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
+#include <kernel/resource.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 
@@ -29,7 +30,7 @@ struct file {
     void* private_data;
 
     struct mutex lock;
-    atomic_size_t ref_count;
+    refcount_t refcount;
 };
 
 typedef bool (*getdents_callback_fn)(const char* name, ino_t,
@@ -75,7 +76,10 @@ extern const struct vm_ops inode_vm_ops;
 // inode has been modified since the last writeback
 #define INODE_DIRTY 0x2
 
-#define INODE_INIT {.vm_obj = {.vm_ops = &inode_vm_ops, .ref_count = 1}}
+#define INODE_INIT                                                             \
+    {                                                                          \
+        .vm_obj = {.vm_ops = &inode_vm_ops, .refcount = REFCOUNT_INIT_ONE }    \
+    }
 
 struct inode {
     struct vm_obj vm_obj;
@@ -114,8 +118,10 @@ struct inode_ops {
     int (*sync)(struct inode*);
 };
 
-void inode_ref(struct inode*);
+struct inode* inode_ref(struct inode*);
 void inode_unref(struct inode*);
+
+DEFINE_FREE(inode, struct inode*, inode_unref)
 
 void inode_lock(struct inode*);
 void inode_unlock(struct inode*);
@@ -177,8 +183,10 @@ void mount_set_root(struct mount*, struct inode*);
 // Writes back all dirty inodes in the mount.
 NODISCARD int mount_sync(struct mount*);
 
-void file_ref(struct file*);
+struct file* file_ref(struct file*);
 void file_unref(struct file*);
+
+DEFINE_FREE(file, struct file*, file_unref)
 
 NODISCARD ssize_t file_read(struct file*, void* buffer, size_t count);
 NODISCARD ssize_t file_pread(struct file*, void* buffer, size_t count,

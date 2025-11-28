@@ -110,10 +110,10 @@ struct inode* proc_create_inode(struct mount* mount, ino_t ino,
                                 struct proc_entry* entry) {
     mutex_lock(&mount->lock);
 
-    struct inode* inode = mount_lookup_inode(mount, ino);
+    struct inode* inode FREE(inode) = mount_lookup_inode(mount, ino);
     if (inode) {
         mutex_unlock(&mount->lock);
-        return inode;
+        return TAKE_PTR(inode);
     }
 
     inode = alloc_inode(ino, entry);
@@ -122,16 +122,14 @@ struct inode* proc_create_inode(struct mount* mount, ino_t ino,
         return inode;
     }
 
-    inode_ref(inode);
     int rc = mount_commit_inode(mount, inode);
     if (IS_ERR(rc)) {
-        inode_unref(inode);
         mutex_unlock(&mount->lock);
         return ERR_PTR(rc);
     }
 
     mutex_unlock(&mount->lock);
-    return inode;
+    return TAKE_PTR(inode);
 }
 
 static ino_t child_ino(ino_t parent_ino, size_t index) {
@@ -169,19 +167,18 @@ int proc_getdents(struct file* file, getdents_callback_fn callback, void* ctx,
 static struct mount* proc_mount(const char* source) {
     (void)source;
 
-    struct mount* mount = kmalloc(sizeof(struct mount));
+    struct mount* mount FREE(kfree) = kmalloc(sizeof(struct mount));
     if (!mount)
         return ERR_PTR(-ENOMEM);
     *mount = (struct mount){0};
 
-    struct inode* root = proc_create_inode(mount, PROC_ROOT_INO, NULL);
-    if (IS_ERR(root)) {
-        kfree(mount);
+    struct inode* root FREE(inode) =
+        proc_create_inode(mount, PROC_ROOT_INO, NULL);
+    if (IS_ERR(root))
         return ERR_CAST(root);
-    }
     mount_set_root(mount, root);
 
-    return mount;
+    return TAKE_PTR(mount);
 }
 
 void proc_init(void) {
