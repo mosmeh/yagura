@@ -30,7 +30,7 @@ static size_t parse_octal(const char* s, size_t len) {
     return res;
 }
 
-#define PARSE(field) parse_octal(field, sizeof(field))
+#define PARSE_FIELD(field) parse_octal(field, sizeof(field))
 
 void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
     void* initrd FREE(phys) = phys_map(phys_addr, size, VM_READ);
@@ -45,25 +45,22 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
             (const struct cpio_odc_header*)cursor;
         ASSERT(!strncmp(header->c_magic, "070707", 6));
 
-        size_t name_size = PARSE(header->c_namesize);
+        size_t name_size = PARSE_FIELD(header->c_namesize);
         const char* filename =
             (const char*)(cursor + sizeof(struct cpio_odc_header));
         if (!strncmp(filename, "TRAILER!!!", name_size))
             break;
 
-        size_t mode = PARSE(header->c_mode);
-        size_t file_size = PARSE(header->c_filesize);
+        size_t mode = PARSE_FIELD(header->c_mode);
+        mode_t rdev = PARSE_FIELD(header->c_rdev);
+        size_t file_size = PARSE_FIELD(header->c_filesize);
 
-        if (S_ISDIR(mode)) {
-            struct inode* inode FREE(inode) =
-                vfs_create_at(root, filename, mode);
-            ASSERT_OK(inode);
-        } else {
+        if (S_ISREG(mode) || S_ISLNK(mode)) {
             struct file* file FREE(file) =
                 vfs_open_at(root, filename, O_CREAT | O_EXCL | O_WRONLY, mode);
             ASSERT_OK(file);
 
-            file->inode->rdev = PARSE(header->c_rdev);
+            file->inode->rdev = rdev;
 
             const unsigned char* file_content =
                 (const unsigned char*)(cursor + sizeof(struct cpio_odc_header) +
@@ -71,6 +68,11 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
             ssize_t nwritten = file_write_all(file, file_content, file_size);
             ASSERT_OK(nwritten);
             ASSERT((size_t)nwritten == file_size);
+        } else {
+            struct inode* inode FREE(inode) =
+                vfs_create_at(root, filename, mode);
+            ASSERT_OK(inode);
+            inode->rdev = rdev;
         }
 
         cursor += sizeof(struct cpio_odc_header) + name_size + file_size;

@@ -1,4 +1,5 @@
 #include "acpi.h"
+#include "api/fcntl.h"
 #include "console/console.h"
 #include "cpu.h"
 #include "device/device.h"
@@ -14,12 +15,26 @@
 #include "task.h"
 #include "time.h"
 
+static void open_console(void) {
+    struct file* file FREE(file) = vfs_open("/dev/console", O_RDWR, 0);
+    if (IS_ERR(file)) {
+        kprint("userland_init: unable to open an initial console\n");
+        return;
+    }
+    int rc;
+    for (int i = 0; i < 3; ++i)
+        rc = task_alloc_fd(-1, file);
+    (void)rc;
+}
+
 static noreturn void userland_init(void) {
     ASSERT(current->tid == 1);
     ASSERT(current->tgid == 1);
     ASSERT(current->pgid == 1);
 
-    static const char* envp[] = {NULL};
+    open_console();
+
+    static const char* envp[] = {"HOME=/", "TERM=linux", NULL};
 
     const char* init_path = cmdline_lookup("init");
     if (init_path) {
@@ -39,14 +54,14 @@ static noreturn void userland_init(void) {
         "/bin/sh",
     };
     for (size_t i = 0; i < ARRAY_SIZE(default_init_paths); ++i) {
-        const char* argv[] = {default_init_paths[i], NULL};
-        kprintf("userland_init: run %s as init process\n",
-                default_init_paths[i]);
-        int rc = task_kernel_execve(default_init_paths[i], argv, envp);
+        const char* path = default_init_paths[i];
+        const char* argv[] = {path, NULL};
+        kprintf("userland_init: run %s as init process\n", path);
+        int rc = task_kernel_execve(path, argv, envp);
         if (rc != -ENOENT) {
             kprintf(
                 "userland_init: %s exists but couldn't execute it (error %d)\n",
-                default_init_paths[i], rc);
+                path, rc);
         }
     }
 
