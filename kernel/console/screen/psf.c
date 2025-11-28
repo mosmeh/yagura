@@ -109,11 +109,11 @@ static struct font* load_psf2(struct file* file) {
 
 struct font* load_psf(const char* filename) {
     struct path* root FREE(path) = vfs_get_root();
-    if (IS_ERR(root))
+    if (IS_ERR(ASSERT(root)))
         return ERR_CAST(root);
 
     struct file* file FREE(file) = vfs_open_at(root, filename, O_RDONLY, 0);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return ERR_CAST(file);
 
     struct font* font = load_psf1(file);

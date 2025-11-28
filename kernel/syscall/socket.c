@@ -14,17 +14,17 @@ int sys_socket(int domain, int type, int protocol) {
         return -EAFNOSUPPORT;
 
     struct inode* socket FREE(inode) = unix_socket_create();
-    if (IS_ERR(socket))
+    if (IS_ERR(ASSERT(socket)))
         return PTR_ERR(socket);
     struct file* file FREE(file) = inode_open(socket, O_RDWR);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return task_alloc_fd(-1, file);
 }
 
 int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
     struct file* file FREE(file) = task_ref_file(sockfd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
@@ -44,7 +44,7 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
 
     struct file* addr_file FREE(file) =
         vfs_open(path, O_CREAT | O_EXCL, S_IFSOCK);
-    if (IS_ERR(addr_file)) {
+    if (IS_ERR(ASSERT(addr_file))) {
         if (PTR_ERR(addr_file) == -EEXIST)
             return -EADDRINUSE;
         return PTR_ERR(addr_file);
@@ -55,7 +55,7 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
 
 int sys_listen(int sockfd, int backlog) {
     struct file* file FREE(file) = task_ref_file(sockfd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
@@ -67,7 +67,7 @@ int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
     (void)flags;
 
     struct file* file FREE(file) = task_ref_file(sockfd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
     if (user_addr) {
@@ -90,10 +90,10 @@ int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
     struct inode* connector FREE(inode) = unix_socket_accept(file);
     if (PTR_ERR(connector) == -EINTR)
         return -ERESTARTSYS;
-    if (IS_ERR(connector))
+    if (IS_ERR(ASSERT(connector)))
         return PTR_ERR(connector);
     struct file* connector_file FREE(file) = inode_open(connector, O_RDWR);
-    if (IS_ERR(connector_file))
+    if (IS_ERR(ASSERT(connector_file)))
         return PTR_ERR(connector_file);
 
     return task_alloc_fd(-1, connector_file);
@@ -102,7 +102,7 @@ int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
 int sys_connect(int sockfd, const struct sockaddr* user_addr,
                 socklen_t addrlen) {
     struct file* file FREE(file) = task_ref_file(sockfd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
     if (addrlen <= sizeof(sa_family_t) || sizeof(struct sockaddr_un) < addrlen)
@@ -119,7 +119,7 @@ int sys_connect(int sockfd, const struct sockaddr* user_addr,
     strncpy(path, addr_un.sun_path, sizeof(path));
 
     struct file* addr_file FREE(file) = vfs_open(path, 0, 0);
-    if (IS_ERR(addr_file))
+    if (IS_ERR(ASSERT(addr_file)))
         return PTR_ERR(addr_file);
 
     int rc = unix_socket_connect(file, addr_file->inode);
@@ -130,7 +130,7 @@ int sys_connect(int sockfd, const struct sockaddr* user_addr,
 
 int sys_shutdown(int sockfd, int how) {
     struct file* file FREE(file) = task_ref_file(sockfd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return unix_socket_shutdown(file, how);
 }

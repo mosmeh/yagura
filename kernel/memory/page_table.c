@@ -65,7 +65,7 @@ static volatile uint32_t* get_pte(uintptr_t virt_addr) {
 
 static volatile uint32_t* get_or_create_pte(uintptr_t virt_addr) {
     volatile struct page_table* pt = get_or_create_page_table(virt_addr);
-    if (IS_ERR(pt))
+    if (IS_ERR(ASSERT(pt)))
         return ERR_CAST(pt);
     return pt->entries + ((virt_addr >> PAGE_SHIFT) & 0x3ff);
 }
@@ -84,7 +84,7 @@ struct page_directory* page_directory_create(void) {
     for (uintptr_t virt_addr = KERNEL_VIRT_ADDR; virt_addr < KERNEL_VM_END;
          virt_addr += 1024 << PAGE_SHIFT) {
         volatile struct page_table* pt = get_or_create_page_table(virt_addr);
-        if (IS_ERR(pt))
+        if (IS_ERR(ASSERT(pt)))
             return ERR_CAST(pt);
     }
 
@@ -196,7 +196,7 @@ NODISCARD static int map(uintptr_t virt_addr, size_t pfn, uint16_t flags) {
     ASSERT(virt_addr % PAGE_SIZE == 0);
     ASSERT(!(flags & ~PTE_FLAGS_MASK));
     volatile uint32_t* pte = get_or_create_pte(virt_addr);
-    if (IS_ERR(pte))
+    if (IS_ERR(ASSERT(pte)))
         return PTR_ERR(pte);
     *pte = (pfn << PAGE_SHIFT) | flags | PTE_PRESENT;
     return 0;

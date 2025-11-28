@@ -107,13 +107,13 @@ struct screen* fb_screen_init(void) {
     struct vm_obj* vm_obj FREE(vm_obj) = fb_mmap();
     size_t npages = DIV_CEIL(fb_info.pitch * fb_info.height, PAGE_SIZE);
     fb = vm_obj_map(vm_obj, 0, npages, VM_READ | VM_WRITE | VM_SHARED);
-    if (IS_ERR(fb)) {
+    if (IS_ERR(ASSERT(fb))) {
         kprint("fb_screen: failed to map framebuffer\n");
         return ERR_CAST(fb);
     }
 
     font = load_psf(font_pathname);
-    if (IS_ERR(font)) {
+    if (IS_ERR(ASSERT(font))) {
         kprintf("fb_screen: failed to load font file %s\n", font_pathname);
         return ERR_CAST(font);
     }

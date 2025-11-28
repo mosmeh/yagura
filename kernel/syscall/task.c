@@ -226,7 +226,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         task->vm = vm_ref(current->vm);
     } else {
         task->vm = vm_clone(current->vm);
-        if (IS_ERR(task->vm)) {
+        if (IS_ERR(ASSERT(task->vm))) {
             rc = PTR_ERR(task->vm);
             task->vm = NULL;
             goto fail;
@@ -237,7 +237,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         task->fs = fs_ref(current->fs);
     } else {
         task->fs = fs_clone(current->fs);
-        if (IS_ERR(task->fs)) {
+        if (IS_ERR(ASSERT(task->fs))) {
             rc = PTR_ERR(task->fs);
             task->fs = NULL;
             goto fail;
@@ -248,7 +248,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         task->files = files_ref(current->files);
     } else {
         task->files = files_clone(current->files);
-        if (IS_ERR(task->files)) {
+        if (IS_ERR(ASSERT(task->files))) {
             rc = PTR_ERR(task->files);
             task->files = NULL;
             goto fail;
@@ -259,7 +259,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         task->sighand = sighand_ref(current->sighand);
     } else {
         task->sighand = sighand_clone(current->sighand);
-        if (IS_ERR(task->sighand)) {
+        if (IS_ERR(ASSERT(task->sighand))) {
             rc = PTR_ERR(task->sighand);
             task->sighand = NULL;
             goto fail;
@@ -270,7 +270,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         task->thread_group = thread_group_ref(current->thread_group);
     } else {
         task->thread_group = thread_group_create();
-        if (IS_ERR(task->thread_group)) {
+        if (IS_ERR(ASSERT(task->thread_group))) {
             rc = PTR_ERR(task->thread_group);
             task->thread_group = NULL;
             goto fail;
@@ -539,7 +539,7 @@ int sys_chdir(const char* user_path) {
 
     struct path* new_cwd FREE(path) =
         vfs_resolve_path_at(current->fs->cwd, path, 0);
-    if (IS_ERR(new_cwd)) {
+    if (IS_ERR(ASSERT(new_cwd))) {
         mutex_unlock(&current->fs->lock);
         return PTR_ERR(new_cwd);
     }

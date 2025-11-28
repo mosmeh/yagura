@@ -23,7 +23,7 @@ static struct fs* fs_create(void) {
         return ERR_PTR(-ENOMEM);
     *fs = (struct fs){.refcount = REFCOUNT_INIT_ONE};
     fs->cwd = vfs_get_root();
-    if (IS_ERR(fs->cwd)) {
+    if (IS_ERR(ASSERT(fs->cwd))) {
         kfree(fs);
         return ERR_CAST(fs->cwd);
     }
@@ -38,7 +38,7 @@ struct fs* fs_clone(struct fs* fs) {
     mutex_lock(&fs->lock);
     new_fs->cwd = path_dup(fs->cwd);
     mutex_unlock(&fs->lock);
-    if (IS_ERR(new_fs->cwd)) {
+    if (IS_ERR(ASSERT(new_fs->cwd))) {
         kfree(new_fs);
         return ERR_CAST(new_fs->cwd);
     }
@@ -70,7 +70,7 @@ static struct files* files_create(void) {
 
 struct files* files_clone(struct files* files) {
     struct files* new_files = files_create();
-    if (IS_ERR(new_files))
+    if (IS_ERR(ASSERT(new_files)))
         return new_files;
 
     mutex_lock(&files->lock);
@@ -114,7 +114,7 @@ static struct sighand* sighand_create(void) {
 
 struct sighand* sighand_clone(struct sighand* sighand) {
     struct sighand* new_sighand = sighand_create();
-    if (IS_ERR(new_sighand))
+    if (IS_ERR(ASSERT(new_sighand)))
         return new_sighand;
     spinlock_lock(&sighand->lock);
     memcpy(new_sighand->actions, sighand->actions, sizeof(sighand->actions));
@@ -188,28 +188,28 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
     void* stack = NULL;
 
     task->fs = fs_create();
-    if (IS_ERR(task->fs)) {
+    if (IS_ERR(ASSERT(task->fs))) {
         ret = PTR_ERR(task->fs);
         task->fs = NULL;
         goto fail;
     }
 
     task->files = files_create();
-    if (IS_ERR(task->files)) {
+    if (IS_ERR(ASSERT(task->files))) {
         ret = PTR_ERR(task->files);
         task->files = NULL;
         goto fail;
     }
 
     task->sighand = sighand_create();
-    if (IS_ERR(task->sighand)) {
+    if (IS_ERR(ASSERT(task->sighand))) {
         ret = PTR_ERR(task->sighand);
         task->sighand = NULL;
         goto fail;
     }
 
     task->thread_group = thread_group_create();
-    if (IS_ERR(task->thread_group)) {
+    if (IS_ERR(ASSERT(task->thread_group))) {
         ret = PTR_ERR(task->thread_group);
         task->thread_group = NULL;
         goto fail;
@@ -265,7 +265,7 @@ fail:
 
 struct task* task_spawn(const char* comm, void (*entry_point)(void)) {
     struct task* task = task_create(comm, entry_point);
-    if (IS_ERR(task))
+    if (IS_ERR(ASSERT(task)))
         return task;
     task->tid = task->tgid = task->pgid = task_generate_next_tid();
     sched_register(task);

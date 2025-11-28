@@ -43,7 +43,7 @@ void lapic_init(void) {
 
     unsigned char* addr =
         phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE);
-    ASSERT_OK(addr);
+    ASSERT_PTR(addr);
     ASSERT_OK(vm_populate(addr, addr + PAGE_SIZE, true));
     lapic = addr;
 
@@ -173,7 +173,7 @@ void io_apic_init(void) {
     for (const struct io_apic** p = acpi->io_apics; *p; ++p) {
         bool int_flag = push_cli();
         volatile void* io_apic = kmap((*p)->io_apic_addr);
-        ASSERT_OK(io_apic);
+        ASSERT_PTR(io_apic);
 
         size_t num_redirections =
             ((io_apic_read(io_apic, IO_APIC_REG_VER) >> 16) & 0xff) + 1;

@@ -29,7 +29,7 @@ void pipe_init(void) {
     ASSERT_OK(file_system_register(&pipe_fs));
 
     pipe_mount = file_system_mount(&pipe_fs, "pipefs");
-    ASSERT_OK(pipe_mount);
+    ASSERT_PTR(pipe_mount);
 }
 
 static void pipe_lock(struct pipe* pipe) { inode_lock(&pipe->vfs_inode); }
@@ -74,7 +74,7 @@ static int pipe_open(struct file* file) {
         pipe_inode = file->inode->pipe;
         if (!pipe_inode) {
             struct inode* new_pipe = pipe_create();
-            if (IS_ERR(new_pipe))
+            if (IS_ERR(ASSERT(new_pipe)))
                 return PTR_ERR(new_pipe);
             struct inode* expected = NULL;
             if (atomic_compare_exchange_strong(&file->inode->pipe, &expected,
@@ -237,7 +237,7 @@ static _Atomic(ino_t) next_ino = 1;
 
 struct inode* pipe_create(void) {
     struct pipe* pipe = slab_alloc(&pipe_slab);
-    if (IS_ERR(pipe))
+    if (IS_ERR(ASSERT(pipe)))
         return ERR_CAST(pipe);
     *pipe = (struct pipe){
         .vfs_inode = INODE_INIT,

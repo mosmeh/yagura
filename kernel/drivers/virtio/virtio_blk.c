@@ -101,13 +101,13 @@ static void init_device(const struct pci_addr* addr) {
     }
 
     struct virtio* virtio FREE(virtio) = virtio_create(addr, 1);
-    if (IS_ERR(virtio)) {
+    if (IS_ERR(ASSERT(virtio))) {
         kprint("virtio_blk: failed to initialize a virtio device\n");
         return;
     }
 
     unsigned char* device_cfg_space = pci_map_bar(addr, device_cfg_cap.bar);
-    if (IS_ERR(device_cfg_space)) {
+    if (IS_ERR(ASSERT(device_cfg_space))) {
         kprint("virtio_blk: failed to map device config space\n");
         return;
     }

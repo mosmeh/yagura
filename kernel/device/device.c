@@ -225,5 +225,5 @@ void device_init(void) {
     ASSERT_OK(file_system_register(&bdev_fs));
 
     bdev_mount = file_system_mount(&bdev_fs, "bdev");
-    ASSERT_OK(bdev_mount);
+    ASSERT_PTR(bdev_mount);
 }

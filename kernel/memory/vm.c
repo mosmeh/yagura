@@ -11,10 +11,10 @@ struct vm* vm_create(void* start, void* end) {
     if (end <= start || KERNEL_VM_END <= (uintptr_t)start)
         return ERR_PTR(-EINVAL);
     struct vm* vm = slab_alloc(&vm_slab);
-    if (IS_ERR(vm))
+    if (IS_ERR(ASSERT(vm)))
         return vm;
     struct page_directory* page_directory = page_directory_create();
-    if (IS_ERR(page_directory)) {
+    if (IS_ERR(ASSERT(page_directory))) {
         slab_free(&vm_slab, vm);
         return ERR_CAST(page_directory);
     }
@@ -130,7 +130,7 @@ struct vm* vm_enter(struct vm* vm) {
 static struct vm_region* vm_region_clone(struct vm* new_vm,
                                          const struct vm_region* region) {
     struct vm_region* cloned = slab_alloc(&region_slab);
-    if (IS_ERR(cloned))
+    if (IS_ERR(ASSERT(cloned)))
         return cloned;
 
     *cloned = (struct vm_region){
@@ -143,7 +143,7 @@ static struct vm_region* vm_region_clone(struct vm* new_vm,
     for (struct page* page = region->private_pages; page; page = page->next) {
         struct page* new_page =
             pages_alloc_at(&cloned->private_pages, page->index);
-        if (IS_ERR(new_page)) {
+        if (IS_ERR(ASSERT(new_page))) {
             vm_region_destroy(cloned);
             return ERR_CAST(new_page);
         }
@@ -161,7 +161,7 @@ struct vm* vm_clone(struct vm* vm) {
     ASSERT(vm != kernel_vm);
 
     struct vm* new_vm = slab_alloc(&vm_slab);
-    if (IS_ERR(new_vm))
+    if (IS_ERR(ASSERT(new_vm)))
         return new_vm;
 
     *new_vm = (struct vm){
@@ -175,7 +175,7 @@ struct vm* vm_clone(struct vm* vm) {
     int ret = 0;
 
     struct page_directory* page_directory = page_directory_create();
-    if (IS_ERR(page_directory)) {
+    if (IS_ERR(ASSERT(page_directory))) {
         ret = PTR_ERR(page_directory);
         goto fail;
     }
@@ -184,7 +184,7 @@ struct vm* vm_clone(struct vm* vm) {
     struct vm_region* prev_region = NULL;
     for (const struct vm_region* it = vm->regions; it; it = it->next) {
         struct vm_region* region = vm_region_clone(new_vm, it);
-        if (IS_ERR(region)) {
+        if (IS_ERR(ASSERT(region))) {
             ret = PTR_ERR(region);
             goto fail;
         }
@@ -233,7 +233,7 @@ static struct page* vm_region_handle_page_fault(struct vm_region* region,
     ASSERT(vm_ops->get_page);
     struct page* shared_page =
         vm_ops->get_page(obj, region->offset + index, error_code);
-    if (IS_ERR(shared_page)) {
+    if (IS_ERR(ASSERT(shared_page))) {
         ret = PTR_ERR(shared_page);
         goto fail;
     }
@@ -246,7 +246,7 @@ static struct page* vm_region_handle_page_fault(struct vm_region* region,
 
     // Copy on write
     struct page* private_page = pages_alloc_at(&region->private_pages, index);
-    if (IS_ERR(private_page)) {
+    if (IS_ERR(ASSERT(private_page))) {
         ret = PTR_ERR(private_page);
         goto fail;
     }
@@ -305,7 +305,7 @@ NODISCARD static int do_handle_page_fault(void* virt_addr,
 
     size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
     struct page* page = vm_region_handle_page_fault(region, index, error_code);
-    if (IS_ERR(page)) {
+    if (IS_ERR(ASSERT(page))) {
         ret = PTR_ERR(page);
         goto fail;
     }
@@ -461,7 +461,7 @@ struct vm_region* vm_alloc(struct vm* vm, size_t npages) {
     // slab_alloc() can allocate a new region, so it should be called
     // before vm_find_gap().
     struct vm_region* region = slab_alloc(&region_slab);
-    if (IS_ERR(region))
+    if (IS_ERR(ASSERT(region)))
         return region;
 
     size_t start;
@@ -496,7 +496,7 @@ struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
         return ERR_PTR(-ERANGE);
 
     struct vm_region* new_region = slab_alloc(&region_slab);
-    if (IS_ERR(new_region))
+    if (IS_ERR(ASSERT(new_region)))
         return new_region;
 
     struct vm_region* prev = NULL;
@@ -643,7 +643,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         // Right (`right_region`): [end, region->end) with old flags
 
         struct vm_region* right_region = slab_alloc(&region_slab);
-        if (IS_ERR(right_region))
+        if (IS_ERR(ASSERT(right_region)))
             return PTR_ERR(right_region);
 
         struct page* right_pages =
@@ -669,7 +669,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         // Right (`right_region`): [start, end) with new flags
 
         struct vm_region* right_region = slab_alloc(&region_slab);
-        if (IS_ERR(right_region))
+        if (IS_ERR(ASSERT(right_region)))
             return PTR_ERR(right_region);
 
         struct page* right_pages =
@@ -696,10 +696,10 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         // Right (`right_region`): [end, region->end) with old flags
 
         struct vm_region* middle_region = slab_alloc(&region_slab);
-        if (IS_ERR(middle_region))
+        if (IS_ERR(ASSERT(middle_region)))
             return PTR_ERR(middle_region);
         struct vm_region* right_region = slab_alloc(&region_slab);
-        if (IS_ERR(right_region)) {
+        if (IS_ERR(ASSERT(right_region))) {
             slab_free(&region_slab, middle_region);
             return PTR_ERR(right_region);
         }
@@ -780,7 +780,7 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
         // Right (`right_region`): [end, region->end)
 
         struct vm_region* right_region = slab_alloc(&region_slab);
-        if (IS_ERR(right_region))
+        if (IS_ERR(ASSERT(right_region)))
             return PTR_ERR(right_region);
 
         struct page* middle_pages =

@@ -255,7 +255,7 @@ struct page* pages_alloc_at(struct page** pages, size_t index) {
     }
 
     struct page* page = page_alloc();
-    if (IS_ERR(page))
+    if (IS_ERR(ASSERT(page)))
         return page;
     page->index = index;
     if (prev) {

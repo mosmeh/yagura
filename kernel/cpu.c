@@ -316,7 +316,7 @@ void cpu_init_smp(void) {
     }
 
     msg_pool = mpsc_create(num_cpus);
-    ASSERT(msg_pool);
+    ASSERT_PTR(msg_pool);
     for (size_t i = 0; i < num_cpus; ++i) {
         struct cpu* cpu = cpus[i];
         cpu->msg_queue = mpsc_create(num_cpus);

@@ -16,7 +16,7 @@ static inline struct mpsc* mpsc_create(size_t capacity) {
     struct mpsc* mpsc =
         kmalloc(sizeof(struct mpsc) + capacity * sizeof(atomic_uintptr_t));
     if (!mpsc)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
     *mpsc = (struct mpsc){.capacity = capacity};
     memset(mpsc->slots, 0, capacity * sizeof(atomic_uintptr_t));
     return mpsc;

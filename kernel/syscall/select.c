@@ -69,7 +69,7 @@ NODISCARD static int poll(nfds_t nfds, struct pollfd pollfds[nfds],
             if (pollfd->fd < 0)
                 continue;
             struct file* file = task_ref_file(pollfd->fd);
-            if (IS_ERR(file)) {
+            if (IS_ERR(ASSERT(file))) {
                 pollfd->revents = POLLNVAL;
                 ++blocker.num_events;
                 continue;

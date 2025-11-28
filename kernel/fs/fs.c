@@ -51,9 +51,8 @@ static struct page* inode_get_page(struct vm_obj* obj, size_t index,
     ASSERT(mutex_is_locked_by_current(&obj->lock));
     struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
     struct page* page = filemap_ensure_page(inode->filemap, index, true);
-    if (IS_ERR(page))
+    if (IS_ERR(ASSERT(page)))
         return page;
-    ASSERT(page);
     if (error_code & X86_PF_WRITE) {
         page->flags |= PAGE_DIRTY;
         inode->flags |= INODE_DIRTY;
@@ -162,7 +161,7 @@ struct file* inode_open(struct inode* inode, int flags) {
     }
 
     struct file* file = slab_alloc(&file_slab);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return file;
     *file = (struct file){
         .inode = inode,
@@ -226,7 +225,7 @@ int mount_commit_inode(struct mount* mount, struct inode* inode) {
     ASSERT(!inode->next);
 
     struct filemap* filemap = filemap_create(inode);
-    if (IS_ERR(filemap))
+    if (IS_ERR(ASSERT(filemap)))
         return PTR_ERR(filemap);
     inode->filemap = filemap;
 
@@ -251,7 +250,7 @@ struct inode* mount_create_inode(struct mount* mount, mode_t mode) {
         return ERR_PTR(-EROFS);
 
     struct inode* child FREE(inode) = fs_ops->create_inode(mount, mode);
-    if (IS_ERR(child))
+    if (IS_ERR(ASSERT(child)))
         return child;
 
     int rc = mount_commit_inode(mount, child);
@@ -417,11 +416,10 @@ static ssize_t default_file_pwrite(struct file* file, const void* buffer,
     inode_lock(inode);
     while (nwritten < count) {
         struct page* page = filemap_ensure_page(filemap, page_index, true);
-        if (IS_ERR(page)) {
+        if (IS_ERR(ASSERT(page))) {
             inode_unlock(inode);
             return PTR_ERR(page);
         }
-        ASSERT(page);
 
         size_t to_write = MIN(count - nwritten, PAGE_SIZE - page_offset);
         page_copy_from_buffer(page, src, page_offset, to_write);

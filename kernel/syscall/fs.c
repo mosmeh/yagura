@@ -29,7 +29,7 @@ int sys_access(const char* user_pathname, int mode) {
     if (IS_ERR(rc))
         return rc;
     struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return PTR_ERR(path);
     return 0;
 }
@@ -44,7 +44,7 @@ int sys_open(const char* user_pathname, int flags, unsigned mode) {
         vfs_open(pathname, flags, (mode & 0777) | S_IFREG);
     if (PTR_ERR(file) == -EINTR)
         return -ERESTARTSYS;
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return task_alloc_fd(-1, file);
 }
@@ -59,7 +59,7 @@ ssize_t sys_read(int fd, void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     int rc = file_read(file, user_buf, count);
     if (rc == -EINTR)
@@ -72,7 +72,7 @@ ssize_t sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
     int rc = file_pread(file, user_buf, count, pos);
@@ -85,7 +85,7 @@ ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     mutex_lock(&file->lock);
     ssize_t ret = 0;
@@ -123,13 +123,13 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
 
     struct path* path FREE(path) =
         vfs_resolve_path(pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return PTR_ERR(path);
     if (!S_ISLNK(path->inode->mode))
         return -EINVAL;
 
     struct file* file FREE(file) = inode_open(path->inode, O_RDONLY);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
     bufsiz = MIN(bufsiz, SYMLINK_MAX);
@@ -148,7 +148,7 @@ ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     int rc = file_write(file, user_buf, count);
     if (rc == -EINTR)
@@ -161,7 +161,7 @@ ssize_t sys_ia32_pwrite64(int fd, const void* buf, size_t count,
     if (!buf || !is_user_range(buf, count))
         return -EFAULT;
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
     int rc = file_pwrite(file, buf, count, pos);
@@ -174,7 +174,7 @@ ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     mutex_lock(&file->lock);
     ssize_t ret = 0;
@@ -210,14 +210,14 @@ NODISCARD static int truncate(const char* user_path, uint64_t length) {
     if (IS_ERR(rc))
         return rc;
     struct file* file FREE(file) = vfs_open(path, O_WRONLY, 0);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return file_truncate(file, length);
 }
 
 NODISCARD static int ftruncate(int fd, uint64_t length) {
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return file_truncate(file, length);
 }
@@ -240,7 +240,7 @@ int sys_ia32_ftruncate64(int fd, unsigned long offset_low,
 
 off_t sys_lseek(int fd, off_t offset, int whence) {
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return file_seek(file, offset, whence);
 }
@@ -249,7 +249,7 @@ int sys_llseek(unsigned int fd, unsigned long offset_high,
                unsigned long offset_low, loff_t* user_result,
                unsigned int whence) {
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     loff_t offset = ((loff_t)offset_high << 32) | offset_low;
     loff_t rc = file_seek(file, offset, whence);
@@ -284,7 +284,7 @@ NODISCARD static int lstat(const char* user_pathname, struct kstat* buf) {
 
 NODISCARD static int fstat(int fd, struct kstat* buf) {
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return inode_stat(file->inode, buf);
 }
@@ -458,7 +458,7 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
 
     struct file* file FREE(file) =
         vfs_open(linkpath, O_CREAT | O_EXCL | O_WRONLY, S_IFLNK);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     rc = file_write_all(file, target, target_len);
     if (IS_ERR(rc))
@@ -470,7 +470,7 @@ int sys_ioctl(int fd, int request, void* user_argp) {
     if (!is_user_address(user_argp))
         return -EFAULT;
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     int rc = file_ioctl(file, request, user_argp);
     if (rc == -EINTR)
@@ -485,7 +485,7 @@ int sys_mkdir(const char* user_pathname, mode_t mode) {
         return rc;
     struct inode* inode FREE(inode) =
         vfs_create(pathname, (mode & 0777) | S_IFDIR);
-    if (IS_ERR(inode))
+    if (IS_ERR(ASSERT(inode)))
         return PTR_ERR(inode);
     return 0;
 }
@@ -508,7 +508,7 @@ int sys_mknod(const char* user_pathname, mode_t mode, dev_t dev) {
         return rc;
 
     struct inode* inode FREE(inode) = vfs_create(pathname, mode);
-    if (IS_ERR(inode))
+    if (IS_ERR(ASSERT(inode)))
         return PTR_ERR(inode);
     inode->rdev = dev;
     return 0;
@@ -560,14 +560,14 @@ int sys_link(const char* user_oldpath, const char* user_newpath) {
         return rc;
 
     struct path* old_path FREE(path) = vfs_resolve_path(old_pathname, 0);
-    if (IS_ERR(old_path))
+    if (IS_ERR(ASSERT(old_path)))
         return PTR_ERR(old_path);
     if (S_ISDIR(old_path->inode->mode))
         return -EPERM;
 
     struct path* new_path FREE(path) =
         vfs_resolve_path(new_pathname, O_ALLOW_NOENT);
-    if (IS_ERR(new_path))
+    if (IS_ERR(ASSERT(new_path)))
         return PTR_ERR(new_path);
     if (new_path->inode)
         return -EEXIST;
@@ -585,7 +585,7 @@ int sys_unlink(const char* user_pathname) {
         return rc;
 
     struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return PTR_ERR(path);
     if (!path->parent || S_ISDIR(path->inode->mode))
         return -EPERM;
@@ -606,7 +606,7 @@ static int ensure_empty_directory(struct inode* inode) {
     ASSERT(S_ISDIR(inode->mode));
 
     struct file* file FREE(file) = inode_open(inode, O_RDONLY);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
     bool has_children = false;
@@ -628,14 +628,14 @@ int sys_rename(const char* user_oldpath, const char* user_newpath) {
         return rc;
 
     struct path* old_path FREE(path) = vfs_resolve_path(old_pathname, 0);
-    if (IS_ERR(old_path))
+    if (IS_ERR(ASSERT(old_path)))
         return PTR_ERR(old_path);
     if (!old_path->parent)
         return -EPERM;
 
     struct path* new_path FREE(path) =
         vfs_resolve_path(new_pathname, O_ALLOW_NOENT);
-    if (IS_ERR(new_path))
+    if (IS_ERR(ASSERT(new_path)))
         return PTR_ERR(new_path);
     if (!new_path->parent)
         return -EPERM;
@@ -672,7 +672,7 @@ int sys_rmdir(const char* user_pathname) {
         return rc;
 
     struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return PTR_ERR(path);
     if (!path->parent)
         return -EPERM;
@@ -719,7 +719,7 @@ static bool getdents_callback(const char* name, ino_t ino, unsigned char type,
 NODISCARD static ssize_t getdents(int fd, void* user_buf, size_t count,
                                   fill_dir_fn fill_dir) {
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
     struct fill_dir_ctx ctx = {
@@ -825,7 +825,7 @@ ssize_t sys_getdents64(int fd, struct linux_dirent* user_dirp, size_t count) {
 
 int sys_fcntl(int fd, int cmd, unsigned long arg) {
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     switch (cmd) {
     case F_DUPFD:
@@ -846,7 +846,7 @@ int sys_fcntl64(int fd, int cmd, unsigned long arg) {
 
 int sys_dup(int oldfd) {
     struct file* file FREE(file) = task_ref_file(oldfd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return task_alloc_fd(-1, file);
 }
@@ -857,7 +857,7 @@ int sys_dup3(int oldfd, int newfd, int flags) {
     (void)flags;
 
     struct file* oldfd_file FREE(file) = task_ref_file(oldfd);
-    if (IS_ERR(oldfd_file))
+    if (IS_ERR(ASSERT(oldfd_file)))
         return PTR_ERR(oldfd_file);
     if (oldfd == newfd)
         return oldfd;
@@ -871,15 +871,15 @@ int sys_pipe2(int user_pipefd[2], int flags) {
         return -EINVAL;
 
     struct inode* pipe FREE(inode) = pipe_create();
-    if (IS_ERR(pipe))
+    if (IS_ERR(ASSERT(pipe)))
         return PTR_ERR(pipe);
 
     struct file* reader_file FREE(file) = inode_open(pipe, flags | O_RDONLY);
-    if (IS_ERR(reader_file))
+    if (IS_ERR(ASSERT(reader_file)))
         return PTR_ERR(reader_file);
 
     struct file* writer_file FREE(file) = inode_open(pipe, flags | O_WRONLY);
-    if (IS_ERR(writer_file))
+    if (IS_ERR(ASSERT(writer_file)))
         return PTR_ERR(writer_file);
 
     int reader_fd = task_alloc_fd(-1, reader_file);
@@ -910,14 +910,14 @@ int sys_sync(void) {
 
 int sys_syncfs(int fd) {
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return mount_sync(file->inode->mount);
 }
 
 int sys_fsync(int fd) {
     struct file* file FREE(file) = task_ref_file(fd);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return inode_sync(file->inode, 0, UINT64_MAX);
 }

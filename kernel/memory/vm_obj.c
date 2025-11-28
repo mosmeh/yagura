@@ -29,7 +29,7 @@ void* vm_obj_map(struct vm_obj* obj, size_t offset, size_t npages,
     mutex_lock(&kernel_vm->lock);
 
     struct vm_region* region = vm_alloc(kernel_vm, npages);
-    if (IS_ERR(region)) {
+    if (IS_ERR(ASSERT(region))) {
         mutex_unlock(&kernel_vm->lock);
         return ERR_CAST(region);
     }
@@ -119,7 +119,7 @@ static struct page* anon_get_page(struct vm_obj* obj, size_t index,
         return ERR_PTR(rc);
 
     page = pages_alloc_at(&anon->shared_pages, index);
-    if (IS_ERR(page))
+    if (IS_ERR(ASSERT(page)))
         return page;
     page_fill(page, 0, 0, PAGE_SIZE);
     return page;
@@ -132,7 +132,7 @@ static const struct vm_ops anon_vm_ops = {
 
 struct vm_obj* anon_create(void) {
     struct anon* anon = slab_alloc(&anon_slab);
-    if (IS_ERR(anon))
+    if (IS_ERR(ASSERT(anon)))
         return ERR_CAST(anon);
     *anon = (struct anon){
         .vm_obj =
@@ -181,7 +181,7 @@ struct vm_obj* phys_create(uintptr_t phys_addr, size_t npages) {
         return ERR_PTR(-EOVERFLOW);
 
     struct phys* phys = slab_alloc(&phys_slab);
-    if (IS_ERR(phys))
+    if (IS_ERR(ASSERT(phys)))
         return ERR_CAST(phys);
     *phys = (struct phys){
         .vm_obj =
@@ -200,11 +200,11 @@ void* phys_map(uintptr_t phys_addr, size_t size, unsigned vm_flags) {
     size_t npages = DIV_CEIL(phys_addr - aligned_addr + size, PAGE_SIZE);
 
     struct vm_obj* phys FREE(vm_obj) = phys_create(aligned_addr, npages);
-    if (IS_ERR(phys))
+    if (IS_ERR(ASSERT(phys)))
         return ERR_CAST(phys);
 
     unsigned char* addr = vm_obj_map(phys, 0, npages, vm_flags | VM_SHARED);
-    if (IS_ERR(addr))
+    if (IS_ERR(ASSERT(addr)))
         return addr;
     return addr + (phys_addr - aligned_addr);
 }
@@ -216,6 +216,6 @@ void vm_obj_init(void) {
     slab_init(&phys_slab, sizeof(struct phys));
 
     zero_page = page_alloc();
-    ASSERT_OK(zero_page);
+    ASSERT_PTR(zero_page);
     page_fill(zero_page, 0, 0, PAGE_SIZE);
 }

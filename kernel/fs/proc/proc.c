@@ -117,7 +117,7 @@ struct inode* proc_create_inode(struct mount* mount, ino_t ino,
     }
 
     inode = alloc_inode(ino, entry);
-    if (IS_ERR(inode)) {
+    if (IS_ERR(ASSERT(inode))) {
         mutex_unlock(&mount->lock);
         return inode;
     }
@@ -174,7 +174,7 @@ static struct mount* proc_mount(const char* source) {
 
     struct inode* root FREE(inode) =
         proc_create_inode(mount, PROC_ROOT_INO, NULL);
-    if (IS_ERR(root))
+    if (IS_ERR(ASSERT(root)))
         return ERR_CAST(root);
     mount_set_root(mount, root);
 

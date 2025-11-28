@@ -79,7 +79,7 @@ static int tmpfs_link(struct inode* vfs_parent, const char* name,
     }
 
     dentry = slab_alloc(&tmpfs_dentry_slab);
-    if (IS_ERR(dentry)) {
+    if (IS_ERR(ASSERT(dentry))) {
         rc = PTR_ERR(dentry);
         goto fail;
     }
@@ -227,7 +227,7 @@ static struct inode* tmpfs_create_inode(struct mount* vfs_mount, mode_t mode) {
         CONTAINER_OF(vfs_mount, struct tmpfs_mount, vfs_mount);
 
     struct tmpfs_inode* inode = slab_alloc(&tmpfs_inode_slab);
-    if (IS_ERR(inode))
+    if (IS_ERR(ASSERT(inode)))
         return ERR_CAST(inode);
     *inode = (struct tmpfs_inode){
         .vfs_inode = INODE_INIT,
@@ -253,7 +253,7 @@ static struct mount* tmpfs_mount(const char* source) {
 
     struct mount* vfs_mount = &mount->vfs_mount;
     struct inode* root FREE(inode) = tmpfs_create_inode(vfs_mount, S_IFDIR);
-    if (IS_ERR(root)) {
+    if (IS_ERR(ASSERT(root))) {
         kfree(mount);
         return ERR_CAST(root);
     }

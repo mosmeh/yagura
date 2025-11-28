@@ -25,6 +25,7 @@ void ksyms_init(void) {
     for (const char* p = ksyms_start; p < ksyms_end; ++p)
         n += *p == '\n';
     symbols = kmalloc(n * sizeof(struct symbol));
+    ASSERT(symbols);
 
     struct symbol* symbol = symbols;
     for (char* p = ksyms_start; p < ksyms_end; ++p, ++symbol) {
