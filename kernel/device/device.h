@@ -46,5 +46,8 @@ extern const struct file_ops block_dev_fops;
 NODISCARD int block_dev_register(struct block_dev*);
 struct block_dev* block_dev_get(dev_t);
 
+void block_dev_ref(struct block_dev*);
+void block_dev_unref(struct block_dev*);
+
 void block_dev_lock(struct block_dev*);
 void block_dev_unlock(struct block_dev*);

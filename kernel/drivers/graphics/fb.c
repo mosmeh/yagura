@@ -26,10 +26,7 @@ static struct fb* find_fb(const multiboot_info_t* mb_info) {
 
 struct fb* fb_get(void) { return fb; }
 
-struct vm_obj* fb_mmap(void) {
-    vm_obj_ref(vm_obj);
-    return vm_obj;
-}
+struct vm_obj* fb_mmap(void) { return vm_obj_ref(vm_obj); }
 
 static size_t buf_size(void) { return fb_info.pitch * fb_info.height; }
 

@@ -33,6 +33,7 @@
 #include <common/extra.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/lock.h>
+#include <kernel/resource.h>
 
 extern struct page_directory* kernel_page_directory;
 
@@ -119,6 +120,8 @@ void* kmalloc(size_t);
 void* kaligned_alloc(size_t alignment, size_t);
 void* krealloc(void*, size_t new_size);
 void kfree(void*);
+
+DEFINE_FREE(kfree, void*, kfree)
 
 char* kstrdup(const char*);
 char* kstrndup(const char*, size_t n);

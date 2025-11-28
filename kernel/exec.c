@@ -187,29 +187,29 @@ static int execve(const char* pathname, struct string_vec* argv,
     char comm[sizeof(current->comm)];
     strlcpy(comm, exe_basename, sizeof(current->comm));
 
-    struct path* path = vfs_resolve_path(pathname, 0);
-    if (IS_ERR(path)) {
-        ret = PTR_ERR(path);
-        goto fail_exe;
-    }
+    {
+        struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
+        if (IS_ERR(path)) {
+            ret = PTR_ERR(path);
+            goto fail_exe;
+        }
 
-    struct file* file = inode_open(path_into_inode(path), O_RDONLY);
-    if (IS_ERR(file)) {
-        ret = PTR_ERR(file);
-        goto fail_exe;
-    }
-    struct vm_obj* vm_obj = file_mmap(file);
-    file_unref(file);
-    if (IS_ERR(vm_obj)) {
-        ret = PTR_ERR(vm_obj);
-        goto fail_exe;
-    }
-    exe = vm_obj_map(vm_obj, 0, DIV_CEIL(stat.st_size, PAGE_SIZE), VM_READ);
-    if (IS_ERR(exe)) {
-        vm_obj_unref(vm_obj);
-        ret = PTR_ERR(exe);
-        exe = NULL;
-        goto fail_exe;
+        struct file* file FREE(file) = inode_open(path->inode, O_RDONLY);
+        if (IS_ERR(file)) {
+            ret = PTR_ERR(file);
+            goto fail_exe;
+        }
+        struct vm_obj* vm_obj FREE(vm_obj) = file_mmap(file);
+        if (IS_ERR(vm_obj)) {
+            ret = PTR_ERR(vm_obj);
+            goto fail_exe;
+        }
+        exe = vm_obj_map(vm_obj, 0, DIV_CEIL(stat.st_size, PAGE_SIZE), VM_READ);
+        if (IS_ERR(exe)) {
+            ret = PTR_ERR(exe);
+            exe = NULL;
+            goto fail_exe;
+        }
     }
 
     Elf32_Ehdr* ehdr = (Elf32_Ehdr*)exe;
@@ -274,7 +274,7 @@ static int execve(const char* pathname, struct string_vec* argv,
         ASSERT_OK(vm_region_set_flags(region, 0, npages,
                                       VM_READ | VM_WRITE | VM_USER, ~0));
 
-        struct vm_obj* anon = anon_create();
+        struct vm_obj* anon FREE(vm_obj) = anon_create();
         if (IS_ERR(anon)) {
             ret = PTR_ERR(anon);
             goto fail_vm;
@@ -317,6 +317,7 @@ static int execve(const char* pathname, struct string_vec* argv,
         goto fail_vm;
     }
     vm_region_set_obj(stack_region, stack_obj, 0);
+    vm_obj_unref(stack_obj);
 
     uintptr_t sp = stack_base + STACK_SIZE;
 

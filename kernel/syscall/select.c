@@ -68,7 +68,7 @@ NODISCARD static int poll(nfds_t nfds, struct pollfd pollfds[nfds],
             blocker.files[i] = NULL;
             if (pollfd->fd < 0)
                 continue;
-            struct file* file = task_get_file(pollfd->fd);
+            struct file* file = task_ref_file(pollfd->fd);
             if (IS_ERR(file)) {
                 pollfd->revents = POLLNVAL;
                 ++blocker.num_events;
@@ -104,24 +104,23 @@ NODISCARD static int poll(nfds_t nfds, struct pollfd pollfds[nfds],
     ret = blocker.num_events;
 
 fail:
-    kfree(blocker.files);
+    if (blocker.files) {
+        for (nfds_t i = 0; i < nfds; ++i)
+            file_unref(blocker.files[i]);
+        kfree(blocker.files);
+    }
     return ret;
 }
 
 int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
-    int ret = 0;
     size_t pollfds_size = sizeof(struct pollfd) * nfds;
-    struct pollfd* pollfds = NULL;
+    struct pollfd* pollfds FREE(kfree) = NULL;
     if (nfds > 0) {
         pollfds = kmalloc(pollfds_size);
-        if (!pollfds) {
-            ret = -ENOMEM;
-            goto fail;
-        }
-        if (copy_from_user(pollfds, user_fds, pollfds_size)) {
-            ret = -EFAULT;
-            goto fail;
-        }
+        if (!pollfds)
+            return -ENOMEM;
+        if (copy_from_user(pollfds, user_fds, pollfds_size))
+            return -EFAULT;
         for (nfds_t i = 0; i < nfds; ++i)
             pollfds[i].events |= POLLERR | POLLHUP;
     }
@@ -131,19 +130,15 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
         .tv_nsec = (timeout % 1000) * 1000000LL,
     };
     // Negative timeout means infinite.
-    ret = poll(nfds, pollfds, timeout >= 0 ? &timeout_ts : NULL);
+    int ret = poll(nfds, pollfds, timeout >= 0 ? &timeout_ts : NULL);
     if (IS_ERR(ret))
-        goto fail;
+        return ret;
 
     if (nfds > 0) {
-        if (copy_to_user(user_fds, pollfds, pollfds_size)) {
-            ret = -EFAULT;
-            goto fail;
-        }
+        if (copy_to_user(user_fds, pollfds, pollfds_size))
+            return -EFAULT;
     }
 
-fail:
-    kfree(pollfds);
     return ret;
 }
 
@@ -173,14 +168,13 @@ int sys_select(int nfds, unsigned long* user_readfds,
             return -EINVAL;
     }
 
-    int ret = 0;
     size_t num_fd_bytes = 0;
-    unsigned long* fds = NULL;
+    unsigned long* fds FREE(kfree) = NULL;
     unsigned long* readfds = NULL;
     unsigned long* writefds = NULL;
     unsigned long* exceptfds = NULL;
     size_t num_pollfds = 0;
-    struct pollfd* pollfds = NULL;
+    struct pollfd* pollfds FREE(kfree) = NULL;
 
     if (nfds > 0) {
         size_t num_fd_longs = DIV_CEIL(nfds, NUM_FD_BITS);
@@ -196,22 +190,16 @@ int sys_select(int nfds, unsigned long* user_readfds,
         exceptfds = fds + num_fd_longs * 2;
 
         if (user_readfds) {
-            if (copy_from_user(readfds, user_readfds, num_fd_bytes)) {
-                ret = -EFAULT;
-                goto fail;
-            }
+            if (copy_from_user(readfds, user_readfds, num_fd_bytes))
+                return -EFAULT;
         }
         if (user_writefds) {
-            if (copy_from_user(writefds, user_writefds, num_fd_bytes)) {
-                ret = -EFAULT;
-                goto fail;
-            }
+            if (copy_from_user(writefds, user_writefds, num_fd_bytes))
+                return -EFAULT;
         }
         if (user_exceptfds) {
-            if (copy_from_user(exceptfds, user_exceptfds, num_fd_bytes)) {
-                ret = -EFAULT;
-                goto fail;
-            }
+            if (copy_from_user(exceptfds, user_exceptfds, num_fd_bytes))
+                return -EFAULT;
         }
 
         for (int i = 0; i < nfds; ++i) {
@@ -221,10 +209,8 @@ int sys_select(int nfds, unsigned long* user_readfds,
         }
 
         pollfds = kmalloc(sizeof(struct pollfd) * num_pollfds);
-        if (!pollfds) {
-            ret = -ENOMEM;
-            goto fail;
-        }
+        if (!pollfds)
+            return -ENOMEM;
 
         struct pollfd* pollfd = pollfds;
         for (int i = 0; i < nfds; ++i) {
@@ -248,27 +234,23 @@ int sys_select(int nfds, unsigned long* user_readfds,
         .tv_nsec = (timeout.tv_usec % 1000000) * 1000LL,
     };
 
-    ret = poll(num_pollfds, pollfds, user_timeout ? &timeout_ts : NULL);
+    int ret = poll(num_pollfds, pollfds, user_timeout ? &timeout_ts : NULL);
 
     for (size_t i = 0; i < num_pollfds; ++i) {
-        if (pollfds[i].revents & POLLNVAL) {
-            ret = -EBADF;
-            goto fail;
-        }
+        if (pollfds[i].revents & POLLNVAL)
+            return -EBADF;
     }
 
     // On Linux, timeout is modified even on EINTR.
     if (user_timeout && (IS_OK(ret) || ret == -EINTR)) {
         timeout.tv_sec = timeout_ts.tv_sec;
         timeout.tv_usec = divmodi64(timeout_ts.tv_nsec, 1000, NULL);
-        if (copy_to_user(user_timeout, &timeout, sizeof(timeout))) {
-            ret = -EFAULT;
-            goto fail;
-        }
+        if (copy_to_user(user_timeout, &timeout, sizeof(timeout)))
+            return -EFAULT;
     }
 
     if (IS_ERR(ret))
-        goto fail;
+        return ret;
 
     if (nfds > 0) {
         for (size_t i = 0; i < num_pollfds; ++i) {
@@ -282,39 +264,29 @@ int sys_select(int nfds, unsigned long* user_readfds,
         }
 
         if (user_readfds) {
-            if (copy_to_user(user_readfds, readfds, num_fd_bytes)) {
-                ret = -EFAULT;
-                goto fail;
-            }
+            if (copy_to_user(user_readfds, readfds, num_fd_bytes))
+                return -EFAULT;
         }
         if (user_writefds) {
-            if (copy_to_user(user_writefds, writefds, num_fd_bytes)) {
-                ret = -EFAULT;
-                goto fail;
-            }
+            if (copy_to_user(user_writefds, writefds, num_fd_bytes))
+                return -EFAULT;
         }
         if (user_exceptfds) {
-            if (copy_to_user(user_exceptfds, exceptfds, num_fd_bytes)) {
-                ret = -EFAULT;
-                goto fail;
-            }
+            if (copy_to_user(user_exceptfds, exceptfds, num_fd_bytes))
+                return -EFAULT;
         }
     }
 
-    ret = 0;
+    size_t num_ready = 0;
     for (int i = 0; i < nfds; ++i) {
         if (FD_ISSET(i, readfds))
-            ++ret;
+            ++num_ready;
         if (FD_ISSET(i, writefds))
-            ++ret;
+            ++num_ready;
         if (FD_ISSET(i, exceptfds))
-            ++ret;
+            ++num_ready;
     }
-
-fail:
-    kfree(pollfds);
-    kfree(fds);
-    return ret;
+    return num_ready;
 }
 
 struct sel_arg_struct {

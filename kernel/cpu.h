@@ -246,7 +246,7 @@ struct ipi_message {
         IPI_MESSAGE_HALT,
         IPI_MESSAGE_FLUSH_TLB,
     } type;
-    atomic_size_t ref_count;
+    refcount_t refcount;
     struct {
         uintptr_t virt_addr;
         size_t size;

@@ -48,14 +48,12 @@ static struct inode* tmpfs_lookup(struct inode* vfs_parent, const char* name) {
          child = child->next) {
         ASSERT(child->name);
         if (!strcmp(child->name, name)) {
-            inode = child->inode;
-            inode_ref(inode);
+            inode = inode_ref(child->inode);
             break;
         }
     }
 
     inode_unlock(vfs_parent);
-    inode_unref(vfs_parent);
 
     return inode ? inode : ERR_PTR(-ENOENT);
 }
@@ -91,7 +89,7 @@ static int tmpfs_link(struct inode* vfs_parent, const char* name,
         rc = -ENOMEM;
         goto fail;
     }
-    dentry->inode = vfs_child;
+    dentry->inode = inode_ref(vfs_child);
     if (prev) {
         prev->next = dentry;
     } else {
@@ -103,10 +101,8 @@ static int tmpfs_link(struct inode* vfs_parent, const char* name,
 
 fail:
     slab_free(&tmpfs_dentry_slab, dentry);
-    inode_unref(vfs_child);
 exit:
     inode_unlock(vfs_parent);
-    inode_unref(vfs_parent);
     return rc;
 }
 
@@ -137,7 +133,6 @@ static int tmpfs_unlink(struct inode* vfs_parent, const char* name) {
     }
 
     inode_unlock(vfs_parent);
-    inode_unref(vfs_parent);
     return rc;
 }
 
@@ -257,15 +252,13 @@ static struct mount* tmpfs_mount(const char* source) {
     };
 
     struct mount* vfs_mount = &mount->vfs_mount;
-    struct inode* root = tmpfs_create_inode(vfs_mount, S_IFDIR);
+    struct inode* root FREE(inode) = tmpfs_create_inode(vfs_mount, S_IFDIR);
     if (IS_ERR(root)) {
         kfree(mount);
         return ERR_CAST(root);
     }
-    inode_ref(root);
     int rc = mount_commit_inode(vfs_mount, root);
     if (IS_ERR(rc)) {
-        inode_unref(root);
         kfree(mount);
         return ERR_PTR(rc);
     }

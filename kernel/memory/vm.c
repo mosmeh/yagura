@@ -22,15 +22,16 @@ struct vm* vm_create(void* start, void* end) {
         .start = DIV_CEIL((uintptr_t)start, PAGE_SIZE),
         .end = (uintptr_t)end >> PAGE_SHIFT,
         .page_directory = page_directory,
-        .ref_count = 1,
+        .refcount = REFCOUNT_INIT_ONE,
     };
     return vm;
 }
 
-void vm_ref(struct vm* vm) {
+struct vm* vm_ref(struct vm* vm) {
     ASSERT(vm);
     ASSERT(vm != kernel_vm);
-    ASSERT(vm->ref_count++ > 0);
+    refcount_inc(&vm->refcount);
+    return vm;
 }
 
 void vm_region_set_obj(struct vm_region* region, struct vm_obj* obj,
@@ -43,7 +44,7 @@ void vm_region_set_obj(struct vm_region* region, struct vm_obj* obj,
     region->offset = offset;
 
     mutex_lock(&obj->lock);
-    region->obj = obj;
+    region->obj = vm_obj_ref(obj);
     if (region->flags & VM_SHARED) {
         region->shared_next = obj->shared_regions;
         obj->shared_regions = region;
@@ -94,8 +95,7 @@ void vm_unref(struct vm* vm) {
     if (!vm)
         return;
     ASSERT(vm != kernel_vm);
-    ASSERT(vm->ref_count > 0);
-    if (--vm->ref_count > 0)
+    if (refcount_dec(&vm->refcount))
         return;
 
     ASSERT(vm != current->vm);
@@ -151,10 +151,8 @@ static struct vm_region* vm_region_clone(struct vm* new_vm,
     }
 
     struct vm_obj* obj = region->obj;
-    if (obj) {
-        vm_obj_ref(obj);
+    if (obj)
         vm_region_set_obj(cloned, obj, region->offset);
-    }
 
     return cloned;
 }
@@ -169,7 +167,7 @@ struct vm* vm_clone(struct vm* vm) {
     *new_vm = (struct vm){
         .start = vm->start,
         .end = vm->end,
-        .ref_count = 1,
+        .refcount = REFCOUNT_INIT_ONE,
     };
 
     mutex_lock(&new_vm->lock);
@@ -662,11 +660,9 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
 
         vm_insert_region_after(vm, region, right_region);
 
-        if (region->obj) {
-            vm_obj_ref(region->obj);
+        if (region->obj)
             vm_region_set_obj(right_region, region->obj,
                               region->offset + npages);
-        }
     } else if (end == region->end) {
         // Split the region into two.
         // Left (`region`): [region->start, start) with old flags
@@ -690,11 +686,9 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
 
         vm_insert_region_after(vm, region, right_region);
 
-        if (region->obj) {
-            vm_obj_ref(region->obj);
+        if (region->obj)
             vm_region_set_obj(right_region, region->obj,
                               region->offset + offset);
-        }
     } else {
         // Split the region into three.
         // Left (`region`): [region->start, start) with old flags
@@ -734,10 +728,8 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         vm_insert_region_after(vm, middle_region, right_region);
 
         if (region->obj) {
-            vm_obj_ref(region->obj);
             vm_region_set_obj(middle_region, region->obj,
                               region->offset + offset);
-            vm_obj_ref(region->obj);
             vm_region_set_obj(right_region, region->obj,
                               region->offset + offset + npages);
         }
@@ -807,11 +799,9 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
 
         vm_insert_region_after(vm, region, right_region);
 
-        if (region->obj) {
-            vm_obj_ref(region->obj);
+        if (region->obj)
             vm_region_set_obj(right_region, region->obj,
                               region->offset + offset + npages);
-        }
     }
 
     page_table_unmap(start << PAGE_SHIFT, npages);
@@ -853,7 +843,7 @@ void vm_init(void) {
         .start = start,
         .end = end,
         .page_directory = kernel_page_directory,
-        .ref_count = 1,
+        .refcount = REFCOUNT_INIT_ONE,
     };
 
     slab_init(&vm_slab, sizeof(struct vm));

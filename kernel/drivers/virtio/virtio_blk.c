@@ -100,15 +100,17 @@ static void init_device(const struct pci_addr* addr) {
         return;
     }
 
-    struct virtio* virtio = virtio_create(addr, 1);
+    struct virtio* virtio FREE(virtio) = virtio_create(addr, 1);
     if (IS_ERR(virtio)) {
         kprint("virtio_blk: failed to initialize a virtio device\n");
         return;
     }
 
     unsigned char* device_cfg_space = pci_map_bar(addr, device_cfg_cap.bar);
-    if (IS_ERR(device_cfg_space))
-        goto fail;
+    if (IS_ERR(device_cfg_space)) {
+        kprint("virtio_blk: failed to map device config space\n");
+        return;
+    }
     volatile struct virtio_blk_config* blk_config =
         (volatile struct virtio_blk_config*)(device_cfg_space +
                                              device_cfg_cap.offset);
@@ -116,11 +118,13 @@ static void init_device(const struct pci_addr* addr) {
     phys_unmap(device_cfg_space);
 
     struct virtio_blk* blk = kmalloc(sizeof(struct virtio_blk));
-    if (!blk)
-        goto fail;
+    if (!blk) {
+        kprint("virtio_blk: failed to allocate virtio_blk\n");
+        return;
+    }
     *blk = (struct virtio_blk){
         .block_dev = BLOCK_DEV_INIT,
-        .virtio = virtio,
+        .virtio = TAKE_PTR(virtio),
     };
 
     size_t id = next_id++;
@@ -146,10 +150,7 @@ static void init_device(const struct pci_addr* addr) {
     block_dev->num_blocks = capacity;
 
     ASSERT_OK(block_dev_register(block_dev));
-    return;
-
-fail:
-    virtio_destroy(virtio);
+    block_dev_unref(block_dev);
 }
 
 static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,

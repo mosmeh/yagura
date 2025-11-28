@@ -236,7 +236,6 @@ struct inode* unix_socket_create(void) {
     if (IS_ERR(rc))
         goto fail;
 
-    inode_ref(inode);
     rc = mount_commit_inode(sock_mount, inode);
     if (IS_ERR(rc)) {
         inode_unref(inode);
