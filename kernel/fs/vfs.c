@@ -67,7 +67,7 @@ struct mount* file_system_mount(const struct file_system* fs,
     struct mount* mount;
     if (fs->fs_ops->mount) {
         mount = fs->fs_ops->mount(source);
-        if (IS_ERR(mount))
+        if (IS_ERR(ASSERT(mount)))
             return mount;
     } else {
         mount = kmalloc(sizeof(struct mount));
@@ -122,7 +122,7 @@ int vfs_mount(const struct file_system* fs, const char* source,
 int vfs_mount_at(const struct file_system* fs, const struct path* base,
                  const char* source, const char* target) {
     struct path* target_path FREE(path) = vfs_resolve_path_at(base, target, 0);
-    if (IS_ERR(target_path))
+    if (IS_ERR(ASSERT(target_path)))
         return PTR_ERR(target_path);
 
     struct inode* host = target_path->inode;
@@ -134,7 +134,7 @@ int vfs_mount_at(const struct file_system* fs, const struct path* base,
         return -ENOMEM;
 
     struct mount* mount = file_system_mount(fs, source);
-    if (IS_ERR(mount))
+    if (IS_ERR(ASSERT(mount)))
         return PTR_ERR(mount);
     ASSERT(mount->root);
 
@@ -183,7 +183,7 @@ static struct path* follow_symlink(const struct path* parent,
     ASSERT(depth <= SYMLOOP_MAX);
 
     struct file* file FREE(file) = inode_open(inode, O_RDONLY);
-    if (IS_ERR(file))
+    if (IS_ERR(ASSERT(file)))
         return ERR_CAST(file);
 
     char target[SYMLINK_MAX];
@@ -207,7 +207,7 @@ static struct path* resolve_path_at(const struct path* base,
                                     unsigned symlink_depth) {
     struct path* path FREE(path) =
         is_absolute_path(pathname) ? vfs_get_root() : path_dup(base);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return path;
 
     char* dup_pathname FREE(kfree) = kstrdup(pathname);
@@ -250,7 +250,7 @@ static struct path* resolve_path_at(const struct path* base,
             return path_join(path, NULL, component);
         }
 
-        if (IS_ERR(inode))
+        if (IS_ERR(ASSERT(inode)))
             return ERR_CAST(inode);
 
         struct inode* resolved = resolve_mounts(inode);
@@ -274,7 +274,7 @@ static struct path* resolve_path_at(const struct path* base,
         }
 
         struct path* joined = path_join(path, inode, component);
-        if (IS_ERR(joined))
+        if (IS_ERR(ASSERT(joined)))
             return joined;
         path_destroy_recursive(path);
         path = joined;
@@ -301,7 +301,7 @@ static struct path* create_at(const struct path* base, const char* pathname,
 
     struct path* path FREE(path) =
         vfs_resolve_path_at(base, pathname, O_ALLOW_NOENT);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return ERR_CAST(path);
 
     if (path->inode) {
@@ -317,7 +317,7 @@ static struct path* create_at(const struct path* base, const char* pathname,
 
     struct inode* new_inode FREE(inode) =
         mount_create_inode(path->parent->inode->mount, mode);
-    if (IS_ERR(new_inode))
+    if (IS_ERR(ASSERT(new_inode)))
         return ERR_CAST(new_inode);
 
     for (;;) {
@@ -355,7 +355,7 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
     struct path* path FREE(path) =
         (flags & O_CREAT) ? create_at(base, pathname, mode, flags & O_EXCL)
                           : vfs_resolve_path_at(base, pathname, flags);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return ERR_CAST(path);
 
     ASSERT(path->inode);
@@ -372,7 +372,7 @@ int vfs_stat(const char* pathname, struct kstat* buf, int flags) {
 int vfs_stat_at(const struct path* base, const char* pathname,
                 struct kstat* buf, int flags) {
     struct path* path FREE(path) = vfs_resolve_path_at(base, pathname, flags);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return PTR_ERR(path);
     ASSERT(path->inode);
     return inode_stat(path->inode, buf);
@@ -388,7 +388,7 @@ struct inode* vfs_create(const char* pathname, mode_t mode) {
 struct inode* vfs_create_at(const struct path* base, const char* pathname,
                             mode_t mode) {
     struct path* path = create_at(base, pathname, mode, true);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return ERR_CAST(path);
     struct inode* inode = inode_ref(path->inode);
     path_destroy_recursive(path);
@@ -419,7 +419,7 @@ void vfs_init(const multiboot_module_t* initrd_mod) {
     const struct file_system* fs = file_system_find("tmpfs");
     ASSERT(fs);
     struct mount* mount = file_system_mount(fs, "tmpfs");
-    ASSERT_OK(mount);
+    ASSERT_PTR(mount);
     root = mount->root;
     ASSERT(root);
 

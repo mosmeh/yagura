@@ -52,7 +52,7 @@ void serial_console_init(void) {
     for (uint8_t i = 0; i < SERIAL_NUM_PORTS; ++i) {
         if (serial_is_port_enabled(i)) {
             struct serial_console* console = serial_console_create(i);
-            ASSERT_OK(console);
+            ASSERT_PTR(console);
             consoles[i] = console;
         }
     }

@@ -57,7 +57,7 @@ static struct madt* find_madt(const struct rsdt* rsdt) {
     for (size_t i = 0; i < n; ++i) {
         struct sdt_header* header =
             phys_map(rsdt->entries[i], sizeof(struct sdt_header), VM_READ);
-        ASSERT_OK(header);
+        ASSERT_PTR(header);
 
         uint32_t signature;
         memcpy(&signature, header->signature, sizeof(signature));
@@ -79,12 +79,12 @@ void acpi_init(void) {
 
     struct rsdt* rsdt_header =
         phys_map(rsdp->rsdt_address, sizeof(struct rsdt), VM_READ);
-    ASSERT_OK(rsdt_header);
+    ASSERT_PTR(rsdt_header);
     uint32_t rsdt_size = rsdt_header->header.length;
     phys_unmap(rsdt_header);
 
     struct rsdt* rsdt = phys_map(rsdp->rsdt_address, rsdt_size, VM_READ);
-    ASSERT_OK(rsdt);
+    ASSERT_PTR(rsdt);
 
     struct madt* madt = find_madt(rsdt);
     ASSERT_OK(madt);

@@ -62,7 +62,7 @@ struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
     if (byte_offset >= inode->size) {
         if (write) {
             page = pages_alloc_at(&filemap->pages, index);
-            if (IS_ERR(page))
+            if (IS_ERR(ASSERT(page)))
                 return page;
             page_fill(page, 0, 0, PAGE_SIZE);
             return page;
@@ -71,7 +71,7 @@ struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
     }
 
     page = pages_alloc_at(&filemap->pages, index);
-    if (IS_ERR(page))
+    if (IS_ERR(ASSERT(page)))
         return page;
 
     int rc = populate_page(filemap, page);

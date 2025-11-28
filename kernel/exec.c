@@ -189,23 +189,23 @@ static int execve(const char* pathname, struct string_vec* argv,
 
     {
         struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
-        if (IS_ERR(path)) {
+        if (IS_ERR(ASSERT(path))) {
             ret = PTR_ERR(path);
             goto fail_exe;
         }
 
         struct file* file FREE(file) = inode_open(path->inode, O_RDONLY);
-        if (IS_ERR(file)) {
+        if (IS_ERR(ASSERT(file))) {
             ret = PTR_ERR(file);
             goto fail_exe;
         }
         struct vm_obj* vm_obj FREE(vm_obj) = file_mmap(file);
-        if (IS_ERR(vm_obj)) {
+        if (IS_ERR(ASSERT(vm_obj))) {
             ret = PTR_ERR(vm_obj);
             goto fail_exe;
         }
         exe = vm_obj_map(vm_obj, 0, DIV_CEIL(stat.st_size, PAGE_SIZE), VM_READ);
-        if (IS_ERR(exe)) {
+        if (IS_ERR(ASSERT(exe))) {
             ret = PTR_ERR(exe);
             exe = NULL;
             goto fail_exe;
@@ -239,7 +239,7 @@ static int execve(const char* pathname, struct string_vec* argv,
     }
 
     struct vm* vm = vm_create(0, (void*)KERNEL_VIRT_ADDR);
-    if (IS_ERR(vm)) {
+    if (IS_ERR(ASSERT(vm))) {
         ret = PTR_ERR(vm);
         goto fail_exe;
     }
@@ -267,7 +267,7 @@ static int execve(const char* pathname, struct string_vec* argv,
         size_t npages =
             DIV_CEIL(phdr->p_vaddr + phdr->p_memsz - start, PAGE_SIZE);
         struct vm_region* region = vm_alloc_at(vm, (void*)start, npages);
-        if (IS_ERR(region)) {
+        if (IS_ERR(ASSERT(region))) {
             ret = PTR_ERR(region);
             goto fail_vm;
         }
@@ -275,7 +275,7 @@ static int execve(const char* pathname, struct string_vec* argv,
                                       VM_READ | VM_WRITE | VM_USER, ~0));
 
         struct vm_obj* anon FREE(vm_obj) = anon_create();
-        if (IS_ERR(anon)) {
+        if (IS_ERR(ASSERT(anon))) {
             ret = PTR_ERR(anon);
             goto fail_vm;
         }
@@ -293,7 +293,7 @@ static int execve(const char* pathname, struct string_vec* argv,
     STATIC_ASSERT(STACK_SIZE % PAGE_SIZE == 0);
 
     struct vm_region* region = vm_alloc(vm, 2 + (STACK_SIZE >> PAGE_SHIFT));
-    if (IS_ERR(region)) {
+    if (IS_ERR(ASSERT(region))) {
         ret = PTR_ERR(region);
         goto fail_vm;
     }
@@ -312,7 +312,7 @@ static int execve(const char* pathname, struct string_vec* argv,
     ASSERT(stack_region);
 
     struct vm_obj* stack_obj = anon_create();
-    if (IS_ERR(stack_obj)) {
+    if (IS_ERR(ASSERT(stack_obj))) {
         ret = PTR_ERR(stack_obj);
         goto fail_vm;
     }

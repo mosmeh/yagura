@@ -25,7 +25,7 @@ void sched_init(void) {
         char comm[SIZEOF_FIELD(struct task, comm)];
         (void)snprintf(comm, sizeof(comm), "idle/%u", i);
         struct task* idle = task_create(comm, do_idle);
-        ASSERT_OK(idle);
+        ASSERT_PTR(idle);
         cpu->idle_task = idle;
     }
 }

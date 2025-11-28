@@ -17,7 +17,7 @@
 
 static void open_console(void) {
     struct file* file FREE(file) = vfs_open("/dev/console", O_RDWR, 0);
-    if (IS_ERR(file)) {
+    if (IS_ERR(ASSERT(file))) {
         kprint("userland_init: unable to open an initial console\n");
         return;
     }
@@ -119,8 +119,8 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     smp_start();
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
-    ASSERT_OK(task_spawn("userland_init", userland_init));
-    ASSERT_OK(task_spawn("ksyncd", ksyncd));
+    ASSERT_PTR(task_spawn("userland_init", userland_init));
+    ASSERT_PTR(task_spawn("ksyncd", ksyncd));
 
     sched_start();
 }

@@ -44,7 +44,7 @@ void socket_init(void) {
     ASSERT_OK(file_system_register(&sock_fs));
 
     sock_mount = file_system_mount(&sock_fs, "sockfs");
-    ASSERT_OK(sock_mount);
+    ASSERT_PTR(sock_mount);
 }
 
 static bool is_unix_socket(const struct inode* inode) {
@@ -204,7 +204,7 @@ static _Atomic(ino_t) next_ino = 1;
 
 struct inode* unix_socket_create(void) {
     struct unix_socket* socket = slab_alloc(&unix_socket_slab);
-    if (IS_ERR(socket))
+    if (IS_ERR(ASSERT(socket)))
         return ERR_CAST(socket);
     *socket = (struct unix_socket){
         .vfs_inode = INODE_INIT,

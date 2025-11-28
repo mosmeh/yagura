@@ -91,7 +91,7 @@ static struct virtual_console* virtual_console_create(uint8_t tty_num,
     *console = (struct virtual_console){0};
 
     console->vt = vt_create(screen);
-    ASSERT_OK(console->vt);
+    ASSERT_PTR(console->vt);
 
     struct tty* tty = &console->tty;
 
@@ -116,7 +116,7 @@ void virtual_console_init(struct screen* screen) {
         uint8_t tty_num = i + 1;
         struct virtual_console* console =
             virtual_console_create(tty_num, screen);
-        ASSERT_OK(console);
+        ASSERT_PTR(console);
         consoles[i] = console;
     }
     active_console = consoles[0];

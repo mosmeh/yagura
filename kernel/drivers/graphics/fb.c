@@ -96,7 +96,7 @@ void fb_init(const multiboot_info_t* mb_info) {
         return;
     }
     vm_obj = phys_create(fb_info.phys_addr, DIV_CEIL(buf_size(), PAGE_SIZE));
-    if (IS_ERR(vm_obj)) {
+    if (IS_ERR(ASSERT(vm_obj))) {
         kprint("fb: failed to create vm object for framebuffer\n");
         return;
     }

@@ -34,10 +34,10 @@ static size_t parse_octal(const char* s, size_t len) {
 
 void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
     void* initrd FREE(phys) = phys_map(phys_addr, size, VM_READ);
-    ASSERT_OK(initrd);
+    ASSERT_PTR(initrd);
 
     struct path* root FREE(path) = vfs_get_root();
-    ASSERT_OK(root);
+    ASSERT_PTR(root);
 
     uintptr_t cursor = (uintptr_t)initrd;
     for (;;) {
@@ -58,7 +58,7 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
         if (S_ISREG(mode) || S_ISLNK(mode)) {
             struct file* file FREE(file) =
                 vfs_open_at(root, filename, O_CREAT | O_EXCL | O_WRONLY, mode);
-            ASSERT_OK(file);
+            ASSERT_PTR(file);
 
             file->inode->rdev = rdev;
 
@@ -71,7 +71,7 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
         } else {
             struct inode* inode FREE(inode) =
                 vfs_create_at(root, filename, mode);
-            ASSERT_OK(inode);
+            ASSERT_PTR(inode);
             inode->rdev = rdev;
         }
 

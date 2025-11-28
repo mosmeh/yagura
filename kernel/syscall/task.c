@@ -225,57 +225,56 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     if (flags & CLONE_VM) {
         task->vm = vm_ref(current->vm);
     } else {
-        task->vm = vm_clone(current->vm);
-        if (IS_ERR(task->vm)) {
-            rc = PTR_ERR(task->vm);
-            task->vm = NULL;
+        struct vm* vm = vm_clone(current->vm);
+        if (IS_ERR(ASSERT(vm))) {
+            rc = PTR_ERR(vm);
             goto fail;
         }
+        task->vm = vm;
     }
 
     if (flags & CLONE_FS) {
         task->fs = fs_ref(current->fs);
     } else {
-        task->fs = fs_clone(current->fs);
-        if (IS_ERR(task->fs)) {
-            rc = PTR_ERR(task->fs);
-            task->fs = NULL;
+        struct fs* fs = fs_clone(current->fs);
+        if (IS_ERR(ASSERT(fs))) {
+            rc = PTR_ERR(fs);
             goto fail;
         }
+        task->fs = fs;
     }
 
     if (flags & CLONE_FILES) {
         task->files = files_ref(current->files);
     } else {
-        task->files = files_clone(current->files);
-        if (IS_ERR(task->files)) {
-            rc = PTR_ERR(task->files);
-            task->files = NULL;
+        struct files* files = files_clone(current->files);
+        if (IS_ERR(ASSERT(files))) {
+            rc = PTR_ERR(files);
             goto fail;
         }
+        task->files = files;
     }
 
     if (flags & CLONE_SIGHAND) {
         task->sighand = sighand_ref(current->sighand);
     } else {
-        task->sighand = sighand_clone(current->sighand);
-        if (IS_ERR(task->sighand)) {
-            rc = PTR_ERR(task->sighand);
-            task->sighand = NULL;
+        struct sighand* sighand = sighand_clone(current->sighand);
+        if (IS_ERR(ASSERT(sighand))) {
+            rc = PTR_ERR(sighand);
             goto fail;
         }
+        task->sighand = sighand;
     }
 
     if (flags & CLONE_THREAD) {
         task->thread_group = thread_group_ref(current->thread_group);
     } else {
-        task->thread_group = thread_group_create();
-        if (IS_ERR(task->thread_group)) {
-            rc = PTR_ERR(task->thread_group);
-            task->thread_group = NULL;
+        struct thread_group* tg = thread_group_create();
+        if (IS_ERR(ASSERT(tg))) {
+            rc = PTR_ERR(tg);
             goto fail;
         }
-
+        task->thread_group = tg;
         task->exit_signal = flags & 0xff;
     }
 
@@ -539,7 +538,7 @@ int sys_chdir(const char* user_path) {
 
     struct path* new_cwd FREE(path) =
         vfs_resolve_path_at(current->fs->cwd, path, 0);
-    if (IS_ERR(new_cwd)) {
+    if (IS_ERR(ASSERT(new_cwd))) {
         mutex_unlock(&current->fs->lock);
         return PTR_ERR(new_cwd);
     }

@@ -48,11 +48,11 @@ void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
     struct vm_obj* obj FREE(vm_obj) = NULL;
     if (flags & MAP_ANONYMOUS) {
         obj = anon_create();
-        if (IS_ERR(obj))
+        if (IS_ERR(ASSERT(obj)))
             return obj;
     } else {
         struct file* file FREE(file) = task_ref_file(fd);
-        if (IS_ERR(file))
+        if (IS_ERR(ASSERT(file)))
             return file;
         if (S_ISDIR(file->inode->mode))
             return ERR_PTR(-ENODEV);
@@ -60,7 +60,7 @@ void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
         if (IS_ERR(rc))
             return ERR_PTR(rc);
         obj = file_mmap(file);
-        if (IS_ERR(obj))
+        if (IS_ERR(ASSERT(obj)))
             return obj;
     }
 
@@ -71,7 +71,7 @@ void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
     struct vm_region* region = (flags & MAP_FIXED)
                                    ? vm_alloc_at(vm, addr, npages)
                                    : vm_alloc(vm, npages);
-    if (IS_ERR(region)) {
+    if (IS_ERR(ASSERT(region))) {
         mutex_unlock(&vm->lock);
         return region;
     }

@@ -54,7 +54,7 @@ static struct screen screen = {
 struct screen* vga_text_screen_init(void) {
     cells = phys_map(0xb8000, NUM_COLUMNS * NUM_ROWS * 2,
                      VM_READ | VM_WRITE | VM_WC);
-    if (IS_ERR(cells))
+    if (IS_ERR(ASSERT(cells)))
         return ERR_CAST(cells);
     return &screen;
 }

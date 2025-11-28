@@ -6,11 +6,11 @@ void* kmalloc(size_t size) {
     size_t npages = DIV_CEIL(size, PAGE_SIZE);
 
     struct vm_obj* anon FREE(vm_obj) = anon_create();
-    if (IS_ERR(anon))
+    if (IS_ERR(ASSERT(anon)))
         return NULL;
 
     void* addr = vm_obj_map(anon, 0, npages, VM_READ | VM_WRITE | VM_SHARED);
-    if (IS_ERR(addr))
+    if (IS_ERR(ASSERT(addr)))
         return NULL;
     return addr;
 }
