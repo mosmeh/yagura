@@ -269,7 +269,7 @@ static void commit_line(struct tty* tty) {
 NODISCARD static int on_char(struct tty* tty, char ch) {
     struct termios* termios = &tty->termios;
 
-    if (termios->c_lflag & ISTRIP)
+    if (termios->c_iflag & ISTRIP)
         ch &= 0x7f;
 
     if (termios->c_lflag & ISIG) {
