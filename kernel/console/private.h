@@ -17,37 +17,36 @@ struct attr_char {
     bool eol;
 };
 
-typedef void (*tty_echo_fn)(struct tty*, const char*, size_t);
+struct tty_ops {
+    void (*echo)(struct tty*, const char* buf, size_t size);
+    int (*ioctl)(struct tty*, struct file*, int request, void* user_argp);
+};
 
 struct tty {
     struct char_dev char_dev;
+    char name[16];
+    dev_t dev;
+    const struct tty_ops* ops;
+    size_t num_columns;
+    size_t num_rows;
+
     struct termios termios;
 
     struct ring_buf input_buf;
     struct attr_char line_buf[1024];
     size_t line_len;
 
-    tty_echo_fn echo;
-
     pid_t pgid;
-    size_t num_columns, num_rows;
 
     struct spinlock lock;
 };
 
 extern const struct file_ops tty_fops;
 
-// Initializes a tty structure in place.
-NODISCARD int tty_init(struct tty*, const char* name, dev_t);
+NODISCARD int tty_register(struct tty*);
 
 // Inputs the given string into the tty.
 ssize_t tty_emit(struct tty*, const char* buf, size_t count);
-
-// Sets the echo callback for the tty.
-void tty_set_echo(struct tty*, tty_echo_fn);
-
-// Sets the size of the tty.
-void tty_set_size(struct tty*, size_t num_columns, size_t num_rows);
 
 // Creates a virtual terminal with the given screen as the backend.
 struct vt* vt_create(struct screen*);

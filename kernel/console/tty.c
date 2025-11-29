@@ -20,8 +20,11 @@ static const struct termios default_termios = {
     .c_ospeed = TTYDEF_SPEED,
 };
 
-int tty_init(struct tty* tty, const char* name, dev_t dev) {
-    switch (major(dev)) {
+int tty_register(struct tty* tty) {
+    ASSERT(tty->dev > 0);
+    ASSERT(tty->ops);
+
+    switch (major(tty->dev)) {
     case TTY_MAJOR:
     case TTYAUX_MAJOR:
         break;
@@ -29,17 +32,31 @@ int tty_init(struct tty* tty, const char* name, dev_t dev) {
         return -EINVAL;
     }
 
-    *tty = (struct tty){
-        .char_dev = {.dev = dev, .fops = &tty_fops},
-        .termios = default_termios,
-        .num_columns = 80,
-        .num_rows = 25,
-    };
-    strlcpy(tty->char_dev.name, name, sizeof(tty->char_dev.name));
+    STATIC_ASSERT(PAGE_SIZE % sizeof(struct attr_char) == 0);
+    int rc = ring_buf_init(&tty->input_buf, PAGE_SIZE);
+    if (IS_ERR(rc))
+        return rc;
+
+    struct char_dev* char_dev = &tty->char_dev;
+    strlcpy(char_dev->name, tty->name, sizeof(char_dev->name));
+    char_dev->dev = tty->dev;
+    char_dev->fops = &tty_fops;
+
+    tty->termios = default_termios;
     memcpy(tty->termios.c_cc, ttydefchars, sizeof(tty->termios.c_cc));
 
-    STATIC_ASSERT(PAGE_SIZE % sizeof(struct attr_char) == 0);
-    return ring_buf_init(&tty->input_buf, PAGE_SIZE);
+    if (!tty->num_columns)
+        tty->num_columns = 80;
+    if (!tty->num_rows)
+        tty->num_rows = 25;
+
+    rc = char_dev_register(char_dev);
+    if (IS_ERR(rc)) {
+        ring_buf_destroy(&tty->input_buf);
+        return rc;
+    }
+
+    return 0;
 }
 
 static int tty_open(struct file* file) {
@@ -105,8 +122,8 @@ static ssize_t tty_pread(struct file* file, void* buf, size_t count,
 }
 
 static void echo(struct tty* tty, const char* buf, size_t count) {
-    if (tty->echo)
-        tty->echo(tty, buf, count);
+    if (tty->ops->echo)
+        tty->ops->echo(tty, buf, count);
 }
 
 static void processed_echo(struct tty* tty, const char* buf, size_t count) {
@@ -137,67 +154,69 @@ static int tty_ioctl(struct file* file, int request, void* user_argp) {
     struct tty* tty = tty_from_file(file);
     struct termios* termios = &tty->termios;
     int ret = 0;
-    spinlock_lock(&tty->lock);
     switch (request) {
     case TIOCGPGRP:
-        if (copy_to_user(user_argp, &tty->pgid, sizeof(pid_t))) {
+        spinlock_lock(&tty->lock);
+        if (copy_to_user(user_argp, &tty->pgid, sizeof(pid_t)))
             ret = -EFAULT;
-            goto done;
-        }
+        spinlock_unlock(&tty->lock);
         break;
     case TIOCSPGRP:
-        if (copy_from_user(&tty->pgid, user_argp, sizeof(pid_t))) {
+        spinlock_lock(&tty->lock);
+        if (copy_from_user(&tty->pgid, user_argp, sizeof(pid_t)))
             ret = -EFAULT;
-            goto done;
-        }
+        spinlock_unlock(&tty->lock);
         break;
     case TCGETS:
-        if (copy_to_user(user_argp, termios, sizeof(struct termios))) {
+        spinlock_lock(&tty->lock);
+        if (copy_to_user(user_argp, termios, sizeof(struct termios)))
             ret = -EFAULT;
-            goto done;
-        }
+        spinlock_unlock(&tty->lock);
         break;
     case TCSETS:
     case TCSETSW:
     case TCSETSF:
+        spinlock_lock(&tty->lock);
         if (copy_from_user(termios, user_argp, sizeof(struct termios))) {
             ret = -EFAULT;
-            goto done;
-        }
-        if (request == TCSETSF) {
+        } else if (request == TCSETSF) {
             tty->line_len = 0;
             ring_buf_clear(&tty->input_buf);
         }
+        spinlock_unlock(&tty->lock);
         break;
     case TIOCGWINSZ: {
+        spinlock_lock(&tty->lock);
         struct winsize winsize = {
             .ws_col = tty->num_columns,
             .ws_row = tty->num_rows,
             .ws_xpixel = 0,
             .ws_ypixel = 0,
         };
-        if (copy_to_user(user_argp, &winsize, sizeof(struct winsize))) {
+        spinlock_unlock(&tty->lock);
+        if (copy_to_user(user_argp, &winsize, sizeof(struct winsize)))
             ret = -EFAULT;
-            goto done;
-        }
         break;
     }
     case TIOCSWINSZ: {
         struct winsize winsize;
         if (copy_from_user(&winsize, user_argp, sizeof(struct winsize))) {
             ret = -EFAULT;
-            goto done;
+        } else {
+            spinlock_lock(&tty->lock);
+            tty->num_columns = winsize.ws_col;
+            tty->num_rows = winsize.ws_row;
+            spinlock_unlock(&tty->lock);
         }
-        tty->num_columns = winsize.ws_col;
-        tty->num_rows = winsize.ws_row;
         break;
     }
     default:
-        ret = -EINVAL;
+        if (tty->ops->ioctl)
+            ret = tty->ops->ioctl(tty, file, request, user_argp);
+        else
+            ret = -ENOTTY;
         break;
     }
-done:
-    spinlock_unlock(&tty->lock);
     return ret;
 }
 
@@ -326,17 +345,4 @@ ssize_t tty_emit(struct tty* tty, const char* buf, size_t count) {
     if (IS_ERR(ret))
         return ret;
     return count;
-}
-
-void tty_set_echo(struct tty* tty, tty_echo_fn echo) {
-    spinlock_lock(&tty->lock);
-    tty->echo = echo;
-    spinlock_unlock(&tty->lock);
-}
-
-void tty_set_size(struct tty* tty, size_t num_columns, size_t num_rows) {
-    spinlock_lock(&tty->lock);
-    tty->num_columns = num_columns;
-    tty->num_rows = num_rows;
-    spinlock_unlock(&tty->lock);
 }

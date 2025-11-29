@@ -24,7 +24,8 @@ static void on_char(uint8_t index, char ch) {
         tty_emit(&console->tty, &ch, 1);
 }
 
-static void echo(struct tty* tty, const char* buf, size_t count) {
+static void serial_console_echo(struct tty* tty, const char* buf,
+                                size_t count) {
     struct serial_console* console =
         CONTAINER_OF(tty, struct serial_console, tty);
     serial_write(console->index, buf, count);
@@ -33,18 +34,20 @@ static void echo(struct tty* tty, const char* buf, size_t count) {
 static struct serial_console* serial_console_create(uint8_t index) {
     struct serial_console* console = kmalloc(sizeof(struct serial_console));
     ASSERT(console);
-    *console = (struct serial_console){0};
+    *console = (struct serial_console){
+        .index = index,
+    };
 
-    console->index = index;
+    static const struct tty_ops tty_ops = {
+        .echo = serial_console_echo,
+    };
 
     struct tty* tty = &console->tty;
-    char name[16];
-    (void)snprintf(name, sizeof(name), "ttyS%u", index);
-    ASSERT_OK(tty_init(tty, name, makedev(TTY_MAJOR, MINOR_BASE + index)));
-    tty_set_echo(tty, echo);
+    (void)snprintf(tty->name, sizeof(tty->name), "ttyS%u", index);
+    tty->dev = makedev(TTY_MAJOR, MINOR_BASE + index);
+    tty->ops = &tty_ops;
 
-    ASSERT_OK(char_dev_register(&tty->char_dev));
-
+    ASSERT_OK(tty_register(tty));
     return console;
 }
 
