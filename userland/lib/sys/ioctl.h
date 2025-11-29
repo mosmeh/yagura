@@ -2,4 +2,4 @@
 
 #include <kernel/api/sys/ioctl.h>
 
-int ioctl(int fd, int request, void* argp);
+int ioctl(int fd, unsigned cmd, ...);

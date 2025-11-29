@@ -197,7 +197,7 @@ clock_t sys_times(struct tms* buf);
 gid_t sys_getgid16(void);
 uid_t sys_geteuid16(void);
 gid_t sys_getegid16(void);
-int sys_ioctl(int fd, int request, void* argp);
+int sys_ioctl(int fd, unsigned cmd, unsigned long arg);
 int sys_fcntl(int fd, int cmd, unsigned long arg);
 int sys_setpgid(pid_t pid, pid_t pgid);
 int sys_olduname(struct linux_oldold_utsname* buf);

@@ -466,13 +466,11 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
     return 0;
 }
 
-int sys_ioctl(int fd, int request, void* user_argp) {
-    if (!is_user_address(user_argp))
-        return -EFAULT;
+int sys_ioctl(int fd, unsigned cmd, unsigned long arg) {
     struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
-    int rc = file_ioctl(file, request, user_argp);
+    int rc = file_ioctl(file, cmd, arg);
     if (rc == -EINTR)
         return -ERESTARTSYS;
     return rc;

@@ -106,29 +106,27 @@ static bool unblock_waitactive(void* ctx) {
 }
 
 static int virtual_console_ioctl(struct tty* tty, struct file* file,
-                                 int request, void* user_argp) {
+                                 unsigned cmd, unsigned long arg) {
     (void)tty;
     (void)file;
 
-    switch (request) {
+    switch (cmd) {
     case KDGKBTYPE: {
         char type = KB_101;
-        if (copy_to_user(user_argp, &type, sizeof(char)))
+        if (copy_to_user((void*)arg, &type, sizeof(char)))
             return -EFAULT;
         break;
     }
     case VT_ACTIVATE: {
-        unsigned long n = (unsigned long)user_argp;
-        if (n == 0 || n > NUM_CONSOLES)
+        if (arg == 0 || arg > NUM_CONSOLES)
             return -ENXIO;
-        activate_console(n - 1);
+        activate_console(arg - 1);
         break;
     }
     case VT_WAITACTIVE: {
-        unsigned long n = (unsigned long)user_argp;
-        if (n == 0 || n > NUM_CONSOLES)
+        if (arg == 0 || arg > NUM_CONSOLES)
             return -ENXIO;
-        struct virtual_console* console = consoles[n - 1];
+        struct virtual_console* console = consoles[arg - 1];
         int rc = sched_block(unblock_waitactive, console, 0);
         if (IS_ERR(rc))
             return rc;

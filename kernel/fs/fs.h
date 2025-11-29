@@ -42,7 +42,7 @@ struct file_ops {
     ssize_t (*pread)(struct file*, void* buffer, size_t count, uint64_t offset);
     ssize_t (*pwrite)(struct file*, const void* buffer, size_t count,
                       uint64_t offset);
-    int (*ioctl)(struct file*, int request, void* user_argp);
+    int (*ioctl)(struct file*, unsigned cmd, unsigned long arg);
     int (*getdents)(struct file*, getdents_callback_fn, void* ctx);
     short (*poll)(struct file*, short events);
     struct vm_obj* (*mmap)(struct file*);
@@ -199,7 +199,7 @@ NODISCARD ssize_t file_write_all(struct file*, const void* buffer,
                                  size_t count);
 NODISCARD int file_truncate(struct file*, uint64_t length);
 NODISCARD loff_t file_seek(struct file*, loff_t offset, int whence);
-NODISCARD int file_ioctl(struct file*, int request, void* user_argp);
+NODISCARD int file_ioctl(struct file*, unsigned cmd, unsigned long arg);
 NODISCARD int file_getdents(struct file*, getdents_callback_fn, void* ctx);
 NODISCARD short file_poll(struct file*, short events);
 

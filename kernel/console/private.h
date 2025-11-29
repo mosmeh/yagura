@@ -19,7 +19,7 @@ struct attr_char {
 
 struct tty_ops {
     void (*echo)(struct tty*, const char* buf, size_t size);
-    int (*ioctl)(struct tty*, struct file*, int request, void* user_argp);
+    int (*ioctl)(struct tty*, struct file*, unsigned cmd, unsigned long arg);
 };
 
 struct tty {

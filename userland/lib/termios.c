@@ -7,20 +7,20 @@ int tcgetattr(int fd, struct termios* termios_p) {
 }
 
 int tcsetattr(int fd, int optional_actions, const struct termios* termios_p) {
-    int request;
+    int cmd;
     switch (optional_actions) {
     case TCSANOW:
-        request = TCSETS;
+        cmd = TCSETS;
         break;
     case TCSADRAIN:
-        request = TCSETSW;
+        cmd = TCSETSW;
         break;
     case TCSAFLUSH:
-        request = TCSETSF;
+        cmd = TCSETSF;
         break;
     default:
         errno = EINVAL;
         return -1;
     }
-    return ioctl(fd, request, (void*)termios_p);
+    return ioctl(fd, cmd, (void*)termios_p);
 }

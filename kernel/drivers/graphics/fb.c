@@ -30,10 +30,10 @@ struct vm_obj* fb_mmap(void) { return vm_obj_ref(vm_obj); }
 
 static size_t buf_size(void) { return fb_info.pitch * fb_info.height; }
 
-static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
+static int fb_device_ioctl(struct file* file, unsigned cmd, unsigned long arg) {
     (void)file;
 
-    switch (request) {
+    switch (cmd) {
     case FBIOGET_FSCREENINFO: {
         struct fb_fix_screeninfo fix = {
             .smem_len = buf_size(),
@@ -42,7 +42,7 @@ static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
             .line_length = fb_info.pitch,
         };
         strlcpy(fix.id, fb_info.id, sizeof(fix.id));
-        if (copy_to_user(user_argp, &fix, sizeof(struct fb_fix_screeninfo)))
+        if (copy_to_user((void*)arg, &fix, sizeof(struct fb_fix_screeninfo)))
             return -EFAULT;
         return 0;
     }
@@ -57,13 +57,14 @@ static int fb_device_ioctl(struct file* file, int request, void* user_argp) {
             .green = {.offset = 8, .length = 8},
             .blue = {.offset = 0, .length = 8},
         };
-        if (copy_to_user(user_argp, &var, sizeof(struct fb_var_screeninfo)))
+        if (copy_to_user((void*)arg, &var, sizeof(struct fb_var_screeninfo)))
             return -EFAULT;
         return 0;
     }
     case FBIOPUT_VSCREENINFO: {
         struct fb_var_screeninfo var;
-        if (copy_from_user(&var, user_argp, sizeof(struct fb_var_screeninfo)))
+        if (copy_from_user(&var, (const void*)arg,
+                           sizeof(struct fb_var_screeninfo)))
             return -EFAULT;
         struct fb_info new_info = fb_info;
         new_info.width = var.xres;

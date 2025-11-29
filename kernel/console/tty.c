@@ -150,26 +150,26 @@ static ssize_t tty_pwrite(struct file* file, const void* buf, size_t count,
     return count;
 }
 
-static int tty_ioctl(struct file* file, int request, void* user_argp) {
+static int tty_ioctl(struct file* file, unsigned cmd, unsigned long arg) {
     struct tty* tty = tty_from_file(file);
     struct termios* termios = &tty->termios;
     int ret = 0;
-    switch (request) {
+    switch (cmd) {
     case TIOCGPGRP:
         spinlock_lock(&tty->lock);
-        if (copy_to_user(user_argp, &tty->pgid, sizeof(pid_t)))
+        if (copy_to_user((void*)arg, &tty->pgid, sizeof(pid_t)))
             ret = -EFAULT;
         spinlock_unlock(&tty->lock);
         break;
     case TIOCSPGRP:
         spinlock_lock(&tty->lock);
-        if (copy_from_user(&tty->pgid, user_argp, sizeof(pid_t)))
+        if (copy_from_user(&tty->pgid, (const void*)arg, sizeof(pid_t)))
             ret = -EFAULT;
         spinlock_unlock(&tty->lock);
         break;
     case TCGETS:
         spinlock_lock(&tty->lock);
-        if (copy_to_user(user_argp, termios, sizeof(struct termios)))
+        if (copy_to_user((void*)arg, termios, sizeof(struct termios)))
             ret = -EFAULT;
         spinlock_unlock(&tty->lock);
         break;
@@ -177,9 +177,9 @@ static int tty_ioctl(struct file* file, int request, void* user_argp) {
     case TCSETSW:
     case TCSETSF:
         spinlock_lock(&tty->lock);
-        if (copy_from_user(termios, user_argp, sizeof(struct termios))) {
+        if (copy_from_user(termios, (const void*)arg, sizeof(struct termios))) {
             ret = -EFAULT;
-        } else if (request == TCSETSF) {
+        } else if (cmd == TCSETSF) {
             tty->line_len = 0;
             ring_buf_clear(&tty->input_buf);
         }
@@ -194,13 +194,14 @@ static int tty_ioctl(struct file* file, int request, void* user_argp) {
             .ws_ypixel = 0,
         };
         spinlock_unlock(&tty->lock);
-        if (copy_to_user(user_argp, &winsize, sizeof(struct winsize)))
+        if (copy_to_user((void*)arg, &winsize, sizeof(struct winsize)))
             ret = -EFAULT;
         break;
     }
     case TIOCSWINSZ: {
         struct winsize winsize;
-        if (copy_from_user(&winsize, user_argp, sizeof(struct winsize))) {
+        if (copy_from_user(&winsize, (const void*)arg,
+                           sizeof(struct winsize))) {
             ret = -EFAULT;
         } else {
             spinlock_lock(&tty->lock);
@@ -212,7 +213,7 @@ static int tty_ioctl(struct file* file, int request, void* user_argp) {
     }
     default:
         if (tty->ops->ioctl)
-            ret = tty->ops->ioctl(tty, file, request, user_argp);
+            ret = tty->ops->ioctl(tty, file, cmd, arg);
         else
             ret = -ENOTTY;
         break;

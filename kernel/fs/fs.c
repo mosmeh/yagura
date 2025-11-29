@@ -518,10 +518,10 @@ loff_t file_seek(struct file* file, loff_t offset, int whence) {
     }
 }
 
-int file_ioctl(struct file* file, int request, void* user_argp) {
+int file_ioctl(struct file* file, unsigned cmd, unsigned long arg) {
     if (!file->fops->ioctl)
         return -ENOTTY;
-    return file->fops->ioctl(file, request, user_argp);
+    return file->fops->ioctl(file, cmd, arg);
 }
 
 int file_getdents(struct file* file, getdents_callback_fn callback, void* ctx) {
