@@ -1,6 +1,10 @@
 #pragma once
 
-struct key_event;
+#include <stdbool.h>
 
-typedef void (*ps2_key_event_handler_fn)(const struct key_event*);
-void ps2_set_key_event_handler(ps2_key_event_handler_fn);
+struct keyboard_events {
+    void (*raw)(unsigned char scancode);
+    void (*key)(unsigned char keycode, bool down);
+};
+
+void keyboard_set_event_handlers(const struct keyboard_events*);

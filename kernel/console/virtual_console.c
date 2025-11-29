@@ -2,8 +2,8 @@
 #include "screen/screen.h"
 #include <common/stdio.h>
 #include <common/string.h>
-#include <kernel/api/hid.h>
 #include <kernel/api/linux/kd.h>
+#include <kernel/api/linux/keyboard.h>
 #include <kernel/api/linux/major.h>
 #include <kernel/api/linux/vt.h>
 #include <kernel/api/sys/ioctl.h>
@@ -14,19 +14,19 @@
 #include <kernel/safe_string.h>
 #include <kernel/sched.h>
 
-#define NUM_CONSOLES 6
+#define NUM_CONSOLES 12
+
+#define UNICODE_MASK 0xf000
+#define U(x) ((x) ^ UNICODE_MASK)
 
 struct virtual_console {
     struct tty tty;
     struct vt* vt;
+    int mode;
 };
 
 static struct virtual_console* consoles[NUM_CONSOLES];
 static _Atomic(struct virtual_console*) active_console;
-
-static void emit_str(const char* s) {
-    tty_emit(&active_console->tty, s, strlen(s));
-}
 
 static void activate_console(size_t index) {
     if (index >= NUM_CONSOLES)
@@ -39,58 +39,121 @@ static void activate_console(size_t index) {
     active_console = console;
 }
 
-#define CTRL_ALT (KEY_MODIFIER_CTRL | KEY_MODIFIER_ALT)
+static void on_raw(unsigned char scancode) {
+    struct virtual_console* console = active_console;
+    struct tty* tty = &console->tty;
+    spinlock_lock(&tty->lock);
+    if (console->mode == K_RAW) {
+        char x = scancode;
+        tty_emit(tty, &x, 1);
+    }
+    spinlock_unlock(&tty->lock);
+}
 
-static void on_key_event(const struct key_event* event) {
-    if (!event->pressed)
+static unsigned char modifiers;
+extern unsigned short* key_maps[MAX_NR_KEYMAPS];
+extern char* func_table[MAX_NR_FUNC];
+
+static void xlate(unsigned char keycode, bool down) {
+    const unsigned short* key_map = key_maps[modifiers];
+    if (!key_map)
         return;
 
-    switch (event->keycode) {
-    case KEYCODE_UP:
-        emit_str("\x1b[A");
+    unsigned short key_sym = key_map[keycode];
+    unsigned char type = KTYP(key_sym);
+    unsigned char value = KVAL(key_sym);
+
+    if (type < KTYP(U(0))) {
+        // FIXME: Handle Unicode characters
         return;
-    case KEYCODE_DOWN:
-        emit_str("\x1b[B");
-        return;
-    case KEYCODE_RIGHT:
-        emit_str("\x1b[C");
-        return;
-    case KEYCODE_LEFT:
-        emit_str("\x1b[D");
-        return;
-    case KEYCODE_HOME:
-        emit_str("\x1b[H");
-        return;
-    case KEYCODE_END:
-        emit_str("\x1b[F");
-        return;
-    case KEYCODE_DELETE:
-        emit_str("\x1b[3~");
-        return;
-    case KEYCODE_F1:
-    case KEYCODE_F2:
-    case KEYCODE_F3:
-    case KEYCODE_F4:
-    case KEYCODE_F5:
-    case KEYCODE_F6:
-        if ((event->modifiers & CTRL_ALT) == CTRL_ALT) {
-            activate_console(event->keycode - KEYCODE_F1);
-            return;
+    }
+    type -= KTYP(U(0));
+
+    struct tty* tty = &active_console->tty;
+    switch (type) {
+    case KT_LATIN:
+    case KT_LETTER:
+        if (down) {
+            char ch = value;
+            tty_emit(tty, &ch, 1);
+        }
+        break;
+    case KT_FN:
+        if (down) {
+            const char* s = func_table[value];
+            if (s)
+                tty_emit(tty, s, strlen(s));
+        }
+        break;
+    case KT_SPEC:
+        if (down) {
+            switch (value) {
+            case 1: { // Enter
+                char ch = '\r';
+                tty_emit(tty, &ch, 1);
+                break;
+            }
+            }
+        }
+        break;
+    case KT_CONS:
+        if (down)
+            activate_console(value);
+        break;
+    case KT_CUR: {
+        static const char chars[] = "BDCA";
+        if (down && value < strlen(chars)) {
+            const char s[] = {0x1b, '[', chars[value]};
+            tty_emit(tty, s, sizeof(s));
         }
         break;
     }
-
-    if (!event->key)
-        return;
-    char key = event->key;
-    if (event->modifiers & KEY_MODIFIER_CTRL) {
-        if ('a' <= key && key <= 'z')
-            key = CTRL(key);
-        else if (key == '\\')
-            key = 0x1c;
+    case KT_SHIFT:
+        if (value == KG_CAPSSHIFT)
+            value = KG_SHIFT;
+        if (value < 8) {
+            if (down)
+                modifiers |= 1 << value;
+            else
+                modifiers &= ~(1 << value);
+        }
+        break;
     }
-    tty_emit(&active_console->tty, &key, 1);
 }
+
+static void on_key(unsigned char keycode, bool down) {
+    struct virtual_console* console = active_console;
+    struct tty* tty = &console->tty;
+    spinlock_lock(&tty->lock);
+    switch (console->mode) {
+    case K_RAW:
+        break;
+    case K_XLATE:
+        xlate(keycode, down);
+        break;
+    case K_MEDIUMRAW:
+        if (keycode < 128) {
+            char c = keycode | (!down << 7);
+            tty_emit(tty, &c, 1);
+        } else {
+            const char s[3] = {
+                !down << 7,
+                (keycode >> 7) | 0x80,
+                keycode | 0x80,
+            };
+            tty_emit(tty, s, sizeof(s));
+        }
+        break;
+    default:
+        UNREACHABLE();
+    }
+    spinlock_unlock(&tty->lock);
+}
+
+static const struct keyboard_events event_handlers = {
+    .raw = on_raw,
+    .key = on_key,
+};
 
 static void virtual_console_echo(struct tty* tty, const char* buf,
                                  size_t count) {
@@ -107,14 +170,38 @@ static bool unblock_waitactive(void* ctx) {
 
 static int virtual_console_ioctl(struct tty* tty, struct file* file,
                                  unsigned cmd, unsigned long arg) {
-    (void)tty;
     (void)file;
+    struct virtual_console* console =
+        CONTAINER_OF(tty, struct virtual_console, tty);
 
     switch (cmd) {
     case KDGKBTYPE: {
         char type = KB_101;
         if (copy_to_user((void*)arg, &type, sizeof(char)))
             return -EFAULT;
+        break;
+    }
+    case KDGKBMODE: {
+        spinlock_lock(&tty->lock);
+        int mode = console->mode;
+        spinlock_unlock(&tty->lock);
+        if (copy_to_user((void*)arg, &mode, sizeof(int)))
+            return -EFAULT;
+        break;
+    }
+    case KDSKBMODE: {
+        int mode = (int)arg;
+        switch (mode) {
+        case K_RAW:
+        case K_XLATE:
+        case K_MEDIUMRAW:
+            break;
+        default:
+            return -EINVAL;
+        }
+        spinlock_lock(&tty->lock);
+        console->mode = mode;
+        spinlock_unlock(&tty->lock);
         break;
     }
     case VT_ACTIVATE: {
@@ -142,7 +229,9 @@ static struct virtual_console* virtual_console_create(uint8_t tty_num,
                                                       struct screen* screen) {
     struct virtual_console* console = kmalloc(sizeof(struct virtual_console));
     ASSERT(console);
-    *console = (struct virtual_console){0};
+    *console = (struct virtual_console){
+        .mode = K_XLATE,
+    };
 
     console->vt = vt_create(screen);
     ASSERT_PTR(console->vt);
@@ -172,5 +261,5 @@ void virtual_console_init(struct screen* screen) {
     }
     activate_console(0);
 
-    ps2_set_key_event_handler(on_key_event);
+    keyboard_set_event_handlers(&event_handlers);
 }

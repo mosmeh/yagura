@@ -10,6 +10,7 @@ OBJS := \
 	boot.o \
 	cmdline.o \
 	console/console.o \
+	console/key_map.o \
 	console/screen/fb.o \
 	console/screen/psf.o \
 	console/screen/screen.o \

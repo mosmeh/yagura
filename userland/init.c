@@ -88,7 +88,6 @@ int main(void) {
         {"/dev/urandom", S_IFCHR, makedev(MEM_MAJOR, 9)},
         {"/dev/kmsg", S_IFCHR, makedev(MEM_MAJOR, 11)},
         {"/dev/psaux", S_IFCHR, makedev(MISC_MAJOR, 1)},
-        {"/dev/kbd", S_IFCHR, makedev(11, 0)},
         {"/dev/dsp", S_IFCHR, makedev(SOUND_MAJOR, 3)},
         {"/dev/fb0", S_IFCHR, makedev(FB_MAJOR, 0)},
     };
