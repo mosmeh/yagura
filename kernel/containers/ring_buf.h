@@ -40,10 +40,10 @@ NODISCARD static inline ssize_t ring_buf_read(struct ring_buf* b, void* bytes,
     unsigned char* dest = bytes;
     const unsigned char* src = b->ring;
     while (nread < count) {
+        if (ring_buf_is_empty(b))
+            break;
         dest[nread++] = src[b->read_index];
         b->read_index = (b->read_index + 1) % b->capacity;
-        if (b->read_index == b->write_index)
-            break;
     }
     return nread;
 }
@@ -54,10 +54,10 @@ ring_buf_write(struct ring_buf* b, const void* bytes, size_t count) {
     unsigned char* dest = b->ring;
     const unsigned char* src = bytes;
     while (nwritten < count) {
+        if (ring_buf_is_full(b))
+            break;
         dest[b->write_index] = src[nwritten++];
         b->write_index = (b->write_index + 1) % b->capacity;
-        if ((b->write_index + 1) % b->capacity == b->read_index)
-            break;
     }
     return nwritten;
 }
