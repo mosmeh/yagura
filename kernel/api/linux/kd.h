@@ -11,6 +11,15 @@
 #define K_XLATE 0x01
 #define K_MEDIUMRAW 0x02
 
+struct kbentry {
+    unsigned char kb_table;
+    unsigned char kb_index;
+    unsigned short kb_value;
+};
+
+#define KDGKBENT 0x4b46 // gets one entry in translation table
+#define KDSKBENT 0x4b47 // sets one entry in translation table
+
 struct kbdiacruc {
     unsigned int diacr, base, result;
 };

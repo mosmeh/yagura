@@ -10,11 +10,13 @@
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/drivers/hid/hid.h>
+#include <kernel/interrupts/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
 #include <kernel/sched.h>
 
 #define NUM_CONSOLES 12
+#define NR_TYPES 15
 
 #define UNICODE_MASK 0xf000
 #define U(x) ((x) ^ UNICODE_MASK)
@@ -53,13 +55,18 @@ static void on_raw(unsigned char scancode) {
 static unsigned char modifiers;
 extern unsigned short* key_maps[MAX_NR_KEYMAPS];
 extern char* func_table[MAX_NR_FUNC];
+static struct spinlock key_map_lock;
 
 static void xlate(unsigned char keycode, bool down) {
+    spinlock_lock(&key_map_lock);
     const unsigned short* key_map = key_maps[modifiers];
-    if (!key_map)
+    if (!key_map) {
+        spinlock_unlock(&key_map_lock);
         return;
-
+    }
     unsigned short key_sym = key_map[keycode];
+    spinlock_unlock(&key_map_lock);
+
     unsigned char type = KTYP(key_sym);
     unsigned char value = KVAL(key_sym);
 
@@ -202,6 +209,73 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
         spinlock_lock(&tty->lock);
         console->mode = mode;
         spinlock_unlock(&tty->lock);
+        break;
+    }
+    case KDGKBENT: {
+        struct kbentry entry;
+        if (copy_from_user(&entry, (const void*)arg, sizeof(struct kbentry)))
+            return -EFAULT;
+        unsigned short value;
+        spinlock_lock(&key_map_lock);
+        const unsigned short* key_map = key_maps[entry.kb_table];
+        if (key_map) {
+            value = U(key_map[entry.kb_index]);
+            if (KTYP(value) >= NR_TYPES)
+                value = K_HOLE;
+        } else {
+            value = entry.kb_index ? K_HOLE : K_NOSUCHMAP;
+        }
+        spinlock_unlock(&key_map_lock);
+        if (copy_to_user((unsigned char*)arg +
+                             offsetof(struct kbentry, kb_value),
+                         &value, sizeof(unsigned short)))
+            return -EFAULT;
+        break;
+    }
+    case KDSKBENT: {
+        struct kbentry entry;
+        if (copy_from_user(&entry, (const void*)arg, sizeof(struct kbentry)))
+            return -EFAULT;
+        if (!entry.kb_index && entry.kb_value == K_NOSUCHMAP) {
+            if (entry.kb_table) {
+                spinlock_lock(&key_map_lock);
+                unsigned short* key_map = key_maps[entry.kb_table];
+                if (key_map) {
+                    key_maps[entry.kb_table] = NULL;
+                    if (key_map[0] == U(K_ALLOCATED))
+                        kfree(key_map);
+                }
+                spinlock_unlock(&key_map_lock);
+            }
+        } else {
+            if (KTYP(entry.kb_value) >= NR_TYPES)
+                return -EINVAL;
+            if (!entry.kb_index)
+                return -EINVAL;
+
+            // Allocate before disabling the interrupts
+            unsigned short* new_key_map =
+                kmalloc(sizeof(unsigned short) * NR_KEYS);
+
+            spinlock_lock(&key_map_lock);
+            unsigned short* key_map = key_maps[entry.kb_table];
+            if (!key_map) {
+                if (!new_key_map) {
+                    spinlock_unlock(&key_map_lock);
+                    return -ENOMEM;
+                }
+                new_key_map[0] = U(K_ALLOCATED);
+                for (size_t i = 1; i < NR_KEYS; ++i)
+                    new_key_map[i] = U(K_HOLE);
+                key_maps[entry.kb_table] = new_key_map;
+                key_map = new_key_map;
+                new_key_map = NULL;
+            }
+            key_map[entry.kb_index] = U(entry.kb_value);
+            spinlock_unlock(&key_map_lock);
+
+            kfree(new_key_map); // In case it was not used
+        }
         break;
     }
     case VT_ACTIVATE: {

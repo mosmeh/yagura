@@ -16,8 +16,13 @@
 
 #define MAX_NR_FUNC 256
 
+#define K(t, v) (((t) << 8) | (v))
 #define KTYP(x) ((x) >> 8)
 #define KVAL(x) ((x) & 0xff)
+
+#define K_HOLE K(KT_SPEC, 0)
+#define K_ALLOCATED K(KT_SPEC, 126) // dynamically allocated keymap
+#define K_NOSUCHMAP K(KT_SPEC, 127)
 
 #define KT_LATIN 0
 #define KT_FN 1
