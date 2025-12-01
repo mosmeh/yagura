@@ -70,22 +70,39 @@ static int handle_new_connection(void) {
 
 static int broadcast_event(void) {
     for (;;) {
-        struct mouse_event event;
-        ssize_t nread = read(mouse_fd, &event, sizeof(struct mouse_event));
+        unsigned char buf[3];
+        ssize_t nread = read(mouse_fd, &buf, sizeof(buf));
         if (nread < 0) {
             if (errno == EAGAIN)
                 return 0;
             perror("read");
             return -1;
         }
-        cursor_x = MAX(0, MIN((int32_t)(width - 1), cursor_x + event.dx));
-        cursor_y = MAX(0, MIN((int32_t)(height - 1), cursor_y + event.dy));
+        if (nread != sizeof(buf)) {
+            dprintf(STDERR_FILENO, "moused: short read from mouse device\n");
+            return -1;
+        }
+
+        uint8_t buttons = buf[0] & 7;
+        int16_t dx = buf[1];
+        int16_t dy = buf[2];
+        if (dx && (buf[0] & 0x10))
+            dx -= 0x100;
+        if (dy && (buf[0] & 0x20))
+            dy -= 0x100;
+        if (buf[0] & 0xc0)
+            dx = dy = 0;
+        dy = -dy;
+
+        cursor_x = MAX(0, MIN((int32_t)(width - 1), cursor_x + dx));
+        cursor_y = MAX(0, MIN((int32_t)(height - 1), cursor_y + dy));
+
         struct moused_event moused_event = {
             .x = cursor_x,
             .y = cursor_y,
-            .dx = event.dx,
-            .dy = event.dy,
-            .buttons = event.buttons,
+            .dx = dx,
+            .dy = dy,
+            .buttons = buttons,
         };
         for (size_t i = 0; i < MAX_NUM_CONNECTIONS; ++i) {
             int* fd = &pollfds[2 + i].fd;

@@ -1,12 +1,10 @@
 #include "ps2.h"
-#include <kernel/api/hid.h>
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/device/device.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts/interrupts.h>
-#include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
 static void write_mouse(uint8_t data) {
@@ -15,14 +13,14 @@ static void write_mouse(uint8_t data) {
     ASSERT(ps2_read(PS2_DATA) == PS2_ACK);
 }
 
-#define QUEUE_SIZE 128
-
-static uint8_t buf[3];
+static unsigned char buf[3];
 static size_t state = 0;
 
-static struct mouse_event queue[QUEUE_SIZE];
-static size_t queue_read_idx = 0;
-static size_t queue_write_idx = 0;
+#define QUEUE_SIZE (sizeof(buf) * 16)
+
+static unsigned char queue[QUEUE_SIZE];
+static size_t read_index = 0;
+static size_t write_index = 0;
 static struct spinlock queue_lock;
 
 static void irq_handler(struct registers* reg) {
@@ -39,20 +37,14 @@ static void irq_handler(struct registers* reg) {
         ++state;
         return;
     case 2: {
-        int dx = buf[1];
-        int dy = buf[2];
-        if (dx && (buf[0] & 0x10))
-            dx -= 0x100;
-        if (dy && (buf[0] & 0x20))
-            dy -= 0x100;
-        if (buf[0] & 0xc0)
-            dx = dy = 0;
-
         spinlock_lock(&queue_lock);
-        queue[queue_write_idx] = (struct mouse_event){dx, -dy, buf[0] & 7};
-        queue_write_idx = (queue_write_idx + 1) % QUEUE_SIZE;
+        for (size_t i = 0; i < sizeof(buf); ++i) {
+            queue[write_index] = buf[i];
+            write_index = (write_index + 1) % QUEUE_SIZE;
+            if (write_index == read_index)
+                read_index = (read_index + 1) % QUEUE_SIZE;
+        }
         spinlock_unlock(&queue_lock);
-
         state = 0;
         return;
     }
@@ -62,7 +54,7 @@ static void irq_handler(struct registers* reg) {
 
 static bool can_read(void) {
     spinlock_lock(&queue_lock);
-    bool ret = queue_read_idx != queue_write_idx;
+    bool ret = read_index != write_index;
     spinlock_unlock(&queue_lock);
     return ret;
 }
@@ -72,37 +64,32 @@ static bool unblock_read(struct file* file) {
     return can_read();
 }
 
-static ssize_t ps2_mouse_device_pread(struct file* file, void* buffer,
-                                      size_t count, uint64_t offset) {
+static ssize_t ps2_mouse_pread(struct file* file, void* buffer, size_t count,
+                               uint64_t offset) {
     (void)offset;
     for (;;) {
         int rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 
-        spinlock_lock(&queue_lock);
-        if (queue_read_idx == queue_write_idx) {
-            spinlock_unlock(&queue_lock);
-            continue;
-        }
-
         size_t nread = 0;
-        struct mouse_event* out = (struct mouse_event*)buffer;
-        while (count > 0) {
-            if (queue_read_idx == queue_write_idx ||
-                count < sizeof(struct mouse_event))
+        spinlock_lock(&queue_lock);
+        unsigned char* out = (unsigned char*)buffer;
+        while (nread < count) {
+            if (read_index == write_index)
                 break;
-            *out++ = queue[queue_read_idx];
-            nread += sizeof(struct mouse_event);
-            count -= sizeof(struct mouse_event);
-            queue_read_idx = (queue_read_idx + 1) % QUEUE_SIZE;
+            *out++ = queue[read_index];
+            ++nread;
+            read_index = (read_index + 1) % QUEUE_SIZE;
         }
         spinlock_unlock(&queue_lock);
-        return nread;
+
+        if (nread > 0)
+            return nread;
     }
 }
 
-static short ps2_mouse_device_poll(struct file* file, short events) {
+static short ps2_mouse_poll(struct file* file, short events) {
     (void)file;
     short revents = 0;
     if ((events & POLLIN) && can_read())
@@ -119,8 +106,8 @@ void ps2_mouse_init(void) {
     idt_set_interrupt_handler(IRQ(12), irq_handler);
 
     static const struct file_ops fops = {
-        .pread = ps2_mouse_device_pread,
-        .poll = ps2_mouse_device_poll,
+        .pread = ps2_mouse_pread,
+        .poll = ps2_mouse_poll,
     };
     static struct char_dev char_dev = {
         .name = "psaux",
