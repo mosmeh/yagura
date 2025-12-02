@@ -20,6 +20,7 @@ struct cell {
 
 #define VT_STOMP 0x1
 #define VT_CURSOR_VISIBLE 0x2
+#define VT_COLOR_REVERSED 0x4
 
 #define VT_WHOLE_SCREEN_DIRTY 0x100
 #define VT_CURSOR_DIRTY 0x200
@@ -83,8 +84,10 @@ static void clear_screen(struct vt* vt) {
 static void write_char_at(struct vt* vt, size_t x, size_t y, char c) {
     struct cell* cell = vt->cells + x + y * vt->num_columns;
     cell->ch = c;
-    cell->fg_color = vt->fg_color;
-    cell->bg_color = vt->bg_color;
+    cell->fg_color =
+        (vt->flags & VT_COLOR_REVERSED) ? vt->bg_color : vt->fg_color;
+    cell->bg_color =
+        (vt->flags & VT_COLOR_REVERSED) ? vt->fg_color : vt->bg_color;
     vt->line_is_dirty[y] = true;
 }
 
@@ -368,19 +371,18 @@ static void handle_csi_sgr(struct vt* vt) {
         } else if (num == 1) {
             bold = true;
         } else if (num == 7) {
-            uint8_t tmp = vt->fg_color;
-            vt->fg_color = vt->bg_color;
-            vt->bg_color = tmp;
+            vt->flags |= VT_COLOR_REVERSED;
         } else if (num == 22) {
-            vt->fg_color = DEFAULT_FG_COLOR;
             bold = false;
+        } else if (num == 27) {
+            vt->flags &= ~VT_COLOR_REVERSED;
         } else if (30 <= num && num <= 37) {
             vt->fg_color = (num - 30) | (bold ? BRIGHTEN_COLOR : 0);
-        } else if (num == 38) {
+        } else if (num == 39) {
             vt->fg_color = DEFAULT_FG_COLOR;
         } else if (40 <= num && num <= 47) {
             vt->bg_color = (num - 40) | (bold ? BRIGHTEN_COLOR : 0);
-        } else if (num == 48) {
+        } else if (num == 49) {
             vt->bg_color = DEFAULT_BG_COLOR;
         } else if (90 <= num && num <= 97) {
             vt->fg_color = (num - 90) | BRIGHTEN_COLOR;
