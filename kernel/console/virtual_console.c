@@ -30,14 +30,27 @@ struct virtual_console {
 static struct virtual_console* consoles[NUM_CONSOLES];
 static _Atomic(struct virtual_console*) active_console;
 
+// Protects the underlying screen, which is shared by all virtual_consoles
+struct spinlock screen_lock;
+
 static void activate_console(size_t index) {
     if (index >= NUM_CONSOLES)
         return;
+
     struct virtual_console* console = consoles[index];
+    if (active_console == console)
+        return;
+
     spinlock_lock(&console->tty.lock);
+
     vt_invalidate_all(console->vt);
+
+    spinlock_lock(&screen_lock);
     vt_flush(console->vt);
+    spinlock_unlock(&screen_lock);
+
     spinlock_unlock(&console->tty.lock);
+
     active_console = console;
 }
 
@@ -167,7 +180,11 @@ static void virtual_console_echo(struct tty* tty, const char* buf,
     struct virtual_console* console =
         CONTAINER_OF(tty, struct virtual_console, tty);
     vt_write(console->vt, buf, count);
-    vt_flush(console->vt);
+    if (active_console == console) {
+        spinlock_lock(&screen_lock);
+        vt_flush(console->vt);
+        spinlock_unlock(&screen_lock);
+    }
 }
 
 static bool unblock_waitactive(void* ctx) {
