@@ -72,6 +72,16 @@ int memcmp(const void* s1, const void* s2, size_t n) {
     return 0;
 }
 
+void* memchr(const void* s, int c, size_t n) {
+    const unsigned char* p = s;
+    unsigned char uc = (unsigned char)c;
+    for (size_t i = 0; i < n; ++i) {
+        if (p[i] == uc)
+            return (void*)(p + i);
+    }
+    return NULL;
+}
+
 int strcmp(const char* s1, const char* s2) {
     for (; *s1 == *s2; ++s1, ++s2) {
         if (*s1 == 0)

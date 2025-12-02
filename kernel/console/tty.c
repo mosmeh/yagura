@@ -128,15 +128,23 @@ static void echo(struct tty* tty, const char* buf, size_t count) {
 
 static void processed_echo(struct tty* tty, const char* buf, size_t count) {
     const struct termios* termios = &tty->termios;
-    if (!(termios->c_oflag & OPOST)) {
+    if (!(termios->c_oflag & OPOST) || !(termios->c_oflag & ONLCR)) {
         echo(tty, buf, count);
         return;
     }
-    for (size_t i = 0; i < count; ++i) {
-        char ch = buf[i];
-        if (ch == '\n' && (termios->c_oflag & ONLCR))
-            echo(tty, "\r", 1);
-        echo(tty, &ch, 1);
+    const char* start = buf;
+    while (count) {
+        const char* p = memchr(start, '\n', count);
+        if (!p) {
+            echo(tty, start, count);
+            break;
+        }
+        size_t n = p - start;
+        if (n > 0)
+            echo(tty, start, n);
+        echo(tty, "\r\n", 2);
+        start = p + 1;
+        count -= n + 1;
     }
 }
 
