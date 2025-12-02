@@ -5,23 +5,23 @@
 #include <kernel/panic.h>
 #include <kernel/task.h>
 
-static const uint32_t palette[] = {
+static uint32_t palette[NUM_COLORS] = {
     0x191919, // black
-    0x3465a4, // blue
-    0x4e9a06, // green
-    0x06989a, // cyan
     0xcc0000, // red
+    0x4e9a06, // green
+    0xc4a000, // yellow
+    0x3465a4, // blue
     0x75507b, // magenta
-    0xc4a000, // brown
-    0xd0d0d0, // light gray
-    0x555753, // dark gray
-    0x729fcf, // light blue
-    0x8ae234, // light green
-    0x34e2e2, // light cyan
-    0xef2929, // light red
-    0xad7fa8, // light magenta
-    0xfce94f, // yellow
-    0xeeeeec, // white
+    0x06989a, // cyan
+    0xd0d0d0, // white
+    0x555753, // bright black
+    0xef2929, // bright red
+    0x8ae234, // bright green
+    0xfce94f, // bright yellow
+    0x729fcf, // bright blue
+    0xad7fa8, // bright magenta
+    0x34e2e2, // bright cyan
+    0xeeeeec, // bright white
 };
 
 static struct font* font;
@@ -33,57 +33,51 @@ static size_t cursor_x;
 static size_t cursor_y;
 static bool is_cursor_visible;
 
-static void get_size(struct screen* screen, size_t* out_columns,
-                     size_t* out_rows) {
-    (void)screen;
-    *out_columns = num_columns;
-    *out_rows = num_rows;
+static void get_size(size_t* out_columns, size_t* out_rows) {
+    if (out_columns)
+        *out_columns = num_columns;
+    if (out_rows)
+        *out_rows = num_rows;
 }
 
-static void put(struct screen* screen, size_t x, size_t y, char c,
-                uint8_t fg_color, uint8_t bg_color) {
-    (void)screen;
-
+static void put(size_t x, size_t y, char c, uint8_t fg_color,
+                uint8_t bg_color) {
     bool is_cursor = is_cursor_visible && x == cursor_x && y == cursor_y;
     uint32_t fg = palette[is_cursor ? bg_color : fg_color];
     uint32_t bg = palette[is_cursor ? fg_color : bg_color];
 
     const unsigned char* glyph =
         font->glyphs + font->ascii_to_glyph[(size_t)c] * font->bytes_per_glyph;
-    unsigned char* row = fb + x * font->glyph_width * sizeof(uint32_t) +
-                         y * font->glyph_height * fb_info.pitch;
+    unsigned char* row = fb;
+    row += y * font->glyph_height * fb_info.pitch;
+    row += x * font->glyph_width * sizeof(uint32_t);
     for (size_t py = 0; py < font->glyph_height; ++py) {
         uint32_t* pixel = (uint32_t*)row;
-        for (size_t px = 0; px < font->glyph_width; ++px) {
-            uint32_t v = ((uint32_t)glyph[0] << 24) |
-                         ((uint32_t)glyph[1] << 16) |
-                         ((uint32_t)glyph[2] << 8) | glyph[3];
+        uint32_t v = ((uint32_t)glyph[0] << 24) | ((uint32_t)glyph[1] << 16) |
+                     ((uint32_t)glyph[2] << 8) | glyph[3];
+        for (size_t px = 0; px < font->glyph_width; ++px)
             *pixel++ = v & (1U << (32 - px - 1)) ? fg : bg;
-        }
         glyph += font->bytes_per_glyph / font->glyph_height;
         row += fb_info.pitch;
     }
 }
 
-static void set_cursor(struct screen* screen, size_t x, size_t y,
-                       bool visible) {
-    (void)screen;
+static void clear(uint8_t bg_color) {
+    memset32((uint32_t*)fb, palette[bg_color],
+             fb_info.pitch * fb_info.height / sizeof(uint32_t));
+}
+
+static void set_cursor(size_t x, size_t y, bool visible) {
     cursor_x = x;
     cursor_y = y;
     is_cursor_visible = visible;
 }
 
-static void clear(struct screen* screen, uint8_t bg_color) {
-    (void)screen;
-    memset32((uint32_t*)fb, palette[bg_color],
-             fb_info.pitch * fb_info.height / sizeof(uint32_t));
-}
-
 static struct screen fb_screen = {
     .get_size = get_size,
     .put = put,
-    .set_cursor = set_cursor,
     .clear = clear,
+    .set_cursor = set_cursor,
 };
 
 struct screen* fb_screen_init(void) {

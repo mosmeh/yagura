@@ -52,6 +52,7 @@ ssize_t tty_emit(struct tty*, const char* buf, size_t count);
 struct vt* vt_create(struct screen*);
 
 // Inputs into the vt.
+// Writes to the backing screen will be deferred until vt_flush is called.
 void vt_write(struct vt*, const char* buf, size_t count);
 
 // Invalidates the entire screen, forcing a redraw on the next flush.

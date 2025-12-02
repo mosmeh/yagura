@@ -9,25 +9,45 @@
 #define VGA_CRTC_INDEX 0x3d4
 #define VGA_CRTC_DATA 0x3d5
 
+static const uint16_t to_vga_color[] = {
+    0,  // black
+    4,  // read
+    2,  // green
+    6,  // brown
+    1,  // blue
+    5,  // magenta
+    3,  // cyan
+    7,  // light gray
+    8,  // dark gray
+    12, // light blue
+    10, // light green
+    14, // light cyan
+    9,  // light red
+    13, // light magenta
+    11, // yellow
+    15, // white
+};
+
 static uint16_t* cells;
 
-static void get_size(struct screen* screen, size_t* out_columns,
-                     size_t* out_rows) {
-    (void)screen;
-    *out_columns = NUM_COLUMNS;
-    *out_rows = NUM_ROWS;
+static void get_size(size_t* out_columns, size_t* out_rows) {
+    if (out_columns)
+        *out_columns = NUM_COLUMNS;
+    if (out_rows)
+        *out_rows = NUM_ROWS;
 }
 
-static void put(struct screen* screen, size_t x, size_t y, char c,
-                uint8_t fg_color, uint8_t bg_color) {
-    (void)screen;
+static void put(size_t x, size_t y, char c, uint8_t fg_color,
+                uint8_t bg_color) {
     uint16_t* cell = cells + y * NUM_COLUMNS + x;
-    *cell = c | ((uint16_t)fg_color << 8) | ((uint16_t)bg_color << 12);
+    *cell = c | (to_vga_color[fg_color] << 8) | (to_vga_color[bg_color] << 12);
 }
 
-static void set_cursor(struct screen* screen, size_t x, size_t y,
-                       bool visible) {
-    (void)screen;
+static void clear(uint8_t bg_color) {
+    memset16(cells, to_vga_color[bg_color] << 12, NUM_COLUMNS * NUM_ROWS);
+}
+
+static void set_cursor(size_t x, size_t y, bool visible) {
     if (visible) {
         uint16_t value = y * NUM_COLUMNS + x;
         out8(VGA_CRTC_INDEX, 0xe);
@@ -39,16 +59,11 @@ static void set_cursor(struct screen* screen, size_t x, size_t y,
     out8(VGA_CRTC_DATA, visible ? 0 : 0x20);
 }
 
-static void clear(struct screen* screen, uint8_t bg_color) {
-    (void)screen;
-    memset16(cells, (uint16_t)bg_color << 12, NUM_COLUMNS * NUM_ROWS);
-}
-
 static struct screen screen = {
     .get_size = get_size,
     .put = put,
-    .set_cursor = set_cursor,
     .clear = clear,
+    .set_cursor = set_cursor,
 };
 
 struct screen* vga_text_screen_init(void) {

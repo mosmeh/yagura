@@ -9,24 +9,20 @@
 
 #define DEFAULT_FG_COLOR 15
 #define DEFAULT_BG_COLOR 0
-#define VGA_BRIGHT 8
-
-static uint8_t TO_VGA_COLOR[] = {
-    0, // black
-    4, // read
-    2, // green
-    6, // brown
-    1, // blue
-    5, // magenta
-    3, // cyan
-    7, // light gray
-};
+#define BRIGHTEN_COLOR 0x8
 
 struct cell {
     char ch;
     uint8_t fg_color;
     uint8_t bg_color;
 };
+
+#define VT_STOMP 0x1
+#define VT_CURSOR_VISIBLE 0x2
+
+#define VT_WHOLE_SCREEN_DIRTY 0x100
+#define VT_CURSOR_DIRTY 0x200
+#define VT_PALETTE_DIRTY 0x400
 
 struct vt {
     struct screen* screen;
@@ -36,10 +32,12 @@ struct vt {
 
     size_t cursor_x;
     size_t cursor_y;
-    bool is_cursor_visible;
 
-    enum { STATE_GROUND, STATE_ESC, STATE_CSI } state;
-    bool stomp;
+    enum {
+        STATE_GROUND,
+        STATE_ESC,
+        STATE_CSI,
+    } state;
     char param_buf[1024];
     size_t param_buf_index;
 
@@ -48,17 +46,17 @@ struct vt {
 
     struct cell* cells;
     bool* line_is_dirty;
-    bool cursor_is_dirty;
-    bool clear_on_flush;
+
+    unsigned flags;
 };
 
 static void set_cursor(struct vt* vt, size_t x, size_t y) {
-    vt->stomp = false;
     vt->line_is_dirty[vt->cursor_y] = true;
     vt->line_is_dirty[y] = true;
     vt->cursor_x = x;
     vt->cursor_y = y;
-    vt->cursor_is_dirty = true;
+    vt->flags &= ~VT_STOMP;
+    vt->flags |= VT_CURSOR_DIRTY;
 }
 
 static void clear_line_at(struct vt* vt, size_t x, size_t y, size_t length) {
@@ -75,7 +73,7 @@ static void clear_line_at(struct vt* vt, size_t x, size_t y, size_t length) {
 static void clear_screen(struct vt* vt) {
     for (size_t y = 0; y < vt->num_rows; ++y)
         clear_line_at(vt, 0, y, vt->num_columns);
-    vt->clear_on_flush = true;
+    vt->flags |= VT_WHOLE_SCREEN_DIRTY;
 }
 
 static void write_char_at(struct vt* vt, size_t x, size_t y, char c) {
@@ -95,25 +93,25 @@ static void scroll_up(struct vt* vt) {
 }
 
 void vt_flush(struct vt* vt) {
-    if (vt->clear_on_flush) {
-        vt->screen->clear(vt->screen, vt->bg_color);
-        vt->clear_on_flush = false;
+    struct screen* screen = vt->screen;
+
+    if (vt->flags & VT_WHOLE_SCREEN_DIRTY) {
+        // Ensures to clear not only the portion covered by the cells
+        // but also the margin area.
+        screen->clear(vt->bg_color);
     }
 
-    if (vt->cursor_is_dirty) {
-        vt->screen->set_cursor(vt->screen, vt->cursor_x, vt->cursor_y,
-                               vt->is_cursor_visible);
-        vt->cursor_is_dirty = false;
-    }
+    if ((vt->flags & VT_CURSOR_DIRTY) && screen->set_cursor)
+        screen->set_cursor(vt->cursor_x, vt->cursor_y,
+                           vt->flags & VT_CURSOR_VISIBLE);
 
     struct cell* row_cells = vt->cells;
     bool* dirty = vt->line_is_dirty;
     for (size_t y = 0; y < vt->num_rows; ++y) {
-        if (*dirty) {
+        if (*dirty || (vt->flags & VT_WHOLE_SCREEN_DIRTY)) {
             struct cell* cell = row_cells;
             for (size_t x = 0; x < vt->num_columns; ++x) {
-                vt->screen->put(vt->screen, x, y, cell->ch, cell->fg_color,
-                                cell->bg_color);
+                screen->put(x, y, cell->ch, cell->fg_color, cell->bg_color);
                 ++cell;
             }
             *dirty = false;
@@ -121,13 +119,12 @@ void vt_flush(struct vt* vt) {
         row_cells += vt->num_columns;
         ++dirty;
     }
+
+    vt->flags &= ~(VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY);
 }
 
 void vt_invalidate_all(struct vt* vt) {
-    for (size_t y = 0; y < vt->num_rows; ++y)
-        vt->line_is_dirty[y] = true;
-    vt->cursor_is_dirty = true;
-    vt->clear_on_flush = true;
+    vt->flags |= VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY;
 }
 
 static void handle_ground(struct vt* vt, char c) {
@@ -155,7 +152,7 @@ static void handle_ground(struct vt* vt, char c) {
     default:
         if ((unsigned)c > 127)
             return;
-        if (vt->stomp)
+        if (vt->flags & VT_STOMP)
             set_cursor(vt, 0, vt->cursor_y + 1);
         if (vt->cursor_y >= vt->num_rows) {
             scroll_up(vt);
@@ -168,9 +165,9 @@ static void handle_ground(struct vt* vt, char c) {
     if (vt->cursor_x >= vt->num_columns) {
         set_cursor(vt, vt->num_columns - 1, vt->cursor_y);
 
-        // event if we reach at the right end of a screen, we don't proceed to
+        // even if we reach at the right end of a screen, we don't proceed to
         // the next line until we write the next character
-        vt->stomp = true;
+        vt->flags |= VT_STOMP;
     }
 }
 
@@ -358,17 +355,17 @@ static void handle_csi_sgr(struct vt* vt) {
             vt->fg_color = DEFAULT_FG_COLOR;
             bold = false;
         } else if (30 <= num && num <= 37) {
-            vt->fg_color = TO_VGA_COLOR[num - 30] | (bold ? VGA_BRIGHT : 0);
+            vt->fg_color = (num - 30) | (bold ? BRIGHTEN_COLOR : 0);
         } else if (num == 38) {
             vt->fg_color = DEFAULT_FG_COLOR;
         } else if (40 <= num && num <= 47) {
-            vt->bg_color = TO_VGA_COLOR[num - 40] | (bold ? VGA_BRIGHT : 0);
+            vt->bg_color = (num - 40) | (bold ? BRIGHTEN_COLOR : 0);
         } else if (num == 48) {
             vt->bg_color = DEFAULT_BG_COLOR;
         } else if (90 <= num && num <= 97) {
-            vt->fg_color = TO_VGA_COLOR[num - 90] | VGA_BRIGHT;
+            vt->fg_color = (num - 90) | BRIGHTEN_COLOR;
         } else if (100 <= num && num <= 107) {
-            vt->bg_color = TO_VGA_COLOR[num - 100] | VGA_BRIGHT;
+            vt->bg_color = (num - 100) | BRIGHTEN_COLOR;
         }
     }
 }
@@ -379,16 +376,16 @@ static void handle_csi_dectcem(struct vt* vt, char c) {
         return;
     switch (c) {
     case 'h':
-        vt->is_cursor_visible = true;
+        vt->flags |= VT_CURSOR_VISIBLE;
         break;
     case 'l':
-        vt->is_cursor_visible = false;
+        vt->flags &= ~VT_CURSOR_VISIBLE;
         break;
     default:
         return;
     }
     vt->line_is_dirty[vt->cursor_y] = true;
-    vt->cursor_is_dirty = true;
+    vt->flags |= VT_CURSOR_DIRTY;
 }
 
 static void handle_state_csi(struct vt* vt, char c) {
@@ -462,9 +459,13 @@ void vt_write(struct vt* vt, const char* buf, size_t count) {
 }
 
 struct vt* vt_create(struct screen* screen) {
+    ASSERT(screen->get_size);
+    ASSERT(screen->put);
+    ASSERT(screen->clear);
+
     size_t num_columns;
     size_t num_rows;
-    screen->get_size(screen, &num_columns, &num_rows);
+    screen->get_size(&num_columns, &num_rows);
 
     struct vt* vt FREE(kfree) = kmalloc(sizeof(struct vt));
     if (!vt)
@@ -474,10 +475,10 @@ struct vt* vt_create(struct screen* screen) {
         .screen = screen,
         .num_columns = num_columns,
         .num_rows = num_rows,
-        .is_cursor_visible = true,
         .state = STATE_GROUND,
         .fg_color = DEFAULT_FG_COLOR,
         .bg_color = DEFAULT_BG_COLOR,
+        .flags = VT_CURSOR_VISIBLE | VT_CURSOR_DIRTY | VT_WHOLE_SCREEN_DIRTY,
     };
 
     struct cell* cells FREE(kfree) =
