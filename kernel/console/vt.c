@@ -8,8 +8,8 @@
 #define TAB_STOP 8
 
 // ANSI escape code colors
-#define DEFAULT_FG_COLOR 15 // Bright white
-#define DEFAULT_BG_COLOR 0  // Black
+#define DEFAULT_FG_COLOR 7 // White
+#define DEFAULT_BG_COLOR 0 // Black
 #define BRIGHTEN_COLOR 0x8
 
 struct cell {

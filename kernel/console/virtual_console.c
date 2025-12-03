@@ -189,22 +189,22 @@ static void virtual_console_echo(struct tty* tty, const char* buf,
 
 // ANSI escape code color palette
 static uint32_t default_palette[NUM_COLORS] = {
-    0x191919, // black
-    0xcc0000, // red
-    0x4e9a06, // green
-    0xc4a000, // yellow
-    0x3465a4, // blue
-    0x75507b, // magenta
-    0x06989a, // cyan
-    0xd0d0d0, // white
-    0x555753, // bright black
-    0xef2929, // bright red
-    0x8ae234, // bright green
-    0xfce94f, // bright yellow
-    0x729fcf, // bright blue
-    0xad7fa8, // bright magenta
-    0x34e2e2, // bright cyan
-    0xeeeeec, // bright white
+    0x000000, // black
+    0xaa0000, // red
+    0x00aa00, // green
+    0xaa5500, // yellow
+    0x0000aa, // blue
+    0xaa00aa, // magenta
+    0x00aaaa, // cyan
+    0xaaaaaa, // white
+    0x555555, // bright black
+    0xff5555, // bright red
+    0x55ff55, // bright green
+    0xffff55, // bright yellow
+    0x5555ff, // bright blue
+    0xff55ff, // bright magenta
+    0x55ffff, // bright cyan
+    0xffffff, // bright white
 };
 static struct spinlock default_palette_lock;
 
