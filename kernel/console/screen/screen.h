@@ -12,6 +12,7 @@ struct screen {
     void (*clear)(uint8_t bg_color);
 
     void (*set_cursor)(size_t x, size_t y, bool visible);
+    void (*set_palette)(const uint32_t palette[NUM_COLORS]);
 };
 
 struct screen* screen_init(void);

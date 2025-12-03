@@ -7,8 +7,9 @@
 
 #define TAB_STOP 8
 
-#define DEFAULT_FG_COLOR 15
-#define DEFAULT_BG_COLOR 0
+// ANSI escape code colors
+#define DEFAULT_FG_COLOR 15 // Bright white
+#define DEFAULT_BG_COLOR 0  // Black
 #define BRIGHTEN_COLOR 0x8
 
 struct cell {
@@ -37,10 +38,13 @@ struct vt {
         STATE_GROUND,
         STATE_ESC,
         STATE_CSI,
+        STATE_OSC,
+        STATE_OSC_PALETTE,
     } state;
     char param_buf[1024];
     size_t param_buf_index;
 
+    uint32_t palette[NUM_COLORS];
     uint8_t fg_color;
     uint8_t bg_color;
 
@@ -95,6 +99,13 @@ static void scroll_up(struct vt* vt) {
 void vt_flush(struct vt* vt) {
     struct screen* screen = vt->screen;
 
+    if ((vt->flags & VT_PALETTE_DIRTY) && screen->set_palette) {
+        // If the palette is changed, we need to redraw the whole screen
+        vt->flags |= VT_WHOLE_SCREEN_DIRTY;
+
+        screen->set_palette(vt->palette);
+    }
+
     if (vt->flags & VT_WHOLE_SCREEN_DIRTY) {
         // Ensures to clear not only the portion covered by the cells
         // but also the margin area.
@@ -120,11 +131,16 @@ void vt_flush(struct vt* vt) {
         ++dirty;
     }
 
-    vt->flags &= ~(VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY);
+    vt->flags &= ~(VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY | VT_PALETTE_DIRTY);
+}
+
+void vt_set_palette(struct vt* vt, const uint32_t palette[NUM_COLORS]) {
+    memcpy(vt->palette, palette, sizeof(vt->palette));
+    vt->flags |= VT_PALETTE_DIRTY;
 }
 
 void vt_invalidate_all(struct vt* vt) {
-    vt->flags |= VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY;
+    vt->flags |= VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY | VT_PALETTE_DIRTY;
 }
 
 static void handle_ground(struct vt* vt, char c) {
@@ -176,6 +192,10 @@ static void handle_state_esc(struct vt* vt, char c) {
     case '[':
         vt->param_buf_index = 0;
         vt->state = STATE_CSI;
+        return;
+    case ']':
+        vt->param_buf_index = 0;
+        vt->state = STATE_OSC;
         return;
     }
     vt->state = STATE_GROUND;
@@ -438,6 +458,46 @@ static void handle_state_csi(struct vt* vt, char c) {
     vt->state = STATE_GROUND;
 }
 
+static void handle_state_osc(struct vt* vt, char c) {
+    switch (c) {
+    case 'P':
+        vt->param_buf_index = 0;
+        vt->state = STATE_OSC_PALETTE;
+        return;
+    }
+    vt->state = STATE_GROUND;
+}
+
+static unsigned char parse_hex_digit(char c) {
+    if ('0' <= c && c <= '9')
+        return c - '0';
+    if ('A' <= c && c <= 'F')
+        return c - 'A' + 10;
+    ASSERT('a' <= c && c <= 'f');
+    return c - 'a' + 10;
+}
+
+static void handle_state_osc_palette(struct vt* vt, char c) {
+    if (!isxdigit(c)) {
+        vt->state = STATE_GROUND;
+        return;
+    }
+    vt->param_buf[vt->param_buf_index++] = c;
+    if (vt->param_buf_index < 7)
+        return;
+    unsigned char index = parse_hex_digit(vt->param_buf[0]);
+    uint32_t r = (parse_hex_digit(vt->param_buf[1]) << 4) |
+                 parse_hex_digit(vt->param_buf[2]);
+    uint32_t g = (parse_hex_digit(vt->param_buf[3]) << 4) |
+                 parse_hex_digit(vt->param_buf[4]);
+    uint32_t b = (parse_hex_digit(vt->param_buf[5]) << 4) |
+                 parse_hex_digit(vt->param_buf[6]);
+    uint32_t color = (r << 16) | (g << 8) | b;
+    vt->palette[index] = color;
+    vt->flags |= VT_PALETTE_DIRTY;
+    vt->state = STATE_GROUND;
+}
+
 static void on_char(struct vt* vt, char c) {
     switch (vt->state) {
     case STATE_GROUND:
@@ -448,6 +508,12 @@ static void on_char(struct vt* vt, char c) {
         return;
     case STATE_CSI:
         handle_state_csi(vt, c);
+        return;
+    case STATE_OSC:
+        handle_state_osc(vt, c);
+        return;
+    case STATE_OSC_PALETTE:
+        handle_state_osc_palette(vt, c);
         return;
     }
     UNREACHABLE();
@@ -478,7 +544,8 @@ struct vt* vt_create(struct screen* screen) {
         .state = STATE_GROUND,
         .fg_color = DEFAULT_FG_COLOR,
         .bg_color = DEFAULT_BG_COLOR,
-        .flags = VT_CURSOR_VISIBLE | VT_CURSOR_DIRTY | VT_WHOLE_SCREEN_DIRTY,
+        .flags = VT_CURSOR_VISIBLE | VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY |
+                 VT_PALETTE_DIRTY,
     };
 
     struct cell* cells FREE(kfree) =

@@ -1,5 +1,8 @@
 #pragma once
 
+#define GIO_CMAP 0x4B70 // gets colour palette on VGA+
+#define PIO_CMAP 0x4B71 // sets colour palette on VGA+
+
 #define KDGKBTYPE 0x4b33 // get keyboard type
 #define KB_84 0x01
 #define KB_101 0x02

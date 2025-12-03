@@ -1,29 +1,12 @@
 #include "psf.h"
 #include "screen.h"
+#include <common/string.h>
 #include <kernel/drivers/graphics/graphics.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/task.h>
 
-static uint32_t palette[NUM_COLORS] = {
-    0x191919, // black
-    0xcc0000, // red
-    0x4e9a06, // green
-    0xc4a000, // yellow
-    0x3465a4, // blue
-    0x75507b, // magenta
-    0x06989a, // cyan
-    0xd0d0d0, // white
-    0x555753, // bright black
-    0xef2929, // bright red
-    0x8ae234, // bright green
-    0xfce94f, // bright yellow
-    0x729fcf, // bright blue
-    0xad7fa8, // bright magenta
-    0x34e2e2, // bright cyan
-    0xeeeeec, // bright white
-};
-
+static uint32_t palette[NUM_COLORS];
 static struct font* font;
 static unsigned char* fb;
 static struct fb_info fb_info;
@@ -73,11 +56,16 @@ static void set_cursor(size_t x, size_t y, bool visible) {
     is_cursor_visible = visible;
 }
 
+static void set_palette(const uint32_t new_palette[NUM_COLORS]) {
+    memcpy(palette, new_palette, sizeof(palette));
+}
+
 static struct screen fb_screen = {
     .get_size = get_size,
     .put = put,
     .clear = clear,
     .set_cursor = set_cursor,
+    .set_palette = set_palette,
 };
 
 struct screen* fb_screen_init(void) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "screen/screen.h"
 #include <kernel/api/termios.h>
 #include <kernel/containers/ring_buf.h>
 #include <kernel/device/device.h>
@@ -54,6 +55,11 @@ struct vt* vt_create(struct screen*);
 // Inputs into the vt.
 // Writes to the backing screen will be deferred until vt_flush is called.
 void vt_write(struct vt*, const char* buf, size_t count);
+
+// Sets the color palette for the vt.
+// The palette should be an array of 32-bit RGB values corresponding to
+// the ANSI color codes.
+void vt_set_palette(struct vt*, const uint32_t[NUM_COLORS]);
 
 // Invalidates the entire screen, forcing a redraw on the next flush.
 void vt_invalidate_all(struct vt*);

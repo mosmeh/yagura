@@ -6,6 +6,8 @@
 #define NUM_COLUMNS 80
 #define NUM_ROWS 25
 
+#define VGA_DAC_WRITE_INDEX 0x3c8
+#define VGA_DAC_DATA 0x3c9
 #define VGA_CRTC_INDEX 0x3d4
 #define VGA_CRTC_DATA 0x3d5
 
@@ -59,11 +61,27 @@ static void set_cursor(size_t x, size_t y, bool visible) {
     out8(VGA_CRTC_DATA, visible ? 0 : 0x20);
 }
 
+static void set_palette(const uint32_t palette[NUM_COLORS]) {
+    for (size_t i = 0; i < NUM_COLORS; ++i) {
+        uint32_t c = palette[i];
+        unsigned char r = (c >> 16) & 0xff;
+        unsigned char g = (c >> 8) & 0xff;
+        unsigned char b = c & 0xff;
+
+        out8(VGA_DAC_WRITE_INDEX, to_vga_color[i]);
+        // VGA colors are 6 bits per channel. Use the upper 6 bits.
+        out8(VGA_DAC_DATA, r >> 2);
+        out8(VGA_DAC_DATA, g >> 2);
+        out8(VGA_DAC_DATA, b >> 2);
+    }
+}
+
 static struct screen screen = {
     .get_size = get_size,
     .put = put,
     .clear = clear,
     .set_cursor = set_cursor,
+    .set_palette = set_palette,
 };
 
 struct screen* vga_text_screen_init(void) {

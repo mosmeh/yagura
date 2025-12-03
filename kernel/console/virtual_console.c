@@ -187,6 +187,27 @@ static void virtual_console_echo(struct tty* tty, const char* buf,
     }
 }
 
+// ANSI escape code color palette
+static uint32_t default_palette[NUM_COLORS] = {
+    0x191919, // black
+    0xcc0000, // red
+    0x4e9a06, // green
+    0xc4a000, // yellow
+    0x3465a4, // blue
+    0x75507b, // magenta
+    0x06989a, // cyan
+    0xd0d0d0, // white
+    0x555753, // bright black
+    0xef2929, // bright red
+    0x8ae234, // bright green
+    0xfce94f, // bright yellow
+    0x729fcf, // bright blue
+    0xad7fa8, // bright magenta
+    0x34e2e2, // bright cyan
+    0xeeeeec, // bright white
+};
+static struct spinlock default_palette_lock;
+
 static bool unblock_waitactive(void* ctx) {
     struct virtual_console* console = ctx;
     return active_console == console;
@@ -295,6 +316,49 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
         }
         break;
     }
+    case GIO_CMAP: {
+        unsigned char cmap[NUM_COLORS * 3];
+        spinlock_lock(&default_palette_lock);
+        size_t i = 0;
+        for (size_t c = 0; c < NUM_COLORS; ++c) {
+            uint32_t color = default_palette[c];
+            cmap[i++] = (color >> 16) & 0xff; // R
+            cmap[i++] = (color >> 8) & 0xff;  // G
+            cmap[i++] = color & 0xff;         // B
+        }
+        spinlock_unlock(&default_palette_lock);
+
+        if (copy_to_user((void*)arg, cmap, sizeof(cmap)))
+            return -EFAULT;
+        break;
+    }
+    case PIO_CMAP: {
+        unsigned char cmap[NUM_COLORS * 3];
+        if (copy_from_user(cmap, (const void*)arg, sizeof(cmap)))
+            return -EFAULT;
+
+        spinlock_lock(&default_palette_lock);
+        size_t i = 0;
+        for (size_t c = 0; c < NUM_COLORS; ++c) {
+            uint32_t color = 0;
+            color |= cmap[i++] << 16; // R
+            color |= cmap[i++] << 8;  // G
+            color |= cmap[i++];       // B
+            default_palette[c] = color;
+        }
+        for (i = 0; i < NUM_CONSOLES; ++i) {
+            struct virtual_console* console = consoles[i];
+            spinlock_lock(&console->tty.lock);
+            vt_set_palette(console->vt, default_palette);
+            spinlock_unlock(&console->tty.lock);
+        }
+        spinlock_unlock(&default_palette_lock);
+
+        spinlock_lock(&screen_lock);
+        vt_flush(active_console->vt);
+        spinlock_unlock(&screen_lock);
+        break;
+    }
     case VT_ACTIVATE: {
         if (arg == 0 || arg > NUM_CONSOLES)
             return -ENXIO;
@@ -326,6 +390,7 @@ static struct virtual_console* virtual_console_create(uint8_t tty_num,
 
     console->vt = vt_create(screen);
     ASSERT_PTR(console->vt);
+    vt_set_palette(console->vt, default_palette);
 
     static const struct tty_ops tty_ops = {
         .echo = virtual_console_echo,
