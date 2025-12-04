@@ -101,9 +101,11 @@ void* realloc(void* ptr, size_t new_size) {
     void* new_ptr = malloc(new_size);
     if (!new_ptr)
         return NULL;
-    struct malloc_header* new_header = header_from_ptr(new_ptr);
 
-    memcpy(new_header, old_header, old_header->size);
+    struct malloc_header* new_header = header_from_ptr(new_ptr);
+    memcpy(new_header->data, old_header->data,
+           old_header->size - offsetof(struct malloc_header, data));
+
     free(ptr);
 
     return new_ptr;
