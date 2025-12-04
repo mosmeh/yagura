@@ -61,6 +61,14 @@ void vt_write(struct vt*, const char* buf, size_t count);
 // the ANSI color codes.
 void vt_set_palette(struct vt*, const uint32_t[NUM_COLORS]);
 
+// Gets the current font used by the vt.
+// Returns NULL if no font is set.
+NODISCARD struct font* vt_get_font(struct vt*);
+
+// Sets the font used by the vt, returning the previous font.
+// Returns NULL if no font was previously set.
+NODISCARD struct font* vt_swap_font(struct vt*, struct font*);
+
 // Invalidates the entire screen, forcing a redraw on the next flush.
 void vt_invalidate_all(struct vt*);
 

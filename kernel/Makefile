@@ -10,9 +10,9 @@ OBJS := \
 	boot.o \
 	cmdline.o \
 	console/console.o \
+	console/font.o \
 	console/key_map.o \
 	console/screen/fb.o \
-	console/screen/psf.o \
 	console/screen/screen.o \
 	console/screen/vga_text.o \
 	console/serial_console.o \

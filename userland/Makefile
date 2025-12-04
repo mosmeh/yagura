@@ -26,6 +26,7 @@ BIN_TARGET_NAMES := \
 	kill \
 	less \
 	ln \
+	loadfont \
 	ls \
 	mandelbrot \
 	mkdir \

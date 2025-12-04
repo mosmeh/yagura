@@ -25,6 +25,10 @@ struct cell {
 #define VT_WHOLE_SCREEN_DIRTY 0x100
 #define VT_CURSOR_DIRTY 0x200
 #define VT_PALETTE_DIRTY 0x400
+#define VT_FONT_DIRTY 0x800
+
+#define VT_ALL_DIRTY                                                           \
+    (VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY | VT_PALETTE_DIRTY | VT_FONT_DIRTY)
 
 struct vt {
     struct screen* screen;
@@ -48,6 +52,8 @@ struct vt {
     uint32_t palette[NUM_COLORS];
     uint8_t fg_color;
     uint8_t bg_color;
+
+    struct font* font;
 
     struct cell* cells;
     bool* line_is_dirty;
@@ -109,6 +115,13 @@ void vt_flush(struct vt* vt) {
         screen->set_palette(vt->palette);
     }
 
+    if ((vt->flags & VT_FONT_DIRTY) && screen->set_font) {
+        // If the font is changed, we need to redraw the whole screen
+        vt->flags |= VT_WHOLE_SCREEN_DIRTY;
+
+        screen->set_font(vt->font);
+    }
+
     if (vt->flags & VT_WHOLE_SCREEN_DIRTY) {
         // Ensures to clear not only the portion covered by the cells
         // but also the margin area.
@@ -134,7 +147,7 @@ void vt_flush(struct vt* vt) {
         ++dirty;
     }
 
-    vt->flags &= ~(VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY | VT_PALETTE_DIRTY);
+    vt->flags &= ~VT_ALL_DIRTY;
 }
 
 void vt_set_palette(struct vt* vt, const uint32_t palette[NUM_COLORS]) {
@@ -142,9 +155,18 @@ void vt_set_palette(struct vt* vt, const uint32_t palette[NUM_COLORS]) {
     vt->flags |= VT_PALETTE_DIRTY;
 }
 
-void vt_invalidate_all(struct vt* vt) {
-    vt->flags |= VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY | VT_PALETTE_DIRTY;
+struct font* vt_get_font(struct vt* vt) {
+    return vt->font ? font_ref(vt->font) : NULL;
 }
+
+struct font* vt_swap_font(struct vt* vt, struct font* font) {
+    struct font* old_font = vt->font;
+    vt->font = font ? font_ref(font) : NULL;
+    vt->flags |= VT_FONT_DIRTY;
+    return old_font;
+}
+
+void vt_invalidate_all(struct vt* vt) { vt->flags |= VT_ALL_DIRTY; }
 
 static void handle_ground(struct vt* vt, char c) {
     switch (c) {
@@ -546,8 +568,7 @@ struct vt* vt_create(struct screen* screen) {
         .state = STATE_GROUND,
         .fg_color = DEFAULT_FG_COLOR,
         .bg_color = DEFAULT_BG_COLOR,
-        .flags = VT_CURSOR_VISIBLE | VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY |
-                 VT_PALETTE_DIRTY,
+        .flags = VT_CURSOR_VISIBLE | VT_ALL_DIRTY,
     };
 
     struct cell* cells FREE(kfree) =

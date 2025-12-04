@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kernel/console/font.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -13,6 +14,7 @@ struct screen {
 
     void (*set_cursor)(size_t x, size_t y, bool visible);
     void (*set_palette)(const uint32_t palette[NUM_COLORS]);
+    void (*set_font)(const struct font*);
 };
 
 struct screen* screen_init(void);

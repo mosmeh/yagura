@@ -26,3 +26,33 @@ struct kbentry {
 struct kbdiacruc {
     unsigned int diacr, base, result;
 };
+
+#define KDFONTOP 0x4b72
+
+struct console_font_op {
+    unsigned int op;            // operation code KD_FONT_OP_*
+    unsigned int flags;         // KD_FONT_FLAG_*
+    unsigned int width, height; // font size
+    unsigned int charcount;
+
+    // font data with vpitch fixed to 32 for KD_FONT_OP_SET/GET
+    unsigned char* data;
+};
+
+// Set font
+#define KD_FONT_OP_SET 0
+
+// Get font
+#define KD_FONT_OP_GET 1
+
+// Set font to default, data points to name / NULL
+#define KD_FONT_OP_SET_DEFAULT 2
+
+// Obsolete, do not use
+#define KD_FONT_OP_COPY 3
+
+// Set font with vpitch = height
+#define KD_FONT_OP_SET_TALL 4
+
+// Get font with vpitch = height
+#define KD_FONT_OP_GET_TALL 5

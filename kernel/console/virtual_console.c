@@ -208,6 +208,19 @@ static uint32_t default_palette[NUM_COLORS] = {
 };
 static struct spinlock default_palette_lock;
 
+static void set_font(struct virtual_console* console, struct font* font) {
+    spinlock_lock(&console->tty.lock);
+    struct font* old_font = vt_swap_font(console->vt, font);
+    spinlock_unlock(&console->tty.lock);
+    font_unref(old_font);
+
+    if (active_console == console) {
+        spinlock_lock(&screen_lock);
+        vt_flush(console->vt);
+        spinlock_unlock(&screen_lock);
+    }
+}
+
 static bool unblock_waitactive(void* ctx) {
     struct virtual_console* console = ctx;
     return active_console == console;
@@ -314,6 +327,104 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
 
             kfree(new_key_map); // In case it was not used
         }
+        break;
+    }
+    case KDFONTOP: {
+        struct console_font_op font_op;
+        if (copy_from_user(&font_op, (const void*)arg,
+                           sizeof(struct console_font_op)))
+            return -EFAULT;
+
+        switch (font_op.op) {
+        case KD_FONT_OP_SET:
+        case KD_FONT_OP_SET_TALL: {
+            if (!font_op.data || !font_op.width || !font_op.height)
+                return -EINVAL;
+            if (font_op.charcount > MAX_FONT_GLYPHS ||
+                font_op.width > MAX_FONT_WIDTH ||
+                font_op.height > MAX_FONT_HEIGHT)
+                return -EINVAL;
+
+            size_t hpitch = DIV_CEIL(font_op.width, 8);
+            size_t vpitch = 32;
+            if (font_op.op == KD_FONT_OP_SET_TALL)
+                vpitch = font_op.height;
+            if (vpitch < font_op.height)
+                return -EINVAL;
+
+            size_t size = hpitch * vpitch * font_op.charcount;
+            if (size > MAX_FONT_SIZE)
+                return -EINVAL;
+
+            unsigned char* data FREE(kfree) = kmalloc(size);
+            if (!data)
+                return -ENOMEM;
+            if (copy_from_user(data, font_op.data, size))
+                return -EFAULT;
+
+            struct font* font FREE(font) = kmalloc(sizeof(struct font));
+            if (!font)
+                return -ENOMEM;
+            *font = (struct font){
+                .meta = {.num_glyphs = font_op.charcount,
+                         .width = font_op.width,
+                         .height = font_op.height,
+                         .hpitch = hpitch,
+                         .vpitch = vpitch},
+                .data = TAKE_PTR(data),
+                .refcount = REFCOUNT_INIT_ONE,
+            };
+
+            set_font(console, font);
+            break;
+        }
+        case KD_FONT_OP_GET:
+        case KD_FONT_OP_GET_TALL: {
+            struct font* font FREE(font) = vt_get_font(console->vt);
+            if (!font)
+                return -EINVAL;
+
+            struct font_meta* meta = &font->meta;
+            if (meta->width > font_op.width || meta->height > font_op.height)
+                return -ENOSPC;
+
+            unsigned vpitch = 32;
+            if (font_op.op == KD_FONT_OP_GET_TALL)
+                vpitch = meta->height;
+            if (vpitch != meta->vpitch)
+                return -EINVAL;
+
+            font_op.width = meta->width;
+            font_op.height = meta->height;
+            font_op.charcount = meta->num_glyphs;
+
+            if (font_op.data) {
+                if (meta->num_glyphs > font_op.charcount)
+                    return -ENOSPC;
+                if (copy_to_user(font_op.data, font->data, font_size(font)))
+                    return -EFAULT;
+            }
+            break;
+        }
+        case KD_FONT_OP_SET_DEFAULT:
+            if (font_op.data) {
+                // We have no named fonts
+                return -ENOENT;
+            }
+
+            set_font(console, &default_font);
+
+            struct font_meta* meta = &default_font.meta;
+            font_op.width = meta->width;
+            font_op.height = meta->height;
+            break;
+        case KD_FONT_OP_COPY:
+        default:
+            return -EINVAL;
+        }
+
+        if (copy_to_user((void*)arg, &font_op, sizeof(struct console_font_op)))
+            return -EFAULT;
         break;
     }
     case GIO_CMAP: {
