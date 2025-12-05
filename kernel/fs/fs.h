@@ -198,6 +198,7 @@ NODISCARD ssize_t file_pwrite(struct file*, const void* buffer, size_t count,
 NODISCARD ssize_t file_write_all(struct file*, const void* buffer,
                                  size_t count);
 NODISCARD int file_truncate(struct file*, uint64_t length);
+NODISCARD int file_sync(struct file*, uint64_t offset, uint64_t nbytes);
 NODISCARD loff_t file_seek(struct file*, loff_t offset, int whence);
 NODISCARD int file_ioctl(struct file*, unsigned cmd, unsigned long arg);
 NODISCARD int file_getdents(struct file*, getdents_callback_fn, void* ctx);

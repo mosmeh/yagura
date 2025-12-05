@@ -917,7 +917,7 @@ int sys_fsync(int fd) {
     struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
-    return inode_sync(file->inode, 0, UINT64_MAX);
+    return file_sync(file, 0, UINT64_MAX);
 }
 
 int sys_fdatasync(int fd) { return sys_fsync(fd); }

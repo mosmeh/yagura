@@ -467,7 +467,11 @@ ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
 int file_truncate(struct file* file, uint64_t length) {
     if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EINVAL;
-    return inode_truncate(file->inode, length);
+    return inode_truncate(file->filemap->inode, length);
+}
+
+int file_sync(struct file* file, uint64_t offset, uint64_t nbytes) {
+    return inode_sync(file->filemap->inode, offset, nbytes);
 }
 
 loff_t file_seek(struct file* file, loff_t offset, int whence) {
