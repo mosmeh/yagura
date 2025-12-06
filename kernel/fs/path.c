@@ -1,8 +1,21 @@
 #include "path.h"
 #include "fs.h"
+#include "private.h"
 #include <common/string.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
+
+static struct slab path_slab;
+
+void path_init(void) { slab_init(&path_slab, sizeof(struct path)); }
+
+struct path* path_create_root(struct inode* root) {
+    struct path* path = slab_alloc(&path_slab);
+    if (IS_ERR(path))
+        return path;
+    *path = (struct path){.inode = inode_ref(root)};
+    return path;
+}
 
 char* path_to_string(const struct path* path) {
     if (!path->parent) // Root directory
@@ -50,9 +63,9 @@ struct path* path_dup(const struct path* path) {
     if (IS_ERR(parent))
         return parent;
 
-    struct path* new_path = kmalloc(sizeof(struct path));
-    if (!new_path)
-        return ERR_PTR(-ENOMEM);
+    struct path* new_path = slab_alloc(&path_slab);
+    if (IS_ERR(new_path))
+        return new_path;
     *new_path = (struct path){
         .inode = inode_ref(path->inode),
         .basename = TAKE_PTR(basename),
@@ -71,9 +84,9 @@ struct path* path_join(struct path* parent, struct inode* inode,
     if (!basename)
         return ERR_PTR(-ENOMEM);
 
-    struct path* path = kmalloc(sizeof(struct path));
-    if (!path)
-        return ERR_PTR(-ENOMEM);
+    struct path* path = slab_alloc(&path_slab);
+    if (IS_ERR(path))
+        return path;
 
     if (inode)
         inode_ref(inode);
@@ -90,7 +103,7 @@ void path_destroy_last(struct path* path) {
         return;
     inode_unref(path->inode);
     kfree(path->basename);
-    kfree(path);
+    slab_free(&path_slab, path);
 }
 
 void path_destroy_recursive(struct path* path) {

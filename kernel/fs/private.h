@@ -4,6 +4,7 @@
 
 struct vec;
 
+void path_init(void);
 void filemap_init(void);
 void vfs_init(const multiboot_module_t* initrd_mod);
 void pipe_init(void);

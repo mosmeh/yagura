@@ -15,6 +15,9 @@ struct path {
     struct path* parent;
 };
 
+// Creates a path representing the root directory.
+struct path* path_create_root(struct inode* root);
+
 // Returns a string representation of the path.
 char* path_to_string(const struct path*);
 

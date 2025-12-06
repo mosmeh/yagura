@@ -17,11 +17,7 @@ static struct inode* root;
 
 struct path* vfs_get_root(void) {
     ASSERT(root);
-    struct path* path = kmalloc(sizeof(struct path));
-    if (!path)
-        return ERR_PTR(-ENOMEM);
-    *path = (struct path){.inode = inode_ref(root)};
-    return path;
+    return path_create_root(root);
 }
 
 struct file_system* file_systems;
