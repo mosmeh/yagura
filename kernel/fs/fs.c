@@ -16,6 +16,7 @@ static struct slab file_slab;
 
 void fs_init(const multiboot_module_t* initrd_mod) {
     slab_init(&file_slab, sizeof(struct file));
+    path_init();
     filemap_init();
     vfs_init(initrd_mod);
     pipe_init();
