@@ -560,7 +560,7 @@ void vm_region_remove(struct vm_region* region) {
 
 int vm_region_resize(struct vm_region* region, size_t new_npages) {
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm_get_current());
+    ASSERT(vm == kernel_vm || vm == vm_get_current());
     ASSERT(mutex_is_locked_by_current(&vm->lock));
 
     if (new_npages == 0)
@@ -611,7 +611,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
     ASSERT(!(flags & ~mask));
 
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm_get_current());
+    ASSERT(vm == kernel_vm || vm == vm_get_current());
     ASSERT(mutex_is_locked_by_current(&vm->lock));
 
     if (npages == 0)
@@ -742,7 +742,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
 
 int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm_get_current());
+    ASSERT(vm == kernel_vm || vm == vm_get_current());
     ASSERT(mutex_is_locked_by_current(&vm->lock));
 
     if (npages == 0)
@@ -812,7 +812,7 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
 int vm_region_invalidate(const struct vm_region* region, size_t offset,
                          size_t npages) {
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm_get_current());
+    ASSERT(vm == kernel_vm || vm == vm_get_current());
     ASSERT(mutex_is_locked_by_current(&vm->lock));
 
     if (npages == 0)
