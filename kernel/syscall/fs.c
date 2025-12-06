@@ -849,16 +849,26 @@ int sys_dup(int oldfd) {
     return task_alloc_fd(-1, file);
 }
 
-int sys_dup2(int oldfd, int newfd) { return sys_dup3(oldfd, newfd, 0); }
-
-int sys_dup3(int oldfd, int newfd, int flags) {
-    (void)flags;
-
+int sys_dup2(int oldfd, int newfd) {
+    if (newfd < 0)
+        return -EBADF;
     struct file* oldfd_file FREE(file) = task_ref_file(oldfd);
     if (IS_ERR(ASSERT(oldfd_file)))
         return PTR_ERR(oldfd_file);
     if (oldfd == newfd)
         return oldfd;
+    return task_alloc_fd(newfd, oldfd_file);
+}
+
+int sys_dup3(int oldfd, int newfd, int flags) {
+    (void)flags;
+    if (newfd < 0)
+        return -EBADF;
+    struct file* oldfd_file FREE(file) = task_ref_file(oldfd);
+    if (IS_ERR(ASSERT(oldfd_file)))
+        return PTR_ERR(oldfd_file);
+    if (oldfd == newfd)
+        return -EINVAL;
     return task_alloc_fd(newfd, oldfd_file);
 }
 
