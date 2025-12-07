@@ -22,7 +22,7 @@ struct vm_obj;
 
 struct vm_ops {
     void (*destroy_obj)(struct vm_obj*);
-    struct page* (*get_page)(struct vm_obj*, size_t index, uint32_t error_code);
+    struct page* (*get_page)(struct vm_obj*, size_t index, bool write);
 };
 
 struct vm_obj {

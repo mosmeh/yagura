@@ -50,13 +50,13 @@ static void inode_destroy(struct vm_obj* obj) {
 }
 
 static struct page* inode_get_page(struct vm_obj* obj, size_t index,
-                                   uint32_t error_code) {
+                                   bool write) {
     ASSERT(mutex_is_locked_by_current(&obj->lock));
     struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
     struct page* page = filemap_ensure_page(inode->filemap, index, true);
     if (IS_ERR(ASSERT(page)))
         return page;
-    if (error_code & X86_PF_WRITE) {
+    if (write) {
         page->flags |= PAGE_DIRTY;
         inode->flags |= INODE_DIRTY;
     }

@@ -102,7 +102,7 @@ static void anon_destroy(struct vm_obj* obj) {
 static struct page* zero_page;
 
 static struct page* anon_get_page(struct vm_obj* obj, size_t index,
-                                  uint32_t error_code) {
+                                  bool write) {
     ASSERT(mutex_is_locked_by_current(&obj->lock));
     struct anon* anon = CONTAINER_OF(obj, struct anon, vm_obj);
 
@@ -110,7 +110,7 @@ static struct page* anon_get_page(struct vm_obj* obj, size_t index,
     if (page)
         return page;
 
-    if (!(error_code & X86_PF_WRITE))
+    if (!write)
         return zero_page;
 
     // Invalidate mappings to zero_page
@@ -158,8 +158,8 @@ static void phys_destroy(struct vm_obj* obj) {
 }
 
 static struct page* phys_get_page(struct vm_obj* obj, size_t index,
-                                  uint32_t error_code) {
-    (void)error_code;
+                                  bool write) {
+    (void)write;
     ASSERT(mutex_is_locked_by_current(&obj->lock));
     struct phys* phys = CONTAINER_OF(obj, struct phys, vm_obj);
     size_t pfn = phys->start + index;

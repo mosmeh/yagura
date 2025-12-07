@@ -231,8 +231,8 @@ static struct page* vm_region_handle_page_fault(struct vm_region* region,
     mutex_lock(&obj->lock);
 
     ASSERT(vm_ops->get_page);
-    struct page* shared_page =
-        vm_ops->get_page(obj, region->offset + index, error_code);
+    struct page* shared_page = vm_ops->get_page(obj, region->offset + index,
+                                                error_code & X86_PF_WRITE);
     if (IS_ERR(ASSERT(shared_page))) {
         ret = PTR_ERR(shared_page);
         goto fail;
