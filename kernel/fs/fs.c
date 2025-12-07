@@ -320,17 +320,19 @@ void file_unref(struct file* file) {
     inode_unref(inode);
 }
 
-ssize_t file_read(struct file* file, void* buffer, size_t count) {
+ssize_t file_read(struct file* file, void* user_buffer, size_t count) {
+    if (!user_buffer || !is_user_range(user_buffer, count))
+        return -EFAULT;
     mutex_lock(&file->lock);
-    ssize_t nread = file_pread(file, buffer, count, file->offset);
+    ssize_t nread = file_pread(file, user_buffer, count, file->offset);
     if (IS_OK(nread))
         file->offset += nread;
     mutex_unlock(&file->lock);
     return nread;
 }
 
-static ssize_t default_file_pread(struct file* file, void* buffer, size_t count,
-                                  uint64_t offset) {
+static ssize_t default_file_pread(struct file* file, void* user_buffer,
+                                  size_t count, uint64_t offset) {
     struct filemap* filemap = file->filemap;
     struct inode* inode = filemap->inode;
     if (!inode->iops->pread)
@@ -344,7 +346,7 @@ static ssize_t default_file_pread(struct file* file, void* buffer, size_t count,
 
     count = MIN(count, inode->size - offset);
 
-    unsigned char* dest = buffer;
+    unsigned char* user_dest = user_buffer;
     size_t nread = 0;
     size_t page_index = offset >> PAGE_SHIFT;
     size_t page_offset = offset % PAGE_SIZE;
@@ -357,10 +359,15 @@ static ssize_t default_file_pread(struct file* file, void* buffer, size_t count,
         if (!page)
             break;
 
+        unsigned char page_buf[PAGE_SIZE];
         size_t to_read = MIN(count - nread, PAGE_SIZE - page_offset);
-        page_copy_to_buffer(page, dest, page_offset, to_read);
+        page_copy_to_buffer(page, page_buf, page_offset, to_read);
+        if (copy_to_user(user_dest, page_buf, to_read)) {
+            inode_unlock(inode);
+            return -EFAULT;
+        }
 
-        dest += to_read;
+        user_dest += to_read;
         nread += to_read;
         ++page_index;
         page_offset = 0;
@@ -370,8 +377,10 @@ static ssize_t default_file_pread(struct file* file, void* buffer, size_t count,
     return nread;
 }
 
-ssize_t file_pread(struct file* file, void* buffer, size_t count,
+ssize_t file_pread(struct file* file, void* user_buffer, size_t count,
                    uint64_t offset) {
+    if (!user_buffer || !is_user_range(user_buffer, count))
+        return -EFAULT;
     if (S_ISDIR(file->inode->mode))
         return -EISDIR;
     if ((file->flags & O_ACCMODE) == O_WRONLY)
@@ -379,26 +388,28 @@ ssize_t file_pread(struct file* file, void* buffer, size_t count,
     if (offset + count < offset)
         return -EOVERFLOW;
     if (file->fops->pread)
-        return file->fops->pread(file, buffer, count, offset);
-    return default_file_pread(file, buffer, count, offset);
+        return file->fops->pread(file, user_buffer, count, offset);
+    return default_file_pread(file, user_buffer, count, offset);
 }
 
-ssize_t file_write(struct file* file, const void* buffer, size_t count) {
+ssize_t file_write(struct file* file, const void* user_buffer, size_t count) {
+    if (!user_buffer || !is_user_range(user_buffer, count))
+        return -EFAULT;
     mutex_lock(&file->lock);
-    ssize_t nwritten = file_pwrite(file, buffer, count, file->offset);
+    ssize_t nwritten = file_pwrite(file, user_buffer, count, file->offset);
     if (IS_OK(nwritten))
         file->offset += nwritten;
     mutex_unlock(&file->lock);
     return nwritten;
 }
 
-static ssize_t default_file_pwrite(struct file* file, const void* buffer,
+static ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
                                    size_t count, uint64_t offset) {
     struct filemap* filemap = file->filemap;
     struct inode* inode = filemap->inode;
     if (!inode->iops->pwrite)
         return -EINVAL;
-    const unsigned char* src = buffer;
+    const unsigned char* user_src = user_buffer;
     size_t nwritten = 0;
     size_t page_index = offset >> PAGE_SHIFT;
     size_t page_offset = offset % PAGE_SIZE;
@@ -410,10 +421,15 @@ static ssize_t default_file_pwrite(struct file* file, const void* buffer,
             return PTR_ERR(page);
         }
 
+        char page_buf[PAGE_SIZE];
         size_t to_write = MIN(count - nwritten, PAGE_SIZE - page_offset);
-        page_copy_from_buffer(page, src, page_offset, to_write);
+        if (copy_from_user(page_buf, user_src, to_write)) {
+            inode_unlock(inode);
+            return -EFAULT;
+        }
+        page_copy_from_buffer(page, page_buf, page_offset, to_write);
 
-        src += to_write;
+        user_src += to_write;
         nwritten += to_write;
         ++page_index;
         page_offset = 0;
@@ -426,8 +442,10 @@ static ssize_t default_file_pwrite(struct file* file, const void* buffer,
     return nwritten;
 }
 
-ssize_t file_pwrite(struct file* file, const void* buffer, size_t count,
+ssize_t file_pwrite(struct file* file, const void* user_buffer, size_t count,
                     uint64_t offset) {
+    if (!user_buffer || !is_user_range(user_buffer, count))
+        return -EFAULT;
     if (S_ISDIR(file->inode->mode))
         return -EISDIR;
     if ((file->flags & O_ACCMODE) == O_RDONLY)
@@ -435,8 +453,8 @@ ssize_t file_pwrite(struct file* file, const void* buffer, size_t count,
     if (offset + count < offset)
         return -EOVERFLOW;
     if (file->fops->pwrite)
-        return file->fops->pwrite(file, buffer, count, offset);
-    return default_file_pwrite(file, buffer, count, offset);
+        return file->fops->pwrite(file, user_buffer, count, offset);
+    return default_file_pwrite(file, user_buffer, count, offset);
 }
 
 int file_truncate(struct file* file, uint64_t length) {

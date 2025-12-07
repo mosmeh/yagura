@@ -140,7 +140,7 @@ static bool unblock_read(struct file* file) {
     return pipe->num_writers == 0 || !ring_buf_is_empty(&pipe->buf);
 }
 
-static ssize_t pipe_pread(struct file* file, void* buffer, size_t count,
+static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
                           uint64_t offset) {
     (void)offset;
 
@@ -154,7 +154,7 @@ static ssize_t pipe_pread(struct file* file, void* buffer, size_t count,
 
         pipe_lock(pipe);
         if (!ring_buf_is_empty(buf)) {
-            ssize_t nread = ring_buf_read(buf, buffer, count);
+            ssize_t nread = ring_buf_read_to_user(buf, user_buffer, count);
             pipe_unlock(pipe);
             return nread;
         }
@@ -171,8 +171,8 @@ static bool unblock_write(struct file* file) {
     return pipe->num_readers == 0 || !ring_buf_is_full(&pipe->buf);
 }
 
-static ssize_t pipe_pwrite(struct file* file, const void* buffer, size_t count,
-                           uint64_t offset) {
+static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
+                           size_t count, uint64_t offset) {
     (void)offset;
 
     struct pipe* pipe = pipe_from_file(file);
@@ -197,7 +197,7 @@ static ssize_t pipe_pwrite(struct file* file, const void* buffer, size_t count,
             continue;
         }
 
-        ssize_t nwritten = ring_buf_write(buf, buffer, count);
+        ssize_t nwritten = ring_buf_write_from_user(buf, user_buffer, count);
         pipe_unlock(pipe);
         return nwritten;
     }

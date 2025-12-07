@@ -5,37 +5,39 @@
 #include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
+#include <kernel/safe_string.h>
 #include <kernel/system.h>
 
-static ssize_t read_nothing(struct file* file, void* buffer, size_t count,
+static ssize_t read_nothing(struct file* file, void* user_buffer, size_t count,
                             uint64_t offset) {
     (void)file;
-    (void)buffer;
+    (void)user_buffer;
     (void)count;
     (void)offset;
     return 0;
 }
 
-static ssize_t read_zeros(struct file* file, void* buffer, size_t count,
+static ssize_t read_zeros(struct file* file, void* user_buffer, size_t count,
                           uint64_t offset) {
     (void)file;
     (void)offset;
-    memset(buffer, 0, count);
+    if (clear_user(user_buffer, count))
+        return -EFAULT;
     return count;
 }
 
-static ssize_t write_to_bit_bucket(struct file* file, const void* buffer,
+static ssize_t write_to_bit_bucket(struct file* file, const void* user_buffer,
                                    size_t count, uint64_t offset) {
     (void)file;
-    (void)buffer;
+    (void)user_buffer;
     (void)offset;
     return count;
 }
 
-static ssize_t write_to_full_disk(struct file* file, const void* buffer,
+static ssize_t write_to_full_disk(struct file* file, const void* user_buffer,
                                   size_t count, uint64_t offset) {
     (void)file;
-    (void)buffer;
+    (void)user_buffer;
     (void)offset;
     if (count > 0)
         return -ENOSPC;
@@ -72,11 +74,27 @@ static struct char_dev full = {
     .fops = &full_fops,
 };
 
-static ssize_t random_pread(struct file* file, void* buffer, size_t count,
+static ssize_t random_pread(struct file* file, void* user_buffer, size_t count,
                             uint64_t offset) {
     (void)file;
     (void)offset;
-    return random_get(buffer, count);
+
+    unsigned char buf[256];
+    unsigned char* user_dest = user_buffer;
+    size_t nread = 0;
+    while (nread < count) {
+        size_t to_read = MIN(count - nread, sizeof(buf));
+        ssize_t n = random_get(buf, to_read);
+        if (IS_ERR(n))
+            return n;
+        if (n == 0)
+            break;
+        if (copy_to_user(user_dest, buf, n))
+            return -EFAULT;
+        user_dest += n;
+        nread += n;
+    }
+    return nread;
 }
 
 static const struct file_ops random_fops = {
@@ -99,7 +117,7 @@ static int kmsg_close(struct file* file) {
     return 0;
 }
 
-static ssize_t kmsg_pread(struct file* file, void* buffer, size_t count,
+static ssize_t kmsg_pread(struct file* file, void* user_buffer, size_t count,
                           uint64_t offset) {
     struct kmsg {
         char data[KMSG_BUF_SIZE];
@@ -119,16 +137,28 @@ static ssize_t kmsg_pread(struct file* file, void* buffer, size_t count,
         return 0;
     if (offset + count >= kmsg->size)
         count = kmsg->size - offset;
-    memcpy(buffer, kmsg->data + offset, count);
+    if (copy_to_user(user_buffer, kmsg->data + offset, count))
+        return -EFAULT;
     return count;
 }
 
-static ssize_t kmsg_pwrite(struct file* file, const void* buffer, size_t count,
-                           uint64_t offset) {
+static ssize_t kmsg_pwrite(struct file* file, const void* user_buffer,
+                           size_t count, uint64_t offset) {
     (void)file;
     (void)offset;
-    kmsg_write(buffer, count);
-    return count;
+
+    char buf[256];
+    const unsigned char* user_src = user_buffer;
+    size_t nwritten = 0;
+    while (nwritten < count) {
+        size_t to_write = MIN(count - nwritten, sizeof(buf));
+        if (copy_from_user(buf, user_src, to_write))
+            return -EFAULT;
+        kmsg_write(buf, to_write);
+        user_src += to_write;
+        nwritten += to_write;
+    }
+    return nwritten;
 }
 
 static const struct file_ops kmsg_fops = {

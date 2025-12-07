@@ -80,7 +80,7 @@ static bool unblock_read(struct file* file) {
     return can_read(tty_from_file(file));
 }
 
-static ssize_t tty_pread(struct file* file, void* buf, size_t count,
+static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
                          uint64_t offset) {
     (void)offset;
 
@@ -98,7 +98,7 @@ static ssize_t tty_pread(struct file* file, void* buf, size_t count,
     }
 
     ssize_t ret = 0;
-    char* dest = buf;
+    char* user_dest = user_buf;
     while (count) {
         struct attr_char ac;
         ssize_t nread = ring_buf_read(&tty->input_buf, &ac, sizeof(ac));
@@ -109,7 +109,11 @@ static ssize_t tty_pread(struct file* file, void* buf, size_t count,
         if (!nread)
             break;
         if (ac.ch) {
-            *dest++ = ac.ch;
+            if (copy_to_user(user_dest, &ac.ch, sizeof(char))) {
+                ret = -EFAULT;
+                break;
+            }
+            ++user_dest;
             ++ret;
             --count;
         }
@@ -148,14 +152,28 @@ static void processed_echo(struct tty* tty, const char* buf, size_t count) {
     }
 }
 
-static ssize_t tty_pwrite(struct file* file, const void* buf, size_t count,
+static ssize_t tty_pwrite(struct file* file, const void* user_buf, size_t count,
                           uint64_t offset) {
     (void)offset;
     struct tty* tty = tty_from_file(file);
     spinlock_lock(&tty->lock);
-    processed_echo(tty, buf, count);
+
+    char buf[256];
+    const unsigned char* user_src = user_buf;
+    size_t nwritten = 0;
+    while (nwritten < count) {
+        size_t to_write = MIN(count - nwritten, sizeof(buf));
+        if (copy_from_user(buf, user_src, to_write)) {
+            spinlock_unlock(&tty->lock);
+            return -EFAULT;
+        }
+        processed_echo(tty, buf, to_write);
+        user_src += to_write;
+        nwritten += to_write;
+    }
+
     spinlock_unlock(&tty->lock);
-    return count;
+    return nwritten;
 }
 
 static int tty_ioctl(struct file* file, unsigned cmd, unsigned long arg) {

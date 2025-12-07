@@ -110,8 +110,8 @@ static bool is_readable(struct file* file) {
     return !ring_buf_is_empty(buf);
 }
 
-static ssize_t unix_socket_pread(struct file* file, void* buffer, size_t count,
-                                 uint64_t offset) {
+static ssize_t unix_socket_pread(struct file* file, void* user_buffer,
+                                 size_t count, uint64_t offset) {
     (void)offset;
 
     struct unix_socket* socket = unix_socket_from_file(file);
@@ -126,7 +126,7 @@ static ssize_t unix_socket_pread(struct file* file, void* buffer, size_t count,
 
         socket_lock(socket);
         if (!ring_buf_is_empty(buf)) {
-            ssize_t nread = ring_buf_read(buf, buffer, count);
+            ssize_t nread = ring_buf_read_to_user(buf, user_buffer, count);
             socket_unlock(socket);
             return nread;
         }
@@ -149,7 +149,7 @@ static bool is_writable(struct file* file) {
     return !ring_buf_is_full(buf);
 }
 
-static ssize_t unix_socket_pwrite(struct file* file, const void* buffer,
+static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
                                   size_t count, uint64_t offset) {
     (void)offset;
 
@@ -172,7 +172,8 @@ static ssize_t unix_socket_pwrite(struct file* file, const void* buffer,
 
         socket_lock(socket);
         if (!ring_buf_is_full(buf)) {
-            ssize_t nwritten = ring_buf_write(buf, buffer, count);
+            ssize_t nwritten =
+                ring_buf_write_from_user(buf, user_buffer, count);
             socket_unlock(socket);
             return nwritten;
         }

@@ -6,6 +6,7 @@
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/panic.h>
+#include <kernel/safe_string.h>
 
 static void write_mouse(uint8_t data) {
     ps2_write(PS2_COMMAND, 0xd4);
@@ -64,8 +65,8 @@ static bool unblock_read(struct file* file) {
     return can_read();
 }
 
-static ssize_t ps2_mouse_pread(struct file* file, void* buffer, size_t count,
-                               uint64_t offset) {
+static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
+                               size_t count, uint64_t offset) {
     (void)offset;
     for (;;) {
         int rc = file_block(file, unblock_read, 0);
@@ -74,12 +75,17 @@ static ssize_t ps2_mouse_pread(struct file* file, void* buffer, size_t count,
 
         size_t nread = 0;
         spinlock_lock(&queue_lock);
-        unsigned char* out = (unsigned char*)buffer;
+        unsigned char* user_out = user_buffer;
         while (nread < count) {
             if (read_index == write_index)
                 break;
-            *out++ = queue[read_index];
+            if (copy_to_user(user_out, &queue[read_index],
+                             sizeof(unsigned char))) {
+                spinlock_unlock(&queue_lock);
+                return -EFAULT;
+            }
             ++nread;
+            ++user_out;
             read_index = (read_index + 1) % QUEUE_SIZE;
         }
         spinlock_unlock(&queue_lock);

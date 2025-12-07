@@ -120,7 +120,7 @@ static void start_dma(void) {
     dma_is_running = true;
 }
 
-static int write_single_buffer(struct file* file, const void* buffer,
+static int write_single_buffer(struct file* file, const void* user_buffer,
                                size_t count) {
     do {
         uint8_t current_idx = in8(pcm_out_channel + CHANNEL_CURRENT_INDEX);
@@ -147,7 +147,8 @@ static int write_single_buffer(struct file* file, const void* buffer,
     } while (dma_is_running);
 
     unsigned char* dest = output_buf + PAGE_SIZE * output_buf_page_idx;
-    memcpy(dest, buffer, count);
+    if (copy_from_user(dest, user_buffer, count))
+        return -EFAULT;
 
     struct buffer_descriptor_list_entry* entry =
         buffer_descriptor_list + buffer_descriptor_list_idx;
@@ -172,20 +173,20 @@ static int write_single_buffer(struct file* file, const void* buffer,
 
 static struct mutex lock;
 
-static ssize_t ac97_device_pwrite(struct file* file, const void* buffer,
+static ssize_t ac97_device_pwrite(struct file* file, const void* user_buffer,
                                   size_t count, uint64_t offset) {
     (void)offset;
-    const unsigned char* src = (const unsigned char*)buffer;
+    const unsigned char* user_src = user_buffer;
     size_t nwritten = 0;
     mutex_lock(&lock);
     while (count > 0) {
         size_t size = MIN(PAGE_SIZE, count);
-        int rc = write_single_buffer(file, src, size);
+        int rc = write_single_buffer(file, user_src, size);
         if (IS_ERR(rc)) {
             mutex_unlock(&lock);
             return rc;
         }
-        src += size;
+        user_src += size;
         count -= size;
         nwritten += size;
     }

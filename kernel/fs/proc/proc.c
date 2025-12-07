@@ -4,6 +4,7 @@
 #include <kernel/device/device.h>
 #include <kernel/fs/fs.h>
 #include <kernel/panic.h>
+#include <kernel/safe_string.h>
 
 struct proc_inode {
     struct inode vfs_inode;
@@ -39,23 +40,43 @@ static int proc_open(struct file* file) {
     return 0;
 }
 
+static struct vec* vec_from_file(struct file* file) {
+    return file->private_data;
+}
+
 static int proc_close(struct file* file) {
-    struct vec* vec = file->private_data;
+    struct vec* vec = vec_from_file(file);
     vec_destroy(vec);
     slab_free(&vec_slab, vec);
     return 0;
 }
 
-static ssize_t proc_pread(struct file* file, void* buffer, size_t count,
+static ssize_t proc_pread(struct file* file, void* user_buffer, size_t count,
                           uint64_t offset) {
-    struct vec* vec = file->private_data;
-    return vec_pread(vec, buffer, count, offset);
+    struct vec* vec = vec_from_file(file);
+    unsigned char buf[256];
+    unsigned char* user_dest = user_buffer;
+    size_t nread = 0;
+    while (nread < count) {
+        size_t n = vec_pread(vec, buf, MIN(sizeof(buf), count - nread), offset);
+        if (IS_ERR(n))
+            return n;
+        if (n == 0)
+            break;
+        if (copy_to_user(user_dest, buf, n))
+            return -EFAULT;
+        offset += n;
+        user_dest += n;
+        nread += n;
+    }
+    return nread;
 }
 
 static ssize_t proc_readlink(struct file* file, char* buffer, size_t bufsiz) {
     if (!S_ISLNK(file->inode->mode))
         return -EINVAL;
-    return proc_pread(file, buffer, bufsiz, 0);
+    struct vec* vec = vec_from_file(file);
+    return vec_pread(vec, buffer, bufsiz, 0);
 }
 
 static const struct inode_ops root_iops = {
