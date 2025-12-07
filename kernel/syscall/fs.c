@@ -81,6 +81,25 @@ ssize_t sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
     return rc;
 }
 
+NODISCARD static ssize_t read_all(struct file* file, void* user_buffer,
+                                  size_t count) {
+    size_t nread = 0;
+    unsigned char* user_dest = user_buffer;
+    while (count) {
+        ssize_t n = file_read(file, user_dest, count);
+        if (n == -EINTR)
+            return -EINTR;
+        if (IS_ERR(n))
+            return n;
+        if (n == 0)
+            break;
+        nread += n;
+        user_dest += n;
+        count -= n;
+    }
+    return nread;
+}
+
 ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
@@ -99,7 +118,7 @@ ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
             ret = -EFAULT;
             break;
         }
-        ssize_t nread = file_read_to_end(file, iov.iov_base, iov.iov_len);
+        ssize_t nread = read_all(file, iov.iov_base, iov.iov_len);
         if (nread == -EINTR) {
             if (ret == 0)
                 ret = -ERESTARTSYS;
@@ -132,16 +151,13 @@ ssize_t sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
-    bufsiz = MIN(bufsiz, SYMLINK_MAX);
-
     char buf[SYMLINK_MAX];
-    ssize_t nread = file_read_to_end(file, buf, bufsiz);
-    if (IS_ERR(nread))
-        return nread;
-
-    if (copy_to_user(user_buf, buf, nread))
+    ssize_t len = file_readlink(file, buf, bufsiz);
+    if (IS_ERR(len))
+        return len;
+    if (copy_to_user(user_buf, buf, len))
         return -EFAULT;
-    return nread;
+    return len;
 }
 
 ssize_t sys_write(int fd, const void* user_buf, size_t count) {
@@ -156,18 +172,37 @@ ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     return rc;
 }
 
-ssize_t sys_ia32_pwrite64(int fd, const void* buf, size_t count,
+ssize_t sys_ia32_pwrite64(int fd, const void* user_buf, size_t count,
                           uint32_t pos_lo, uint32_t pos_hi) {
-    if (!buf || !is_user_range(buf, count))
+    if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
     struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
-    int rc = file_pwrite(file, buf, count, pos);
+    int rc = file_pwrite(file, user_buf, count, pos);
     if (rc == -EINTR)
         return -ERESTARTSYS;
     return rc;
+}
+
+NODISCARD static ssize_t write_all(struct file* file, const void* user_buffer,
+                                   size_t count) {
+    size_t nwritten = 0;
+    const unsigned char* user_src = user_buffer;
+    while (count) {
+        ssize_t n = file_write(file, user_src, count);
+        if (n == -EINTR)
+            return -EINTR;
+        if (IS_ERR(n))
+            return n;
+        if (n == 0)
+            break;
+        nwritten += n;
+        user_src += n;
+        count -= n;
+    }
+    return nwritten;
 }
 
 ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
@@ -188,7 +223,7 @@ ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
             ret = -EFAULT;
             break;
         }
-        ssize_t nwritten = file_write_all(file, iov.iov_base, iov.iov_len);
+        ssize_t nwritten = write_all(file, iov.iov_base, iov.iov_len);
         if (nwritten == -EINTR) {
             if (ret == 0)
                 ret = -ERESTARTSYS;
@@ -460,10 +495,8 @@ int sys_symlink(const char* user_target, const char* user_linkpath) {
         vfs_open(linkpath, O_CREAT | O_EXCL | O_WRONLY, S_IFLNK);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
-    rc = file_write_all(file, target, target_len);
-    if (IS_ERR(rc))
-        return rc;
-    return 0;
+
+    return file_symlink(file, target);
 }
 
 int sys_ioctl(int fd, unsigned cmd, unsigned long arg) {

@@ -183,7 +183,7 @@ static struct path* follow_symlink(const struct path* parent,
         return ERR_CAST(file);
 
     char target[SYMLINK_MAX];
-    ssize_t target_len = file_read_to_end(file, target, SYMLINK_MAX);
+    ssize_t target_len = file_readlink(file, target, SYMLINK_MAX);
     if (IS_ERR(target_len))
         return ERR_PTR(target_len);
 

@@ -1,11 +1,13 @@
 #include "fs.h"
 #include "private.h"
+#include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/stdio.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/device/device.h>
+#include <kernel/interrupts/interrupts.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
@@ -381,20 +383,6 @@ ssize_t file_pread(struct file* file, void* buffer, size_t count,
     return default_file_pread(file, buffer, count, offset);
 }
 
-ssize_t file_read_to_end(struct file* file, void* buffer, size_t count) {
-    size_t cursor = 0;
-    while (cursor < count) {
-        ssize_t nread =
-            file_read(file, (unsigned char*)buffer + cursor, count - cursor);
-        if (IS_ERR(nread))
-            return nread;
-        if (nread == 0)
-            break;
-        cursor += nread;
-    }
-    return cursor;
-}
-
 ssize_t file_write(struct file* file, const void* buffer, size_t count) {
     mutex_lock(&file->lock);
     ssize_t nwritten = file_pwrite(file, buffer, count, file->offset);
@@ -449,20 +437,6 @@ ssize_t file_pwrite(struct file* file, const void* buffer, size_t count,
     if (file->fops->pwrite)
         return file->fops->pwrite(file, buffer, count, offset);
     return default_file_pwrite(file, buffer, count, offset);
-}
-
-ssize_t file_write_all(struct file* file, const void* buffer, size_t count) {
-    size_t cursor = 0;
-    while (cursor < count) {
-        ssize_t nwritten = file_write(
-            file, (const unsigned char*)buffer + cursor, count - cursor);
-        if (IS_ERR(nwritten))
-            return nwritten;
-        if (nwritten == 0)
-            break;
-        cursor += nwritten;
-    }
-    return cursor;
 }
 
 int file_truncate(struct file* file, uint64_t length) {
@@ -521,6 +495,79 @@ loff_t file_seek(struct file* file, loff_t offset, int whence) {
     default:
         return -EINVAL;
     }
+}
+
+ssize_t file_readlink(struct file* file, char* buffer, size_t bufsiz) {
+    if (!S_ISLNK(file->inode->mode))
+        return -EINVAL;
+
+    bufsiz = MIN(bufsiz, SYMLINK_MAX);
+
+    if (file->fops->readlink)
+        return file->fops->readlink(file, buffer, bufsiz);
+
+    struct filemap* filemap = file->filemap;
+    struct inode* inode = filemap->inode;
+    inode_lock(inode);
+
+    struct page* page = filemap_ensure_page(filemap, 0, false);
+    if (IS_ERR(page)) {
+        inode_unlock(inode);
+        return PTR_ERR(page);
+    }
+    if (!page) {
+        inode_unlock(inode);
+        return -EINVAL;
+    }
+
+    STATIC_ASSERT(SYMLINK_MAX <= PAGE_SIZE);
+
+    char page_buf[PAGE_SIZE];
+    page_copy_to_buffer(page, page_buf, 0, bufsiz);
+
+    inode_unlock(inode);
+
+    size_t len = strnlen(page_buf, bufsiz);
+    memcpy(buffer, page_buf, len);
+    return len;
+}
+
+int file_symlink(struct file* file, const char* target) {
+    if (!S_ISLNK(file->inode->mode))
+        return -EINVAL;
+
+    STATIC_ASSERT(SYMLINK_MAX <= PAGE_SIZE);
+
+    size_t len = strnlen(target, SYMLINK_MAX + 1);
+    if (len > SYMLINK_MAX)
+        return -ENAMETOOLONG;
+
+    int rc = file_truncate(file, len);
+    if (IS_ERR(rc))
+        return rc;
+
+    struct filemap* filemap = file->filemap;
+    struct inode* inode = filemap->inode;
+    inode_lock(inode);
+
+    struct page* page = filemap_ensure_page(filemap, 0, true);
+    if (IS_ERR(ASSERT(page))) {
+        inode_unlock(inode);
+        return PTR_ERR(page);
+    }
+
+    bool int_flag = push_cli();
+    unsigned char* mapped_page = kmap_page(page);
+    memcpy(mapped_page, target, len);
+    memset(mapped_page + len, 0, PAGE_SIZE - len);
+    kunmap(mapped_page);
+    pop_cli(int_flag);
+
+    page->flags |= PAGE_DIRTY;
+    inode->flags |= INODE_DIRTY;
+
+    inode_unlock(inode);
+    return 0;
 }
 
 int file_ioctl(struct file* file, unsigned cmd, unsigned long arg) {

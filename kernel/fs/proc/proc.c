@@ -52,6 +52,12 @@ static ssize_t proc_pread(struct file* file, void* buffer, size_t count,
     return vec_pread(vec, buffer, count, offset);
 }
 
+static ssize_t proc_readlink(struct file* file, char* buffer, size_t bufsiz) {
+    if (!S_ISLNK(file->inode->mode))
+        return -EINVAL;
+    return proc_pread(file, buffer, bufsiz, 0);
+}
+
 static const struct inode_ops root_iops = {
     .destroy = proc_destroy,
     .lookup = proc_root_lookup,
@@ -75,6 +81,7 @@ static const struct file_ops entry_fops = {
     .open = proc_open,
     .close = proc_close,
     .pread = proc_pread,
+    .readlink = proc_readlink,
 };
 
 static struct inode* alloc_inode(ino_t ino, struct proc_entry* entry) {
