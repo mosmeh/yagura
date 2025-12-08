@@ -154,6 +154,7 @@ void page_directory_switch(struct page_directory*);
 
 struct kmap_ctrl {
     size_t num_mapped;
+    bool pushed_cli;
     uintptr_t phys_addrs[MAX_NUM_KMAPS_PER_CPU];
 };
 

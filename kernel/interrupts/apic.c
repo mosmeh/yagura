@@ -171,7 +171,6 @@ void io_apic_init(void) {
     uint8_t apic_id = cpu_get_bsp()->apic_id;
 
     for (const struct io_apic** p = acpi->io_apics; *p; ++p) {
-        bool int_flag = push_cli();
         volatile void* io_apic = kmap((*p)->io_apic_addr);
         ASSERT_PTR(io_apic);
 
@@ -212,6 +211,5 @@ void io_apic_init(void) {
         }
 
         kunmap((void*)io_apic);
-        pop_cli(int_flag);
     }
 }

@@ -247,14 +247,21 @@ static uintptr_t kmap_addr(size_t index) {
 }
 
 void* kmap(uintptr_t phys_addr) {
-    ASSERT(!interrupts_enabled());
     ASSERT(phys_addr);
     ASSERT(phys_addr % PAGE_SIZE == 0);
+
+    bool int_flag = push_cli();
 
     struct kmap_ctrl* kmap = &cpu_get_current()->kmap;
     size_t index = kmap->num_mapped++;
     ASSERT(index < MAX_NUM_KMAPS_PER_CPU);
     ASSERT(!kmap->phys_addrs[index]);
+
+    if (int_flag)
+        ASSERT(index == 0);
+    if (index == 0)
+        kmap->pushed_cli = int_flag;
+
     kmap->phys_addrs[index] = phys_addr;
 
     uintptr_t kaddr = kmap_addr(index);
@@ -289,4 +296,9 @@ void kunmap(void* addr) {
     ASSERT(*pte & PTE_PRESENT);
     *pte = 0;
     flush_tlb_single((uintptr_t)addr);
+
+    if (kmap->num_mapped == 0) {
+        pop_cli(kmap->pushed_cli);
+        kmap->pushed_cli = false;
+    }
 }

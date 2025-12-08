@@ -574,12 +574,10 @@ int file_symlink(struct file* file, const char* target) {
         return PTR_ERR(page);
     }
 
-    bool int_flag = push_cli();
     unsigned char* mapped_page = kmap_page(page);
     memcpy(mapped_page, target, len);
     memset(mapped_page + len, 0, PAGE_SIZE - len);
     kunmap(mapped_page);
-    pop_cli(int_flag);
 
     page->flags |= PAGE_DIRTY;
     inode->flags |= INODE_DIRTY;

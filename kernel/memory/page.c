@@ -193,39 +193,31 @@ void page_free_raw(size_t pfn) {
 void page_fill(struct page* page, unsigned char value, size_t offset,
                size_t nbytes) {
     ASSERT(offset + nbytes <= PAGE_SIZE);
-    bool int_flag = push_cli();
     unsigned char* mapped_page = kmap_page(page);
     memset(mapped_page + offset, value, nbytes);
     kunmap(mapped_page);
-    pop_cli(int_flag);
 }
 
 void page_copy(struct page* dest, struct page* src) {
-    bool int_flag = push_cli();
     void* src_mapped = kmap_page(src);
     page_copy_from_buffer(dest, src_mapped, 0, PAGE_SIZE);
     kunmap(src_mapped);
-    pop_cli(int_flag);
 }
 
 void page_copy_from_buffer(struct page* dest, const void* src, size_t offset,
                            size_t nbytes) {
     ASSERT(offset + nbytes <= PAGE_SIZE);
-    bool int_flag = push_cli();
     unsigned char* dest_mapped = kmap_page(dest);
     memcpy(dest_mapped + offset, src, nbytes);
     kunmap(dest_mapped);
-    pop_cli(int_flag);
 }
 
 void page_copy_to_buffer(struct page* src, void* dest, size_t offset,
                          size_t nbytes) {
     ASSERT(offset + nbytes <= PAGE_SIZE);
-    bool int_flag = push_cli();
     unsigned char* src_mapped = kmap_page(src);
     memcpy(dest, src_mapped + offset, nbytes);
     kunmap(src_mapped);
-    pop_cli(int_flag);
 }
 
 struct page* pages_get(struct page* pages, size_t index) {
