@@ -9,7 +9,9 @@
 //
 //   struct obj* create_obj(...) {
 //       struct obj* obj = malloc(sizeof(struct obj));
-//       obj->refcount = REFCOUNT_INIT_ONE;
+//       *obj = (struct obj){
+//           .refcount = REFCOUNT_INIT_ONE,
+//       };
 //       return obj;
 //   }
 //
