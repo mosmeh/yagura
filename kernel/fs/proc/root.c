@@ -161,6 +161,7 @@ static struct proc_entry entries[] = {
     {"meminfo", S_IFREG, print_meminfo},
     {"mounts", S_IFREG, proc_print_mounts},
     {"self", S_IFLNK, print_self},
+    {"slabinfo", S_IFREG, proc_print_slabinfo},
     {"uptime", S_IFREG, print_uptime},
     {"version", S_IFREG, print_version},
 };

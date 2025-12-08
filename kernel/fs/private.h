@@ -30,6 +30,4 @@ NODISCARD int filemap_sync(struct filemap*, size_t start, size_t end);
 // Truncates the filemap to the given length.
 NODISCARD int filemap_truncate(struct filemap*, uint64_t length);
 
-typedef int (*proc_print_fn)(struct file*, struct vec*);
-
 int proc_print_mounts(struct file*, struct vec*);

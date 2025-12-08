@@ -212,8 +212,8 @@ void* phys_map(uintptr_t phys_addr, size_t size, unsigned vm_flags) {
 void phys_unmap(void* virt_addr) { vm_obj_unmap(virt_addr); }
 
 void vm_obj_init(void) {
-    slab_init(&anon_slab, sizeof(struct anon));
-    slab_init(&phys_slab, sizeof(struct phys));
+    slab_init(&anon_slab, "anon", sizeof(struct anon));
+    slab_init(&phys_slab, "phys", sizeof(struct phys));
 
     zero_page = page_alloc();
     ASSERT_PTR(zero_page);

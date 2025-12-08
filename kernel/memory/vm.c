@@ -846,6 +846,6 @@ void vm_init(void) {
         .refcount = REFCOUNT_INIT_ONE,
     };
 
-    slab_init(&vm_slab, sizeof(struct vm));
-    slab_init(&region_slab, sizeof(struct vm_region));
+    slab_init(&vm_slab, "vm", sizeof(struct vm));
+    slab_init(&region_slab, "vm_region", sizeof(struct vm_region));
 }

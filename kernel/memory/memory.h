@@ -35,9 +35,11 @@
 #include <kernel/lock.h>
 #include <kernel/resource.h>
 
-extern struct page_directory* kernel_page_directory;
-
+struct file;
+struct vec;
 typedef struct multiboot_info multiboot_info_t;
+
+extern struct page_directory* kernel_page_directory;
 
 static inline bool is_user_address(const void* addr) {
     return addr && (uintptr_t)addr < KERNEL_VIRT_ADDR;
@@ -166,13 +168,19 @@ NODISCARD void* kmap_page(struct page*);
 void kunmap(void* virt_addr);
 
 struct slab {
-    struct mutex lock;
-    size_t obj_size;
+    const char* name;
+    size_t obj_size;        // Size of each object in bytes
+    size_t total_objs;      // Total number of allocated objects
+    size_t num_active_objs; // Number of objects currently in use
     struct slab_obj* free_list;
+    struct mutex lock;
+    struct slab* next;
 };
 
-void slab_init(struct slab*, size_t obj_size);
+void slab_init(struct slab*, const char* name, size_t obj_size);
 void* slab_alloc(struct slab*);
 void slab_free(struct slab*, void*);
+
+int proc_print_slabinfo(struct file*, struct vec*);
 
 #endif

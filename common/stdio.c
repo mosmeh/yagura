@@ -1,4 +1,5 @@
 #include "stdio.h"
+#include "string.h"
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -146,8 +147,17 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
             const char* str = va_arg(args, const char*);
             if (!str)
                 str = "(null)";
+            size_t len = strlen(str);
+            if (!left_justify && pad_len > len) {
+                for (size_t i = 0; i < pad_len - len; ++i)
+                    PUT(' ');
+            }
             while (*str)
                 PUT(*str++);
+            if (left_justify && pad_len > len) {
+                for (size_t i = 0; i < pad_len - len; ++i)
+                    PUT(' ');
+            }
             break;
         }
         default:

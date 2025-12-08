@@ -268,8 +268,8 @@ static struct mount* tmpfs_mount(const char* source) {
 }
 
 void tmpfs_init(void) {
-    slab_init(&tmpfs_inode_slab, sizeof(struct tmpfs_inode));
-    slab_init(&tmpfs_dentry_slab, sizeof(struct tmpfs_dentry));
+    slab_init(&tmpfs_inode_slab, "tmpfs_inode", sizeof(struct tmpfs_inode));
+    slab_init(&tmpfs_dentry_slab, "tmpfs_dentry", sizeof(struct tmpfs_dentry));
 
     static const struct fs_ops fs_ops = {
         .mount = tmpfs_mount,
