@@ -86,7 +86,7 @@ static void vm_region_destroy(struct vm_region* region) {
         vm_obj_unref(obj);
     }
     if (region->flags & VM_SHARED)
-        ASSERT(!region->private_pages);
+        ASSERT(tree_is_empty(&region->private_pages));
     pages_clear(&region->private_pages);
     slab_free(&region_slab, region);
 }
@@ -140,7 +140,8 @@ static struct vm_region* vm_region_clone(struct vm* new_vm,
         .flags = region->flags,
     };
 
-    for (struct page* page = region->private_pages; page; page = page->next) {
+    for (struct page* page = pages_first(&region->private_pages); page;
+         page = pages_next(page)) {
         struct page* new_page =
             pages_alloc_at(&cloned->private_pages, page->index);
         if (IS_ERR(ASSERT(new_page))) {
@@ -218,10 +219,19 @@ static struct page* vm_region_handle_page_fault(struct vm_region* region,
     if (!obj)
         return ERR_PTR(-EFAULT);
 
+    struct tree_node** new_node = &region->private_pages.root;
+    struct tree_node* parent = NULL;
     if (!(region->flags & VM_SHARED)) {
-        struct page* private_page = pages_get(region->private_pages, index);
-        if (private_page)
-            return private_page;
+        while (*new_node) {
+            parent = *new_node;
+            struct page* page = CONTAINER_OF(parent, struct page, tree_node);
+            if (index < page->index)
+                new_node = &parent->left;
+            else if (index > page->index)
+                new_node = &parent->right;
+            else
+                return page;
+        }
     }
 
     const struct vm_ops* vm_ops = obj->vm_ops;
@@ -245,11 +255,15 @@ static struct page* vm_region_handle_page_fault(struct vm_region* region,
     }
 
     // Copy on write
-    struct page* private_page = pages_alloc_at(&region->private_pages, index);
+    struct page* private_page = page_alloc();
     if (IS_ERR(ASSERT(private_page))) {
         ret = PTR_ERR(private_page);
         goto fail;
     }
+    private_page->index = index;
+    *new_node = &private_page->tree_node;
+    tree_insert(&region->private_pages, parent, *new_node);
+
     page_copy(private_page, shared_page);
 
     mutex_unlock(&obj->lock);
@@ -646,8 +660,8 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         if (IS_ERR(ASSERT(right_region)))
             return PTR_ERR(right_region);
 
-        struct page* right_pages =
-            pages_split_off(&region->private_pages, npages);
+        struct tree right_pages = {0};
+        pages_split_off(&region->private_pages, &right_pages, npages);
         *right_region = (struct vm_region){
             .vm = vm,
             .start = end,
@@ -672,8 +686,8 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         if (IS_ERR(ASSERT(right_region)))
             return PTR_ERR(right_region);
 
-        struct page* right_pages =
-            pages_split_off(&region->private_pages, offset);
+        struct tree right_pages = {0};
+        pages_split_off(&region->private_pages, &right_pages, offset);
 
         *right_region = (struct vm_region){
             .vm = vm,
@@ -704,9 +718,10 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
             return PTR_ERR(right_region);
         }
 
-        struct page* middle_pages =
-            pages_split_off(&region->private_pages, offset);
-        struct page* right_pages = pages_split_off(&middle_pages, npages);
+        struct tree middle_pages = {0};
+        pages_split_off(&region->private_pages, &middle_pages, offset);
+        struct tree right_pages = {0};
+        pages_split_off(&middle_pages, &right_pages, npages);
 
         *middle_region = (struct vm_region){
             .vm = vm,
@@ -765,7 +780,8 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
         region->start += npages;
         region->offset += npages;
 
-        struct page* pages = pages_split_off(&region->private_pages, npages);
+        struct tree pages = {0};
+        pages_split_off(&region->private_pages, &pages, npages);
         pages_clear(&region->private_pages);
         region->private_pages = pages;
     } else if (region->end == end) {
@@ -783,9 +799,10 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
         if (IS_ERR(ASSERT(right_region)))
             return PTR_ERR(right_region);
 
-        struct page* middle_pages =
-            pages_split_off(&region->private_pages, offset);
-        struct page* right_pages = pages_split_off(&middle_pages, npages);
+        struct tree middle_pages = {0};
+        pages_split_off(&region->private_pages, &middle_pages, offset);
+        struct tree right_pages = {0};
+        pages_split_off(&middle_pages, &right_pages, npages);
         pages_clear(&middle_pages);
 
         *right_region = (struct vm_region){

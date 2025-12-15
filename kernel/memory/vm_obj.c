@@ -88,7 +88,7 @@ int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
 
 struct anon {
     struct vm_obj vm_obj;
-    struct page* shared_pages; // Pages referenced by VM_SHARED regions
+    struct tree shared_pages; // Pages referenced by VM_SHARED regions
 };
 
 static struct slab anon_slab;
@@ -106,9 +106,18 @@ static struct page* anon_get_page(struct vm_obj* obj, size_t index,
     ASSERT(mutex_is_locked_by_current(&obj->lock));
     struct anon* anon = CONTAINER_OF(obj, struct anon, vm_obj);
 
-    struct page* page = pages_get(anon->shared_pages, index);
-    if (page)
-        return page;
+    struct tree_node** new_node = &anon->shared_pages.root;
+    struct tree_node* parent = NULL;
+    while (*new_node) {
+        parent = *new_node;
+        struct page* page = CONTAINER_OF(parent, struct page, tree_node);
+        if (index < page->index)
+            new_node = &parent->left;
+        else if (index > page->index)
+            new_node = &parent->right;
+        else
+            return page;
+    }
 
     if (!write)
         return zero_page;
@@ -118,10 +127,15 @@ static struct page* anon_get_page(struct vm_obj* obj, size_t index,
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
-    page = pages_alloc_at(&anon->shared_pages, index);
+    struct page* page = page_alloc();
     if (IS_ERR(ASSERT(page)))
         return page;
+    page->index = index;
     page_fill(page, 0, 0, PAGE_SIZE);
+
+    *new_node = &page->tree_node;
+    tree_insert(&anon->shared_pages, parent, *new_node);
+
     return page;
 }
 

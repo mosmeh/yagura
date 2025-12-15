@@ -74,7 +74,7 @@ struct vm_region {
     size_t offset;      // Offset into the obj (in pages)
     unsigned flags;     // VM_*
     struct vm_obj* obj; // Object backing this region
-    struct page* private_pages;    // Pages referenced by MAP_PRIVATE regions
+    struct tree private_pages;     // Pages referenced by MAP_PRIVATE regions
     struct vm_region* prev;        // prev->end <= start
     struct vm_region* next;        // end <= next->start
     struct vm_region* shared_next; // obj == shared_next->obj

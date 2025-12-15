@@ -56,31 +56,47 @@ struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
     struct inode* inode = filemap->inode;
     ASSERT(mutex_is_locked_by_current(&inode->vm_obj.lock));
 
-    struct page* page = pages_get(filemap->pages, index);
-    if (page)
-        return page;
+    struct tree_node** new_node = &filemap->pages.root;
+    struct tree_node* parent = NULL;
+    while (*new_node) {
+        parent = *new_node;
+        struct page* page = CONTAINER_OF(parent, struct page, tree_node);
+        if (index < page->index)
+            new_node = &parent->left;
+        else if (index > page->index)
+            new_node = &parent->right;
+        else
+            return page;
+    }
 
     uint64_t byte_offset = (uint64_t)index << PAGE_SHIFT;
     if (byte_offset >= inode->size) {
         if (write) {
-            page = pages_alloc_at(&filemap->pages, index);
+            struct page* page = page_alloc();
             if (IS_ERR(ASSERT(page)))
                 return page;
+            page->index = index;
             page_fill(page, 0, 0, PAGE_SIZE);
+            *new_node = &page->tree_node;
+            tree_insert(&filemap->pages, parent, *new_node);
             return page;
         }
         return NULL;
     }
 
-    page = pages_alloc_at(&filemap->pages, index);
+    struct page* page = page_alloc();
     if (IS_ERR(ASSERT(page)))
         return page;
+    page->index = index;
 
     int rc = populate_page(filemap, page);
     if (IS_ERR(rc)) {
-        pages_free(&filemap->pages, page);
+        page_free(page);
         return ERR_PTR(rc);
     }
+
+    *new_node = &page->tree_node;
+    tree_insert(&filemap->pages, parent, *new_node);
 
     return page;
 }
@@ -127,6 +143,24 @@ NODISCARD static int writeback_page(struct filemap* filemap,
     return 0;
 }
 
+static struct page* find_page_with_lower_bound(const struct filemap* filemap,
+                                               size_t start) {
+    struct tree_node* node = filemap->pages.root;
+    struct page* result = NULL;
+    while (node) {
+        struct page* page = CONTAINER_OF(node, struct page, tree_node);
+        if (start < page->index) {
+            result = page;
+            node = node->left;
+        } else if (start > page->index) {
+            node = node->right;
+        } else {
+            return page;
+        }
+    }
+    return result;
+}
+
 NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
     struct inode* inode = filemap->inode;
     ASSERT(mutex_is_locked_by_current(&inode->vm_obj.lock));
@@ -137,13 +171,15 @@ NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
     if (!(inode->flags & INODE_DIRTY))
         return 0;
 
+    struct page* page = find_page_with_lower_bound(filemap, start);
+    if (page)
+        ASSERT(page->index >= start);
+
     int rc = 0;
     size_t num_successful = 0;
-    for (struct page* page = filemap->pages; page; page = page->next) {
+    for (; page; page = pages_next(page)) {
         if (end <= page->index)
             break;
-        if (page->index < start)
-            continue;
         rc = writeback_page(filemap, page);
         if (IS_ERR(rc))
             break;
@@ -157,7 +193,7 @@ NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
     }
 
     bool has_any_dirty_pages = false;
-    for (const struct page* page = filemap->pages; page; page = page->next) {
+    for (page = pages_first(&filemap->pages); page; page = pages_next(page)) {
         if (page->flags & PAGE_DIRTY) {
             has_any_dirty_pages = true;
             break;
@@ -178,7 +214,7 @@ NODISCARD int filemap_truncate(struct filemap* filemap, uint64_t length) {
     bool truncated = pages_truncate(&filemap->pages, end);
     size_t page_offset = length % PAGE_SIZE;
     if (page_offset > 0) {
-        struct page* page = pages_get(filemap->pages, end - 1);
+        struct page* page = pages_get(&filemap->pages, end - 1);
         if (page)
             page_fill(page, 0, page_offset, PAGE_SIZE - page_offset);
     }

@@ -13,7 +13,7 @@ extern const struct file_ops pipe_fops;
 
 struct filemap {
     struct inode* inode;
-    struct page* pages;
+    struct tree pages;
 };
 
 struct filemap* filemap_create(struct inode*);

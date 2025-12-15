@@ -168,7 +168,6 @@ struct page* page_alloc(void) {
         return ERR_PTR(pfn);
     struct page* page = page_get(pfn);
     ASSERT(!page->flags);
-    ASSERT(!page->next);
     *page = (struct page){
         .flags = PAGE_ALLOCATED,
     };
@@ -223,96 +222,113 @@ void page_copy_to_buffer(struct page* src, void* dest, size_t offset,
     kunmap(src_mapped);
 }
 
-struct page* pages_get(struct page* pages, size_t index) {
-    for (struct page* page = pages; page; page = page->next) {
-        ASSERT(page->flags & PAGE_ALLOCATED);
-        if (page->next)
-            ASSERT(page->index < page->next->index);
-        if (page->index == index)
+struct page* pages_first(const struct tree* tree) {
+    struct tree_node* node = tree_first(tree);
+    if (!node)
+        return NULL;
+    return CONTAINER_OF(node, struct page, tree_node);
+}
+
+struct page* pages_next(const struct page* page) {
+    struct tree_node* node = tree_next(&page->tree_node);
+    if (!node)
+        return NULL;
+    return CONTAINER_OF(node, struct page, tree_node);
+}
+
+struct page* pages_get(const struct tree* tree, size_t index) {
+    struct tree_node* node = tree->root;
+    while (node) {
+        struct page* page = CONTAINER_OF(node, struct page, tree_node);
+        if (index < page->index)
+            node = node->left;
+        else if (index > page->index)
+            node = node->right;
+        else
             return page;
-        if (page->index > index)
-            return NULL;
     }
     return NULL;
 }
 
-struct page* pages_alloc_at(struct page** pages, size_t index) {
-    struct page* prev = NULL;
-    for (struct page* page = *pages; page; page = page->next) {
-        ASSERT(page->flags & PAGE_ALLOCATED);
-        if (page->next)
-            ASSERT(page->index < page->next->index);
-        if (page->index == index)
+struct page* pages_alloc_at(struct tree* tree, size_t index) {
+    struct tree_node** new_node = &tree->root;
+    struct tree_node* parent = NULL;
+    while (*new_node) {
+        parent = *new_node;
+        struct page* page = CONTAINER_OF(parent, struct page, tree_node);
+        if (index < page->index)
+            new_node = &parent->left;
+        else if (index > page->index)
+            new_node = &parent->right;
+        else
             return ERR_PTR(-EEXIST);
-        if (page->index > index)
-            break;
-        prev = page;
     }
 
     struct page* page = page_alloc();
     if (IS_ERR(ASSERT(page)))
         return page;
     page->index = index;
-    if (prev) {
-        page->next = prev->next;
-        prev->next = page;
-    } else {
-        page->next = *pages;
-        *pages = page;
-    }
+
+    *new_node = &page->tree_node;
+    tree_insert(tree, parent, *new_node);
 
     return page;
 }
 
-struct page* pages_split_off(struct page** pages, size_t index) {
-    struct page* page = *pages;
-    while (page) {
-        struct page* next = page->next;
-        if (next && index <= next->index)
+void pages_split_off(struct tree* src, struct tree* dst, size_t index) {
+    for (;;) {
+        struct tree_node* node = tree_last(src);
+        if (!node)
             break;
-        page = next;
-    }
-    if (!page) {
-        *pages = NULL;
-        return NULL;
-    }
-    struct page* split = page->next;
-    page->next = NULL;
-    for (page = split; page; page = page->next)
+        struct page* page = CONTAINER_OF(node, struct page, tree_node);
+        if (page->index < index)
+            break;
+        tree_remove(src, node);
         page->index -= index;
-    return split;
-}
 
-void pages_free(struct page** pages, struct page* page) {
-    if (!page)
-        return;
-    struct page* prev = NULL;
-    struct page* it = *pages;
-    for (; it && it != page; it = it->next)
-        prev = it;
-    ASSERT(it);
-    if (prev)
-        prev->next = page->next;
-    else
-        *pages = page->next;
-    page_free(page);
-}
-
-bool pages_truncate(struct page** pages, size_t index) {
-    struct page* split = pages_split_off(pages, index);
-    bool freed = split != NULL;
-    pages_clear(&split);
-    return freed;
-}
-
-void pages_clear(struct page** pages) {
-    struct page* page = *pages;
-    while (page) {
-        struct page* next = page->next;
-        page_free(page);
-        page = next;
+        struct tree_node** new_node = &dst->root;
+        struct tree_node* parent = NULL;
+        while (*new_node) {
+            parent = *new_node;
+            struct page* dst_page =
+                CONTAINER_OF(parent, struct page, tree_node);
+            if (page->index < dst_page->index)
+                new_node = &parent->left;
+            else if (page->index > dst_page->index)
+                new_node = &parent->right;
+            else
+                PANIC("Duplicate page index");
+        }
+        *new_node = node;
+        tree_insert(dst, parent, *new_node);
     }
-    *pages = NULL;
+}
+
+bool pages_truncate(struct tree* tree, size_t index) {
+    bool truncated = false;
+    for (;;) {
+        struct tree_node* node = tree_last(tree);
+        if (!node)
+            break;
+        struct page* page = CONTAINER_OF(node, struct page, tree_node);
+        if (page->index < index)
+            break;
+        tree_remove(tree, node);
+        page_free(page);
+        truncated = true;
+    }
+    return truncated;
+}
+
+void pages_clear(struct tree* tree) {
+    for (;;) {
+        struct tree_node* node = tree->root;
+        if (!node)
+            break;
+        tree_remove(tree, node);
+        struct page* page = CONTAINER_OF(node, struct page, tree_node);
+        page_free(page);
+    }
 }
 
 void memory_get_stats(struct memory_stats* out_stats) {

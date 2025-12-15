@@ -84,10 +84,11 @@ OBJS := \
 	time.o \
 	../common/libgen.o \
 	../common/math.o \
+	../common/stdio.o \
+	../common/stdlib.o \
 	../common/string.o \
 	../common/strings.o \
- 	../common/stdio.o \
- 	../common/stdlib.o \
+	../common/tree.o \
 	../common/ubsan.o
 
 DEPS := $(OBJS:.o=.d)

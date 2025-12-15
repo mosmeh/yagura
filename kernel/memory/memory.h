@@ -31,6 +31,7 @@
 #ifndef ASM_FILE
 
 #include <common/extra.h>
+#include <common/tree.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/lock.h>
 #include <kernel/resource.h>
@@ -75,8 +76,8 @@ void memory_get_stats(struct memory_stats* out_stats);
 
 struct page {
     size_t index;
-    unsigned flags;    // PAGE_*
-    struct page* next; // index < next->index
+    unsigned flags; // PAGE_*
+    struct tree_node tree_node;
 };
 
 struct page* page_get(size_t pfn);
@@ -97,26 +98,31 @@ void page_copy_from_buffer(struct page* dest, const void* src, size_t offset,
 void page_copy_to_buffer(struct page* src, void* dest, size_t offset,
                          size_t nbytes);
 
-// Returns a page from the list of pages. Returns NULL if the page is not found.
-struct page* pages_get(struct page*, size_t index);
+// Returns the first page in the tree.
+struct page* pages_first(const struct tree*);
 
-// Allocates a page, inserting it into the list of pages.
-NODISCARD struct page* pages_alloc_at(struct page**, size_t index);
+// Returns the next page in the tree.
+struct page* pages_next(const struct page*);
 
-// Splits the pages into two at the index.
-// Returns the pages >= index.
-// Returns NULL if the index is larger than the last page.
-NODISCARD struct page* pages_split_off(struct page**, size_t index);
+// Returns a page from the tree. Returns NULL if the page is not found.
+struct page* pages_get(const struct tree*, size_t index);
 
-// Frees a page, removing it from the list of pages.
-void pages_free(struct page**, struct page*);
+// Allocates a page, inserting it into the tree.
+NODISCARD struct page* pages_alloc_at(struct tree*, size_t index);
 
-// Truncates the pages, freeing >= index.
+// Splits the page tree into two at the given index.
+// Pages >= index are moved from src to dst, but with their indices adjusted
+// to start from 0.
+// If the index is larger than the last page in src, this is a no-op.
+// Panics if there are duplicate page indices in dst.
+void pages_split_off(struct tree* src, struct tree* dst, size_t index);
+
+// Removes and frees all pages with indices >= index.
 // Returns whether any pages were freed.
-bool pages_truncate(struct page**, size_t index);
+bool pages_truncate(struct tree*, size_t index);
 
 // Frees all the pages.
-void pages_clear(struct page**);
+void pages_clear(struct tree*);
 
 void* kmalloc(size_t);
 void* kaligned_alloc(size_t alignment, size_t);
