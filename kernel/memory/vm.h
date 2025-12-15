@@ -63,6 +63,8 @@ struct vm {
     size_t end;   // End virtual address in pages (exclusive)
     struct page_directory* page_directory;
     struct tree regions;
+    size_t cached_gap_start;
+    size_t cached_gap_size;
     struct mutex lock;
     refcount_t refcount;
 };

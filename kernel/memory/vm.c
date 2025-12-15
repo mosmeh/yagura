@@ -443,6 +443,39 @@ struct vm_region* vm_find_intersection(const struct vm* vm,
     return find_intersection(vm, start, end);
 }
 
+// Returns the start address (in pages) of the gap.
+// If out_prev_region is not NULL, *out_prev_region is set to the region
+// before the gap (or NULL if the gap is at the beginning of the address space).
+static ssize_t find_gap(const struct vm* vm, size_t npages,
+                        struct vm_region** out_prev_region) {
+    // Keep the first page as a guard page.
+    // Note that a region can still be allocated at the first page if
+    // explicitly requested with vm_alloc_at().
+    size_t min_start = MAX(vm->start, 1);
+    struct vm_region* first_region = vm_first_region(vm);
+    if (!first_region || min_start + npages <= first_region->start) {
+        if (out_prev_region)
+            *out_prev_region = NULL;
+        return min_start;
+    }
+    struct vm_region* prev = NULL;
+    for (struct vm_region* it = first_region; it; it = vm_next_region(it)) {
+        ASSERT(it->start < it->end);
+        if (prev && prev->end + npages <= it->start) {
+            if (out_prev_region)
+                *out_prev_region = prev;
+            return prev->end;
+        }
+        prev = it;
+    }
+    if (prev && prev->end + npages <= vm->end) {
+        if (out_prev_region)
+            *out_prev_region = prev;
+        return prev->end;
+    }
+    return -ENOMEM;
+}
+
 ssize_t vm_find_gap(struct vm* vm, size_t npages) {
     ASSERT(mutex_is_locked_by_current(&vm->lock));
 
@@ -453,23 +486,39 @@ ssize_t vm_find_gap(struct vm* vm, size_t npages) {
     if (vm->start + npages > vm->end)
         return -ENOMEM;
 
-    // Keep the first page as a guard page.
-    // Note that a region can still be allocated at the first page if
-    // explicitly requested with vm_alloc_at().
-    size_t min_start = MAX(vm->start, 1);
-    struct vm_region* first_region = vm_first_region(vm);
-    if (!first_region || min_start + npages <= first_region->start)
-        return min_start;
-    struct vm_region* prev = NULL;
-    for (struct vm_region* it = first_region; it; it = vm_next_region(it)) {
-        ASSERT(it->start < it->end);
-        if (prev && prev->end + npages <= it->start)
-            return prev->end;
-        prev = it;
+    if (vm->cached_gap_size >= npages) {
+        size_t start = vm->cached_gap_start;
+        size_t end = start + npages;
+        // The cache might be stale. Verify it.
+        struct vm_region* region = find_intersection(vm, start, end);
+        ASSERT_OK(region);
+        if (!region) {
+            vm->cached_gap_start = start + npages;
+            vm->cached_gap_size -= npages;
+            return start;
+        }
+        // The cache is stale. Invalidate it and fall back to the full search.
+        vm->cached_gap_size = 0;
     }
-    if (prev && prev->end + npages <= vm->end)
-        return prev->end;
-    return -ENOMEM;
+
+    struct vm_region* prev_region;
+    ssize_t start = find_gap(vm, npages, &prev_region);
+    if (IS_ERR(start)) {
+        // Invalidate the cache
+        vm->cached_gap_size = 0;
+        return start;
+    }
+    size_t gap_start = start + npages;
+    struct vm_region* next_region =
+        prev_region ? vm_next_region(prev_region) : vm_first_region(vm);
+    size_t gap_end = next_region ? next_region->start : vm->end;
+    size_t gap_size = gap_end - gap_start;
+    if (gap_size >= vm->cached_gap_size) {
+        vm->cached_gap_start = gap_start;
+        vm->cached_gap_size = gap_size;
+    }
+
+    return start;
 }
 
 void vm_insert_region(struct vm* vm, struct vm_region* new_region) {
