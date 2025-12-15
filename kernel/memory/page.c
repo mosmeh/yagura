@@ -3,9 +3,7 @@
 #include <common/extra.h>
 #include <common/string.h>
 #include <kernel/api/sys/types.h>
-#include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
-#include <kernel/lock.h>
 #include <kernel/multiboot.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
@@ -17,6 +15,7 @@
 
 static size_t pfn_end; // Maximum physical frame number + 1
 static atomic_uint bitmap[BITMAP_MAX_LEN];
+static atomic_size_t cached_free_index;
 
 static bool bitmap_get(size_t i) {
     ASSERT(i < pfn_end);
@@ -38,16 +37,20 @@ static bool bitmap_clear(size_t i) {
 }
 
 static ssize_t bitmap_get_free(void) {
-    for (size_t i = 0; i < pfn_end / 32; ++i) {
+    size_t i = cached_free_index;
+    for (size_t offset = 0; offset < BITMAP_INDEX(pfn_end); ++offset) {
         for (;;) {
             uint32_t v = bitmap[i];
             int b = __builtin_ffs(v);
             if (b == 0) // v == 0
                 break;
             uint32_t new_v = v & ~BITMAP_MASK(b - 1);
-            if (atomic_compare_exchange_weak(&bitmap[i], &v, new_v))
+            if (atomic_compare_exchange_weak(&bitmap[i], &v, new_v)) {
+                cached_free_index = i;
                 return i * 32 + (b - 1);
+            }
         }
+        i = (i + 1) % BITMAP_INDEX(pfn_end);
     }
     return -ENOMEM;
 }
