@@ -93,11 +93,6 @@ void sched_register(struct task* task) {
 static void unblock_tasks(void) {
     spinlock_lock(&all_tasks_lock);
 
-    if (!all_tasks) {
-        spinlock_unlock(&all_tasks_lock);
-        return;
-    }
-
     for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
         if (it->state != TASK_UNINTERRUPTIBLE &&
             it->state != TASK_INTERRUPTIBLE)
@@ -125,6 +120,7 @@ noreturn void switch_context(void) {
     struct task* prev_task = cpu->current_task;
     if (prev_task == cpu->idle_task)
         prev_task = NULL;
+    cpu->current_task = NULL;
 
     unblock_tasks();
 
