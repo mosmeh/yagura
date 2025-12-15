@@ -1,8 +1,8 @@
 #include <errno.h>
-#include <extra.h>
 #include <fcntl.h>
 #include <linux/fb.h>
 #include <panic.h>
+#include <random.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,7 +13,130 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
+#include <tree.h>
 #include <unistd.h>
+
+static uint32_t random_state[4];
+
+static uint32_t random_next(void) {
+    return xoshiro128plusplus_next(random_state);
+}
+
+#define TREE_NUM_NODES 3000
+
+struct test_node {
+    uint32_t value;
+    struct tree_node tree_node;
+};
+
+static void tree_validate(struct tree* tree, size_t count) {
+    uint32_t last_value = 0;
+    size_t i = 0;
+    for (struct tree_node* node = tree_first(tree); node;
+         node = tree_next(node)) {
+        struct test_node* n = CONTAINER_OF(node, struct test_node, tree_node);
+        ASSERT(n->value > last_value);
+        last_value = n->value;
+        ++i;
+    }
+    ASSERT(i == count);
+
+    last_value = UINT32_MAX;
+    i = 0;
+    for (struct tree_node* node = tree_last(tree); node;
+         node = tree_prev(node)) {
+        struct test_node* n = CONTAINER_OF(node, struct test_node, tree_node);
+        ASSERT(n->value < last_value);
+        last_value = n->value;
+        ++i;
+    }
+    ASSERT(i == count);
+}
+
+static void tree_test_case_remove_first(struct tree* tree) {
+    for (int count = TREE_NUM_NODES; count > 0; --count) {
+        struct tree_node* node = tree_first(tree);
+        tree_remove(tree, node);
+        tree_validate(tree, count - 1);
+    }
+    ASSERT(tree_is_empty(tree));
+}
+
+static void tree_test_case_remove_last(struct tree* tree) {
+    for (int count = TREE_NUM_NODES; count > 0; --count) {
+        struct tree_node* node = tree_last(tree);
+        tree_remove(tree, node);
+        tree_validate(tree, count - 1);
+    }
+    ASSERT(tree_is_empty(tree));
+}
+
+static void tree_test_case_remove_root(struct tree* tree) {
+    for (int count = TREE_NUM_NODES; count > 0; --count) {
+        struct tree_node* node = tree->root;
+        tree_remove(tree, node);
+        tree_validate(tree, count - 1);
+    }
+    ASSERT(tree_is_empty(tree));
+}
+
+static void tree_test_case_remove_random(struct tree* tree) {
+    for (int count = TREE_NUM_NODES; count > 0; --count) {
+        size_t r = random_next() % count;
+        struct tree_node* node = tree_first(tree);
+        for (size_t i = 0; i < r; ++i)
+            node = tree_next(node);
+        tree_remove(tree, node);
+        tree_validate(tree, count - 1);
+    }
+    ASSERT(tree_is_empty(tree));
+}
+
+static void test_tree(void) {
+    puts("tree");
+
+    struct test_node* nodes = malloc(TREE_NUM_NODES * sizeof(struct test_node));
+    ASSERT(nodes);
+
+    void (*test_cases[])(struct tree*) = {
+        tree_test_case_remove_first,
+        tree_test_case_remove_last,
+        tree_test_case_remove_root,
+        tree_test_case_remove_random,
+    };
+    for (size_t i = 0; i < ARRAY_SIZE(test_cases); ++i) {
+        struct tree tree = {0};
+
+        for (size_t i = 0; i < TREE_NUM_NODES; ++i) {
+        retry:;
+            uint32_t value = random_next();
+            if (value == 0 || value == UINT32_MAX)
+                goto retry;
+
+            struct tree_node* parent = NULL;
+            struct tree_node** new_node = &tree.root;
+            while (*new_node) {
+                parent = *new_node;
+                struct test_node* n =
+                    CONTAINER_OF(parent, struct test_node, tree_node);
+                if (value < n->value)
+                    new_node = &parent->left;
+                else if (value > n->value)
+                    new_node = &parent->right;
+                else
+                    goto retry;
+            }
+
+            nodes[i].value = value;
+            *new_node = &nodes[i].tree_node;
+            tree_insert(&tree, parent, *new_node);
+        }
+
+        test_cases[i](&tree);
+    }
+
+    free(nodes);
+}
 
 static noreturn void shm_reader(void) {
     int fd = open("/dev/shm/test-fs", O_RDWR);
@@ -520,6 +643,15 @@ static void test_malloc(void) {
 }
 
 int main(void) {
+    uint64_t seed = 12345;
+    uint64_t a = splitmix64_next(&seed);
+    uint64_t b = splitmix64_next(&seed);
+    random_state[0] = a & 0xffffffff;
+    random_state[1] = a >> 32;
+    random_state[2] = b & 0xffffffff;
+    random_state[3] = b >> 32;
+
+    test_tree();
     test_fs();
     test_fifo();
     test_socket();

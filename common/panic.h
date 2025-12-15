@@ -7,7 +7,7 @@
 #define UNREACHABLE() PANIC("Unreachable")
 #define UNIMPLEMENTED() PANIC("Unimplemented")
 #define ASSERT(cond)                                                           \
-    ({                                                                         \
+    __extension__({                                                            \
         __typeof__(cond) _cond = (cond);                                       \
         if (!_cond)                                                            \
             PANIC("Assertion failed: " #cond);                                 \
