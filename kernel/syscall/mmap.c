@@ -121,14 +121,14 @@ NODISCARD static int for_each_overlapping_region(
     int ret = 0;
     struct vm_region* region =
         vm_find_intersection(vm, addr, (void*)(end << PAGE_SHIFT));
-    while (region && region->start < end) {
-        struct vm_region* next = region->next;
+    while (region && start < region->end) {
+        struct vm_region* prev = vm_prev_region(region);
         size_t offset = MAX(start, region->start) - region->start;
         size_t npages = MIN(end, region->end) - region->start - offset;
         ret = fn(region, offset, npages, ctx);
         if (IS_ERR(ret))
             break;
-        region = next;
+        region = prev;
     }
     mutex_unlock(&vm->lock);
     return ret;

@@ -59,24 +59,23 @@ void phys_unmap(void*);
 DEFINE_FREE(phys, void*, phys_unmap)
 
 struct vm {
-    size_t start; // Start virtual address >> PAGE_SHIFT (inclusive)
-    size_t end;   // End virtual address >> PAGE_SHIFT (exclusive)
+    size_t start; // Start virtual address in pages (inclusive)
+    size_t end;   // End virtual address in pages (exclusive)
     struct page_directory* page_directory;
-    struct vm_region* regions;
+    struct tree regions;
     struct mutex lock;
     refcount_t refcount;
 };
 
 struct vm_region {
     struct vm* vm;
-    size_t start;       // Start virtual address >> PAGE_SHIFT (inclusive)
-    size_t end;         // End virtual address >> PAGE_SHIFT (exclusive)
-    size_t offset;      // Offset into the obj (in pages)
-    unsigned flags;     // VM_*
-    struct vm_obj* obj; // Object backing this region
+    size_t start;                  // Start virtual address in pages (inclusive)
+    size_t end;                    // End virtual address in pages (exclusive)
+    size_t offset;                 // Offset into the obj (in pages)
+    unsigned flags;                // VM_*
+    struct vm_obj* obj;            // Object backing this region
     struct tree private_pages;     // Pages referenced by MAP_PRIVATE regions
-    struct vm_region* prev;        // prev->end <= start
-    struct vm_region* next;        // end <= next->start
+    struct tree_node tree_node;    // Node in vm->regions
     struct vm_region* shared_next; // obj == shared_next->obj
 };
 
@@ -101,11 +100,20 @@ NODISCARD bool vm_handle_page_fault(void* virt_addr, uint32_t error_code);
 NODISCARD int vm_populate(void* virt_start_addr, void* virt_end_addr,
                           bool write);
 
+// Returns the first region in the vm.
+struct vm_region* vm_first_region(const struct vm*);
+
+// Iterates the regions in the vm.
+struct vm_region* vm_next_region(const struct vm_region*);
+
+// Iterates the regions in the vm in reverse order.
+struct vm_region* vm_prev_region(const struct vm_region*);
+
 // Finds the region that contains the given address.
 // Returns NULL if no region contains the address.
 struct vm_region* vm_find(const struct vm*, void* virt_addr);
 
-// Find the region with the smallest address that intersects with the given
+// Find the region with the highest address that intersects with the given
 // address range.
 // Returns NULL if no region intersects with the address range.
 struct vm_region* vm_find_intersection(const struct vm*, void* virt_start_addr,

@@ -29,10 +29,9 @@ NODISCARD static int ensure_cache(struct slab* slab) {
     ssize_t pfn = -1;
     mutex_lock(&kernel_vm->lock);
 
-    size_t start;
-    struct vm_region* prev = vm_find_gap(kernel_vm, 1, &start);
-    if (IS_ERR(prev)) {
-        ret = PTR_ERR(prev);
+    ssize_t start = vm_find_gap(kernel_vm, 1);
+    if (IS_ERR(start)) {
+        ret = start;
         goto fail;
     }
 
@@ -42,11 +41,11 @@ NODISCARD static int ensure_cache(struct slab* slab) {
         goto fail;
     }
 
-    ret = page_table_map(start << PAGE_SHIFT, pfn, 1, PTE_WRITE | PTE_GLOBAL);
+    uintptr_t start_addr = (uintptr_t)start << PAGE_SHIFT;
+    ret = page_table_map(start_addr, pfn, 1, PTE_WRITE | PTE_GLOBAL);
     if (IS_ERR(ret))
         goto fail;
 
-    uintptr_t start_addr = start << PAGE_SHIFT;
     struct vm_region* region = (struct vm_region*)start_addr;
     *region = (struct vm_region){
         .vm = kernel_vm,
@@ -54,7 +53,7 @@ NODISCARD static int ensure_cache(struct slab* slab) {
         .end = start + 1,
         .flags = VM_READ | VM_WRITE | VM_SHARED,
     };
-    vm_insert_region_after(kernel_vm, prev, region);
+    vm_insert_region(kernel_vm, region);
 
     mutex_unlock(&kernel_vm->lock);
 

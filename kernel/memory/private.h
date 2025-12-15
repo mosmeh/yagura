@@ -20,6 +20,7 @@
 #define KERNEL_VM_END 0xffc00000
 
 struct vm;
+struct vm_region;
 typedef struct multiboot_info multiboot_info_t;
 
 #define MAX_NUM_PAGES (1 << 20)
@@ -32,16 +33,11 @@ void page_directory_destroy(struct page_directory*);
 void vm_init(void);
 
 // Finds a gap in the address space that can fit a region of the given size.
-// Returns the region before the gap, or NULL if the vm is empty.
-// If start is not NULL, (the start virtual address >> PAGE_SHIFT) of the gap is
-// stored in *start.
-struct vm_region* vm_find_gap(const struct vm*, size_t npages, size_t* start);
+// Returns the start address (in pages) of the gap.
+NODISCARD ssize_t vm_find_gap(struct vm*, size_t npages);
 
-// Inserts the region `inserted` after the region `prev`.
-// If `prev` is NULL, `inserted` is inserted at the beginning of the vm's region
-// list.
-void vm_insert_region_after(struct vm*, struct vm_region* prev,
-                            struct vm_region* inserted);
+// Inserts the region into the vm's region list.
+void vm_insert_region(struct vm*, struct vm_region*);
 
 // Removes a region from the vm's region list.
 void vm_region_remove(struct vm_region*);

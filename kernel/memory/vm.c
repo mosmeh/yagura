@@ -77,8 +77,6 @@ static void vm_region_unset_obj(struct vm_region* region) {
 static struct slab region_slab;
 
 static void vm_region_destroy(struct vm_region* region) {
-    ASSERT(!region->prev);
-    ASSERT(!region->next);
     struct vm_obj* obj = region->obj;
     if (obj) {
         if (region->flags & VM_SHARED)
@@ -100,12 +98,14 @@ void vm_unref(struct vm* vm) {
 
     ASSERT(vm != current->vm);
 
-    struct vm_region* region = vm->regions;
-    while (region) {
-        struct vm_region* next = region->next;
-        region->prev = region->next = NULL;
+    for (;;) {
+        struct tree_node* node = vm->regions.root;
+        if (!node)
+            break;
+        tree_remove(&vm->regions, node);
+        struct vm_region* region =
+            CONTAINER_OF(node, struct vm_region, tree_node);
         vm_region_destroy(region);
-        region = next;
     }
 
     page_directory_destroy(vm->page_directory);
@@ -182,19 +182,29 @@ struct vm* vm_clone(struct vm* vm) {
     }
     new_vm->page_directory = page_directory;
 
-    struct vm_region* prev_region = NULL;
-    for (const struct vm_region* it = vm->regions; it; it = it->next) {
-        struct vm_region* region = vm_region_clone(new_vm, it);
-        if (IS_ERR(ASSERT(region))) {
-            ret = PTR_ERR(region);
+    for (const struct vm_region* it = vm_first_region(vm); it;
+         it = vm_next_region(it)) {
+        struct vm_region* new_region = vm_region_clone(new_vm, it);
+        if (IS_ERR(ASSERT(new_region))) {
+            ret = PTR_ERR(new_region);
             goto fail;
         }
-        region->prev = prev_region;
-        if (prev_region)
-            prev_region->next = region;
-        else
-            new_vm->regions = region;
-        prev_region = region;
+
+        struct tree_node** new_node = &new_vm->regions.root;
+        struct tree_node* parent = NULL;
+        while (*new_node) {
+            parent = *new_node;
+            struct vm_region* region =
+                CONTAINER_OF(parent, struct vm_region, tree_node);
+            if (new_region->start < region->start)
+                new_node = &parent->left;
+            else if (new_region->start > region->start)
+                new_node = &parent->right;
+            else
+                UNREACHABLE();
+        }
+        *new_node = &new_region->tree_node;
+        tree_insert(&new_vm->regions, parent, *new_node);
     }
 
 fail:
@@ -355,20 +365,72 @@ int vm_populate(void* virt_start_addr, void* virt_end_addr, bool write) {
     return 0;
 }
 
+struct vm_region* vm_first_region(const struct vm* vm) {
+    struct tree_node* node = tree_first(&vm->regions);
+    if (!node)
+        return NULL;
+    return CONTAINER_OF(node, struct vm_region, tree_node);
+}
+
+struct vm_region* vm_next_region(const struct vm_region* region) {
+    struct tree_node* node = tree_next(&region->tree_node);
+    if (!node)
+        return NULL;
+    return CONTAINER_OF(node, struct vm_region, tree_node);
+}
+
+struct vm_region* vm_prev_region(const struct vm_region* region) {
+    struct tree_node* node = tree_prev(&region->tree_node);
+    if (!node)
+        return NULL;
+    return CONTAINER_OF(node, struct vm_region, tree_node);
+}
+
+static struct vm_region* find_region_with_upper_bound(const struct vm* vm,
+                                                      size_t index) {
+    struct tree_node* node = vm->regions.root;
+    struct vm_region* result = NULL;
+    while (node) {
+        struct vm_region* region =
+            CONTAINER_OF(node, struct vm_region, tree_node);
+        if (index < region->start) {
+            node = node->left;
+        } else if (index > region->start) {
+            result = region;
+            node = node->right;
+        } else {
+            return region;
+        }
+    }
+    return result;
+}
+
 struct vm_region* vm_find(const struct vm* vm, void* virt_addr) {
     ASSERT(mutex_is_locked_by_current(&vm->lock));
     if (!vm_contains(vm, virt_addr))
         return NULL;
     size_t index = (uintptr_t)virt_addr >> PAGE_SHIFT;
-    for (struct vm_region* it = vm->regions; it; it = it->next) {
-        ASSERT(it->start < it->end);
-        if (it->next)
-            ASSERT(it->end <= it->next->start);
-        if (it->start > index)
-            break;
-        if (index < it->end)
-            return it;
-    }
+    struct vm_region* region = find_region_with_upper_bound(vm, index);
+    if (!region)
+        return NULL;
+    ASSERT(region->start <= index);
+    if (index < region->end)
+        return region;
+    return NULL;
+}
+
+static struct vm_region* find_intersection(const struct vm* vm, size_t start,
+                                           size_t end) {
+    if (start >= end)
+        return ERR_PTR(-EINVAL);
+    if (end <= vm->start || vm->end <= start)
+        return NULL;
+    struct vm_region* region = find_region_with_upper_bound(vm, end - 1);
+    if (!region)
+        return NULL;
+    ASSERT(region->start < end);
+    if (start < region->end)
+        return region;
     return NULL;
 }
 
@@ -378,92 +440,55 @@ struct vm_region* vm_find_intersection(const struct vm* vm,
     ASSERT(mutex_is_locked_by_current(&vm->lock));
     size_t start = (uintptr_t)virt_start_addr >> PAGE_SHIFT;
     size_t end = DIV_CEIL((uintptr_t)virt_end_addr, PAGE_SIZE);
-    ASSERT(start < end);
-    if (end <= vm->start || vm->end <= start)
-        return NULL;
-    for (struct vm_region* it = vm->regions; it; it = it->next) {
-        ASSERT(it->start < it->end);
-        if (it->next)
-            ASSERT(it->end <= it->next->start);
-        if (it->end <= start)
-            continue;
-        if (end <= it->start)
-            break;
-        return it;
-    }
-    return NULL;
+    return find_intersection(vm, start, end);
 }
 
-struct vm_region* vm_find_gap(const struct vm* vm, size_t npages,
-                              size_t* out_start) {
+ssize_t vm_find_gap(struct vm* vm, size_t npages) {
     ASSERT(mutex_is_locked_by_current(&vm->lock));
 
     if (npages == 0)
-        return ERR_PTR(-EINVAL);
+        return -EINVAL;
     if (vm->start + npages <= vm->start)
-        return ERR_PTR(-EOVERFLOW);
+        return -EOVERFLOW;
     if (vm->start + npages > vm->end)
-        return ERR_PTR(-ENOMEM);
+        return -ENOMEM;
 
     // Keep the first page as a guard page.
     // Note that a region can still be allocated at the first page if
     // explicitly requested with vm_alloc_at().
     size_t min_start = MAX(vm->start, 1);
-    if (!vm->regions || min_start + npages <= vm->regions->start) {
-        if (out_start)
-            *out_start = min_start;
-        return NULL;
-    }
+    struct vm_region* first_region = vm_first_region(vm);
+    if (!first_region || min_start + npages <= first_region->start)
+        return min_start;
     struct vm_region* prev = NULL;
-    for (struct vm_region* it = vm->regions; it; it = it->next) {
+    for (struct vm_region* it = first_region; it; it = vm_next_region(it)) {
         ASSERT(it->start < it->end);
-        if (it->next)
-            ASSERT(it->end <= it->next->start);
-        if (prev && prev->end + npages <= it->start) {
-            if (out_start)
-                *out_start = prev->end;
-            return prev;
-        }
+        if (prev && prev->end + npages <= it->start)
+            return prev->end;
         prev = it;
     }
-    if (prev && prev->end + npages <= vm->end) {
-        if (out_start)
-            *out_start = prev->end;
-        return prev;
-    }
-
-    return ERR_PTR(-ENOMEM);
+    if (prev && prev->end + npages <= vm->end)
+        return prev->end;
+    return -ENOMEM;
 }
 
-void vm_insert_region_after(struct vm* vm, struct vm_region* prev,
-                            struct vm_region* inserted) {
-    ASSERT(vm == inserted->vm);
-    if (prev) {
-        ASSERT(prev != inserted);
-        ASSERT(vm == prev->vm);
+void vm_insert_region(struct vm* vm, struct vm_region* new_region) {
+    ASSERT(vm == new_region->vm);
+    struct tree_node** new_node = &vm->regions.root;
+    struct tree_node* parent = NULL;
+    while (*new_node) {
+        parent = *new_node;
+        struct vm_region* region =
+            CONTAINER_OF(parent, struct vm_region, tree_node);
+        if (new_region->start < region->start)
+            new_node = &parent->left;
+        else if (new_region->start > region->start)
+            new_node = &parent->right;
+        else
+            UNREACHABLE();
     }
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
-    ASSERT(inserted->start < inserted->end);
-    ASSERT(!inserted->prev);
-    ASSERT(!inserted->next);
-    if (prev) {
-        ASSERT(prev->end <= inserted->start);
-        inserted->prev = prev;
-        inserted->next = prev->next;
-        if (prev->next) {
-            ASSERT(inserted->end <= prev->next->start);
-            prev->next->prev = inserted;
-        }
-        prev->next = inserted;
-    } else {
-        inserted->prev = NULL;
-        inserted->next = vm->regions;
-        if (vm->regions) {
-            ASSERT(inserted->end <= vm->regions->start);
-            vm->regions->prev = inserted;
-        }
-        vm->regions = inserted;
-    }
+    *new_node = &new_region->tree_node;
+    tree_insert(&vm->regions, parent, *new_node);
 }
 
 struct vm_region* vm_alloc(struct vm* vm, size_t npages) {
@@ -478,11 +503,10 @@ struct vm_region* vm_alloc(struct vm* vm, size_t npages) {
     if (IS_ERR(ASSERT(region)))
         return region;
 
-    size_t start;
-    struct vm_region* prev = vm_find_gap(vm, npages, &start);
-    if (IS_ERR(prev)) {
+    ssize_t start = vm_find_gap(vm, npages);
+    if (IS_ERR(start)) {
         slab_free(&region_slab, region);
-        return prev;
+        return ERR_PTR(start);
     }
 
     *region = (struct vm_region){
@@ -490,7 +514,7 @@ struct vm_region* vm_alloc(struct vm* vm, size_t npages) {
         .start = start,
         .end = start + npages,
     };
-    vm_insert_region_after(vm, prev, region);
+    vm_insert_region(vm, region);
 
     return region;
 }
@@ -513,24 +537,12 @@ struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
     if (IS_ERR(ASSERT(new_region)))
         return new_region;
 
-    struct vm_region* prev = NULL;
-    struct vm_region* region = vm->regions;
-    for (; region; region = region->next) {
-        if (start < region->end) {
-            // The region overlaps or comes after the new_region
-            break;
-        }
-        prev = region;
-    }
-    if (region && region->start < start) {
-        // After the overlapping part of the region is removed,
-        // the region will be located before the new_region.
-        prev = region;
-    }
+    struct vm_region* region = find_intersection(vm, start, end);
+    ASSERT_OK(region);
 
     // Free overlapping regions
-    while (region && region->start < end) {
-        struct vm_region* next = region->next;
+    while (region && start < region->end) {
+        struct vm_region* prev = vm_prev_region(region);
         size_t offset = MAX(start, region->start) - region->start;
         size_t npages = MIN(end, region->end) - region->start - offset;
         int rc = vm_region_free(region, offset, npages);
@@ -543,7 +555,7 @@ struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
             slab_free(&region_slab, new_region);
             return ERR_CAST(rc);
         }
-        region = next;
+        region = prev;
     }
 
     *new_region = (struct vm_region){
@@ -551,7 +563,7 @@ struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
         .start = start,
         .end = end,
     };
-    vm_insert_region_after(vm, prev, new_region);
+    vm_insert_region(vm, new_region);
 
     return new_region;
 }
@@ -563,13 +575,7 @@ void* vm_region_to_virt(const struct vm_region* region) {
 void vm_region_remove(struct vm_region* region) {
     struct vm* vm = region->vm;
     ASSERT(mutex_is_locked_by_current(&vm->lock));
-    if (region->prev)
-        region->prev->next = region->next;
-    else
-        vm->regions = region->next;
-    if (region->next)
-        region->next->prev = region->prev;
-    region->prev = region->next = NULL;
+    tree_remove(&vm->regions, &region->tree_node);
 }
 
 int vm_region_resize(struct vm_region* region, size_t new_npages) {
@@ -597,17 +603,17 @@ int vm_region_resize(struct vm_region* region, size_t new_npages) {
 
     // If there is enough space after the region, we can simply extend the
     // region
-    size_t next_start = region->next ? region->next->start : vm->end;
+    struct vm_region* next_region = vm_next_region(region);
+    size_t next_start = next_region ? next_region->start : vm->end;
     if (new_end <= next_start) {
         region->end = new_end;
         return 0;
     }
 
     // Otherwise, we need to allocate a new range
-    size_t new_start;
-    struct vm_region* prev = vm_find_gap(vm, new_npages, &new_start);
-    if (IS_ERR(prev))
-        return PTR_ERR(prev);
+    ssize_t new_start = vm_find_gap(vm, new_npages);
+    if (IS_ERR(new_start))
+        return new_start;
 
     // Unmap the old range
     page_table_unmap(region->start << PAGE_SHIFT, old_npages);
@@ -615,7 +621,7 @@ int vm_region_resize(struct vm_region* region, size_t new_npages) {
 
     region->start = new_start;
     region->end = new_start + new_npages;
-    vm_insert_region_after(vm, prev, region);
+    vm_insert_region(vm, region);
 
     return 0;
 }
@@ -672,7 +678,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         region->end = end;
         region->flags = new_flags;
 
-        vm_insert_region_after(vm, region, right_region);
+        vm_insert_region(vm, right_region);
 
         if (region->obj)
             vm_region_set_obj(right_region, region->obj,
@@ -698,7 +704,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         };
         region->end = start;
 
-        vm_insert_region_after(vm, region, right_region);
+        vm_insert_region(vm, right_region);
 
         if (region->obj)
             vm_region_set_obj(right_region, region->obj,
@@ -739,8 +745,8 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         };
         region->end = start;
 
-        vm_insert_region_after(vm, region, middle_region);
-        vm_insert_region_after(vm, middle_region, right_region);
+        vm_insert_region(vm, middle_region);
+        vm_insert_region(vm, right_region);
 
         if (region->obj) {
             vm_region_set_obj(middle_region, region->obj,
@@ -814,7 +820,7 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
         };
         region->end = start;
 
-        vm_insert_region_after(vm, region, right_region);
+        vm_insert_region(vm, right_region);
 
         if (region->obj)
             vm_region_set_obj(right_region, region->obj,
