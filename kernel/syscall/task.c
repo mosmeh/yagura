@@ -304,18 +304,14 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
 
     ++task->thread_group->num_running;
 
-    if (flags & CLONE_VFORK)
-        task_ref(task); // ensure task struct is alive during vfork wait
-
     sched_register(task);
 
-    if (flags & CLONE_VFORK) {
+    if (flags & CLONE_VFORK)
         rc = sched_block(unblock_vfork, task, TASK_UNINTERRUPTIBLE);
-        task_unref(task);
-        if (IS_ERR(rc))
-            return rc;
-    }
 
+    task_unref(task);
+    if (IS_ERR(rc))
+        return rc;
     return tid;
 
 fail:

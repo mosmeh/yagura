@@ -119,8 +119,8 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     smp_start();
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
-    ASSERT_PTR(task_spawn("userland_init", userland_init));
-    ASSERT_PTR(task_spawn("ksyncd", ksyncd));
+    ASSERT_OK(task_spawn("userland_init", userland_init));
+    ASSERT_OK(task_spawn("ksyncd", ksyncd));
 
     sched_start();
 }

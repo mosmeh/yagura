@@ -263,13 +263,13 @@ fail:
     return ERR_PTR(ret);
 }
 
-struct task* task_spawn(const char* comm, void (*entry_point)(void)) {
-    struct task* task = task_create(comm, entry_point);
+pid_t task_spawn(const char* comm, void (*entry_point)(void)) {
+    struct task* task FREE(task) = task_create(comm, entry_point);
     if (IS_ERR(ASSERT(task)))
-        return task;
+        return PTR_ERR(task);
     task->tid = task->tgid = task->pgid = task_generate_next_tid();
     sched_register(task);
-    return task;
+    return task->tid;
 }
 
 struct task* task_ref(struct task* task) {

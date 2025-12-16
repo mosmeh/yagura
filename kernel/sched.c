@@ -33,6 +33,7 @@ void sched_init(void) {
 void enqueue_ready(struct task* task) {
     ASSERT(task);
     ASSERT(task->state == TASK_RUNNING);
+    task_ref(task);
 
     task->ready_queue_next = NULL;
 
@@ -56,7 +57,7 @@ static struct task* dequeue_ready(void) {
     spinlock_lock(&ready_queue_lock);
     if (!ready_queue) {
         spinlock_unlock(&ready_queue_lock);
-        return cpu_get_current()->idle_task;
+        return task_ref(cpu_get_current()->idle_task);
     }
     struct task* task = ready_queue;
     ASSERT(task->state != TASK_DEAD);
@@ -106,14 +107,14 @@ static void unblock_tasks(void) {
                 it->block_data = NULL;
                 it->interrupted = interrupted;
                 it->state = TASK_RUNNING;
-                enqueue_ready(task_ref(it));
+                enqueue_ready(it);
             }
             break;
         }
         case TASK_STOPPED:
             if (signals & sigmask(SIGCONT)) {
                 it->state = TASK_RUNNING;
-                enqueue_ready(task_ref(it));
+                enqueue_ready(it);
             }
             break;
         default:
@@ -129,6 +130,7 @@ noreturn void switch_context(void) {
 
     struct cpu* cpu = cpu_get_current();
     struct task* prev_task = cpu->current_task;
+    task_unref(prev_task); // all_tasks still holds a reference
     if (prev_task == cpu->idle_task)
         prev_task = NULL;
     cpu->current_task = NULL;
@@ -186,8 +188,8 @@ void sched_yield(bool requeue_current) {
     else
         __asm__ volatile("fnsave %0" : "=m"(task->fpu_state));
 
-    if (task != cpu->idle_task && !requeue_current) {
-        task_unref(task);
+    if (!requeue_current) {
+        task_unref(task); // all_tasks still holds a reference
         cpu->current_task = NULL;
     }
 

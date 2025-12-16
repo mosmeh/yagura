@@ -112,7 +112,7 @@ void task_init(void);
 struct task* task_get_current(void);
 
 struct task* task_create(const char* comm, void (*entry_point)(void));
-struct task* task_spawn(const char* comm, void (*entry_point)(void));
+pid_t task_spawn(const char* comm, void (*entry_point)(void));
 
 struct task* task_ref(struct task*);
 void task_unref(struct task*);
