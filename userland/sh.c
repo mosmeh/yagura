@@ -375,7 +375,7 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
             dprintf(STDERR_FILENO,
                     "\x1b[?25l"            // hide cursor
                     "\x1b[G"               // go to left end
-                    "\x1b[36m%s\x1b[m $ ", // print prompt
+                    "\x1b[36m%s\x1b[m # ", // print prompt
                     cwd_buf);
 
             bool clear_needed = prompt_len + ed->input_len < terminal_width;
@@ -1026,7 +1026,7 @@ static int script_main(const char* path) {
         }
 
         if (newline && newline + 1 < input + BUF_SIZE) {
-            // Move the unprompted part to the beginning of the buffer
+            // Move the unprocessed part to the beginning of the buffer
             memmove(input, newline + 1, BUF_SIZE - (newline - input) - 1);
         } else if (nread == 0) {
             // We have processed the whole buffer and reached EOF
