@@ -24,8 +24,8 @@ struct unix_socket {
     atomic_bool is_connected;
     struct file* connector_file;
 
-    struct ring_buf to_connector_buf;
-    struct ring_buf to_acceptor_buf;
+    struct ring_buf* to_connector_buf;
+    struct ring_buf* to_acceptor_buf;
 
     atomic_bool is_open_for_writing_to_connector;
     atomic_bool is_open_for_writing_to_acceptor;
@@ -69,8 +69,8 @@ static void socket_unlock(struct unix_socket* socket) {
 
 static void unix_socket_destroy(struct inode* inode) {
     struct unix_socket* socket = unix_socket_from_inode(inode);
-    ring_buf_destroy(&socket->to_connector_buf);
-    ring_buf_destroy(&socket->to_acceptor_buf);
+    ring_buf_destroy(socket->to_connector_buf);
+    ring_buf_destroy(socket->to_acceptor_buf);
     slab_free(&unix_socket_slab, socket);
 }
 
@@ -93,14 +93,14 @@ static bool is_open_for_reading(struct file* file) {
 
 static struct ring_buf* buf_to_read(struct file* file) {
     struct unix_socket* socket = unix_socket_from_file(file);
-    return is_connector(file) ? &socket->to_connector_buf
-                              : &socket->to_acceptor_buf;
+    return is_connector(file) ? socket->to_connector_buf
+                              : socket->to_acceptor_buf;
 }
 
 static struct ring_buf* buf_to_write(struct file* file) {
     struct unix_socket* socket = unix_socket_from_file(file);
-    return is_connector(file) ? &socket->to_acceptor_buf
-                              : &socket->to_connector_buf;
+    return is_connector(file) ? socket->to_acceptor_buf
+                              : socket->to_connector_buf;
 }
 
 static bool is_readable(struct file* file) {
@@ -230,12 +230,20 @@ struct inode* unix_socket_create(void) {
     socket->is_open_for_writing_to_connector = true;
     socket->is_open_for_writing_to_acceptor = true;
 
-    int rc = ring_buf_init(&socket->to_acceptor_buf, PAGE_SIZE);
-    if (IS_ERR(rc))
+    int rc = 0;
+
+    socket->to_acceptor_buf = ring_buf_create(PAGE_SIZE);
+    if (IS_ERR(socket->to_acceptor_buf)) {
+        rc = PTR_ERR(socket->to_acceptor_buf);
+        socket->to_acceptor_buf = NULL;
         goto fail;
-    rc = ring_buf_init(&socket->to_connector_buf, PAGE_SIZE);
-    if (IS_ERR(rc))
+    }
+    socket->to_connector_buf = ring_buf_create(PAGE_SIZE);
+    if (IS_ERR(socket->to_connector_buf)) {
+        rc = PTR_ERR(socket->to_connector_buf);
+        socket->to_connector_buf = NULL;
         goto fail;
+    }
 
     rc = mount_commit_inode(sock_mount, inode);
     if (IS_ERR(rc)) {
@@ -246,8 +254,8 @@ struct inode* unix_socket_create(void) {
     return inode;
 
 fail:
-    ring_buf_destroy(&socket->to_connector_buf);
-    ring_buf_destroy(&socket->to_acceptor_buf);
+    ring_buf_destroy(socket->to_connector_buf);
+    ring_buf_destroy(socket->to_acceptor_buf);
     slab_free(&unix_socket_slab, socket);
     return ERR_PTR(rc);
 }

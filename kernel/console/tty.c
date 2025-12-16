@@ -33,9 +33,9 @@ int tty_register(struct tty* tty) {
     }
 
     STATIC_ASSERT(PAGE_SIZE % sizeof(struct attr_char) == 0);
-    int rc = ring_buf_init(&tty->input_buf, PAGE_SIZE);
-    if (IS_ERR(rc))
-        return rc;
+    tty->input_buf = ring_buf_create(PAGE_SIZE);
+    if (IS_ERR(tty->input_buf))
+        return PTR_ERR(tty->input_buf);
 
     struct char_dev* char_dev = &tty->char_dev;
     strlcpy(char_dev->name, tty->name, sizeof(char_dev->name));
@@ -50,9 +50,9 @@ int tty_register(struct tty* tty) {
     if (!tty->num_rows)
         tty->num_rows = 25;
 
-    rc = char_dev_register(char_dev);
+    int rc = char_dev_register(char_dev);
     if (IS_ERR(rc)) {
-        ring_buf_destroy(&tty->input_buf);
+        ring_buf_destroy(tty->input_buf);
         return rc;
     }
 
@@ -73,7 +73,7 @@ static struct tty* tty_from_file(struct file* file) {
 }
 
 static bool can_read(const struct tty* tty) {
-    return !ring_buf_is_empty(&tty->input_buf);
+    return !ring_buf_is_empty(tty->input_buf);
 }
 
 static bool unblock_read(struct file* file) {
@@ -101,7 +101,7 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
     char* user_dest = user_buf;
     while (count) {
         struct attr_char ac;
-        ssize_t nread = ring_buf_read(&tty->input_buf, &ac, sizeof(ac));
+        ssize_t nread = ring_buf_read(tty->input_buf, &ac, sizeof(ac));
         if (IS_ERR(nread)) {
             ret = nread;
             break;
@@ -207,7 +207,7 @@ static int tty_ioctl(struct file* file, unsigned cmd, unsigned long arg) {
             ret = -EFAULT;
         } else if (cmd == TCSETSF) {
             tty->line_len = 0;
-            ring_buf_clear(&tty->input_buf);
+            ring_buf_clear(tty->input_buf);
         }
         spinlock_unlock(&tty->lock);
         break;
@@ -287,7 +287,7 @@ static void append_char(struct tty* tty, char ch, bool eol) {
 static void commit_line(struct tty* tty) {
     if (!tty->line_len)
         return;
-    ring_buf_write_evicting_oldest(&tty->input_buf, tty->line_buf,
+    ring_buf_write_evicting_oldest(tty->input_buf, tty->line_buf,
                                    tty->line_len * sizeof(struct attr_char));
     tty->line_len = 0;
 }
@@ -317,7 +317,7 @@ NODISCARD static int on_char(struct tty* tty, char ch) {
 
     if (!(termios->c_lflag & ICANON)) {
         struct attr_char ac = {.ch = ch, .eol = false};
-        ring_buf_write_evicting_oldest(&tty->input_buf, &ac, sizeof(ac));
+        ring_buf_write_evicting_oldest(tty->input_buf, &ac, sizeof(ac));
         if (termios->c_lflag & ECHO)
             processed_echo(tty, &ch, 1);
         return 0;

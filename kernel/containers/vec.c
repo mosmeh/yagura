@@ -4,7 +4,10 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
-void vec_destroy(struct vec* vec) { kfree(vec->data); }
+void vec_deinit(struct vec* vec) {
+    kfree(vec->data);
+    *vec = (struct vec){0};
+}
 
 ssize_t vec_pread(struct vec* vec, void* bytes, size_t count, uint64_t offset) {
     if (offset >= vec->size)

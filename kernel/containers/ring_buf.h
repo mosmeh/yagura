@@ -9,23 +9,21 @@ struct ring_buf {
     size_t capacity;
     atomic_size_t write_index;
     atomic_size_t read_index;
-    unsigned char* ring;
+    unsigned char ring[];
 };
 
-NODISCARD static inline int ring_buf_init(struct ring_buf* b, size_t capacity) {
-    *b = (struct ring_buf){.capacity = capacity};
-    b->ring = kmalloc(capacity);
-    if (!b->ring)
-        return -ENOMEM;
-    return 0;
+NODISCARD static inline struct ring_buf* ring_buf_create(size_t capacity) {
+    struct ring_buf* b =
+        kmalloc(sizeof(struct ring_buf) + capacity * sizeof(unsigned char));
+    if (!b)
+        return NULL;
+    *b = (struct ring_buf){
+        .capacity = capacity,
+    };
+    return b;
 }
 
-static inline void ring_buf_destroy(struct ring_buf* b) {
-    if (!b)
-        return;
-    kfree(b->ring);
-    b->ring = NULL;
-}
+static inline void ring_buf_destroy(struct ring_buf* b) { kfree(b); }
 
 static inline bool ring_buf_is_empty(const struct ring_buf* b) {
     return b->write_index == b->read_index;

@@ -10,7 +10,7 @@ struct vec {
     uint64_t capacity, size;
 };
 
-void vec_destroy(struct vec*);
+void vec_deinit(struct vec*);
 
 NODISCARD ssize_t vec_pread(struct vec*, void* bytes, size_t count,
                             uint64_t offset);

@@ -86,7 +86,7 @@ static void string_vec_borrow_from_kernel(struct string_vec* strings,
     strings->borrowed.elements = src;
 }
 
-static void string_vec_destroy(struct string_vec* strings) {
+static void string_vec_deinit(struct string_vec* strings) {
     if (!strings->is_owned)
         return;
     if (strings->owned.buffer) {
@@ -104,7 +104,7 @@ struct ptr_vec {
     uintptr_t* elements;
 };
 
-static void ptr_vec_destroy(struct ptr_vec* ptrs) {
+static void ptr_vec_deinit(struct ptr_vec* ptrs) {
     if (ptrs->elements) {
         kfree(ptrs->elements);
         ptrs->elements = NULL;
@@ -327,14 +327,14 @@ static int execve(const char* pathname, struct string_vec* argv,
 
     uintptr_t env_end = sp;
     ret = push_strings(&sp, stack_base, &envp_ptrs, envp);
-    string_vec_destroy(envp);
+    string_vec_deinit(envp);
     if (IS_ERR(ret))
         goto fail_vm;
     uintptr_t env_start = sp;
 
     uintptr_t arg_end = sp;
     ret = push_strings(&sp, stack_base, &argv_ptrs, argv);
-    string_vec_destroy(argv);
+    string_vec_deinit(argv);
     if (IS_ERR(ret))
         goto fail_vm;
     uintptr_t arg_start = sp;
@@ -390,7 +390,7 @@ static int execve(const char* pathname, struct string_vec* argv,
     if (IS_ERR(ret))
         goto fail_vm;
     ret = push_ptrs(&sp, stack_base, &envp_ptrs);
-    ptr_vec_destroy(&envp_ptrs);
+    ptr_vec_deinit(&envp_ptrs);
     if (IS_ERR(ret))
         goto fail_vm;
 
@@ -398,7 +398,7 @@ static int execve(const char* pathname, struct string_vec* argv,
     if (IS_ERR(ret))
         goto fail_vm;
     ret = push_ptrs(&sp, stack_base, &argv_ptrs);
-    ptr_vec_destroy(&argv_ptrs);
+    ptr_vec_deinit(&argv_ptrs);
     if (IS_ERR(ret))
         goto fail_vm;
 
@@ -456,16 +456,16 @@ static int execve(const char* pathname, struct string_vec* argv,
     UNREACHABLE();
 
 fail_vm:
-    ptr_vec_destroy(&envp_ptrs);
-    ptr_vec_destroy(&argv_ptrs);
+    ptr_vec_deinit(&envp_ptrs);
+    ptr_vec_deinit(&argv_ptrs);
     mutex_unlock(&vm->lock);
     vm_enter(prev_vm);
     vm_unref(vm);
 
 fail_exe:
     vm_obj_unmap(exe);
-    string_vec_destroy(envp);
-    string_vec_destroy(argv);
+    string_vec_deinit(envp);
+    string_vec_deinit(argv);
 
     return ret;
 }
@@ -483,7 +483,7 @@ int task_user_execve(const char* pathname, const char* const* user_argv,
     struct string_vec envp = (struct string_vec){0};
     rc = string_vec_clone_from_user(&envp, user_envp);
     if (IS_ERR(rc)) {
-        string_vec_destroy(&argv);
+        string_vec_deinit(&argv);
         return rc;
     }
 

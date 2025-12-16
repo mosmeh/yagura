@@ -31,7 +31,7 @@ static int proc_open(struct file* file) {
     const struct proc_entry* entry = inode->entry;
     int rc = entry->print(file, vec);
     if (IS_ERR(rc)) {
-        vec_destroy(vec);
+        vec_deinit(vec);
         slab_free(&vec_slab, vec);
         return rc;
     }
@@ -46,7 +46,7 @@ static struct vec* vec_from_file(struct file* file) {
 
 static int proc_close(struct file* file) {
     struct vec* vec = vec_from_file(file);
-    vec_destroy(vec);
+    vec_deinit(vec);
     slab_free(&vec_slab, vec);
     return 0;
 }

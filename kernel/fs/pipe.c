@@ -11,7 +11,7 @@
 
 struct pipe {
     struct inode vfs_inode;
-    struct ring_buf buf;
+    struct ring_buf* buf;
     atomic_size_t num_readers;
     atomic_size_t num_writers;
 };
@@ -42,7 +42,7 @@ static struct pipe* pipe_from_inode(struct inode* inode) {
 
 static void pipe_destroy(struct inode* inode) {
     struct pipe* pipe = pipe_from_inode(inode);
-    ring_buf_destroy(&pipe->buf);
+    ring_buf_destroy(pipe->buf);
     slab_free(&pipe_slab, pipe);
 }
 
@@ -137,7 +137,7 @@ static int pipe_close(struct file* file) {
 
 static bool unblock_read(struct file* file) {
     const struct pipe* pipe = pipe_from_file(file);
-    return pipe->num_writers == 0 || !ring_buf_is_empty(&pipe->buf);
+    return pipe->num_writers == 0 || !ring_buf_is_empty(pipe->buf);
 }
 
 static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
@@ -145,7 +145,7 @@ static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
     (void)offset;
 
     struct pipe* pipe = pipe_from_file(file);
-    struct ring_buf* buf = &pipe->buf;
+    struct ring_buf* buf = pipe->buf;
 
     for (;;) {
         int rc = file_block(file, unblock_read, 0);
@@ -168,7 +168,7 @@ static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
 
 static bool unblock_write(struct file* file) {
     const struct pipe* pipe = pipe_from_file(file);
-    return pipe->num_readers == 0 || !ring_buf_is_full(&pipe->buf);
+    return pipe->num_readers == 0 || !ring_buf_is_full(pipe->buf);
 }
 
 static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
@@ -176,7 +176,7 @@ static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
     (void)offset;
 
     struct pipe* pipe = pipe_from_file(file);
-    struct ring_buf* buf = &pipe->buf;
+    struct ring_buf* buf = pipe->buf;
 
     for (;;) {
         int rc = file_block(file, unblock_write, 0);
@@ -206,9 +206,9 @@ static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
 static short pipe_poll(struct file* file, short events) {
     short revents = 0;
     const struct pipe* pipe = pipe_from_file(file);
-    if ((events & POLLIN) && !ring_buf_is_empty(&pipe->buf))
+    if ((events & POLLIN) && !ring_buf_is_empty(pipe->buf))
         revents |= POLLIN;
-    if ((events & POLLOUT) && !ring_buf_is_full(&pipe->buf))
+    if ((events & POLLOUT) && !ring_buf_is_full(pipe->buf))
         revents |= POLLOUT;
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
@@ -243,9 +243,14 @@ struct inode* pipe_create(void) {
         .vfs_inode = INODE_INIT,
     };
 
-    int rc = ring_buf_init(&pipe->buf, PIPE_BUF);
-    if (IS_ERR(rc))
+    int rc = 0;
+
+    pipe->buf = ring_buf_create(PIPE_BUF);
+    if (IS_ERR(pipe->buf)) {
+        rc = PTR_ERR(pipe->buf);
+        pipe->buf = NULL;
         goto fail;
+    }
 
     struct inode* inode = &pipe->vfs_inode;
     inode->ino = atomic_fetch_add(&next_ino, 1);
@@ -265,7 +270,7 @@ struct inode* pipe_create(void) {
     return inode;
 
 fail:
-    ring_buf_destroy(&pipe->buf);
+    ring_buf_destroy(pipe->buf);
     slab_free(&pipe_slab, pipe);
     return ERR_PTR(rc);
 }

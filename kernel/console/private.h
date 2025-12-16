@@ -33,7 +33,7 @@ struct tty {
 
     struct termios termios;
 
-    struct ring_buf input_buf;
+    struct ring_buf* input_buf;
     struct attr_char line_buf[1024];
     size_t line_len;
 
