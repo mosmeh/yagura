@@ -562,11 +562,23 @@ int task_pop_signal(struct sigaction* out_action) {
         case DISP_CORE:
             spinlock_unlock(&sighand->lock);
             do_exit_thread_group(signum);
-        case DISP_IGN:
-        case DISP_CONT:
+        case DISP_STOP: {
+            spinlock_unlock(&sighand->lock);
+
+            bool int_flag = push_cli();
+            current->state = TASK_STOPPED;
+            sched_yield(false);
+            // Here we were resumed by SIGCONT.
+            pop_cli(int_flag);
+
+            spinlock_lock(&sighand->lock);
             break;
-        case DISP_STOP:
-            UNIMPLEMENTED();
+        }
+        case DISP_CONT:
+        case DISP_IGN:
+            break;
+        default:
+            UNREACHABLE();
         }
     }
     spinlock_unlock(&sighand->lock);

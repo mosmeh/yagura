@@ -94,19 +94,30 @@ static void unblock_tasks(void) {
     spinlock_lock(&all_tasks_lock);
 
     for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
-        if (it->state != TASK_UNINTERRUPTIBLE &&
-            it->state != TASK_INTERRUPTIBLE)
-            continue;
+        sigset_t signals = it->pending_signals & ~it->blocked_signals;
 
-        ASSERT(it->unblock);
-        bool interrupted = it->state == TASK_INTERRUPTIBLE &&
-                           (it->pending_signals & ~it->blocked_signals);
-        if (interrupted || it->unblock(it->block_data)) {
-            it->unblock = NULL;
-            it->block_data = NULL;
-            it->interrupted = interrupted;
-            it->state = TASK_RUNNING;
-            enqueue_ready(task_ref(it));
+        switch (it->state) {
+        case TASK_UNINTERRUPTIBLE:
+        case TASK_INTERRUPTIBLE: {
+            ASSERT(it->unblock);
+            bool interrupted = it->state == TASK_INTERRUPTIBLE && signals;
+            if (interrupted || it->unblock(it->block_data)) {
+                it->unblock = NULL;
+                it->block_data = NULL;
+                it->interrupted = interrupted;
+                it->state = TASK_RUNNING;
+                enqueue_ready(task_ref(it));
+            }
+            break;
+        }
+        case TASK_STOPPED:
+            if (signals & sigmask(SIGCONT)) {
+                it->state = TASK_RUNNING;
+                enqueue_ready(task_ref(it));
+            }
+            break;
+        default:
+            break;
         }
     }
 
