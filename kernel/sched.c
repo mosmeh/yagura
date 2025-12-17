@@ -30,7 +30,7 @@ void sched_init(void) {
     }
 }
 
-void enqueue_ready(struct task* task) {
+static void enqueue_ready(struct task* task) {
     ASSERT(task);
     ASSERT(task->state == TASK_RUNNING);
     task_ref(task);
@@ -52,6 +52,8 @@ void enqueue_ready(struct task* task) {
     }
     spinlock_unlock(&ready_queue_lock);
 }
+
+void __enqueue_ready(struct task* task) { enqueue_ready(task); }
 
 static struct task* dequeue_ready(void) {
     spinlock_lock(&ready_queue_lock);
@@ -125,7 +127,7 @@ static void unblock_tasks(void) {
     spinlock_unlock(&all_tasks_lock);
 }
 
-noreturn void switch_context(void) {
+noreturn static void switch_context(void) {
     cli();
 
     struct cpu* cpu = cpu_get_current();
@@ -161,7 +163,7 @@ noreturn void switch_context(void) {
                      "test %%eax, %%eax\n"
                      "jz 1f\n"
                      "pushl %%eax\n"
-                     "call enqueue_ready\n"
+                     "call __enqueue_ready\n"
                      "add $4, %%esp\n"
                      "1:\n"
                      "movl %%ebx, %%eax\n"
@@ -174,6 +176,8 @@ noreturn void switch_context(void) {
                      : "b"(task), "a"(prev_task));
     UNREACHABLE();
 }
+
+noreturn void __switch_context(void) { switch_context(); }
 
 void sched_start(void) { switch_context(); }
 
@@ -199,7 +203,7 @@ void sched_yield(bool requeue_current) {
                      "movl %%ebx, 0x0c(%%eax)\n" // task->ebx
                      "movl %%esi, 0x10(%%eax)\n" // task->esi
                      "movl %%edi, 0x14(%%eax)\n" // task->edi
-                     "jmp switch_context\n"
+                     "jmp __switch_context\n"
                      "1:" // switch_context() will jump back here
                      :
                      : "a"(task)
