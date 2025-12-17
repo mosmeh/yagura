@@ -6,6 +6,8 @@
 #include <kernel/api/time.h>
 #include <stddef.h>
 
+void syscall_init(void);
+
 // ERESTARTSYS is used to indicate that a syscall was interrupted by a signal
 // and should be restarted if the sigaction has the SA_RESTART flag set.
 #define ERESTARTSYS 512

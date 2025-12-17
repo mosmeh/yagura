@@ -12,6 +12,7 @@
 #include "panic.h"
 #include "sched.h"
 #include "socket.h"
+#include "syscall/syscall.h"
 #include "task.h"
 #include "time.h"
 

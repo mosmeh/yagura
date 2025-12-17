@@ -32,8 +32,6 @@ struct fpu_state {
     alignas(16) unsigned char buffer[512];
 };
 
-void syscall_init(void);
-
 void utsname_get(struct utsname*);
 NODISCARD int utsname_set_hostname(const char*, size_t);
 NODISCARD int utsname_set_domainname(const char*, size_t);
