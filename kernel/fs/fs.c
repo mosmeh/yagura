@@ -617,8 +617,24 @@ struct vm_obj* file_mmap(struct file* file) {
     return vm_obj_ref(&file->filemap->inode->vm_obj);
 }
 
+struct block_ctx {
+    struct file* file;
+    bool (*unblock)(struct file*);
+};
+
+static bool should_unblock(void* data) {
+    struct block_ctx* ctx = data;
+    return ctx->unblock(ctx->file);
+}
+
 int file_block(struct file* file, bool (*unblock)(struct file*), int flags) {
-    if ((file->flags & O_NONBLOCK) && !unblock(file))
+    if (unblock(file))
+        return 0;
+    if (file->flags & O_NONBLOCK)
         return -EAGAIN;
-    return sched_block((unblock_fn)unblock, file, flags);
+    struct block_ctx ctx = {
+        .file = file,
+        .unblock = unblock,
+    };
+    return sched_block(should_unblock, &ctx, flags);
 }

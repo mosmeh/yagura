@@ -394,7 +394,8 @@ struct waitpid_blocker {
     struct task* waited_task;
 };
 
-static bool unblock_waitpid(struct waitpid_blocker* blocker) {
+static bool unblock_waitpid(void* data) {
+    struct waitpid_blocker* blocker = data;
     spinlock_lock(&all_tasks_lock);
 
     struct task* prev = NULL;
@@ -462,7 +463,7 @@ pid_t sys_wait4(pid_t pid, int* user_wstatus, int options,
             return -ECHILD;
         }
     } else {
-        int rc = sched_block((unblock_fn)unblock_waitpid, &blocker, 0);
+        int rc = sched_block(unblock_waitpid, &blocker, 0);
         if (rc == -EINTR)
             return -ERESTARTSYS;
         if (IS_ERR(rc))

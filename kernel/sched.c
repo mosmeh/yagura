@@ -253,7 +253,8 @@ int sched_block(unblock_fn unblock, void* data, int flags) {
     return current->interrupted ? -EINTR : 0;
 }
 
-static bool unblock_sleep(const struct timespec* deadline) {
+static bool unblock_sleep(void* data) {
+    const struct timespec* deadline = data;
     struct timespec now;
     ASSERT_OK(time_now(CLOCK_MONOTONIC, &now));
     return timespec_compare(&now, deadline) >= 0;
@@ -263,6 +264,5 @@ void sched_sleep(const struct timespec* duration) {
     struct timespec deadline;
     ASSERT_OK(time_now(CLOCK_MONOTONIC, &deadline));
     timespec_add(&deadline, duration);
-    ASSERT_OK(sched_block((unblock_fn)unblock_sleep, &deadline,
-                          BLOCK_UNINTERRUPTIBLE));
+    ASSERT_OK(sched_block(unblock_sleep, &deadline, BLOCK_UNINTERRUPTIBLE));
 }

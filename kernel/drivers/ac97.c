@@ -55,9 +55,10 @@ static uint16_t bus_base;
 static uint16_t pcm_out_channel;
 
 static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,
-                                uint16_t device_id, bool* detected) {
+                                uint16_t device_id, void* ctx) {
     (void)vendor_id;
     (void)device_id;
+    bool* detected = ctx;
     if (pci_get_type(addr) == PCI_TYPE_MULTIMEDIA_AUDIO_CONTROLLER) {
         *detected = true;
         device_addr = *addr;
@@ -249,8 +250,7 @@ static short ac97_device_poll(struct file* file, short events) {
 
 void ac97_init(void) {
     bool detected = false;
-    pci_enumerate_devices((pci_device_callback_fn)pci_device_callback,
-                          &detected);
+    pci_enumerate_devices(pci_device_callback, &detected);
     if (!detected)
         return;
     kprintf("ac97: detected device %x:%x:%x\n", device_addr.bus,

@@ -128,7 +128,8 @@ struct sleep_blocker {
     struct timespec deadline;
 };
 
-static bool unblock_sleep(const struct sleep_blocker* blocker) {
+static bool unblock_sleep(void* data) {
+    const struct sleep_blocker* blocker = data;
     struct timespec now;
     ASSERT_OK(time_now(blocker->clock_id, &now));
     return timespec_compare(&now, &blocker->deadline) >= 0;
@@ -158,7 +159,7 @@ static int clock_nanosleep(clockid_t clockid, int flags,
         .clock_id = clockid,
         .deadline = deadline,
     };
-    rc = sched_block((unblock_fn)unblock_sleep, &blocker, 0);
+    rc = sched_block(unblock_sleep, &blocker, 0);
     if (IS_ERR(rc))
         return rc;
     if (remain && flags != TIMER_ABSTIME) {

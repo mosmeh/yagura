@@ -18,9 +18,14 @@ static struct virtio_blk* blk_from_block_dev(struct block_dev* block_dev) {
     return CONTAINER_OF(block_dev, struct virtio_blk, block_dev);
 }
 
-static bool unblock_request(void* ctx) {
-    struct virtio_blk* blk = ctx;
-    return blk->virtio->virtqs[0]->num_free_descs >= 3;
+struct unblock_ctx {
+    struct virtq* virtq;
+    size_t num_descriptors;
+};
+
+static bool unblock_request(void* raw_ctx) {
+    struct unblock_ctx* ctx = raw_ctx;
+    return ctx->virtq->num_free_descs >= ctx->num_descriptors;
 }
 
 static int submit_request(struct block_dev* block_dev, void* buffer,
@@ -38,10 +43,14 @@ static int submit_request(struct block_dev* block_dev, void* buffer,
     size_t num_descriptors = 2;
     if (buffer)
         ++num_descriptors;
+    struct unblock_ctx unblock_ctx = {
+        .virtq = blk->virtio->virtqs[0],
+        .num_descriptors = num_descriptors,
+    };
 
     int rc;
 retry:
-    rc = sched_block(unblock_request, block_dev, BLOCK_UNINTERRUPTIBLE);
+    rc = sched_block(unblock_request, &unblock_ctx, BLOCK_UNINTERRUPTIBLE);
     if (IS_ERR(rc))
         return rc;
 

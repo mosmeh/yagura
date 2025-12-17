@@ -116,6 +116,11 @@ void virtq_desc_chain_push_buf(struct virtq_desc_chain* chain, void* buf,
     ++chain->num_pushed;
 }
 
+static bool unblock_submit(void* data) {
+    struct virtq* virtq = data;
+    return virtq_is_ready(virtq);
+}
+
 int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
     if (chain->num_pushed == 0)
         return 0;
@@ -155,8 +160,7 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
     if (!(virtq->used->flags & VIRTQ_USED_F_NO_NOTIFY))
         *virtq->notify = virtq->index;
 
-    int rc =
-        sched_block((unblock_fn)virtq_is_ready, virtq, BLOCK_UNINTERRUPTIBLE);
+    int rc = sched_block(unblock_submit, virtq, BLOCK_UNINTERRUPTIBLE);
     full_memory_barrier();
 
     // Return the descriptors to the free list.
@@ -190,10 +194,9 @@ struct capability_enumeration_context {
     bool found;
 };
 
-static void
-pci_capability_callback(const struct pci_addr* addr, uint8_t id,
-                        uint8_t pointer,
-                        struct capability_enumeration_context* ctx) {
+static void pci_capability_callback(const struct pci_addr* addr, uint8_t id,
+                                    uint8_t pointer, void* raw_ctx) {
+    struct capability_enumeration_context* ctx = raw_ctx;
     if (id != PCI_CAP_ID_VNDR)
         return;
     struct virtio_pci_cap cap = read_cap(addr, pointer);
@@ -209,8 +212,7 @@ bool virtio_find_pci_cap(const struct pci_addr* addr, uint8_t cfg_type,
         .cfg_type = cfg_type,
         .found = false,
     };
-    pci_enumerate_capabilities(
-        addr, (pci_capability_callback_fn)pci_capability_callback, &ctx);
+    pci_enumerate_capabilities(addr, pci_capability_callback, &ctx);
     if (!ctx.found)
         return false;
     if (out_cap)

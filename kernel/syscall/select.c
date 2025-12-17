@@ -15,7 +15,8 @@ struct poll_blocker {
     size_t num_events;
 };
 
-static bool unblock_poll(struct poll_blocker* blocker) {
+static bool unblock_poll(void* data) {
+    struct poll_blocker* blocker = data;
     for (nfds_t i = 0; i < blocker->nfds; ++i) {
         struct file* file = blocker->files[i];
         if (!file)
@@ -88,7 +89,7 @@ NODISCARD static int poll(nfds_t nfds, struct pollfd pollfds[nfds],
         blocker.deadline = deadline;
     }
 
-    ret = sched_block((unblock_fn)unblock_poll, &blocker, 0);
+    ret = sched_block(unblock_poll, &blocker, 0);
     if (IS_ERR(ret))
         goto fail;
 
