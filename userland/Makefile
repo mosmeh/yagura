@@ -61,6 +61,7 @@ BIN_TARGET_DEPS := $(BIN_TARGET_NAMES:=.d)
 LIB_TARGET := libc.a
 
 LIB_OBJS := \
+	../common/libgen.o \
 	../common/math.o \
 	../common/stdio.o \
 	../common/stdlib.o \

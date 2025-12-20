@@ -3,6 +3,7 @@
 #include <common/tree.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <linux/fb.h>
 #include <panic.h>
 #include <stdio.h>
@@ -47,6 +48,24 @@ static void test_strings(void) {
 
     ASSERT(strncmp("ABC", "AB", 2) == 0);
     ASSERT(strncasecmp("ABC", "ab", 2) == 0);
+}
+
+static void assert_basename(const char* path, const char* expected) {
+    char dup_path[256];
+    strncpy(dup_path, path, sizeof(dup_path));
+    char* result = basename(dup_path);
+    ASSERT(strcmp(result, expected) == 0);
+}
+
+static void test_libgen(void) {
+    puts("libgen");
+
+    assert_basename("/usr/lib", "lib");
+    assert_basename("/usr/", "usr");
+    assert_basename("usr", "usr");
+    assert_basename("/", "/");
+    assert_basename(".", ".");
+    assert_basename("..", "..");
 }
 
 #define TREE_NUM_NODES 3000
@@ -679,6 +698,7 @@ int main(void) {
     random_state[3] = b >> 32;
 
     test_strings();
+    test_libgen();
     test_tree();
     test_fs();
     test_pipe();
