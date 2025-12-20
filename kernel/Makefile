@@ -70,11 +70,16 @@ OBJS := \
 	sched.o \
 	smp.o \
 	socket.o \
+	syscall/dir.o \
+	syscall/file_ctrl.o \
+	syscall/file_io.o \
 	syscall/fs.o \
 	syscall/mmap.o \
+	syscall/path.o \
 	syscall/select.o \
 	syscall/signal.o \
 	syscall/socket.o \
+	syscall/stat.o \
 	syscall/syscall.o \
 	syscall/system.o \
 	syscall/task.o \
