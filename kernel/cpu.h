@@ -1,6 +1,5 @@
 #pragma once
 
-#include <common/extra.h>
 #include <kernel/gdt.h>
 #include <kernel/memory/memory.h>
 #include <stdatomic.h>

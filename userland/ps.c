@@ -1,4 +1,4 @@
-#include <common/extra.h>
+#include <common/integer.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>

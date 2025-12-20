@@ -1,4 +1,5 @@
 #include "private.h"
+#include <common/integer.h>
 #include <common/stdlib.h>
 #include <common/string.h>
 #include <kernel/console/screen/screen.h>

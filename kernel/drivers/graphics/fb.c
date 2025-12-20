@@ -1,3 +1,4 @@
+#include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/linux/fb.h>
 #include <kernel/api/linux/major.h>

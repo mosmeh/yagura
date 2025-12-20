@@ -1,3 +1,5 @@
+#include <common/bytes.h>
+#include <common/integer.h>
 #include <common/string.h>
 #include <kernel/console/screen/screen.h>
 #include <kernel/drivers/graphics/graphics.h>

@@ -1,4 +1,5 @@
 #include "private.h"
+#include <common/integer.h>
 #include <kernel/containers/vec.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>

@@ -1,5 +1,5 @@
 #include "private.h"
-#include <common/extra.h>
+#include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/linux/major.h>
 #include <kernel/api/signal.h>

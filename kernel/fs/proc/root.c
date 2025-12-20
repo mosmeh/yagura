@@ -1,4 +1,5 @@
 #include "private.h"
+#include <common/integer.h>
 #include <common/stdio.h>
 #include <common/stdlib.h>
 #include <kernel/api/dirent.h>

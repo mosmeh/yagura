@@ -1,5 +1,4 @@
 #include "private.h"
-#include <common/extra.h>
 #include <common/string.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/kmsg.h>

@@ -1,4 +1,3 @@
-#include <common/extra.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <fcntl.h>

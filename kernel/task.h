@@ -1,6 +1,5 @@
 #pragma once
 
-#include <common/extra.h>
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/fs/fs.h>

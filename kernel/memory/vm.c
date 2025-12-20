@@ -1,4 +1,5 @@
 #include "private.h"
+#include <common/integer.h>
 #include <common/string.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/vm.h>

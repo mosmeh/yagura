@@ -1,5 +1,5 @@
 #include "private.h"
-#include <common/extra.h>
+#include <common/integer.h>
 #include <errno.h>
 #include <panic.h>
 #include <signal.h>

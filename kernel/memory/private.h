@@ -1,5 +1,6 @@
 #pragma once
 
+#include <common/integer.h>
 #include <kernel/cpu.h>
 #include <kernel/memory/memory.h>
 

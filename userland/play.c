@@ -1,4 +1,3 @@
-#include <common/extra.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <sound.h>

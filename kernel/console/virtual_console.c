@@ -1,4 +1,5 @@
 #include "private.h"
+#include <common/integer.h>
 #include <common/stdio.h>
 #include <common/string.h>
 #include <kernel/api/linux/kd.h>

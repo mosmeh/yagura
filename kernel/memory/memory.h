@@ -30,7 +30,7 @@
 
 #ifndef ASM_FILE
 
-#include <common/extra.h>
+#include <common/macros.h>
 #include <common/tree.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/lock.h>

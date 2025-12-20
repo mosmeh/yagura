@@ -1,3 +1,4 @@
+#include <common/integer.h>
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>

@@ -1,3 +1,4 @@
+#include <common/integer.h>
 #include <kernel/api/err.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/sys/time.h>

@@ -1,5 +1,6 @@
 #include "private.h"
 #include <common/calendar.h>
+#include <common/integer.h>
 #include <err.h>
 #include <stdio.h>
 #include <sys/auxv.h>

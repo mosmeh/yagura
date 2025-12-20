@@ -1,3 +1,4 @@
+#include <common/integer.h>
 #include <linux/kd.h>
 #include <stdio.h>
 #include <stdlib.h>

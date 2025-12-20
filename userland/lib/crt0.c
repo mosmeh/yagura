@@ -1,6 +1,7 @@
 #include "private.h"
 #include <asm/ldt.h>
-#include <common/extra.h>
+#include <common/integer.h>
+#include <common/macros.h>
 #include <elf.h>
 #include <errno.h>
 #include <panic.h>

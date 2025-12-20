@@ -1,3 +1,4 @@
+#include <common/bytes.h>
 #include <common/string.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/console/screen/screen.h>

@@ -1,3 +1,4 @@
+#include <common/integer.h>
 #include <common/string.h>
 #include <kernel/acpi.h>
 #include <kernel/cpu.h>

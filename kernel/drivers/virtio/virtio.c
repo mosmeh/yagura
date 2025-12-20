@@ -1,3 +1,4 @@
+#include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/sys/sysmacros.h>
@@ -114,6 +115,11 @@ void virtq_desc_chain_push_buf(struct virtq_desc_chain* chain, void* buf,
     virtq->free_head = d->next;
     --virtq->num_free_descs;
     ++chain->num_pushed;
+}
+
+static void full_memory_barrier(void) {
+    atomic_signal_fence(memory_order_acq_rel);
+    atomic_thread_fence(memory_order_acq_rel);
 }
 
 static bool unblock_submit(void* data) {

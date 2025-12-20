@@ -1,3 +1,4 @@
+#include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/sys/time.h>
 #include <kernel/panic.h>

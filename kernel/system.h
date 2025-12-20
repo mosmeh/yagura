@@ -5,7 +5,7 @@
 
 #ifndef ASM_FILE
 
-#include <common/extra.h>
+#include <common/macros.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/api/sys/utsname.h>
 #include <stdalign.h>

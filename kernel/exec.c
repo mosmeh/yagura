@@ -1,4 +1,4 @@
-#include <common/extra.h>
+#include <common/integer.h>
 #include <common/libgen.h>
 #include <common/string.h>
 #include <kernel/api/asm/processor-flags.h>

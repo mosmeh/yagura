@@ -1,7 +1,8 @@
 #pragma once
 
-#include <common/extra.h>
+#include <common/macros.h>
 #include <kernel/api/errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 // Casts error value to pointer

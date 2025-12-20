@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/panic.h>
+#include <stdatomic.h>
 
 // Reference counting rules:
 //

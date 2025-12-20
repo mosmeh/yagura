@@ -1,4 +1,4 @@
-#include <common/extra.h>
+#include <common/integer.h>
 #include <common/random.h>
 #include <common/tree.h>
 #include <errno.h>

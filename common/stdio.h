@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common/extra.h>
+#include <common/macros.h>
 #include <stdarg.h>
 #include <stddef.h>
 

@@ -1,5 +1,5 @@
 #include "private.h"
-#include <common/extra.h>
+#include <common/macros.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>

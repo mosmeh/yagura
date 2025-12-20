@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common/extra.h>
+#include <common/macros.h>
 #include <kernel/api/sys/types.h>
 #include <stdarg.h>
 #include <stdatomic.h>

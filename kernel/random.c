@@ -1,5 +1,5 @@
+#include <common/integer.h>
 #include <common/random.h>
-#include <common/extra.h>
 #include <kernel/api/errno.h>
 #include <kernel/cpu.h>
 #include <kernel/drivers/rtc.h>

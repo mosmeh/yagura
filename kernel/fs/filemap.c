@@ -1,4 +1,5 @@
 #include "private.h"
+#include <common/integer.h>
 #include <common/string.h>
 
 static struct slab filemap_slab;

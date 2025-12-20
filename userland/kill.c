@@ -1,3 +1,4 @@
+#include <common/integer.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>

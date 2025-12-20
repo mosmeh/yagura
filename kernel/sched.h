@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common/extra.h>
+#include <common/macros.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdnoreturn.h>
