@@ -1,7 +1,7 @@
 #include "private.h"
-#include "screen/screen.h"
 #include <common/stdlib.h>
 #include <common/string.h>
+#include <kernel/console/screen/screen.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 

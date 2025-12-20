@@ -1,4 +1,4 @@
-#include "ps2.h"
+#include <kernel/drivers/hid/ps2.h>
 #include <kernel/kmsg.h>
 
 void ps2_keyboard_init(void);

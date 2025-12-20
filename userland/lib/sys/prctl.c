@@ -1,6 +1,6 @@
-#include "prctl.h"
-#include <private.h>
+#include "../private.h"
 #include <stdarg.h>
+#include <sys/prctl.h>
 
 int prctl(int op, ...) {
     unsigned long x[4];

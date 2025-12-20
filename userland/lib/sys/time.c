@@ -1,7 +1,7 @@
-#include "time.h"
+#include "../private.h"
 #include <err.h>
 #include <errno.h>
-#include <private.h>
+#include <sys/time.h>
 
 int gettimeofday(struct timeval* tv, struct timezone* tz) {
     (void)tz;

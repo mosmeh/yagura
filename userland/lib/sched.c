@@ -1,6 +1,6 @@
-#include "sched.h"
-#include "errno.h"
-#include <private.h>
+#include "private.h"
+#include <errno.h>
+#include <sched.h>
 #include <stdarg.h>
 #include <sys/types.h>
 
@@ -20,7 +20,7 @@ int clone(int (*fn)(void*), void* stack, int flags, void* arg, ...) {
     va_end(ap);
 
     return __syscall_return(
-                      __clone(fn, stack, flags, arg, parent_tid, tls, NULL));
+        __clone(fn, stack, flags, arg, parent_tid, tls, NULL));
 }
 
 int sched_yield(void) { return __syscall_return(SYSCALL0(sched_yield)); }

@@ -1,7 +1,7 @@
 #pragma once
 
+#include "../private.h"
 #include <kernel/fs/fs.h>
-#include <kernel/fs/private.h>
 
 #define PROC_ROOT_INO 1
 #define PROC_PID_INO_SHIFT 10

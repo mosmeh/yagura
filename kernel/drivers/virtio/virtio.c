@@ -1,10 +1,10 @@
-#include "virtio.h"
-#include "virtio_config.h"
-#include "virtio_pci.h"
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/drivers/pci.h>
+#include <kernel/drivers/virtio/virtio.h>
+#include <kernel/drivers/virtio/virtio_config.h>
+#include <kernel/drivers/virtio/virtio_pci.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/vm.h>

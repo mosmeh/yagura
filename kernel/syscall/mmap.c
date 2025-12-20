@@ -1,4 +1,3 @@
-#include "syscall.h"
 #include <common/extra.h>
 #include <common/string.h>
 #include <kernel/api/err.h>
@@ -9,6 +8,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/task.h>
 
 NODISCARD static int validate_file_prot(struct file* file, int prot,

@@ -1,15 +1,15 @@
-#include "stdlib.h"
-#include "errno.h"
-#include "panic.h"
 #include "private.h"
-#include "signal.h"
-#include "string.h"
-#include "sys/auxv.h"
-#include "sys/mman.h"
-#include "unistd.h"
-#include <extra.h>
+#include <common/extra.h>
+#include <errno.h>
+#include <panic.h>
+#include <signal.h>
 #include <stdalign.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/auxv.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 noreturn void exit(int status) {
     SYSCALL1(exit_group, status);

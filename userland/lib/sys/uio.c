@@ -1,5 +1,5 @@
-#include "uio.h"
-#include <private.h>
+#include "../private.h"
+#include <sys/uio.h>
 
 ssize_t readv(int fd, const struct iovec* iov, int iovcnt) {
     return __syscall_return(SYSCALL3(readv, fd, iov, iovcnt));

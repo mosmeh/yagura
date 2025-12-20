@@ -1,5 +1,5 @@
-#include "strings.h"
-#include "ctype.h"
+#include <common/ctype.h>
+#include <common/strings.h>
 
 int strcasecmp(const char* s1, const char* s2) {
     for (; tolower(*s1) == tolower(*s2); ++s1, ++s2) {

@@ -1,5 +1,5 @@
-#include "serial.h"
 #include <kernel/console/console.h>
+#include <kernel/drivers/serial.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>

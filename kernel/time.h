@@ -1,7 +1,7 @@
 #pragma once
 
-#include "api/time.h"
 #include <common/extra.h>
+#include <kernel/api/time.h>
 #include <stdatomic.h>
 
 #define CLK_TCK 250

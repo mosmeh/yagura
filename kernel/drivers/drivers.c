@@ -1,4 +1,4 @@
-#include "drivers.h"
+#include <kernel/drivers/drivers.h>
 #include <kernel/multiboot.h>
 
 void pit_init(void);

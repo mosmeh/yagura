@@ -1,8 +1,8 @@
-#include "kmsg.h"
-#include "memory/memory.h"
-#include "multiboot.h"
-#include "system.h"
 #include <common/string.h>
+#include <kernel/kmsg.h>
+#include <kernel/memory/memory.h>
+#include <kernel/multiboot.h>
+#include <kernel/system.h>
 
 #define MAX_CMDLINE_LEN 1024
 #define MAX_NUM_KEYS 1024

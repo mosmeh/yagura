@@ -1,6 +1,6 @@
-#include "graphics.h"
 #include <kernel/api/err.h>
 #include <kernel/asm_wrapper.h>
+#include <kernel/drivers/graphics/graphics.h>
 #include <kernel/drivers/pci.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>

@@ -1,4 +1,3 @@
-#include "fs.h"
 #include "private.h"
 #include <common/string.h>
 #include <kernel/api/dirent.h>
@@ -7,6 +6,7 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/device/device.h>
+#include <kernel/fs/fs.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>

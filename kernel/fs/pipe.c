@@ -1,4 +1,3 @@
-#include "fs.h"
 #include "private.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/api/signal.h>
@@ -6,6 +5,7 @@
 #include <kernel/api/sys/poll.h>
 #include <kernel/containers/ring_buf.h>
 #include <kernel/device/device.h>
+#include <kernel/fs/fs.h>
 #include <kernel/panic.h>
 #include <kernel/task.h>
 

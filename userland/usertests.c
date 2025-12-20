@@ -1,8 +1,10 @@
+#include <common/extra.h>
+#include <common/random.h>
+#include <common/tree.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/fb.h>
 #include <panic.h>
-#include <random.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,7 +15,6 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
-#include <tree.h>
 #include <unistd.h>
 
 static uint32_t random_state[4];

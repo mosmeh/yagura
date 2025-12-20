@@ -1,6 +1,6 @@
 #include "private.h"
-#include "vm.h"
 #include <common/string.h>
+#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 #include <kernel/task.h>
 

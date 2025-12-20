@@ -1,7 +1,7 @@
 #pragma once
 
 #include <kernel/api/sys/time.h>
-#include <kernel/api/sys/types.h>
+#include <sys/types.h>
 
 struct timeval {
     time_t tv_sec;       /* seconds */

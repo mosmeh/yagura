@@ -1,6 +1,6 @@
 #pragma once
 
-#include "signal.h"
+#include <signal.h>
 #include <stddef.h>
 #include <stdnoreturn.h>
 

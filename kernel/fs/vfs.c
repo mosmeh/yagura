@@ -1,11 +1,11 @@
-#include "fs.h"
-#include "path.h"
 #include <common/string.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
+#include <kernel/fs/fs.h>
+#include <kernel/fs/path.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>

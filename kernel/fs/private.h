@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fs.h"
+#include <kernel/fs/fs.h>
 
 struct vec;
 

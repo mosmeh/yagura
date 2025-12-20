@@ -1,9 +1,9 @@
-#include "memory.h"
 #include "private.h"
 #include <common/extra.h>
 #include <common/string.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/kmsg.h>
+#include <kernel/memory/memory.h>
 #include <kernel/multiboot.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>

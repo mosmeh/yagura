@@ -1,5 +1,5 @@
-#include "pci.h"
 #include <kernel/asm_wrapper.h>
+#include <kernel/drivers/pci.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 

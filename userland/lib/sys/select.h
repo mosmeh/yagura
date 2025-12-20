@@ -1,6 +1,6 @@
 #pragma once
 
-#include "time.h"
+#include <sys/time.h>
 
 #define FD_SETSIZE 1024
 #define __NFDBITS (8 * sizeof(long))

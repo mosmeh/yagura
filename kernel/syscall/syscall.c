@@ -1,9 +1,9 @@
-#include "syscall.h"
-#include "unimplemented.h"
 #include <kernel/api/sys/syscall.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
+#include <kernel/syscall/syscall.h>
+#include <kernel/syscall/unimplemented.h>
 #include <kernel/task.h>
 
 #define F(name)                                                                \

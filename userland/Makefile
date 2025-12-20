@@ -1,7 +1,6 @@
 CFLAGS += \
 	-isystemlib \
 	-isystem.. \
-	-isystem../common \
 	-isystem../kernel/api
 LDFLAGS += -L.
 

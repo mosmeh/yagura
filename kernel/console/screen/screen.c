@@ -1,4 +1,4 @@
-#include "screen.h"
+#include <kernel/console/screen/screen.h>
 #include <kernel/panic.h>
 
 struct screen* fb_screen_init(void);

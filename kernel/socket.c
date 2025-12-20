@@ -1,10 +1,10 @@
-#include "api/sys/socket.h"
-#include "api/signal.h"
-#include "api/sys/poll.h"
-#include "containers/ring_buf.h"
-#include "panic.h"
-#include "socket.h"
-#include "task.h"
+#include <kernel/api/signal.h>
+#include <kernel/api/sys/poll.h>
+#include <kernel/api/sys/socket.h>
+#include <kernel/containers/ring_buf.h>
+#include <kernel/panic.h>
+#include <kernel/socket.h>
+#include <kernel/task.h>
 
 struct unix_socket {
     struct inode vfs_inode;

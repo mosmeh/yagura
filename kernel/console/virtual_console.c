@@ -1,5 +1,4 @@
 #include "private.h"
-#include "screen/screen.h"
 #include <common/stdio.h>
 #include <common/string.h>
 #include <kernel/api/linux/kd.h>
@@ -9,6 +8,7 @@
 #include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/console/screen/screen.h>
 #include <kernel/drivers/hid/hid.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/panic.h>

@@ -1,13 +1,12 @@
-#include "pthread.h"
-#include "errno.h"
-#include "panic.h"
 #include "private.h"
-#include "sched.h"
-#include "stdlib.h"
-#include "string.h"
-#include "sys/auxv.h"
 #include <asm/ldt.h>
 #include <err.h>
+#include <panic.h>
+#include <pthread.h>
+#include <sched.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/auxv.h>
 
 #define PTHREAD_RETURN(rc)                                                     \
     do {                                                                       \

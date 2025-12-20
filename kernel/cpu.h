@@ -1,8 +1,8 @@
 #pragma once
 
-#include "gdt.h"
-#include "memory/memory.h"
 #include <common/extra.h>
+#include <kernel/gdt.h>
+#include <kernel/memory/memory.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>

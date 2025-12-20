@@ -1,10 +1,10 @@
-#include "api/errno.h"
-#include "cpu.h"
-#include "drivers/rtc.h"
-#include "kmsg.h"
-#include "lock.h"
 #include <common/random.h>
 #include <common/extra.h>
+#include <kernel/api/errno.h>
+#include <kernel/cpu.h>
+#include <kernel/drivers/rtc.h>
+#include <kernel/kmsg.h>
+#include <kernel/lock.h>
 #include <stdalign.h>
 
 static bool use_rdrand = false;

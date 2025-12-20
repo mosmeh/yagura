@@ -1,5 +1,5 @@
-#include "screen.h"
 #include <common/string.h>
+#include <kernel/console/screen/screen.h>
 #include <kernel/drivers/graphics/graphics.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>

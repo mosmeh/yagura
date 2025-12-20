@@ -1,7 +1,7 @@
-#include "stat.h"
+#include "../private.h"
 #include <err.h>
 #include <errno.h>
-#include <private.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static void stat64_to_stat(const struct linux_stat64* stat64,

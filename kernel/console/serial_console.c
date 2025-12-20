@@ -4,7 +4,6 @@
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/device/device.h>
 #include <kernel/drivers/serial.h>
-#include <kernel/fs/proc/private.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 

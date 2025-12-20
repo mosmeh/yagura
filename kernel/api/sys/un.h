@@ -1,6 +1,6 @@
 #pragma once
 
-#include "socket.h"
+#include <kernel/api/sys/socket.h>
 
 #define UNIX_PATH_MAX 108
 

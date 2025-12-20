@@ -1,8 +1,8 @@
-#include "kmsg.h"
-#include "drivers/serial.h"
-#include "lock.h"
 #include <common/stdio.h>
 #include <common/string.h>
+#include <kernel/drivers/serial.h>
+#include <kernel/kmsg.h>
+#include <kernel/lock.h>
 #include <stdarg.h>
 
 int kprint(const char* str) {

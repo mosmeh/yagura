@@ -1,12 +1,12 @@
-#include "cpu.h"
-#include "acpi.h"
-#include "api/asm/processor-flags.h"
-#include "asm_wrapper.h"
-#include "containers/mpsc.h"
-#include "interrupts/interrupts.h"
-#include "memory/memory.h"
-#include "panic.h"
-#include "system.h"
+#include <kernel/acpi.h>
+#include <kernel/api/asm/processor-flags.h>
+#include <kernel/asm_wrapper.h>
+#include <kernel/containers/mpsc.h>
+#include <kernel/cpu.h>
+#include <kernel/interrupts/interrupts.h>
+#include <kernel/memory/memory.h>
+#include <kernel/panic.h>
+#include <kernel/system.h>
 
 static void set_feature(struct cpu* cpu, int feature) {
     cpu->features[feature >> 5] |= 1U << (feature & 31);

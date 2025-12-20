@@ -1,7 +1,7 @@
 #pragma once
 
-#include "api/sys/types.h"
 #include <common/extra.h>
+#include <kernel/api/sys/types.h>
 
 struct registers;
 

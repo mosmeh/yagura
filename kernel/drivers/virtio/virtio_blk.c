@@ -1,10 +1,10 @@
-#include "virtio_blk.h"
-#include "virtio.h"
 #include <common/stdio.h>
 #include <common/string.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/device/device.h>
 #include <kernel/drivers/pci.h>
+#include <kernel/drivers/virtio/virtio.h>
+#include <kernel/drivers/virtio/virtio_blk.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>

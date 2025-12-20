@@ -1,18 +1,18 @@
-#include "api/asm/processor-flags.h"
-#include "api/elf.h"
-#include "api/fcntl.h"
-#include "api/sys/limits.h"
-#include "asm_wrapper.h"
-#include "cpu.h"
-#include "fs/path.h"
-#include "gdt.h"
-#include "panic.h"
-#include "safe_string.h"
-#include "task.h"
-#include "time.h"
 #include <common/extra.h>
 #include <common/libgen.h>
 #include <common/string.h>
+#include <kernel/api/asm/processor-flags.h>
+#include <kernel/api/elf.h>
+#include <kernel/api/fcntl.h>
+#include <kernel/api/sys/limits.h>
+#include <kernel/asm_wrapper.h>
+#include <kernel/cpu.h>
+#include <kernel/fs/path.h>
+#include <kernel/gdt.h>
+#include <kernel/panic.h>
+#include <kernel/safe_string.h>
+#include <kernel/task.h>
+#include <kernel/time.h>
 
 struct string_vec {
     size_t count;

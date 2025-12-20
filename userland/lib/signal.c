@@ -1,6 +1,6 @@
-#include "signal.h"
-#include "errno.h"
-#include <private.h>
+#include "private.h"
+#include <errno.h>
+#include <signal.h>
 #include <unistd.h>
 
 int kill(pid_t pid, int sig) {

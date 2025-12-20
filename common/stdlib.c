@@ -1,5 +1,5 @@
-#include "stdlib.h"
-#include "ctype.h"
+#include <common/ctype.h>
+#include <common/stdlib.h>
 
 int atoi(const char* str) {
     if (!*str)

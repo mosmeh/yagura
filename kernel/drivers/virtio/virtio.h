@@ -1,6 +1,6 @@
-#include "virtio_pci.h"
-#include "virtio_queue.h"
 #include <common/extra.h>
+#include <kernel/drivers/virtio/virtio_pci.h>
+#include <kernel/drivers/virtio/virtio_queue.h>
 #include <kernel/resource.h>
 #include <stddef.h>
 

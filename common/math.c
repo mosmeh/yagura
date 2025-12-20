@@ -1,4 +1,4 @@
-#include "math.h"
+#include <common/math.h>
 
 double sqrt(double x) {
     double res;

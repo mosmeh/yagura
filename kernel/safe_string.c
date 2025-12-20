@@ -1,7 +1,7 @@
-#include "safe_string.h"
-#include "memory/memory.h"
-#include "panic.h"
-#include "system.h"
+#include <kernel/memory/memory.h>
+#include <kernel/panic.h>
+#include <kernel/safe_string.h>
+#include <kernel/system.h>
 
 NOINLINE int safe_memcpy(void* dest, const void* src, size_t n) {
     if (!dest || !src)

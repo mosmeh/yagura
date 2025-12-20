@@ -5,9 +5,9 @@
 
 #ifndef ASM_FILE
 
-#include "api/sys/types.h"
-#include "api/sys/utsname.h"
 #include <common/extra.h>
+#include <kernel/api/sys/types.h>
+#include <kernel/api/sys/utsname.h>
 #include <stdalign.h>
 #include <stdatomic.h>
 #include <stdbool.h>

@@ -1,6 +1,6 @@
-#include "console.h"
 #include "private.h"
-#include "screen/screen.h"
+#include <kernel/console/console.h>
+#include <kernel/console/screen/screen.h>
 #include <kernel/panic.h>
 
 void console_init(void) {

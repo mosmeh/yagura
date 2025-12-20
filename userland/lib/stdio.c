@@ -1,8 +1,8 @@
-#include "stdio.h"
-#include "errno.h"
 #include "private.h"
-#include "string.h"
-#include "unistd.h"
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 int putchar(int ch) {
     char c = ch;

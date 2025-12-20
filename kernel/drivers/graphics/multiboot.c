@@ -1,5 +1,5 @@
-#include "graphics.h"
 #include <kernel/api/err.h>
+#include <kernel/drivers/graphics/graphics.h>
 #include <kernel/kmsg.h>
 #include <kernel/multiboot.h>
 

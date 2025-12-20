@@ -1,5 +1,5 @@
-#include "mount.h"
-#include <private.h>
+#include "../private.h"
+#include <sys/mount.h>
 
 int mount(const char* source, const char* target, const char* filesystemtype,
           unsigned long mountflags, const void* data) {

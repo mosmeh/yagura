@@ -1,4 +1,3 @@
-#include "syscall.h"
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
@@ -6,6 +5,7 @@
 #include <kernel/api/sys/un.h>
 #include <kernel/safe_string.h>
 #include <kernel/socket.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/task.h>
 
 int sys_socket(int domain, int type, int protocol) {

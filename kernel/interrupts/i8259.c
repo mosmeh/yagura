@@ -1,4 +1,4 @@
-#include "interrupts.h"
+#include <kernel/interrupts/interrupts.h>
 
 #define PIC1_CMD 0x20
 #define PIC1_DATA 0x21

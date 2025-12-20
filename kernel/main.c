@@ -1,20 +1,20 @@
-#include "acpi.h"
-#include "api/fcntl.h"
-#include "console/console.h"
-#include "cpu.h"
-#include "device/device.h"
-#include "drivers/drivers.h"
-#include "drivers/serial.h"
-#include "interrupts/interrupts.h"
-#include "kmsg.h"
-#include "memory/memory.h"
-#include "multiboot.h"
-#include "panic.h"
-#include "sched.h"
-#include "socket.h"
-#include "syscall/syscall.h"
-#include "task.h"
-#include "time.h"
+#include <kernel/acpi.h>
+#include <kernel/api/fcntl.h>
+#include <kernel/console/console.h>
+#include <kernel/cpu.h>
+#include <kernel/device/device.h>
+#include <kernel/drivers/drivers.h>
+#include <kernel/drivers/serial.h>
+#include <kernel/interrupts/interrupts.h>
+#include <kernel/kmsg.h>
+#include <kernel/memory/memory.h>
+#include <kernel/multiboot.h>
+#include <kernel/panic.h>
+#include <kernel/sched.h>
+#include <kernel/socket.h>
+#include <kernel/syscall/syscall.h>
+#include <kernel/task.h>
+#include <kernel/time.h>
 
 static void open_console(void) {
     struct file* file FREE(file) = vfs_open("/dev/console", O_RDWR, 0);

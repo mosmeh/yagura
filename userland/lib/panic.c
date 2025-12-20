@@ -1,7 +1,7 @@
-#include "panic.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "unistd.h"
+#include <panic.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 noreturn void panic(const char* file, size_t line, const char* format, ...) {
     dprintf(STDERR_FILENO, "PANIC: ");

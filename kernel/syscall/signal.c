@@ -1,8 +1,8 @@
-#include "syscall.h"
 #include <kernel/api/asm/processor-flags.h>
 #include <kernel/api/errno.h>
 #include <kernel/fs/path.h>
 #include <kernel/safe_string.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/task.h>
 
 int sys_kill(pid_t pid, int sig) {

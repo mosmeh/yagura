@@ -1,14 +1,14 @@
-#include "task.h"
-#include "api/signal.h"
-#include "api/sys/limits.h"
-#include "cpu.h"
-#include "fs/path.h"
-#include "interrupts/interrupts.h"
-#include "kmsg.h"
-#include "memory/memory.h"
-#include "panic.h"
-#include "safe_string.h"
 #include <common/string.h>
+#include <kernel/api/signal.h>
+#include <kernel/api/sys/limits.h>
+#include <kernel/cpu.h>
+#include <kernel/fs/path.h>
+#include <kernel/interrupts/interrupts.h>
+#include <kernel/kmsg.h>
+#include <kernel/memory/memory.h>
+#include <kernel/panic.h>
+#include <kernel/safe_string.h>
+#include <kernel/task.h>
 #include <stdatomic.h>
 
 struct fpu_state initial_fpu_state;

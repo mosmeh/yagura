@@ -1,5 +1,5 @@
-#include "fcntl.h"
 #include "private.h"
+#include <fcntl.h>
 #include <stdarg.h>
 
 int open(const char* pathname, int flags, ...) {

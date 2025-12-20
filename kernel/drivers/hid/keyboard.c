@@ -1,5 +1,5 @@
-#include "hid.h"
-#include "ps2.h"
+#include <kernel/drivers/hid/hid.h>
+#include <kernel/drivers/hid/ps2.h>
 #include <kernel/interrupts/interrupts.h>
 
 static const struct keyboard_events noop_handlers = {0};

@@ -1,6 +1,6 @@
-#include "vec.h"
 #include <common/stdio.h>
 #include <common/string.h>
+#include <kernel/containers/vec.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 

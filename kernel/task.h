@@ -1,12 +1,12 @@
 #pragma once
 
-#include "api/signal.h"
-#include "api/sys/limits.h"
-#include "fs/fs.h"
-#include "gdt.h"
-#include "sched.h"
-#include "system.h"
 #include <common/extra.h>
+#include <kernel/api/signal.h>
+#include <kernel/api/sys/limits.h>
+#include <kernel/fs/fs.h>
+#include <kernel/gdt.h>
+#include <kernel/sched.h>
+#include <kernel/system.h>
 #include <stdnoreturn.h>
 
 enum {

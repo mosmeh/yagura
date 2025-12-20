@@ -1,6 +1,6 @@
-#include "rtc.h"
 #include <common/calendar.h>
 #include <kernel/asm_wrapper.h>
+#include <kernel/drivers/rtc.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 

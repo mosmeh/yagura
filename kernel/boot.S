@@ -1,8 +1,8 @@
 #define ASM_FILE
-#include "multiboot.h"
-#include "api/asm/processor-flags.h"
-#include "system.h"
-#include "memory/memory.h"
+#include <kernel/multiboot.h>
+#include <kernel/api/asm/processor-flags.h>
+#include <kernel/system.h>
+#include <kernel/memory/memory.h>
 
 #define FLAGS (MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE)
 #define CHECKSUM -(MULTIBOOT_HEADER_MAGIC + FLAGS)

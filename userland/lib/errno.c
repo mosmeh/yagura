@@ -1,5 +1,5 @@
-#include "errno.h"
 #include <err.h>
+#include <errno.h>
 
 _Thread_local int errno;
 

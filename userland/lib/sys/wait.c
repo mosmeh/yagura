@@ -1,5 +1,5 @@
-#include "wait.h"
-#include <private.h>
+#include "../private.h"
+#include <sys/wait.h>
 
 pid_t waitpid(pid_t pid, int* wstatus, int options) {
     return __syscall_return(SYSCALL3(waitpid, pid, wstatus, options));

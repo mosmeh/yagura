@@ -1,7 +1,7 @@
-#include "device.h"
 #include <common/string.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/device/device.h>
 #include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>

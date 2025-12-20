@@ -1,5 +1,4 @@
 #include <errno.h>
-#include <extra.h>
 #include <fcntl.h>
 #include <linux/fb.h>
 #include <panic.h>

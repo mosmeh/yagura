@@ -1,10 +1,10 @@
-#include "interrupts.h"
-#include "isr_stubs.h"
 #include <common/string.h>
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/syscall.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/cpu.h>
+#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts/isr_stubs.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>

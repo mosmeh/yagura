@@ -1,14 +1,14 @@
-#include "system.h"
-#include "asm_wrapper.h"
-#include "cpu.h"
-#include "drivers/hid/ps2.h"
-#include "fs/fs.h"
-#include "kmsg.h"
-#include "memory/memory.h"
-#include "panic.h"
-#include "safe_string.h"
 #include <common/stdlib.h>
 #include <common/string.h>
+#include <kernel/asm_wrapper.h>
+#include <kernel/cpu.h>
+#include <kernel/drivers/hid/ps2.h>
+#include <kernel/fs/fs.h>
+#include <kernel/kmsg.h>
+#include <kernel/memory/memory.h>
+#include <kernel/panic.h>
+#include <kernel/safe_string.h>
+#include <kernel/system.h>
 #include <stdarg.h>
 
 static struct utsname utsname = {

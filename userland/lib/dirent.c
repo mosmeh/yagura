@@ -1,11 +1,11 @@
-#include "dirent.h"
-#include "errno.h"
-#include "fcntl.h"
 #include "private.h"
-#include "stdlib.h"
-#include "string.h"
-#include "unistd.h"
-#include <extra.h>
+#include <common/extra.h>
+#include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 static ssize_t getdents(int fd, struct linux_dirent* dirp, size_t count) {
     return __syscall_return(SYSCALL3(getdents, fd, dirp, count));

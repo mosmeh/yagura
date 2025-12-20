@@ -1,9 +1,9 @@
-#include "graphics.h"
 #include <common/string.h>
 #include <kernel/api/linux/fb.h>
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/device/device.h>
+#include <kernel/drivers/graphics/graphics.h>
 #include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>

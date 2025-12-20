@@ -1,7 +1,7 @@
-#include "path.h"
-#include "fs.h"
 #include "private.h"
 #include <common/string.h>
+#include <kernel/fs/fs.h>
+#include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 

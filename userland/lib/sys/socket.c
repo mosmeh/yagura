@@ -1,5 +1,5 @@
-#include "socket.h"
-#include <private.h>
+#include "../private.h"
+#include <sys/socket.h>
 
 int socket(int domain, int type, int protocol) {
     return __syscall_return(SYSCALL3(socket, domain, type, protocol));

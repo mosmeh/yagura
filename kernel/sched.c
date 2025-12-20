@@ -1,13 +1,13 @@
-#include "sched.h"
-#include "cpu.h"
-#include "interrupts/interrupts.h"
-#include "memory/memory.h"
-#include "panic.h"
-#include "system.h"
-#include "task.h"
-#include "time.h"
 #include <common/stdio.h>
 #include <common/string.h>
+#include <kernel/cpu.h>
+#include <kernel/interrupts/interrupts.h>
+#include <kernel/memory/memory.h>
+#include <kernel/panic.h>
+#include <kernel/sched.h>
+#include <kernel/system.h>
+#include <kernel/task.h>
+#include <kernel/time.h>
 
 static struct task* ready_queue;
 static struct spinlock ready_queue_lock;

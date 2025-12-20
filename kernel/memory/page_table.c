@@ -1,4 +1,3 @@
-#include "memory.h"
 #include "private.h"
 #include <common/string.h>
 #include <kernel/cpu.h>

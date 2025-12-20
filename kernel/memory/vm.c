@@ -1,7 +1,7 @@
-#include "vm.h"
 #include "private.h"
 #include <common/string.h>
 #include <kernel/interrupts/interrupts.h>
+#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 #include <kernel/task.h>
 

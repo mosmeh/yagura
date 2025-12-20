@@ -1,8 +1,8 @@
-#include "api/time.h"
-#include "api/errno.h"
-#include "drivers/rtc.h"
-#include "lock.h"
-#include "time.h"
+#include <kernel/api/errno.h>
+#include <kernel/api/time.h>
+#include <kernel/drivers/rtc.h>
+#include <kernel/lock.h>
+#include <kernel/time.h>
 
 #define NANOS 1000000000
 

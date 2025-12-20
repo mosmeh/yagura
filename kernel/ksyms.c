@@ -1,6 +1,6 @@
-#include "memory/memory.h"
-#include "panic.h"
-#include "system.h"
+#include <kernel/memory/memory.h>
+#include <kernel/panic.h>
+#include <kernel/system.h>
 #include <stdint.h>
 
 extern char ksyms_start[];

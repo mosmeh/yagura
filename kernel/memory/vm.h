@@ -1,6 +1,6 @@
 #pragma once
 
-#include "memory.h"
+#include <kernel/memory/memory.h>
 #include <kernel/resource.h>
 
 // Region may be read

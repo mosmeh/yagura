@@ -1,4 +1,4 @@
-#include "panic.h"
+#include <common/panic.h>
 #include <stdbool.h>
 #include <stdint.h>
 

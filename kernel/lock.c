@@ -1,9 +1,9 @@
-#include "lock.h"
-#include "cpu.h"
-#include "interrupts/interrupts.h"
-#include "panic.h"
-#include "sched.h"
-#include "task.h"
+#include <kernel/cpu.h>
+#include <kernel/interrupts/interrupts.h>
+#include <kernel/lock.h>
+#include <kernel/panic.h>
+#include <kernel/sched.h>
+#include <kernel/task.h>
 
 void mutex_lock(struct mutex* m) {
     ASSERT(interrupts_enabled());

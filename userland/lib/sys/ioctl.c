@@ -1,6 +1,6 @@
-#include "ioctl.h"
-#include <private.h>
+#include "../private.h"
 #include <stdarg.h>
+#include <sys/ioctl.h>
 
 int ioctl(int fd, unsigned cmd, ...) {
     va_list args;

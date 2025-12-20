@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ctype.h"
+#include <common/ctype.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>

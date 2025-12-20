@@ -1,6 +1,6 @@
-#include "mman.h"
+#include "../private.h"
 #include <errno.h>
-#include <private.h>
+#include <sys/mman.h>
 
 #define MMAP2_PAGE_UNIT 4096
 

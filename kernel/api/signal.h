@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sys/types.h"
+#include <kernel/api/sys/types.h>
 
 typedef void (*sighandler_t)(int);
 typedef uint32_t sigset_t;

@@ -1,4 +1,3 @@
-#include "syscall.h"
 #include <common/string.h>
 #include <kernel/api/dirent.h>
 #include <kernel/api/fcntl.h>
@@ -10,6 +9,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/safe_string.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/task.h>
 
 NODISCARD static int copy_pathname_from_user(char* dest, const char* user_src) {

@@ -1,8 +1,8 @@
-#include "ps2.h"
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/device/device.h>
+#include <kernel/drivers/hid/ps2.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/panic.h>

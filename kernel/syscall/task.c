@@ -1,4 +1,3 @@
-#include "syscall.h"
 #include <common/string.h>
 #include <kernel/api/asm/ldt.h>
 #include <kernel/api/sched.h>
@@ -9,6 +8,7 @@
 #include <kernel/fs/path.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/safe_string.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/task.h>
 #include <kernel/time.h>
 

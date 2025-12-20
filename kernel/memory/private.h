@@ -1,7 +1,7 @@
 #pragma once
 
-#include "memory.h"
 #include <kernel/cpu.h>
+#include <kernel/memory/memory.h>
 
 // In the current setup, kernel image (including 1MiB offset) has to fit in
 // a single page table (< 4MiB).

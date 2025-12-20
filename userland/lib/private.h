@@ -2,8 +2,8 @@
 
 #include <stdatomic.h>
 #include <stddef.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
-#include <syscall.h>
 
 extern size_t __tls_size;
 struct pthread* __init_tls(void* tls);

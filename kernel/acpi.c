@@ -1,9 +1,9 @@
-#include "acpi.h"
-#include "cpu.h"
-#include "kmsg.h"
-#include "memory/vm.h"
-#include "panic.h"
 #include <common/string.h>
+#include <kernel/acpi.h>
+#include <kernel/cpu.h>
+#include <kernel/kmsg.h>
+#include <kernel/memory/vm.h>
+#include <kernel/panic.h>
 
 struct rsdp_descriptor {
     char signature[8];

@@ -1,6 +1,5 @@
 #include "moused.h"
 #include <errno.h>
-#include <extra.h>
 #include <fcntl.h>
 #include <linux/fb.h>
 #include <math.h>

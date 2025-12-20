@@ -1,13 +1,13 @@
-#include "acpi.h"
-#include "cpu.h"
-#include "interrupts/interrupts.h"
-#include "kmsg.h"
-#include "memory/memory.h"
-#include "memory/vm.h"
-#include "panic.h"
-#include "sched.h"
-#include "system.h"
 #include <common/string.h>
+#include <kernel/acpi.h>
+#include <kernel/cpu.h>
+#include <kernel/interrupts/interrupts.h>
+#include <kernel/kmsg.h>
+#include <kernel/memory/memory.h>
+#include <kernel/memory/vm.h>
+#include <kernel/panic.h>
+#include <kernel/sched.h>
+#include <kernel/system.h>
 
 static bool can_enable_smp(void) {
     if (cmdline_contains("nosmp")) {

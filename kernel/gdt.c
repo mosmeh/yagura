@@ -1,6 +1,6 @@
-#include "gdt.h"
-#include "cpu.h"
-#include "interrupts/interrupts.h"
+#include <kernel/cpu.h>
+#include <kernel/gdt.h>
+#include <kernel/interrupts/interrupts.h>
 
 static void gdt_set_segment(struct gdt_segment* gdt, size_t index,
                             uint32_t base, uint32_t limit, uint8_t access,

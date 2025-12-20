@@ -1,9 +1,9 @@
-#include "fs.h"
 #include <common/string.h>
 #include <common/tree.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
 #include <kernel/device/device.h>
+#include <kernel/fs/fs.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 

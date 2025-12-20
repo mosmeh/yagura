@@ -1,6 +1,6 @@
 // Red-black tree implementation
 
-#include "tree.h"
+#include <common/tree.h>
 
 #define COLOR_RED 0
 #define COLOR_BLACK 1

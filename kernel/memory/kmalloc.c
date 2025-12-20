@@ -1,5 +1,5 @@
-#include "vm.h"
 #include <common/string.h>
+#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 
 void* kmalloc(size_t size) {

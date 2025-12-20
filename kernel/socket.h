@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fs/fs.h"
+#include <kernel/fs/fs.h>
 
 void socket_init(void);
 
