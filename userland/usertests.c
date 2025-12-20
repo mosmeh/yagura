@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/poll.h>
@@ -21,6 +22,31 @@ static uint32_t random_state[4];
 
 static uint32_t random_next(void) {
     return xoshiro128plusplus_next(random_state);
+}
+
+static void test_strings(void) {
+    puts("strings");
+
+    ASSERT(strcmp("ABC", "ABC") == 0);
+    ASSERT(strcasecmp("ABC", "abc") == 0);
+
+    ASSERT(strcmp("ABC", "AB") > 0);
+    ASSERT(strcasecmp("ABC", "ab") > 0);
+
+    ASSERT(strcmp("ABA", "ABZ") < 0);
+    ASSERT(strcasecmp("ABA", "abz") < 0);
+
+    ASSERT(strcmp("ABJ", "ABC") > 0);
+    ASSERT(strcasecmp("ABJ", "abc") > 0);
+
+    ASSERT(strcmp("\x81", "A") > 0);
+    ASSERT(strcasecmp("\x81", "a") > 0);
+
+    ASSERT(strncmp("ABC", "AB", 3) > 0);
+    ASSERT(strncasecmp("ABC", "ab", 3) > 0);
+
+    ASSERT(strncmp("ABC", "AB", 2) == 0);
+    ASSERT(strncasecmp("ABC", "ab", 2) == 0);
 }
 
 #define TREE_NUM_NODES 3000
@@ -156,7 +182,7 @@ static noreturn void shm_reader(void) {
 }
 
 static void test_fs(void) {
-    puts("File system");
+    puts("file system");
 
     unlink("/tmp/test-fs/bar");
     unlink("/tmp/test-fs/baz");
@@ -332,8 +358,8 @@ static noreturn void pipe_peer(int send_fd, int recv_fd) {
     exit(0);
 }
 
-static void test_fifo(void) {
-    puts("FIFO");
+static void test_pipe(void) {
+    puts("pipe");
 
     ASSERT(poll(NULL, 0, 10) == 0);
 
@@ -440,7 +466,7 @@ static noreturn void socket_receiver(bool shut_rd) {
 }
 
 static void test_socket(void) {
-    puts("Socket");
+    puts("socket");
 
     unlink("/tmp/test-socket");
     unlink("/tmp/test-socket2");
@@ -605,7 +631,7 @@ static void test_mmap_shared(void) {
 }
 
 static void test_framebuffer(void) {
-    puts("Framebuffer");
+    puts("framebuffer");
 
     int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0) {
@@ -652,9 +678,10 @@ int main(void) {
     random_state[2] = b & 0xffffffff;
     random_state[3] = b >> 32;
 
+    test_strings();
     test_tree();
     test_fs();
-    test_fifo();
+    test_pipe();
     test_socket();
     test_mmap_private();
     test_mmap_shared();

@@ -87,7 +87,7 @@ int strcmp(const char* s1, const char* s2) {
         if (*s1 == 0)
             return 0;
     }
-    return *s1 < *s2 ? -1 : 1;
+    return *(const unsigned char*)s1 < *(const unsigned char*)s2 ? -1 : 1;
 }
 
 int strncmp(const char* s1, const char* s2, size_t n) {

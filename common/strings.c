@@ -6,7 +6,9 @@ int strcasecmp(const char* s1, const char* s2) {
         if (*s1 == 0)
             return 0;
     }
-    return tolower(*s1) < tolower(*s2) ? -1 : 1;
+    if (tolower(*(const unsigned char*)s1) < tolower(*(const unsigned char*)s2))
+        return -1;
+    return 1;
 }
 
 int strncasecmp(const char* s1, const char* s2, size_t n) {
