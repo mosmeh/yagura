@@ -83,11 +83,9 @@ OBJS := \
 	task.o \
 	time.o \
 	../common/libgen.o \
-	../common/math.o \
 	../common/stdio.o \
 	../common/stdlib.o \
 	../common/string.o \
-	../common/strings.o \
 	../common/tree.o \
 	../common/ubsan.o
 
