@@ -3,6 +3,7 @@
 #include "drivers/rtc.h"
 #include "kmsg.h"
 #include "lock.h"
+#include <common/random.h>
 #include <common/extra.h>
 #include <stdalign.h>
 
@@ -55,41 +56,8 @@ NODISCARD static bool rdrand_init(void) {
     return fails <= 2;
 }
 
-// https://prng.di.unimi.it/splitmix64.c
-static uint64_t splitmix64_next(uint64_t* x) {
-    uint64_t z = (*x += 0x9e3779b97f4a7c15);
-    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
-    z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
-    return z ^ (z >> 31);
-}
-
-// https://prng.di.unimi.it/xoshiro128plusplus.c
-
-static inline uint32_t rotl(const uint32_t x, int k) {
-    return (x << k) | (x >> (32 - k));
-}
-
 static uint32_t s[4];
 static struct mutex lock;
-
-static uint32_t xoshiro128plusplus_next(void) {
-    mutex_lock(&lock);
-
-    const uint32_t result = rotl(s[0] + s[3], 7) + s[0];
-    const uint32_t t = s[1] << 9;
-
-    s[2] ^= s[0];
-    s[3] ^= s[1];
-    s[1] ^= s[2];
-    s[0] ^= s[3];
-
-    s[2] ^= t;
-
-    s[3] = rotl(s[3], 11);
-
-    mutex_unlock(&lock);
-    return result;
-}
 
 void random_init(void) {
     if (rdrand_init()) {
@@ -112,7 +80,7 @@ static bool next(uint32_t* v) {
     if (use_rdrand)
         return rdrand(v);
 
-    *v = xoshiro128plusplus_next();
+    *v = xoshiro128plusplus_next(s);
     return true;
 }
 
@@ -141,15 +109,22 @@ ssize_t random_get(void* buffer, size_t count) {
     unsigned char* suffix =
         (unsigned char*)ROUND_DOWN((uintptr_t)end, alignof(uint32_t));
 
+    ssize_t ret = 0;
+    mutex_lock(&lock);
+
     if (prefix < aligned) {
-        if (!fill_remainder(prefix, aligned - prefix))
-            return -EIO;
+        if (!fill_remainder(prefix, aligned - prefix)) {
+            ret = -EIO;
+            goto done;
+        }
     }
 
     for (unsigned char* p = aligned; p < suffix; p += alignof(uint32_t)) {
         uint32_t v = 0;
-        if (!next(&v))
-            return -EIO;
+        if (!next(&v)) {
+            ret = -EIO;
+            goto done;
+        }
         p[0] = v & 0xff;
         p[1] = (v >> 8) & 0xff;
         p[2] = (v >> 16) & 0xff;
@@ -157,9 +132,14 @@ ssize_t random_get(void* buffer, size_t count) {
     }
 
     if (suffix < end) {
-        if (!fill_remainder(suffix, end - suffix))
-            return -EIO;
+        if (!fill_remainder(suffix, end - suffix)) {
+            ret = -EIO;
+            goto done;
+        }
     }
 
-    return count;
+    ret = count;
+done:
+    mutex_unlock(&lock);
+    return ret;
 }
