@@ -55,6 +55,11 @@ static ssize_t bitmap_get_free(void) {
     return -ENOMEM;
 }
 
+static void print_range(const char* type, uintptr_t start, uintptr_t end) {
+    kprintf("page: P0x%08x - P0x%08x (%4u MiB) %s\n", start, end,
+            (end - start) / 0x100000, type);
+}
+
 static void detect_memory(const multiboot_info_t* mb_info) {
     // We don't know the size of the physical memory yet.
     // Set the maximum possible value so that we can modify the entire bitmap.
@@ -62,54 +67,81 @@ static void detect_memory(const multiboot_info_t* mb_info) {
 
     ASSERT(KERNEL_VIRT_ADDR < (uintptr_t)kernel_end &&
            (uintptr_t)kernel_end <= KERNEL_IMAGE_END);
-    uintptr_t start_addr = (uintptr_t)kernel_end - KERNEL_VIRT_ADDR;
-    uintptr_t end_addr = start_addr;
+    uintptr_t kernel_phys_end = (uintptr_t)kernel_end - KERNEL_VIRT_ADDR;
+    uintptr_t available_start = kernel_phys_end;
+    uintptr_t available_end = available_start;
 
     if (mb_info->flags & MULTIBOOT_INFO_MEM_MAP) {
         uint32_t num_entries =
             mb_info->mmap_length / sizeof(multiboot_memory_map_t);
         const multiboot_memory_map_t* entry =
-            (const multiboot_memory_map_t*)(mb_info->mmap_addr +
-                                            KERNEL_VIRT_ADDR);
+            (const void*)(mb_info->mmap_addr + KERNEL_VIRT_ADDR);
 
         for (uint32_t i = 0; i < num_entries; ++i, ++entry) {
+            uint64_t entry_start = entry->addr;
+            uint64_t entry_end = entry->addr + entry->len;
+
+            // This is a 32-bit system. Ignore entries beyond 4 GiB.
+            if (entry_start > UINTPTR_MAX || entry_end > UINTPTR_MAX)
+                continue;
+
+            const char* type_str = "unknown";
+            switch (entry->type) {
+            case MULTIBOOT_MEMORY_AVAILABLE:
+                type_str = "available";
+                break;
+            case MULTIBOOT_MEMORY_RESERVED:
+                type_str = "reserved";
+                break;
+            case MULTIBOOT_MEMORY_ACPI_RECLAIMABLE:
+                type_str = "ACPI reclaimable";
+                break;
+            case MULTIBOOT_MEMORY_NVS:
+                type_str = "NVS";
+                break;
+            case MULTIBOOT_MEMORY_BADRAM:
+                type_str = "bad RAM";
+                break;
+            }
+
+            print_range(type_str, entry_start, entry_end);
+
             if (entry->type != MULTIBOOT_MEMORY_AVAILABLE)
                 continue;
 
-            uintptr_t entry_start = entry->addr;
-            uintptr_t entry_end = entry->addr + entry->len;
-
-            kprintf("page: available region P0x%08x - P0x%08x (%u MiB)\n",
-                    entry_start, entry_end,
-                    (entry_end - entry_start) / 0x100000);
-
-            if (entry_start < start_addr)
-                entry_start = start_addr;
+            if (entry_start < available_start)
+                entry_start = available_start;
 
             if (entry_start >= entry_end)
                 continue;
 
-            if (end_addr < entry_end)
-                end_addr = entry_end;
+            if (available_end < entry_end)
+                available_end = entry_end;
 
             for (size_t i = DIV_CEIL(entry_start, PAGE_SIZE);
                  i < entry_end >> PAGE_SHIFT; ++i)
                 bitmap_set(i);
         }
     } else {
-        end_addr = MAX(start_addr, mb_info->mem_upper * 0x400 + 0x100000);
+        kprint("page: no memory map provided by bootloader\n");
 
-        for (size_t i = DIV_CEIL(start_addr, PAGE_SIZE);
-             i < end_addr >> PAGE_SHIFT; ++i)
+        available_end =
+            MAX(available_start, mb_info->mem_upper * 0x400 + 0x100000);
+
+        for (size_t i = DIV_CEIL(available_start, PAGE_SIZE);
+             i < available_end >> PAGE_SHIFT; ++i)
             bitmap_set(i);
+
+        print_range("available", available_start, available_end);
     }
+
+    print_range("kernel", 0, kernel_phys_end);
 
     if (mb_info->flags & MULTIBOOT_INFO_MODS) {
         const multiboot_module_t* mod =
-            (const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VIRT_ADDR);
+            (const void*)(mb_info->mods_addr + KERNEL_VIRT_ADDR);
         for (uint32_t i = 0; i < mb_info->mods_count; ++i) {
-            kprintf("page: module P0x%08x - P0x%08x (%u MiB)\n", mod->mod_start,
-                    mod->mod_end, (mod->mod_end - mod->mod_start) / 0x100000);
+            print_range("module", mod->mod_start, mod->mod_end);
             for (size_t i = mod->mod_start >> PAGE_SHIFT;
                  i < DIV_CEIL(mod->mod_end, PAGE_SIZE); ++i)
                 bitmap_clear(i);
@@ -117,10 +149,7 @@ static void detect_memory(const multiboot_info_t* mb_info) {
         }
     }
 
-    kprintf("page: available physical memory address space P%#x - P%#x\n",
-            start_addr, end_addr);
-
-    pfn_end = end_addr >> PAGE_SHIFT;
+    pfn_end = available_end >> PAGE_SHIFT;
     ASSERT(pfn_end > 0);
     ASSERT(pfn_end <= MAX_NUM_PAGES);
 }
@@ -147,7 +176,8 @@ void page_init(const multiboot_info_t* mb_info) {
     }
 
     free_pages = total_pages;
-    kprintf("page: #total pages = %u\n", total_pages);
+    kprintf("page: %u pages (%u MiB) available\n", total_pages,
+            (total_pages << PAGE_SHIFT) / 0x100000);
 }
 
 struct page* page_get(size_t pfn) {

@@ -90,9 +90,7 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
 
     struct utsname utsname;
     utsname_get(&utsname);
-    kprintf("version: %s\n"
-            "kernel end: V%p\n",
-            utsname.version, (void*)kernel_end);
+    kprintf("version: %s\n", utsname.version);
     ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
 
     const multiboot_info_t* mb_info =
