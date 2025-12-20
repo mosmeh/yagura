@@ -10,6 +10,8 @@ Checks: >
     readability-*,
     -bugprone-easily-swappable-parameters,
     -bugprone-reserved-identifier,
+    -bugprone-switch-missing-default-case,
+    -bugprone-multi-level-implicit-pointer-conversion,
     -cert-dcl37-c,
     -cert-dcl51-cpp,
     -cert-err34-c,
@@ -21,6 +23,7 @@ Checks: >
     -readability-magic-numbers,
     -readability-inconsistent-declaration-parameter-name,
     -readability-function-cognitive-complexity,
+    -readability-math-missing-parentheses,
 CheckOptions:
     - key: bugprone-narrowing-conversions.WarnOnIntegerNarrowingConversion
       value: false
