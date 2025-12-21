@@ -78,31 +78,11 @@ static noreturn void ksyncd(void) {
     }
 }
 
-noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
-    gdt_init_cpu();
-    cpu_init();
-    idt_init();
-    i8259_init();
-    serial_early_init();
-    kprint("\x1b[32mbooted\x1b[m\n");
-    sti();
+static const multiboot_info_t* mb_info;
+static multiboot_module_t initrd_mod;
 
-    struct utsname utsname;
-    utsname_get(&utsname);
-    kprintf("version: %s\n", utsname.version);
-    ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
-
-    const multiboot_info_t* mb_info =
-        (const multiboot_info_t*)(mb_info_phys_addr + KERNEL_VIRT_ADDR);
-    if (!(mb_info->flags & MULTIBOOT_INFO_MODS) || mb_info->mods_count == 0)
-        PANIC("No initrd found. Provide initrd as the first Multiboot module");
-    multiboot_module_t initrd_mod =
-        *(const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VIRT_ADDR);
-
-    cmdline_init(mb_info);
-    memory_init(mb_info);
+static noreturn void kernel_init(void) {
     ksyms_init();
-    task_init();
     time_init();
     fs_init(&initrd_mod);
     device_init();
@@ -112,12 +92,36 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     console_init();
     socket_init();
     syscall_init();
-    sched_init();
     smp_start();
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
-    ASSERT_OK(task_spawn("userland_init", userland_init));
     ASSERT_OK(task_spawn("ksyncd", ksyncd));
 
+    userland_init(); // Become the userland init process
+}
+
+noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
+    gdt_init_cpu();
+    cpu_init();
+    idt_init();
+    i8259_init();
+    serial_early_init();
+    kprint("\x1b[32mbooted\x1b[m\n"
+           "version: " YAGURA_VERSION "\n");
+
+    ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
+    mb_info = (const void*)(mb_info_phys_addr + KERNEL_VIRT_ADDR);
+
+    if (!(mb_info->flags & MULTIBOOT_INFO_MODS) || mb_info->mods_count == 0)
+        PANIC("No initrd found. Provide initrd as the first Multiboot module");
+    initrd_mod =
+        *(const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VIRT_ADDR);
+
+    cmdline_init(mb_info);
+    task_init();
+    memory_init(mb_info);
+
+    sti(); // Allow memory allocation that expects interrupts to be enabled
+    ASSERT_OK(task_spawn("init", kernel_init));
     sched_start();
 }

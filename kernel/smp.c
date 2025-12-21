@@ -56,6 +56,7 @@ void smp_init(void) {
         return;
 
     cpu_init_smp();
+    sched_init_smp();
     i8259_disable();
     io_apic_init();
     lapic_init();

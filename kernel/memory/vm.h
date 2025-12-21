@@ -87,8 +87,6 @@ struct vm* vm_create(void* start, void* end);
 struct vm* vm_ref(struct vm*);
 void vm_unref(struct vm*);
 
-struct vm* vm_get_current(void);
-
 // Switches to the virtual memory space. Returns the previous vm.
 struct vm* vm_enter(struct vm*);
 

@@ -15,11 +15,7 @@ static struct utsname utsname = {
     .sysname = "yagura",
     .nodename = "(none)",
     .release = "dev",
-#ifdef YAGURA_VERSION
     .version = YAGURA_VERSION,
-#else
-    .version = "unknown",
-#endif
     .machine = "i686",
     .domainname = "(none)",
 };

@@ -60,7 +60,7 @@ int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
                                size_t npages) {
     ASSERT(mutex_is_locked_by_current(&obj->lock));
     int rc = 0;
-    struct vm* original_vm = vm_get_current();
+    struct vm* original_vm = current->vm;
     for (const struct vm_region* region = obj->shared_regions; region;
          region = region->shared_next) {
         if (region->offset + (region->end - region->start) <= offset)
@@ -69,7 +69,7 @@ int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
             continue;
 
         struct vm* vm = region->vm;
-        if (vm != kernel_vm && vm != vm_get_current())
+        if (vm != kernel_vm && vm != current->vm)
             vm_enter(vm);
 
         size_t region_offset = offset - region->offset;
