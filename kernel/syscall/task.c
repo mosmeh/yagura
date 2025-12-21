@@ -531,25 +531,19 @@ int sys_chdir(const char* user_path) {
     if (path_len >= PATH_MAX)
         return -ENAMETOOLONG;
 
-    mutex_lock(&current->fs->lock);
+    struct fs* fs = current->fs;
+    mutex_lock(&fs->lock);
 
-    struct path* new_cwd FREE(path) =
-        vfs_resolve_path_at(current->fs->cwd, path, 0);
+    struct path* new_cwd FREE(path) = vfs_resolve_path_at(fs->cwd, path, 0);
     if (IS_ERR(ASSERT(new_cwd))) {
-        mutex_unlock(&current->fs->lock);
+        mutex_unlock(&fs->lock);
         return PTR_ERR(new_cwd);
     }
 
-    if (!S_ISDIR(new_cwd->inode->mode)) {
-        mutex_unlock(&current->fs->lock);
-        return -ENOTDIR;
-    }
+    int rc = fs_chdir(fs, new_cwd);
 
-    path_destroy_recursive(current->fs->cwd);
-    current->fs->cwd = TAKE_PTR(new_cwd);
-
-    mutex_unlock(&current->fs->lock);
-    return 0;
+    mutex_unlock(&fs->lock);
+    return rc;
 }
 
 int sys_prctl(int op, unsigned long arg2, unsigned long arg3,

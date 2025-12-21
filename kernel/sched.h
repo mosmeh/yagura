@@ -9,7 +9,7 @@ struct task;
 struct registers;
 struct timespec;
 
-void sched_init(void);
+void sched_init_smp(void);
 
 // Registers a task to be scheduled.
 void sched_register(struct task*);

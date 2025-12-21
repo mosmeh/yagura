@@ -113,12 +113,9 @@ void vm_unref(struct vm* vm) {
     slab_free(&vm_slab, vm);
 }
 
-struct vm* vm_get_current(void) { return current ? current->vm : kernel_vm; }
-
 struct vm* vm_enter(struct vm* vm) {
-    if (vm == vm_get_current())
+    if (vm == current->vm)
         return vm;
-    ASSERT(current);
     // current->vm needs to be updated BEFORE page_directory_switch().
     // Otherwise, when we are preempted between the two lines,
     // current->vm->page_directory will get out of sync with the actual
@@ -630,7 +627,7 @@ void vm_region_remove(struct vm_region* region) {
 
 int vm_region_resize(struct vm_region* region, size_t new_npages) {
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm == vm_get_current());
+    ASSERT(vm == kernel_vm || vm == current->vm);
     ASSERT(mutex_is_locked_by_current(&vm->lock));
 
     if (new_npages == 0)
@@ -681,7 +678,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
     ASSERT(!(flags & ~mask));
 
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm == vm_get_current());
+    ASSERT(vm == kernel_vm || vm == current->vm);
     ASSERT(mutex_is_locked_by_current(&vm->lock));
 
     if (npages == 0)
@@ -813,7 +810,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
 
 int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm == vm_get_current());
+    ASSERT(vm == kernel_vm || vm == current->vm);
     ASSERT(mutex_is_locked_by_current(&vm->lock));
 
     if (npages == 0)
@@ -885,7 +882,7 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
 int vm_region_invalidate(const struct vm_region* region, size_t offset,
                          size_t npages) {
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm == vm_get_current());
+    ASSERT(vm == kernel_vm || vm == current->vm);
     ASSERT(mutex_is_locked_by_current(&vm->lock));
 
     if (npages == 0)
@@ -912,12 +909,13 @@ void vm_init(void) {
     size_t start = DIV_CEIL(KERNEL_VM_START, PAGE_SIZE);
     size_t end = KERNEL_VM_END >> PAGE_SHIFT;
     ASSERT(start < end);
-    vm = (struct vm){
+    *kernel_vm = (struct vm){
         .start = start,
         .end = end,
         .page_directory = kernel_page_directory,
         .refcount = REFCOUNT_INIT_ONE,
     };
+    current->vm = kernel_vm;
 
     slab_init(&vm_slab, "vm", sizeof(struct vm));
     slab_init(&region_slab, "vm_region", sizeof(struct vm_region));

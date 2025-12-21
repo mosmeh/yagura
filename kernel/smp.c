@@ -46,7 +46,6 @@ static bool can_enable_smp(void) {
 
 extern unsigned char ap_trampoline_start[];
 extern unsigned char ap_trampoline_end[];
-static bool smp_enabled;
 static atomic_uint num_ready_cpus = 1;
 void* ap_stack_top;
 atomic_bool smp_active;
@@ -56,17 +55,11 @@ void smp_init(void) {
         return;
 
     cpu_init_smp();
+    sched_init_smp();
     i8259_disable();
     io_apic_init();
     lapic_init();
     lapic_init_cpu();
-
-    smp_enabled = true;
-}
-
-void smp_start(void) {
-    if (!smp_enabled)
-        return;
 
     ASSERT((uintptr_t)ap_trampoline_start % PAGE_SIZE == 0);
     size_t trampoline_size = ap_trampoline_end - ap_trampoline_start;
