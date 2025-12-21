@@ -6,8 +6,8 @@
 #include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/system.h>
 #include <stdarg.h>
 

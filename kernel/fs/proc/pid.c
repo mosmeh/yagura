@@ -3,8 +3,8 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/containers/vec.h>
 #include <kernel/fs/path.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/task.h>
 
 static pid_t pid_from_ino(ino_t ino) {

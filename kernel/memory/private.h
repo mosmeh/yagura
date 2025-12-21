@@ -33,6 +33,8 @@ void page_directory_destroy(struct page_directory*);
 
 void vm_init(void);
 
+NODISCARD bool vm_handle_page_fault(void* virt_addr, uint32_t error_code);
+
 // Finds a gap in the address space that can fit a region of the given size.
 // Returns the start address (in pages) of the gap.
 NODISCARD ssize_t vm_find_gap(struct vm*, size_t npages);
@@ -44,3 +46,5 @@ void vm_insert_region(struct vm*, struct vm_region*);
 void vm_region_remove(struct vm_region*);
 
 void vm_obj_init(void);
+
+NODISCARD bool safe_string_handle_page_fault(struct registers*);

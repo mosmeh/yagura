@@ -95,8 +95,6 @@ struct vm* vm_enter(struct vm*);
 // Clones the virtual memory space.
 struct vm* vm_clone(struct vm*);
 
-NODISCARD bool vm_handle_page_fault(void* virt_addr, uint32_t error_code);
-
 // Populates (prefaults) the page tables for the given virtual address range
 // without the actual memory access.
 NODISCARD int vm_populate(void* virt_start_addr, void* virt_end_addr,

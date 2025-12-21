@@ -7,8 +7,8 @@
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/task.h>
 #include <stdatomic.h>
 

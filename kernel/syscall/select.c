@@ -1,8 +1,8 @@
 #include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/sys/time.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/task.h>
 #include <kernel/time.h>

@@ -6,9 +6,9 @@
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/interrupts/isr_stubs.h>
 #include <kernel/kmsg.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/system.h>
 #include <kernel/task.h>
 
@@ -156,20 +156,8 @@ static void handle_exception13(struct registers* regs) {
 DEFINE_ISR_WITH_ERROR_CODE(14)
 static void handle_exception14(struct registers* regs) {
     void* addr = (void*)read_cr2();
-    uint32_t error_code = regs->error_code;
-    ASSERT(!(error_code & X86_PF_RSVD));
-
-    if (vm_handle_page_fault(addr, error_code))
+    if (memory_handle_page_fault(regs, addr))
         return;
-    if (safe_string_handle_page_fault(regs))
-        return;
-
-    kprintf("Page fault (%s%s%s%s) at %p\n",
-            error_code & X86_PF_PROT ? "page-protection " : "non-present ",
-            error_code & X86_PF_WRITE ? "write " : "read ",
-            error_code & X86_PF_USER ? "user-mode " : "kernel-mode ",
-            error_code & X86_PF_INSTR ? "instruction-fetch" : "data-access",
-            addr);
     crash(regs, SIGSEGV);
 }
 

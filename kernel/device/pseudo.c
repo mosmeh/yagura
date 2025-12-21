@@ -4,8 +4,8 @@
 #include <kernel/device/device.h>
 #include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/system.h>
 
 static ssize_t read_nothing(struct file* file, void* user_buffer, size_t count,

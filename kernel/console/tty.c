@@ -8,7 +8,6 @@
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/api/termios.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/task.h>
 
 static const struct termios default_termios = {

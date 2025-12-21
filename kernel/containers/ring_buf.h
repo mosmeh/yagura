@@ -3,7 +3,7 @@
 #include <kernel/api/errno.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/memory/memory.h>
-#include <kernel/safe_string.h>
+#include <kernel/memory/safe_string.h>
 
 struct ring_buf {
     size_t capacity;

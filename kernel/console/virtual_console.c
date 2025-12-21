@@ -13,7 +13,6 @@
 #include <kernel/drivers/hid/hid.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/sched.h>
 
 #define NUM_CONSOLES 12

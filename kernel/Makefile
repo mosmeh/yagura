@@ -62,11 +62,11 @@ OBJS := \
 	memory/memory.o \
 	memory/page_table.o \
 	memory/page.o \
+	memory/safe_string.o \
 	memory/slab.o \
 	memory/vm_obj.o \
 	memory/vm.o \
 	random.o \
-	safe_string.o \
 	sched.o \
 	smp.o \
 	socket.o \

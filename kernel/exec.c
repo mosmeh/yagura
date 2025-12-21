@@ -9,8 +9,8 @@
 #include <kernel/cpu.h>
 #include <kernel/fs/path.h>
 #include <kernel/gdt.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/task.h>
 #include <kernel/time.h>
 

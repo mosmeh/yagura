@@ -45,5 +45,3 @@ NODISCARD ssize_t strnlen_user(const char* user_str, size_t n);
 // If the string is shorter than n, the rest of the dest buffer is zeroed.
 // Returns the shorter of the string length and n, or -EFAULT on failure.
 NODISCARD ssize_t strncpy_from_user(char* dest, const char* user_src, size_t n);
-
-NODISCARD bool safe_string_handle_page_fault(struct registers* regs);

@@ -1,6 +1,6 @@
 #include "private.h"
 #include <kernel/fs/fs.h>
-#include <kernel/safe_string.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/task.h>
 
 int sys_mount(const char* user_source, const char* user_target,

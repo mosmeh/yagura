@@ -7,7 +7,7 @@
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
-#include <kernel/safe_string.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/system.h>
 #include <kernel/task.h>

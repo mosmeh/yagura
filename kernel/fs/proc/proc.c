@@ -3,8 +3,8 @@
 #include <kernel/containers/vec.h>
 #include <kernel/device/device.h>
 #include <kernel/fs/fs.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 
 struct proc_inode {
     struct inode vfs_inode;

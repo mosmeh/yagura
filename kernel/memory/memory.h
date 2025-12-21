@@ -38,6 +38,7 @@
 
 struct file;
 struct vec;
+struct registers;
 typedef struct multiboot_info multiboot_info_t;
 
 extern struct page_directory* kernel_page_directory;
@@ -69,6 +70,8 @@ struct memory_stats {
 };
 
 void memory_get_stats(struct memory_stats* out_stats);
+
+NODISCARD bool memory_handle_page_fault(struct registers*, void* virt_addr);
 
 #define PAGE_RESERVED 0x1  // Page is reserved and cannot be allocated
 #define PAGE_ALLOCATED 0x2 // Page is currently allocated

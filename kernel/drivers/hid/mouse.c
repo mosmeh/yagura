@@ -5,8 +5,8 @@
 #include <kernel/drivers/hid/ps2.h>
 #include <kernel/fs/fs.h>
 #include <kernel/interrupts/interrupts.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 
 static void write_mouse(uint8_t data) {
     ps2_write(PS2_COMMAND, 0xd4);

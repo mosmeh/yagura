@@ -1,6 +1,7 @@
+#include "private.h"
 #include <kernel/memory/memory.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 #include <kernel/system.h>
 
 NOINLINE int safe_memcpy(void* dest, const void* src, size_t n) {

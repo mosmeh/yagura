@@ -1,7 +1,7 @@
 #include "private.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/uio.h>
-#include <kernel/safe_string.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/task.h>
 

@@ -8,8 +8,8 @@
 #include <kernel/fs/fs.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/safe_string.h>
 
 static struct fb* fb;
 static struct fb_info fb_info;
