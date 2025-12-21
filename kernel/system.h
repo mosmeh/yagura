@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef YAGURA_VERSION
+#define YAGURA_VERSION "unknown"
+#endif
+
 #define AP_TRAMPOLINE_ADDR 0x8000
 #define STACK_SIZE 0x4000
 
@@ -17,6 +21,8 @@
 typedef struct multiboot_info multiboot_info_t;
 
 extern unsigned char init_end[];
+extern unsigned char initial_kernel_stack_base[];
+extern unsigned char initial_kernel_stack_top[];
 extern unsigned char kernel_end[];
 
 struct registers {

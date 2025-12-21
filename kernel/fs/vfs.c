@@ -16,7 +16,8 @@
 static struct inode* root;
 
 struct path* vfs_get_root(void) {
-    ASSERT(root);
+    if (!root)
+        return NULL;
     return path_create_root(root);
 }
 
@@ -418,6 +419,7 @@ void vfs_init(const multiboot_module_t* initrd_mod) {
     ASSERT_PTR(mount);
     root = mount->root;
     ASSERT(root);
+    ASSERT_OK(fs_chdir(current->fs, vfs_get_root()));
 
     kprintf("vfs: populating root fs with initrd at P%#x - P%#x\n",
             initrd_mod->mod_start, initrd_mod->mod_end);

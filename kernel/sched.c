@@ -19,9 +19,13 @@ static noreturn void do_idle(void) {
     }
 }
 
-void sched_init(void) {
+void sched_init_smp(void) {
     for (size_t i = 0; i < num_cpus; ++i) {
         struct cpu* cpu = cpus[i];
+        if (cpu->idle_task) {
+            // BSP already has an idle task
+            continue;
+        }
         char comm[SIZEOF_FIELD(struct task, comm)];
         (void)snprintf(comm, sizeof(comm), "idle/%u", i);
         struct task* idle = task_create(comm, do_idle);
@@ -33,9 +37,8 @@ void sched_init(void) {
 static void enqueue_ready(struct task* task) {
     ASSERT(task);
     ASSERT(task->state == TASK_RUNNING);
+    ASSERT(!task->ready_queue_next);
     task_ref(task);
-
-    task->ready_queue_next = NULL;
 
     spinlock_lock(&ready_queue_lock);
     if (ready_queue) {
@@ -52,8 +55,6 @@ static void enqueue_ready(struct task* task) {
     }
     spinlock_unlock(&ready_queue_lock);
 }
-
-void __enqueue_ready(struct task* task) { enqueue_ready(task); }
 
 static struct task* dequeue_ready(void) {
     spinlock_lock(&ready_queue_lock);
@@ -127,14 +128,21 @@ static void unblock_tasks(void) {
     spinlock_unlock(&all_tasks_lock);
 }
 
+void __reschedule(struct task* task) {
+    if (!task)
+        return;
+    ASSERT(task->state == TASK_RUNNING);
+    if (task == cpu_get_current()->idle_task)
+        return;
+    enqueue_ready(task);
+}
+
 noreturn static void switch_context(void) {
     cli();
 
     struct cpu* cpu = cpu_get_current();
     struct task* prev_task = cpu->current_task;
     task_unref(prev_task); // all_tasks still holds a reference
-    if (prev_task == cpu->idle_task)
-        prev_task = NULL;
     cpu->current_task = NULL;
 
     unblock_tasks();
@@ -147,25 +155,21 @@ noreturn static void switch_context(void) {
     page_directory_switch(task->vm->page_directory);
 
     gdt_set_cpu_kernel_stack(task->kernel_stack_top);
-    memcpy(cpu_get_current()->gdt + GDT_ENTRY_TLS_MIN, current->tls,
-           sizeof(current->tls));
+    memcpy(cpu->gdt + GDT_ENTRY_TLS_MIN, task->tls, sizeof(task->tls));
 
     if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
         __asm__ volatile("fxrstor %0" ::"m"(task->fpu_state));
     else
         __asm__ volatile("frstor %0" ::"m"(task->fpu_state));
 
-    // Call enqueue_ready(prev_task) after switching to the stack of the next
+    // Call __reschedule(prev_task) after switching to the stack of the next
     // task to prevent other CPUs from using the stack of prev_task while
     // we are still using it.
     __asm__ volatile("movl 0x04(%%ebx), %%esp\n" // esp = task->esp
                      "movl 0x08(%%ebx), %%ebp\n" // ebp = task->ebp
-                     "test %%eax, %%eax\n"
-                     "jz 1f\n"
                      "pushl %%eax\n"
-                     "call __enqueue_ready\n"
+                     "call __reschedule\n"
                      "add $4, %%esp\n"
-                     "1:\n"
                      "movl %%ebx, %%eax\n"
                      "movl 0x0c(%%eax), %%ebx\n" // ebx = task->ebx
                      "movl 0x10(%%eax), %%esi\n" // esi = task->esi
@@ -179,7 +183,19 @@ noreturn static void switch_context(void) {
 
 noreturn void __switch_context(void) { switch_context(); }
 
-void sched_start(void) { switch_context(); }
+void sched_start(void) {
+    cli();
+    struct cpu* cpu = cpu_get_current();
+    struct task* task = cpu->current_task;
+    if (task) {
+        // Turn this task into the idle task for this CPU.
+        cpu->idle_task = task;
+        sti();
+        sched_yield(false);
+        do_idle();
+    }
+    switch_context();
+}
 
 void sched_yield(bool requeue_current) {
     bool int_flag = push_cli();
@@ -214,8 +230,7 @@ void sched_yield(bool requeue_current) {
 
 void sched_tick(struct registers* regs) {
     ASSERT(!interrupts_enabled());
-    if (!current)
-        return;
+    ASSERT(current);
 
     bool preempted_in_kernel = (regs->cs & 3) == 0;
     if (preempted_in_kernel)

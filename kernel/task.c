@@ -24,7 +24,7 @@ static struct fs* fs_create(void) {
         return ERR_PTR(-ENOMEM);
     *fs = (struct fs){.refcount = REFCOUNT_INIT_ONE};
     fs->cwd = vfs_get_root();
-    if (IS_ERR(ASSERT(fs->cwd))) {
+    if (IS_ERR(fs->cwd)) {
         kfree(fs);
         return ERR_CAST(fs->cwd);
     }
@@ -59,6 +59,20 @@ void fs_unref(struct fs* fs) {
         return;
     path_destroy_recursive(fs->cwd);
     kfree(fs);
+}
+
+int fs_chdir(struct fs* fs, struct path* new_cwd) {
+    if (!S_ISDIR(new_cwd->inode->mode))
+        return -ENOTDIR;
+
+    struct path* dup_cwd FREE(path) = path_dup(new_cwd);
+    if (IS_ERR(ASSERT(dup_cwd)))
+        return PTR_ERR(dup_cwd);
+
+    path_destroy_recursive(fs->cwd);
+    fs->cwd = TAKE_PTR(dup_cwd);
+
+    return 0;
 }
 
 static struct files* files_create(void) {
@@ -159,17 +173,30 @@ void thread_group_unref(struct thread_group* tg) {
     kfree(tg);
 }
 
+static struct task init_task = {
+    .state = TASK_RUNNING,
+    .comm = "init",
+    .kernel_stack_base = (uintptr_t)initial_kernel_stack_base,
+    .kernel_stack_top = (uintptr_t)initial_kernel_stack_top,
+    .refcount = REFCOUNT_INIT_ONE,
+};
+
 void task_init(void) {
+    struct cpu* cpu = cpu_get_bsp();
+
     __asm__ volatile("fninit");
-    if (cpu_has_feature(cpu_get_bsp(), X86_FEATURE_FXSR))
+    if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
         __asm__ volatile("fxsave %0" : "=m"(initial_fpu_state));
     else
         __asm__ volatile("fnsave %0" : "=m"(initial_fpu_state));
+
+    cpu->current_task = cpu->idle_task = task_ref(&init_task);
 }
 
 struct task* task_get_current(void) {
     bool int_flag = push_cli();
     struct task* task = cpu_get_current()->current_task;
+    ASSERT(task);
     pop_cli(int_flag);
     return task;
 }
@@ -285,12 +312,7 @@ void task_unref(struct task* task) {
     if (refcount_dec(&task->refcount))
         return;
 
-    if (task->tid == 0) {
-        // struct task is usually freed in a context of its parent task,
-        // but the initial task is not a child of any task. Just leak it.
-        return;
-    }
-
+    ASSERT(task->tid > 0); // The initial task should never exit.
     ASSERT(task != current);
 
     thread_group_unref(task->thread_group);

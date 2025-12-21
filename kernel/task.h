@@ -67,6 +67,8 @@ struct fs* fs_clone(struct fs*);
 struct fs* fs_ref(struct fs*);
 void fs_unref(struct fs*);
 
+NODISCARD int fs_chdir(struct fs*, struct path*);
+
 struct files {
     struct file* entries[OPEN_MAX];
     struct mutex lock;

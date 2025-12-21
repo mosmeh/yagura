@@ -34,7 +34,7 @@ static noreturn void userland_init(void) {
 
     open_console();
 
-    static const char* envp[] = {"HOME=/", "TERM=linux", NULL};
+    static const char* const envp[] = {"HOME=/", "TERM=linux", NULL};
 
     const char* init_path = cmdline_lookup("init");
     if (init_path) {
@@ -47,7 +47,7 @@ static noreturn void userland_init(void) {
         }
     }
 
-    static const char* default_init_paths[] = {
+    static const char* const default_init_paths[] = {
         "/sbin/init",
         "/etc/init",
         "/bin/init",
@@ -78,46 +78,49 @@ static noreturn void ksyncd(void) {
     }
 }
 
+static const multiboot_info_t* mb_info;
+static multiboot_module_t initrd_mod;
+
+static noreturn void kernel_init(void) {
+    ksyms_init();
+    fs_init(&initrd_mod);
+    device_init();
+    drivers_init(mb_info);
+    console_init();
+    random_init();
+    socket_init();
+    time_init();
+    syscall_init();
+    smp_init();
+    kprint("\x1b[32mkernel initialization done\x1b[m\n");
+
+    ASSERT_OK(task_spawn("ksyncd", ksyncd));
+
+    userland_init(); // Become the userland init process
+}
+
 noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     gdt_init_cpu();
     cpu_init();
     idt_init();
     i8259_init();
     serial_early_init();
-    kprint("\x1b[32mbooted\x1b[m\n");
-    sti();
+    kprint("\x1b[32mbooted\x1b[m\n"
+           "version: " YAGURA_VERSION "\n");
 
-    struct utsname utsname;
-    utsname_get(&utsname);
-    kprintf("version: %s\n", utsname.version);
     ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
+    mb_info = (const void*)(mb_info_phys_addr + KERNEL_VIRT_ADDR);
 
-    const multiboot_info_t* mb_info =
-        (const multiboot_info_t*)(mb_info_phys_addr + KERNEL_VIRT_ADDR);
     if (!(mb_info->flags & MULTIBOOT_INFO_MODS) || mb_info->mods_count == 0)
         PANIC("No initrd found. Provide initrd as the first Multiboot module");
-    multiboot_module_t initrd_mod =
+    initrd_mod =
         *(const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VIRT_ADDR);
 
     cmdline_init(mb_info);
-    memory_init(mb_info);
-    ksyms_init();
     task_init();
-    time_init();
-    fs_init(&initrd_mod);
-    device_init();
-    drivers_init(mb_info);
-    smp_init();
-    random_init();
-    console_init();
-    socket_init();
-    syscall_init();
-    sched_init();
-    smp_start();
-    kprint("\x1b[32mkernel initialization done\x1b[m\n");
+    memory_init(mb_info);
 
-    ASSERT_OK(task_spawn("userland_init", userland_init));
-    ASSERT_OK(task_spawn("ksyncd", ksyncd));
-
+    sti(); // Allow memory allocation that expects interrupts to be enabled
+    ASSERT_OK(task_spawn("init", kernel_init));
     sched_start();
 }

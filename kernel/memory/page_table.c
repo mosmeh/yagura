@@ -17,8 +17,6 @@ struct page_table {
 };
 
 static struct page_directory* current_page_directory(void) {
-    if (!current)
-        return kernel_page_directory;
     struct vm* vm = current->vm;
     ASSERT(vm);
     struct page_directory* pd = vm->page_directory;
