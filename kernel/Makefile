@@ -6,7 +6,6 @@ LDFLAGS += -Wl,-T$(LINKER_SCRIPT)
 TARGET := kernel
 
 OBJS := \
-	acpi.o \
 	boot.o \
 	cmdline.o \
 	console/console.o \
@@ -25,6 +24,7 @@ OBJS := \
 	device/device.o \
 	device/pseudo.o \
 	drivers/ac97.o \
+	drivers/acpi.o \
 	drivers/drivers.o \
 	drivers/graphics/bochs.o \
 	drivers/graphics/fb.o \

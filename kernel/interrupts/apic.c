@@ -1,5 +1,5 @@
-#include <kernel/acpi.h>
 #include <kernel/cpu.h>
+#include <kernel/drivers/acpi.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/vm.h>

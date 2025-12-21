@@ -1,7 +1,7 @@
 #include <common/integer.h>
 #include <common/string.h>
-#include <kernel/acpi.h>
 #include <kernel/cpu.h>
+#include <kernel/drivers/acpi.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>

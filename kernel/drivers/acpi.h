@@ -43,5 +43,4 @@ struct acpi {
     const struct interrupt_source_override** interrupt_source_overrides;
 };
 
-void acpi_init(void);
 const struct acpi* acpi_get(void);

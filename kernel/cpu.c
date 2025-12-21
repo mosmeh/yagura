@@ -1,8 +1,8 @@
-#include <kernel/acpi.h>
 #include <kernel/api/asm/processor-flags.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/containers/mpsc.h>
 #include <kernel/cpu.h>
+#include <kernel/drivers/acpi.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>

@@ -1,4 +1,3 @@
-#include <kernel/acpi.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/console/console.h>
 #include <kernel/cpu.h>
@@ -104,7 +103,6 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     memory_init(mb_info);
     ksyms_init();
     task_init();
-    acpi_init();
     time_init();
     fs_init(&initrd_mod);
     device_init();
