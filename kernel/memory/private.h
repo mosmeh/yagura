@@ -22,6 +22,7 @@
 
 struct vm;
 struct vm_region;
+struct vm_obj;
 typedef struct multiboot_info multiboot_info_t;
 
 #define MAX_NUM_PAGES (1 << 20)
@@ -32,6 +33,8 @@ struct page_directory* page_directory_create(void);
 void page_directory_destroy(struct page_directory*);
 
 void vm_init(void);
+void vm_region_init(void);
+void vm_obj_init(void);
 
 NODISCARD bool vm_handle_page_fault(void* virt_addr, uint32_t error_code);
 
@@ -43,8 +46,16 @@ NODISCARD ssize_t vm_find_gap(struct vm*, size_t npages);
 void vm_insert_region(struct vm*, struct vm_region*);
 
 // Removes a region from the vm's region list.
-void vm_region_remove(struct vm_region*);
+void vm_remove_region(struct vm_region*);
 
-void vm_obj_init(void);
+struct vm_region* vm_region_create(struct vm*, size_t start, size_t end);
+void vm_region_destroy(struct vm_region*);
+struct vm_region* vm_region_clone(struct vm* new_vm, const struct vm_region*);
+
+void vm_region_unset_obj(struct vm_region*);
+
+NODISCARD struct page* vm_region_handle_page_fault(struct vm_region*,
+                                                   size_t index,
+                                                   uint32_t error_code);
 
 NODISCARD bool safe_string_handle_page_fault(struct registers*);
