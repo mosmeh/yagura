@@ -128,11 +128,6 @@ noreturn void task_exit(int status);
 noreturn void task_exit_thread_group(int status);
 noreturn void task_crash(int signum);
 
-int task_user_execve(const char* pathname, const char* const* user_argv,
-                     const char* const* user_envp);
-int task_kernel_execve(const char* pathname, const char* const* argv,
-                       const char* const* envp);
-
 // If fd >= 0, allocates given file descriptor. If it is already used,
 // replacing and freeing the old file.
 // If fd < 0, allocates lowest-numbered file descriptor that was unused.

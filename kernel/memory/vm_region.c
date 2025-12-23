@@ -106,8 +106,11 @@ void vm_region_unset_obj(struct vm_region* region) {
     mutex_unlock(&obj->lock);
 }
 
-struct page* vm_region_handle_page_fault(struct vm_region* region, size_t index,
-                                         uint32_t error_code) {
+struct page* vm_region_get_page(struct vm_region* region, size_t index,
+                                bool write) {
+    if (write && !(region->flags & VM_WRITE))
+        return ERR_PTR(-EFAULT);
+
     struct vm_obj* obj = region->obj;
     if (!obj)
         return ERR_PTR(-EFAULT);
@@ -134,15 +137,15 @@ struct page* vm_region_handle_page_fault(struct vm_region* region, size_t index,
     mutex_lock(&obj->lock);
 
     ASSERT(vm_ops->get_page);
-    struct page* shared_page = vm_ops->get_page(obj, region->offset + index,
-                                                error_code & X86_PF_WRITE);
+    struct page* shared_page =
+        vm_ops->get_page(obj, region->offset + index, write);
     if (IS_ERR(ASSERT(shared_page))) {
         ret = PTR_ERR(shared_page);
         goto fail;
     }
     ASSERT(shared_page);
 
-    if (!(error_code & X86_PF_WRITE) || (region->flags & VM_SHARED)) {
+    if (!write || (region->flags & VM_SHARED)) {
         mutex_unlock(&obj->lock);
         return shared_page;
     }
@@ -173,8 +176,10 @@ void* vm_region_to_virt(const struct vm_region* region) {
 
 int vm_region_resize(struct vm_region* region, size_t new_npages) {
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm == current->vm);
     ASSERT(mutex_is_locked_by_current(&vm->lock));
+
+    if (region->obj)
+        ASSERT(vm == kernel_vm || vm == current->vm);
 
     if (new_npages == 0)
         return -EINVAL;
@@ -189,7 +194,8 @@ int vm_region_resize(struct vm_region* region, size_t new_npages) {
 
     // Shrink the region
     if (new_npages < old_npages) {
-        page_table_unmap(new_end << PAGE_SHIFT, old_npages - new_npages);
+        if (region->obj)
+            page_table_unmap(new_end << PAGE_SHIFT, old_npages - new_npages);
         region->end = new_end;
         return 0;
     }
@@ -209,7 +215,8 @@ int vm_region_resize(struct vm_region* region, size_t new_npages) {
         return new_start;
 
     // Unmap the old range
-    page_table_unmap(region->start << PAGE_SHIFT, old_npages);
+    if (region->obj)
+        page_table_unmap(region->start << PAGE_SHIFT, old_npages);
     vm_remove_region(region);
 
     region->start = new_start;
@@ -224,8 +231,10 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
     ASSERT(!(flags & ~mask));
 
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm == current->vm);
     ASSERT(mutex_is_locked_by_current(&vm->lock));
+
+    if (region->obj)
+        ASSERT(vm == kernel_vm || vm == current->vm);
 
     if (npages == 0)
         return -EINVAL;
@@ -349,15 +358,18 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         }
     }
 
-    page_table_unmap(start << PAGE_SHIFT, npages);
+    if (region->obj)
+        page_table_unmap(start << PAGE_SHIFT, npages);
 
     return 0;
 }
 
 int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm == current->vm);
     ASSERT(mutex_is_locked_by_current(&vm->lock));
+
+    if (region->obj)
+        ASSERT(vm == kernel_vm || vm == current->vm);
 
     if (npages == 0)
         return -EINVAL;
@@ -420,7 +432,8 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
                               region->offset + offset + npages);
     }
 
-    page_table_unmap(start << PAGE_SHIFT, npages);
+    if (region->obj)
+        page_table_unmap(start << PAGE_SHIFT, npages);
 
     return 0;
 }
@@ -428,8 +441,10 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
 int vm_region_invalidate(const struct vm_region* region, size_t offset,
                          size_t npages) {
     struct vm* vm = region->vm;
-    ASSERT(vm == kernel_vm || vm == current->vm);
     ASSERT(mutex_is_locked_by_current(&vm->lock));
+
+    if (region->obj)
+        ASSERT(vm == kernel_vm || vm == current->vm);
 
     if (npages == 0)
         return -EINVAL;
@@ -441,7 +456,8 @@ int vm_region_invalidate(const struct vm_region* region, size_t offset,
     if (region->end < end)
         return -EINVAL;
 
-    page_table_unmap(start << PAGE_SHIFT, npages);
+    if (region->obj)
+        page_table_unmap(start << PAGE_SHIFT, npages);
 
     return 0;
 }

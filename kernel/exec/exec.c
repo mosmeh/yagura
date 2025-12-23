@@ -1,0 +1,407 @@
+#include "private.h"
+#include <common/integer.h>
+#include <common/libgen.h>
+#include <common/string.h>
+#include <kernel/api/asm/processor-flags.h>
+#include <kernel/api/fcntl.h>
+#include <kernel/asm_wrapper.h>
+#include <kernel/exec/exec.h>
+#include <kernel/fs/path.h>
+#include <kernel/memory/safe_string.h>
+#include <kernel/task.h>
+
+static size_t count_strings_kernel(const char* const* strings) {
+    size_t count = 0;
+    for (const char* const* it = strings; *it; ++it)
+        ++count;
+    return count;
+}
+
+NODISCARD static ssize_t count_strings_user(const char* const* user_strings) {
+    size_t count = 0;
+    for (;;) {
+        const char* user_str = NULL;
+        if (copy_from_user(&user_str, &user_strings[count],
+                           sizeof(const char*)))
+            return -EFAULT;
+        if (!user_str)
+            break;
+        ++count;
+    }
+    return count;
+}
+
+NODISCARD
+static int copy_from_kernel_to_remote_vm(struct vm* vm, void* user_dest,
+                                         const void* src, size_t size) {
+    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    size_t offset = 0;
+    while (offset < size) {
+        uintptr_t curr_addr = (uintptr_t)user_dest + offset;
+        struct page* page = vm_get_page(vm, (void*)curr_addr);
+        if (IS_ERR(ASSERT(page)))
+            return PTR_ERR(page);
+        size_t page_offset = curr_addr % PAGE_SIZE;
+        size_t to_copy = MIN(PAGE_SIZE - page_offset, size - offset);
+        page_copy_from_buffer(page, (const unsigned char*)src + offset,
+                              page_offset, to_copy);
+        offset += to_copy;
+    }
+    return 0;
+}
+
+NODISCARD
+static int copy_from_user_to_remote_vm(struct vm* vm, void* user_dest,
+                                       const void* user_src, size_t size) {
+    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    size_t offset = 0;
+    while (offset < size) {
+        uintptr_t curr_addr = (uintptr_t)user_dest + offset;
+        struct page* page = vm_get_page(vm, (void*)curr_addr);
+        if (IS_ERR(ASSERT(page)))
+            return PTR_ERR(page);
+        size_t page_offset = curr_addr % PAGE_SIZE;
+        size_t to_copy = MIN(PAGE_SIZE - page_offset, size - offset);
+        unsigned char buffer[PAGE_SIZE];
+        if (copy_from_user(buffer, (const unsigned char*)user_src + offset,
+                           to_copy))
+            return -EFAULT;
+        page_copy_from_buffer(page, buffer, page_offset, to_copy);
+        offset += to_copy;
+    }
+    return 0;
+}
+
+static void exec_image_unload(struct exec_image* image) {
+    if (image->data) {
+        vm_obj_unmap(image->data);
+        image->data = NULL;
+    }
+    if (image->obj) {
+        vm_obj_unref(image->obj);
+        image->obj = NULL;
+    }
+}
+
+NODISCARD
+static int exec_image_load(struct exec_image* image, const char* pathname) {
+    struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
+    if (IS_ERR(ASSERT(path)))
+        return PTR_ERR(path);
+
+    struct kstat stat;
+    int rc = inode_stat(path->inode, &stat);
+    if (IS_ERR(rc))
+        return rc;
+    if (!S_ISREG(stat.st_mode))
+        return -EACCES;
+
+    struct file* file FREE(file) = inode_open(path->inode, O_RDONLY);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+
+    struct vm_obj* vm_obj FREE(vm_obj) = file_mmap(file);
+    if (IS_ERR(ASSERT(vm_obj)))
+        return PTR_ERR(vm_obj);
+
+    void* data = vm_obj_map(vm_obj, 0, DIV_CEIL(stat.st_size, PAGE_SIZE),
+                            VM_READ | VM_WRITE);
+    if (IS_ERR(ASSERT(data)))
+        return PTR_ERR(data);
+
+    exec_image_unload(image);
+
+    image->obj = TAKE_PTR(vm_obj);
+    image->data = data;
+    return rc;
+}
+
+NODISCARD static int loader_alloc_stack(struct loader* loader) {
+    struct vm* vm = loader->vm;
+
+    STATIC_ASSERT(STACK_SIZE % PAGE_SIZE == 0);
+
+    size_t npages = 2 + (STACK_SIZE >> PAGE_SHIFT);
+    unsigned char* guard_start = (void*)(KERNEL_VIRT_ADDR - npages * PAGE_SIZE);
+    struct vm_region* region = vm_alloc_at(vm, guard_start, npages);
+    if (IS_ERR(ASSERT(region)))
+        return PTR_ERR(region);
+
+    // Split the region into three:
+    // guard (PAGE_SIZE), stack (STACK_SIZE), and guard (PAGE_SIZE)
+    int rc = vm_region_set_flags(region, 1, STACK_SIZE >> PAGE_SHIFT,
+                                 VM_READ | VM_WRITE | VM_USER, ~0);
+    if (IS_ERR(rc))
+        return rc;
+
+    unsigned char* stack_base = guard_start + PAGE_SIZE;
+
+    // Get the middle region, which is the stack
+    struct vm_region* stack_region = vm_find(vm, (void*)stack_base);
+    ASSERT(stack_region);
+
+    struct vm_obj* stack_obj FREE(vm_obj) = anon_create();
+    if (IS_ERR(ASSERT(stack_obj)))
+        return PTR_ERR(stack_obj);
+    vm_region_set_obj(stack_region, stack_obj, 0);
+
+    loader->stack_base = stack_base;
+    loader->stack_ptr = stack_base + STACK_SIZE;
+    return rc;
+}
+
+static void loader_deinit_vm(struct loader* loader) {
+    if (loader->vm) {
+        vm_unref(loader->vm);
+        loader->vm = NULL;
+    }
+}
+
+NODISCARD static int loader_init_vm(struct loader* loader) {
+    struct vm* vm = vm_create(0, (void*)KERNEL_VIRT_ADDR);
+    if (IS_ERR(ASSERT(vm)))
+        return PTR_ERR(vm);
+
+    loader->vm = vm;
+
+    mutex_lock(&vm->lock);
+    int rc = loader_alloc_stack(loader);
+    mutex_unlock(&vm->lock);
+
+    return rc;
+}
+
+static void loader_deinit(struct loader* loader) {
+    loader_deinit_vm(loader);
+    exec_image_unload(&loader->image);
+}
+
+NODISCARD static int loader_init(struct loader* loader, const char* pathname) {
+    *loader = (struct loader){0};
+
+    size_t path_len = strnlen(pathname, PATH_MAX);
+    if (path_len >= PATH_MAX)
+        return -ENAMETOOLONG;
+    strlcpy(loader->pathname, pathname, path_len + 1);
+
+    int rc = exec_image_load(&loader->image, pathname);
+    if (IS_ERR(rc))
+        goto fail;
+
+    rc = loader_init_vm(loader);
+    if (IS_ERR(rc))
+        goto fail;
+
+    return rc;
+
+fail:
+    loader_deinit(loader);
+    return rc;
+}
+
+NODISCARD static int loader_push_strings_from_kernel(struct loader* loader,
+                                                     const char* const* string,
+                                                     size_t count) {
+    int rc = 0;
+    struct vm* vm = loader->vm;
+    mutex_lock(&vm->lock);
+
+    for (ssize_t i = count - 1; i >= 0; --i) {
+        const char* str = string[i];
+        size_t size = strnlen(str, ARG_MAX);
+        if (size >= ARG_MAX) {
+            rc = -E2BIG;
+            break;
+        }
+        ++size; // Include null terminator
+
+        unsigned char* new_sp = loader->stack_ptr - size;
+        if (new_sp < loader->stack_base) {
+            rc = -E2BIG;
+            break;
+        }
+        loader->stack_ptr = new_sp;
+
+        rc = copy_from_kernel_to_remote_vm(vm, new_sp, str, size);
+        if (IS_ERR(rc))
+            break;
+    }
+
+    mutex_unlock(&vm->lock);
+    return rc;
+}
+
+NODISCARD static int
+loader_push_strings_from_user(struct loader* loader,
+                              const char* const* user_strings, size_t count) {
+    int rc = 0;
+    struct vm* vm = loader->vm;
+    mutex_lock(&vm->lock);
+
+    for (ssize_t i = count - 1; i >= 0; --i) {
+        const char* user_str = user_strings[i];
+        ssize_t size = strnlen_user(user_str, ARG_MAX);
+        if (IS_ERR(size)) {
+            rc = PTR_ERR(size);
+            break;
+        }
+        if (size >= ARG_MAX) {
+            rc = -E2BIG;
+            break;
+        }
+        ++size; // Include null terminator
+
+        unsigned char* new_sp = loader->stack_ptr - size;
+        if (new_sp < loader->stack_base) {
+            rc = -E2BIG;
+            break;
+        }
+        loader->stack_ptr = new_sp;
+
+        rc = copy_from_user_to_remote_vm(vm, new_sp, user_str, size);
+        if (IS_ERR(rc))
+            break;
+    }
+
+    mutex_unlock(&vm->lock);
+    return rc;
+}
+
+noreturn static void loader_commit(struct loader* loader) {
+    ASSERT(loader->entry_point);
+    ASSERT(loader->arg_start);
+    ASSERT(loader->arg_end);
+    ASSERT(loader->env_start);
+    ASSERT(loader->env_end);
+
+    exec_image_unload(&loader->image);
+
+    const char* comm = basename(loader->pathname);
+
+    struct task* task = current;
+    mutex_lock(&task->lock);
+    strlcpy(task->comm, comm, sizeof(task->comm));
+    task->arg_start = (uintptr_t)loader->arg_start;
+    task->arg_end = (uintptr_t)loader->arg_end;
+    task->env_start = (uintptr_t)loader->env_start;
+    task->env_end = (uintptr_t)loader->env_end;
+    mutex_unlock(&task->lock);
+
+    cli();
+
+    memset(task->tls, 0, sizeof(task->tls));
+
+    __asm__ volatile(
+        "movw %[user_ds], %%ax\n"
+        "movw %%ax, %%ds\n"
+        "movw %%ax, %%es\n"
+        "movw %%ax, %%fs\n"
+        "movw %%ax, %%gs\n"
+        "movl %[sp], %%esp\n"
+        "pushl %[user_ds]\n"
+        "pushl %[sp]\n"
+        "pushl %[eflags]\n"
+        "pushl %[user_cs]\n"
+        "push %[entry_point]\n"
+        "movl $0, %%eax\n"
+        "movl $0, %%ebx\n"
+        "movl $0, %%ecx\n"
+        "movl $0, %%edx\n"
+        "movl $0, %%esi\n"
+        "movl $0, %%edi\n"
+        "movl $0, %%ebp\n"
+        "iret"
+        :
+        : [user_cs] "i"(USER_CS | 3), [user_ds] "i"(USER_DS | 3),
+          [eflags] "i"(X86_EFLAGS_IF | X86_EFLAGS_FIXED),
+          [sp] "r"(loader->stack_ptr), [entry_point] "r"(loader->entry_point)
+        : "eax");
+    UNREACHABLE();
+}
+
+NODISCARD static int loader_load(struct loader* loader) {
+    struct vm* prev_vm = vm_enter(loader->vm);
+    mutex_lock(&loader->vm->lock);
+    int rc = elf_load(loader);
+    mutex_unlock(&loader->vm->lock);
+    if (IS_ERR(rc)) {
+        vm_enter(prev_vm);
+        return rc;
+    }
+    if (prev_vm != kernel_vm)
+        vm_unref(prev_vm);
+    loader_commit(loader);
+}
+
+int execve_kernel(const char* pathname, const char* const* argv,
+                  const char* const* envp) {
+    ASSERT_PTR(pathname);
+    ASSERT_PTR(argv);
+    ASSERT_PTR(envp);
+
+    struct loader loader;
+    int rc = loader_init(&loader, pathname);
+    if (IS_ERR(rc))
+        return rc;
+
+    loader.envc = count_strings_kernel(envp);
+    loader.env_end = loader.stack_ptr;
+    rc = loader_push_strings_from_kernel(&loader, envp, loader.envc);
+    if (IS_ERR(rc))
+        goto fail;
+    loader.env_start = loader.stack_ptr;
+
+    loader.argc = count_strings_kernel(argv);
+    loader.arg_end = loader.stack_ptr;
+    rc = loader_push_strings_from_kernel(&loader, argv, loader.argc);
+    if (IS_ERR(rc))
+        goto fail;
+    loader.arg_start = loader.stack_ptr;
+
+    rc = loader_load(&loader);
+
+fail:
+    loader_deinit(&loader);
+    return rc;
+}
+
+int execve_user(const char* pathname, const char* const* user_argv,
+                const char* const* user_envp) {
+    ASSERT_PTR(pathname);
+    if (!user_argv || !user_envp || !is_user_address(user_argv) ||
+        !is_user_address(user_envp))
+        return -EFAULT;
+
+    struct loader loader;
+    int rc = loader_init(&loader, pathname);
+    if (IS_ERR(rc))
+        return rc;
+
+    loader.envc = count_strings_user(user_envp);
+    if (IS_ERR(loader.envc)) {
+        rc = loader.envc;
+        goto fail;
+    }
+    loader.env_end = loader.stack_ptr;
+    rc = loader_push_strings_from_user(&loader, user_envp, loader.envc);
+    if (IS_ERR(rc))
+        goto fail;
+    loader.env_start = loader.stack_ptr;
+
+    loader.argc = count_strings_user(user_argv);
+    if (IS_ERR(loader.argc)) {
+        rc = loader.argc;
+        goto fail;
+    }
+    loader.arg_end = loader.stack_ptr;
+    rc = loader_push_strings_from_user(&loader, user_argv, loader.argc);
+    if (IS_ERR(rc))
+        goto fail;
+    loader.arg_start = loader.stack_ptr;
+
+    rc = loader_load(&loader);
+
+fail:
+    loader_deinit(&loader);
+    return rc;
+}

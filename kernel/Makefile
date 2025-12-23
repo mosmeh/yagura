@@ -38,7 +38,8 @@ OBJS := \
 	drivers/serial.o \
 	drivers/virtio/virtio_blk.o \
 	drivers/virtio/virtio.o \
-	exec.o \
+	exec/elf.o \
+	exec/exec.o \
 	fs/filemap.o \
 	fs/fs.o \
 	fs/initrd.o \

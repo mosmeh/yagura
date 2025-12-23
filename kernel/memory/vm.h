@@ -98,6 +98,9 @@ struct vm* vm_clone(struct vm*);
 NODISCARD int vm_populate(void* virt_start_addr, void* virt_end_addr,
                           bool write);
 
+// Returns the page corresponding to the given virtual address.
+struct page* vm_get_page(struct vm*, void* virt_addr);
+
 // Returns the first region in the vm.
 struct vm_region* vm_first_region(const struct vm*);
 

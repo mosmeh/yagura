@@ -5,6 +5,7 @@
 #include <kernel/api/sys/times.h>
 #include <kernel/api/sys/wait.h>
 #include <kernel/cpu.h>
+#include <kernel/exec/exec.h>
 #include <kernel/fs/path.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/safe_string.h>
@@ -63,8 +64,8 @@ int sys_execve(const char* user_pathname, char* const user_argv[],
     if (pathname_len >= PATH_MAX)
         return -ENAMETOOLONG;
 
-    return task_user_execve(pathname, (const char* const*)user_argv,
-                            (const char* const*)user_envp);
+    return execve_user(pathname, (const char* const*)user_argv,
+                       (const char* const*)user_envp);
 }
 
 static int get_tls_entry(struct user_desc* inout_u_info) {
