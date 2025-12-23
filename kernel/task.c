@@ -375,7 +375,7 @@ static noreturn void exit(int exit_status) {
     }
     spinlock_unlock(&all_tasks_lock);
     current->state = TASK_DEAD;
-    sched_yield(false);
+    sched_yield();
     UNREACHABLE();
 }
 
@@ -590,7 +590,7 @@ int task_pop_signal(struct sigaction* out_action) {
 
             bool int_flag = push_cli();
             current->state = TASK_STOPPED;
-            sched_yield(false);
+            sched_yield();
             // Here we were resumed by SIGCONT.
             pop_cli(int_flag);
 

@@ -47,7 +47,7 @@ int sys_setpgid(pid_t pid, pid_t pgid) {
 }
 
 int sys_sched_yield(void) {
-    sched_yield(true);
+    sched_yield();
     return 0;
 }
 

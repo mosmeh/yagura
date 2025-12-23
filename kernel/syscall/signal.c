@@ -79,12 +79,7 @@ int sys_sigprocmask(int how, const sigset_t* user_set, sigset_t* user_oldset) {
     return 0;
 }
 
-static bool unblock_pause(void* data) {
-    (void)data;
-    return false; // Do not unblock until a signal is received
-}
-
-int sys_pause(void) { return sched_block(unblock_pause, NULL, 0); }
+int sys_pause(void) { return sched_block(NULL, NULL, 0); }
 
 int sys_sigsuspend(const sigset_t* user_mask) {
     sigset_t mask;
