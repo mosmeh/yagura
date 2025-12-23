@@ -4,6 +4,7 @@
 #include <kernel/device/device.h>
 #include <kernel/drivers/drivers.h>
 #include <kernel/drivers/serial.h>
+#include <kernel/exec/exec.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
@@ -40,7 +41,7 @@ static noreturn void userland_init(void) {
     if (init_path) {
         const char* argv[] = {init_path, NULL};
         kprintf("userland_init: run %s as init process\n", init_path);
-        int rc = task_kernel_execve(init_path, argv, envp);
+        int rc = execve_kernel(init_path, argv, envp);
         if (IS_ERR(rc)) {
             kprintf("userland_init: requested init %s failed (error %d)\n",
                     init_path, rc);
@@ -57,7 +58,7 @@ static noreturn void userland_init(void) {
         const char* path = default_init_paths[i];
         const char* argv[] = {path, NULL};
         kprintf("userland_init: run %s as init process\n", path);
-        int rc = task_kernel_execve(path, argv, envp);
+        int rc = execve_kernel(path, argv, envp);
         if (rc != -ENOENT) {
             kprintf(
                 "userland_init: %s exists but couldn't execute it (error %d)\n",
