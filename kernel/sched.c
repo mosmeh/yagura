@@ -61,7 +61,9 @@ static struct task* dequeue_ready(void) {
     spinlock_lock(&ready_queue_lock);
     if (!ready_queue) {
         spinlock_unlock(&ready_queue_lock);
-        return task_ref(cpu_get_current()->idle_task);
+        struct task* task = task_ref(cpu_get_current()->idle_task);
+        task->state = TASK_RUNNING;
+        return task;
     }
     struct task* task = ready_queue;
     ASSERT(task->state != TASK_DEAD);
@@ -190,13 +192,13 @@ void sched_start(void) {
     if (task) {
         // Turn this task into the idle task for this CPU.
         sti();
-        sched_yield(false);
+        ASSERT_OK(sched_block(NULL, NULL, BLOCK_UNINTERRUPTIBLE));
         do_idle();
     }
     switch_context();
 }
 
-void sched_yield(bool requeue_current) {
+void sched_yield(void) {
     bool int_flag = push_cli();
     struct cpu* cpu = cpu_get_current();
     struct task* task = cpu->current_task;
@@ -207,7 +209,8 @@ void sched_yield(bool requeue_current) {
     else
         __asm__ volatile("fnsave %0" : "=m"(task->fpu_state));
 
-    if (!requeue_current) {
+    if (task->state != TASK_RUNNING) {
+        // Do not reschedule if the task is no longer runnable.
         task_unref(task); // all_tasks still holds a reference
         cpu->current_task = NULL;
     }
@@ -237,7 +240,7 @@ void sched_tick(struct registers* regs) {
     else
         ++current->user_ticks;
 
-    sched_yield(true);
+    sched_yield();
 
     if (preempted_in_kernel)
         return;
@@ -249,22 +252,27 @@ void sched_tick(struct registers* regs) {
         task_handle_signal(regs, signum, &act);
 }
 
+static bool never_unblock(void* data) {
+    (void)data;
+    return false;
+}
+
 int sched_block(unblock_fn unblock, void* data, int flags) {
     ASSERT(!current->unblock);
     ASSERT(!current->block_data);
     current->interrupted = false;
 
-    if (unblock(data))
+    if (unblock && unblock(data))
         return 0;
 
     bool int_flag = push_cli();
 
-    current->unblock = unblock;
+    current->unblock = unblock ? unblock : never_unblock;
     current->block_data = data;
     current->state = (flags & BLOCK_UNINTERRUPTIBLE) ? TASK_UNINTERRUPTIBLE
                                                      : TASK_INTERRUPTIBLE;
 
-    sched_yield(false);
+    sched_yield();
 
     pop_cli(int_flag);
 

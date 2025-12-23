@@ -18,7 +18,7 @@ void sched_register(struct task*);
 noreturn void sched_start(void);
 
 // Yields the current CPU to other tasks.
-void sched_yield(bool requeue_current);
+void sched_yield(void);
 
 // Should be called on every timer tick.
 void sched_tick(struct registers*);
@@ -29,6 +29,7 @@ void sched_tick(struct registers*);
 typedef bool (*unblock_fn)(void*);
 
 // Blocks the current task until the unblock function returns true.
+// If unblock is NULL, the task will never be unblocked unless interrupted.
 // Returns -EINTR if the task was interrupted.
 NODISCARD int sched_block(unblock_fn, void* data, int flags);
 
