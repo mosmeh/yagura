@@ -54,8 +54,7 @@ struct vm_region* vm_region_clone(struct vm* new_vm, const struct vm_region*);
 
 void vm_region_unset_obj(struct vm_region*);
 
-NODISCARD struct page* vm_region_handle_page_fault(struct vm_region*,
-                                                   size_t index,
-                                                   uint32_t error_code);
+NODISCARD struct page* vm_region_get_page(struct vm_region*, size_t index,
+                                          bool write);
 
 NODISCARD bool safe_string_handle_page_fault(struct registers*);

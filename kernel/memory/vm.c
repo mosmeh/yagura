@@ -150,15 +150,46 @@ static bool vm_contains(const struct vm* vm, void* virt_addr) {
     return vm->start <= index && index < vm->end;
 }
 
-NODISCARD static int do_handle_page_fault(void* virt_addr,
-                                          uint32_t error_code) {
-    struct vm* vm;
+static struct vm* virt_addr_to_vm(void* virt_addr) {
     if (current && vm_contains(current->vm, virt_addr))
-        vm = current->vm;
-    else if (vm_contains(kernel_vm, virt_addr))
-        vm = kernel_vm;
-    else
-        return -ENOMEM;
+        return current->vm;
+    if (vm_contains(kernel_vm, virt_addr))
+        return kernel_vm;
+    return NULL;
+}
+
+NODISCARD static int map_page(struct vm* vm, void* virt_addr, bool write) {
+    ASSERT(mutex_is_locked_by_current(&vm->lock));
+
+    struct vm_region* region = vm_find(vm, virt_addr);
+    if (!region)
+        return -EFAULT;
+    if (write) {
+        if (!(region->flags & VM_WRITE))
+            return -EFAULT;
+    } else if (!(region->flags & VM_READ))
+        return -EFAULT;
+
+    struct vm_obj* obj = region->obj;
+    if (!obj)
+        return -EFAULT;
+
+    size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
+    struct page* page = vm_region_get_page(region, index, write);
+    if (IS_ERR(page))
+        return PTR_ERR(page);
+
+    uintptr_t page_addr = ROUND_DOWN((uintptr_t)virt_addr, PAGE_SIZE);
+    uint16_t pte_flags = vm_flags_to_pte_flags(region->flags | obj->flags);
+    if (!write)
+        pte_flags &= ~PTE_WRITE; // Trigger a page fault on the next write
+    return page_table_map(page_addr, page_to_pfn(page), 1, pte_flags);
+}
+
+bool vm_handle_page_fault(void* virt_addr, uint32_t error_code) {
+    struct vm* vm = virt_addr_to_vm(virt_addr);
+    if (!vm)
+        return false;
 
     if (vm == kernel_vm) {
         if (error_code & X86_PF_USER)
@@ -168,52 +199,13 @@ NODISCARD static int do_handle_page_fault(void* virt_addr,
         ASSERT(error_code & X86_PF_USER);
     }
 
-    int ret = 0;
     bool int_flag = push_sti();
     mutex_lock(&vm->lock);
-
-    struct vm_region* region = vm_find(vm, virt_addr);
-    if (!region) {
-        ret = -EFAULT;
-        goto fail;
-    }
-    struct vm_obj* obj = region->obj;
-    if (!obj) {
-        ret = -EFAULT;
-        goto fail;
-    }
-
-    if (error_code & X86_PF_WRITE) {
-        if (!(region->flags & VM_WRITE)) {
-            ret = -EINVAL;
-            goto fail;
-        }
-    } else if (!(region->flags & VM_READ)) {
-        ret = -EINVAL;
-        goto fail;
-    }
-
-    size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
-    struct page* page = vm_region_handle_page_fault(region, index, error_code);
-    if (IS_ERR(ASSERT(page))) {
-        ret = PTR_ERR(page);
-        goto fail;
-    }
-
-    uintptr_t page_addr = ROUND_DOWN((uintptr_t)virt_addr, PAGE_SIZE);
-    uint16_t pte_flags = vm_flags_to_pte_flags(region->flags | obj->flags);
-    if (!(error_code & X86_PF_WRITE))
-        pte_flags &= ~PTE_WRITE; // Trigger a page fault on the next write
-    ret = page_table_map(page_addr, page_to_pfn(page), 1, pte_flags);
-
-fail:
+    int rc = map_page(vm, virt_addr, error_code & X86_PF_WRITE);
     mutex_unlock(&vm->lock);
     pop_sti(int_flag);
-    return ret;
-}
 
-bool vm_handle_page_fault(void* virt_addr, uint32_t error_code) {
-    return IS_OK(do_handle_page_fault(virt_addr, error_code));
+    return IS_OK(rc);
 }
 
 int vm_populate(void* virt_start_addr, void* virt_end_addr, bool write) {
@@ -222,13 +214,40 @@ int vm_populate(void* virt_start_addr, void* virt_end_addr, bool write) {
     if (start >= end)
         return -EINVAL;
 
-    uint32_t error_code = write ? X86_PF_WRITE : 0;
+    int rc = 0;
+    struct vm* prev_vm = NULL;
     for (uintptr_t addr = start; addr < end; addr += PAGE_SIZE) {
-        int rc = do_handle_page_fault((void*)addr, error_code);
+        struct vm* vm = virt_addr_to_vm((void*)addr);
+        if (!vm) {
+            rc = -EFAULT;
+            break;
+        }
+        if (vm != prev_vm) {
+            if (prev_vm)
+                mutex_unlock(&prev_vm->lock);
+            mutex_lock(&vm->lock);
+            prev_vm = vm;
+        }
+        rc = map_page(vm, (void*)addr, write);
         if (IS_ERR(rc))
-            return rc;
+            break;
     }
-    return 0;
+    if (prev_vm)
+        mutex_unlock(&prev_vm->lock);
+
+    return rc;
+}
+
+struct page* vm_get_page(struct vm* vm, void* virt_addr) {
+    // If vm is not locked, the returned page may become invalid anytime.
+    ASSERT(mutex_is_locked_by_current(&vm->lock));
+
+    struct vm_region* region = vm_find(vm, virt_addr);
+    if (!region)
+        return NULL;
+
+    size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
+    return vm_region_get_page(region, index, region->flags & VM_WRITE);
 }
 
 struct vm_region* vm_first_region(const struct vm* vm) {
