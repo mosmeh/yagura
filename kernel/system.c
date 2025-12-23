@@ -53,14 +53,8 @@ noreturn void reboot(void) {
 
 noreturn void halt(void) {
     cli();
-    if (smp_active) {
-        struct ipi_message* msg = cpu_alloc_message();
-        *msg = (struct ipi_message){
-            .type = IPI_MESSAGE_HALT,
-            .refcount = REFCOUNT_INIT(num_cpus - 1),
-        };
-        cpu_broadcast_message(msg);
-    }
+    if (smp_active)
+        cpu_broadcast_message_coalesced(IPI_MESSAGE_HALT, true);
     for (;;)
         hlt();
 }
