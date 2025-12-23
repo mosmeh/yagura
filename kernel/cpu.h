@@ -219,10 +219,11 @@ struct cpu {
 
     struct kmap_ctrl kmap;
 
-    struct task* current_task;
+    _Atomic(struct task*) current_task;
     struct task* idle_task;
 
-    struct mpsc* msg_queue;
+    struct mpsc* queued_msgs;
+    atomic_uint coalesced_msgs;
 };
 
 #define MAX_NUM_CPUS (UINT8_MAX + 1)
@@ -240,20 +241,26 @@ bool cpu_has_feature(const struct cpu*, int feature);
 
 void cpu_pause(void);
 
+#define IPI_MESSAGE_HALT 0x1
+#define IPI_MESSAGE_FLUSH_TLB 0x2
+#define IPI_MESSAGE_FLUSH_TLB_RANGE 0x4
+
 struct ipi_message {
-    enum {
-        IPI_MESSAGE_HALT,
-        IPI_MESSAGE_FLUSH_TLB,
-    } type;
+    unsigned type;
     refcount_t refcount;
     struct {
         uintptr_t virt_addr;
         size_t size;
-    } flush_tlb;
+    } flush_tlb_range;
 };
 
-void cpu_broadcast_message(struct ipi_message*);
-void cpu_unicast_message(struct cpu*, struct ipi_message*);
 struct ipi_message* cpu_alloc_message(void);
 void cpu_free_message(struct ipi_message*);
+
+void cpu_broadcast_message_queued(struct ipi_message*, bool eager);
+void cpu_broadcast_message_coalesced(unsigned type, bool eager);
+
+void cpu_unicast_message_queued(struct cpu*, struct ipi_message*, bool eager);
+void cpu_unicast_message_coalesced(struct cpu*, unsigned type, bool eager);
+
 void cpu_process_messages(void);

@@ -53,9 +53,18 @@ static inline size_t refcount_get(const refcount_t* refcount) {
     return atomic_load(&refcount->count);
 }
 
-static inline void refcount_inc(refcount_t* refcount) {
+// Returns the new reference count.
+static inline size_t refcount_inc(refcount_t* refcount) {
     ASSERT(refcount);
-    ASSERT(atomic_fetch_add(&refcount->count, 1) > 0);
+    size_t c = atomic_fetch_add(&refcount->count, 1);
+    ASSERT(c > 0);
+    return c + 1;
+}
+
+// Returns the new reference count.
+static inline size_t refcount_inc_allowing_zero(refcount_t* refcount) {
+    ASSERT(refcount);
+    return atomic_fetch_add(&refcount->count, 1) + 1;
 }
 
 // Returns the new reference count.

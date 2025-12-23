@@ -319,8 +319,8 @@ void cpu_init_smp(void) {
     ASSERT_PTR(msg_pool);
     for (size_t i = 0; i < num_cpus; ++i) {
         struct cpu* cpu = cpus[i];
-        cpu->msg_queue = mpsc_create(num_cpus);
-        ASSERT(cpu->msg_queue);
+        cpu->queued_msgs = mpsc_create(num_cpus);
+        ASSERT(cpu->queued_msgs);
 
         struct ipi_message* msg = kmalloc(sizeof(struct ipi_message));
         ASSERT(msg);
@@ -352,25 +352,6 @@ void cpu_pause(void) {
     pause();
 }
 
-void cpu_broadcast_message(struct ipi_message* msg) {
-    bool int_flag = push_cli();
-    uint8_t cpu_id = cpu_get_id();
-    for (size_t i = 0; i < num_cpus; ++i) {
-        if (i == cpu_id)
-            continue;
-        while (!mpsc_enqueue(cpus[i]->msg_queue, msg))
-            cpu_pause();
-    }
-    pop_cli(int_flag);
-    lapic_broadcast_ipi();
-}
-
-void cpu_unicast_message(struct cpu* dest, struct ipi_message* msg) {
-    while (!mpsc_enqueue(dest->msg_queue, msg))
-        cpu_pause();
-    lapic_unicast_ipi(dest->apic_id);
-}
-
 struct ipi_message* cpu_alloc_message(void) {
     for (;;) {
         struct ipi_message* msg = mpsc_dequeue(msg_pool);
@@ -389,6 +370,70 @@ void cpu_free_message(struct ipi_message* msg) {
         cpu_pause();
 }
 
+void cpu_broadcast_message_queued(struct ipi_message* msg, bool eager) {
+    bool int_flag = push_cli();
+    uint8_t cpu_id = cpu_get_id();
+    for (size_t i = 0; i < num_cpus; ++i) {
+        if (i == cpu_id)
+            continue;
+        while (!mpsc_enqueue(cpus[i]->queued_msgs, msg))
+            cpu_pause();
+    }
+    pop_cli(int_flag);
+    if (eager)
+        lapic_broadcast_ipi();
+}
+
+void cpu_broadcast_message_coalesced(unsigned int type, bool eager) {
+    for (size_t i = 0; i < num_cpus; ++i) {
+        struct cpu* cpu = cpus[i];
+        cpu->coalesced_msgs |= type;
+    }
+    if (eager)
+        lapic_broadcast_ipi();
+}
+
+void cpu_unicast_message_queued(struct cpu* dest, struct ipi_message* msg,
+                                bool eager) {
+    while (!mpsc_enqueue(dest->queued_msgs, msg))
+        cpu_pause();
+    if (eager)
+        lapic_unicast_ipi(dest->apic_id);
+}
+
+void cpu_unicast_message_coalesced(struct cpu* dest, unsigned int type,
+                                   bool eager) {
+    dest->coalesced_msgs |= type;
+    if (eager)
+        lapic_unicast_ipi(dest->apic_id);
+}
+
+static void handle_halt(struct ipi_message* msg) {
+    (void)msg;
+    cli();
+    for (;;)
+        hlt();
+}
+
+static void handle_flush_tlb(struct ipi_message* msg) {
+    (void)msg;
+    flush_tlb();
+}
+
+static void handle_flush_tlb_range(struct ipi_message* msg) {
+    ASSERT(msg);
+    size_t virt_addr = msg->flush_tlb_range.virt_addr;
+    size_t size = msg->flush_tlb_range.size;
+    for (uintptr_t addr = virt_addr; addr < virt_addr + size; addr += PAGE_SIZE)
+        flush_tlb_single(addr);
+}
+
+static void (*const message_handlers[])(struct ipi_message*) = {
+    [IPI_MESSAGE_HALT] = handle_halt,
+    [IPI_MESSAGE_FLUSH_TLB] = handle_flush_tlb,
+    [IPI_MESSAGE_FLUSH_TLB_RANGE] = handle_flush_tlb_range,
+};
+
 void cpu_process_messages(void) {
     if (!smp_active)
         return;
@@ -396,24 +441,18 @@ void cpu_process_messages(void) {
     bool int_flag = push_cli();
     struct cpu* cpu = cpu_get_current();
     for (;;) {
-        struct ipi_message* msg = mpsc_dequeue(cpu->msg_queue);
+        int bit = __builtin_ffs(cpu->coalesced_msgs);
+        if (bit == 0)
+            break;
+        unsigned type = 1U << (bit - 1);
+        cpu->coalesced_msgs &= ~type;
+        message_handlers[type](NULL);
+    }
+    for (;;) {
+        struct ipi_message* msg = mpsc_dequeue(cpu->queued_msgs);
         if (!msg)
             break;
-        switch (msg->type) {
-        case IPI_MESSAGE_HALT:
-            cli();
-            for (;;)
-                hlt();
-            break;
-        case IPI_MESSAGE_FLUSH_TLB:
-            for (uintptr_t addr = msg->flush_tlb.virt_addr;
-                 addr < msg->flush_tlb.virt_addr + msg->flush_tlb.size;
-                 addr += PAGE_SIZE)
-                flush_tlb_single(addr);
-            break;
-        default:
-            UNREACHABLE();
-        }
+        message_handlers[msg->type](msg);
         refcount_dec(&msg->refcount);
     }
     pop_cli(int_flag);

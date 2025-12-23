@@ -46,6 +46,7 @@ void idt_set_interrupt_handler(uint8_t num, interrupt_handler_fn handler) {
 
 void isr_handler(struct registers* regs) {
     ASSERT(regs->interrupt_num < NUM_IDT_ENTRIES);
+
     if (regs->interrupt_num != SPURIOUS_VECTOR) {
         if (regs->interrupt_num != SYSCALL_VECTOR)
             lapic_eoi();
@@ -53,13 +54,15 @@ void isr_handler(struct registers* regs) {
         uint32_t irq = regs->interrupt_num - IRQ(0);
         if (irq < NUM_IRQS)
             i8259_eoi(irq);
+    }
 
+    cpu_process_messages();
+
+    if (regs->interrupt_num != SPURIOUS_VECTOR) {
         interrupt_handler_fn handler = interrupt_handlers[regs->interrupt_num];
         if (handler)
             handler(regs);
     }
-
-    cpu_process_messages();
 }
 
 static void set_gate(uint8_t index, uint32_t base, uint16_t segment_selector,

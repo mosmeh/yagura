@@ -139,47 +139,45 @@ static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
 
     struct ipi_message* msg = NULL;
     if (smp_active) {
-        if (is_kernel_address((void*)virt_addr)) {
-            msg = cpu_alloc_message();
-            *msg = (struct ipi_message){
-                .type = IPI_MESSAGE_FLUSH_TLB,
-                .flush_tlb = {.virt_addr = virt_addr, .size = size},
-                .refcount = REFCOUNT_INIT(num_cpus - 1),
-            };
-            cpu_broadcast_message(msg);
-        } else {
-            ASSERT(is_user_range((void*)virt_addr, size));
-            uint8_t cpu_id = cpu_get_id();
-
-            // If the address is userland, we only need to flush TLBs of CPUs
-            // that is in the same vm as the current task
-            for (size_t i = 0; i < num_cpus; ++i) {
-                if (i == cpu_id)
-                    continue;
-                struct cpu* cpu = cpus[i];
-                struct task* task = cpu->current_task;
-                if (!task)
-                    continue;
-                if (task->vm != current->vm)
-                    continue;
-                if (!msg) {
-                    msg = cpu_alloc_message();
-                    *msg = (struct ipi_message){
-                        .type = IPI_MESSAGE_FLUSH_TLB,
-                        .flush_tlb = {.virt_addr = virt_addr, .size = size},
-                    };
-                }
-                refcount_inc(&msg->refcount);
-                cpu_unicast_message(cpu, msg);
+        bool is_user = is_user_range((void*)virt_addr, size);
+        uint8_t current_cpu_id = cpu_get_id();
+        for (size_t i = 0; i < num_cpus; ++i) {
+            if (i == current_cpu_id)
+                continue;
+            struct cpu* cpu = cpus[i];
+            struct task* task = cpu->current_task;
+            if (task && is_user && task->vm != current->vm) {
+                // This CPU does not share the same page directory with us.
+                continue;
             }
+            if (task == cpu->idle_task) {
+                // Idle task does not do anything that requires TLB consistency.
+                // Just schedule a TLB flush before its next task switch.
+                cpu_unicast_message_coalesced(cpu, IPI_MESSAGE_FLUSH_TLB,
+                                              false);
+                continue;
+            }
+            if (msg) {
+                // Allows the reference count to be zero here because
+                // other CPUs might have already processed the message.
+                refcount_inc_allowing_zero(&msg->refcount);
+            } else {
+                msg = cpu_alloc_message();
+                *msg = (struct ipi_message){
+                    .type = IPI_MESSAGE_FLUSH_TLB_RANGE,
+                    .refcount = REFCOUNT_INIT_ONE,
+                    .flush_tlb_range = {.virt_addr = virt_addr, .size = size},
+                };
+            }
+            cpu_unicast_message_queued(cpu, msg, true);
         }
     }
 
-    // While other CPUs are flushing TLBs, we can flush this CPU's TLB
+    // Flush this CPU's TLB while other CPUs are flushing theirs
     for (uintptr_t addr = virt_addr; addr < virt_addr + size; addr += PAGE_SIZE)
         flush_tlb_single(addr);
 
-    // Wait for other CPUs to finish flushing TLBs
+    // Wait for other CPUs to finish processing FLUSH_TLB_RANGE
     if (msg) {
         while (refcount_get(&msg->refcount) > 0)
             cpu_pause();
