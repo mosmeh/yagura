@@ -52,6 +52,7 @@ struct task {
 
     struct task* all_tasks_next;
     struct task* ready_queue_next;
+    struct task* blocked_next;
 
     struct mutex lock;
     refcount_t refcount;

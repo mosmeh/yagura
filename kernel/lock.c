@@ -21,7 +21,7 @@ void mutex_lock(struct mutex* m) {
             }
             atomic_store_explicit(&m->lock, false, memory_order_release);
         }
-        sched_yield(true);
+        sched_yield();
     }
 }
 
@@ -40,7 +40,7 @@ void mutex_unlock(struct mutex* m) {
             atomic_store_explicit(&m->lock, false, memory_order_release);
             return;
         }
-        sched_yield(true);
+        sched_yield();
     }
 }
 
