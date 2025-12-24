@@ -70,9 +70,10 @@ typedef struct {
     Elf32_Word p_align;
 } Elf32_Phdr;
 
-#define PT_NULL 0 // Program header table entry unused
-#define PT_LOAD 1 // Loadable program segment
-#define PT_TLS 7  // Thread-local storage segment
+#define PT_NULL 0   // Program header table entry unused
+#define PT_LOAD 1   // Loadable program segment
+#define PT_INTERP 3 // Program interpreter
+#define PT_TLS 7    // Thread-local storage segment
 
 #define PF_X 0x1
 #define PF_W 0x2
@@ -91,6 +92,7 @@ typedef struct {
 #define AT_PHENT 4   // Size of program header entry
 #define AT_PHNUM 5   // Number of program headers
 #define AT_PAGESZ 6  // System page size
+#define AT_BASE 7    // base address of interpreter
 #define AT_ENTRY 9   // Entry point of program
 #define AT_UID 11    // Real uid
 #define AT_EUID 12   // Effective uid
