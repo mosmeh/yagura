@@ -170,7 +170,16 @@ char* strchr(const char* str, int ch) {
     return NULL;
 }
 
-char* strrchr(char const* str, int ch) {
+char* strnchr(const char* str, size_t n, int ch) {
+    for (size_t i = 0; i < n && *str; ++i) {
+        if (*str == ch)
+            return (char*)str;
+        ++str;
+    }
+    return NULL;
+}
+
+char* strrchr(const char* str, int ch) {
     char* last = NULL;
     while (*str) {
         if (*str == ch)
@@ -180,7 +189,7 @@ char* strrchr(char const* str, int ch) {
     return last;
 }
 
-char* strtok(char* str, char const* sep) {
+char* strtok(char* str, const char* sep) {
     static char* saved_ptr;
     return strtok_r(str, sep, &saved_ptr);
 }

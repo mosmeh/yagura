@@ -22,8 +22,10 @@ char* strcat(char* dest, const char* src);
 char* strncat(char* dest, const char* src, size_t n);
 
 char* strchr(const char* str, int ch);
-char* strrchr(char const* str, int ch);
+char* strnchr(const char* str, size_t n, int ch);
+char* strrchr(const char* str, int ch);
+
 char* strstr(const char* str, const char* substr);
 
-char* strtok(char* str, char const* sep);
+char* strtok(char* str, const char* sep);
 char* strtok_r(char* str, const char* sep, char** last);

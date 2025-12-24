@@ -1,6 +1,6 @@
 #pragma once
 
-static inline int isprint(int c) { return (int)(0x20 <= c && c <= 0x7e); }
+static inline int isprint(int c) { return 0x20 <= c && c <= 0x7e; }
 
 static inline int isspace(int c) {
     switch (c) {
@@ -15,9 +15,11 @@ static inline int isspace(int c) {
     return 0;
 }
 
-static inline int isgraph(int c) { return (int)(0x21 <= c && c <= 0x7e); }
+static inline int isblank(int c) { return c == ' ' || c == '\t'; }
 
-static inline int isdigit(int c) { return (int)('0' <= c && c <= '9'); }
+static inline int isgraph(int c) { return 0x21 <= c && c <= 0x7e; }
+
+static inline int isdigit(int c) { return '0' <= c && c <= '9'; }
 
 static inline int isalnum(int c) {
     if (isdigit(c))
