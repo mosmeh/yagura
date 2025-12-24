@@ -209,5 +209,10 @@ int elf_load(struct loader* loader) {
 
     loader->entry_point = (void*)ehdr->e_entry;
 
-    return populate_stack(loader, ehdr, phdr_addr);
+    rc = populate_stack(loader, ehdr, phdr_addr);
+    if (IS_ERR(rc))
+        return rc;
+
+    loader->commit = true;
+    return rc;
 }

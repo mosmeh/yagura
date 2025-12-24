@@ -72,19 +72,7 @@ static int copy_from_user_to_remote_vm(struct vm* vm, void* user_dest,
     return 0;
 }
 
-static void exec_image_unload(struct exec_image* image) {
-    if (image->data) {
-        vm_obj_unmap(image->data);
-        image->data = NULL;
-    }
-    if (image->obj) {
-        vm_obj_unref(image->obj);
-        image->obj = NULL;
-    }
-}
-
-NODISCARD
-static int exec_image_load(struct exec_image* image, const char* pathname) {
+int exec_image_load(struct exec_image* image, const char* pathname) {
     struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
     if (IS_ERR(ASSERT(path)))
         return PTR_ERR(path);
@@ -114,6 +102,17 @@ static int exec_image_load(struct exec_image* image, const char* pathname) {
     image->obj = TAKE_PTR(vm_obj);
     image->data = data;
     return rc;
+}
+
+void exec_image_unload(struct exec_image* image) {
+    if (image->data) {
+        vm_obj_unmap(image->data);
+        image->data = NULL;
+    }
+    if (image->obj) {
+        vm_obj_unref(image->obj);
+        image->obj = NULL;
+    }
 }
 
 NODISCARD static int loader_alloc_stack(struct loader* loader) {
@@ -199,72 +198,71 @@ fail:
     return rc;
 }
 
+int loader_push_string_from_kernel(struct loader* loader, const char* str) {
+    size_t size = strnlen(str, ARG_MAX);
+    if (size >= ARG_MAX)
+        return -E2BIG;
+    ++size; // Include null terminator
+
+    unsigned char* new_sp = loader->stack_ptr - size;
+    if (new_sp < loader->stack_base)
+        return -E2BIG;
+    loader->stack_ptr = new_sp;
+
+    struct vm* vm = loader->vm;
+    mutex_lock(&vm->lock);
+    int rc = copy_from_kernel_to_remote_vm(vm, new_sp, str, size);
+    mutex_unlock(&vm->lock);
+    return rc;
+}
+
+int loader_push_string_from_user(struct loader* loader, const char* user_str) {
+    ssize_t size = strnlen_user(user_str, ARG_MAX);
+    if (IS_ERR(size))
+        return size;
+    if (size >= ARG_MAX)
+        return -E2BIG;
+    ++size; // Include null terminator
+
+    unsigned char* new_sp = loader->stack_ptr - size;
+    if (new_sp < loader->stack_base)
+        return -E2BIG;
+    loader->stack_ptr = new_sp;
+
+    struct vm* vm = loader->vm;
+    mutex_lock(&vm->lock);
+    int rc = copy_from_user_to_remote_vm(vm, new_sp, user_str, size);
+    mutex_unlock(&vm->lock);
+    return rc;
+}
+
+void loader_pop_string(struct loader* loader) {
+    char* p = (char*)loader->stack_ptr;
+    while (*p++)
+        ;
+    loader->stack_ptr = (void*)p;
+}
+
 NODISCARD static int loader_push_strings_from_kernel(struct loader* loader,
                                                      const char* const* string,
                                                      size_t count) {
-    int rc = 0;
-    struct vm* vm = loader->vm;
-    mutex_lock(&vm->lock);
-
     for (ssize_t i = count - 1; i >= 0; --i) {
-        const char* str = string[i];
-        size_t size = strnlen(str, ARG_MAX);
-        if (size >= ARG_MAX) {
-            rc = -E2BIG;
-            break;
-        }
-        ++size; // Include null terminator
-
-        unsigned char* new_sp = loader->stack_ptr - size;
-        if (new_sp < loader->stack_base) {
-            rc = -E2BIG;
-            break;
-        }
-        loader->stack_ptr = new_sp;
-
-        rc = copy_from_kernel_to_remote_vm(vm, new_sp, str, size);
+        int rc = loader_push_string_from_kernel(loader, string[i]);
         if (IS_ERR(rc))
-            break;
+            return rc;
     }
-
-    mutex_unlock(&vm->lock);
-    return rc;
+    return 0;
 }
 
 NODISCARD static int
 loader_push_strings_from_user(struct loader* loader,
                               const char* const* user_strings, size_t count) {
-    int rc = 0;
-    struct vm* vm = loader->vm;
-    mutex_lock(&vm->lock);
-
     for (ssize_t i = count - 1; i >= 0; --i) {
-        const char* user_str = user_strings[i];
-        ssize_t size = strnlen_user(user_str, ARG_MAX);
-        if (IS_ERR(size)) {
-            rc = PTR_ERR(size);
-            break;
-        }
-        if (size >= ARG_MAX) {
-            rc = -E2BIG;
-            break;
-        }
-        ++size; // Include null terminator
-
-        unsigned char* new_sp = loader->stack_ptr - size;
-        if (new_sp < loader->stack_base) {
-            rc = -E2BIG;
-            break;
-        }
-        loader->stack_ptr = new_sp;
-
-        rc = copy_from_user_to_remote_vm(vm, new_sp, user_str, size);
+        int rc = loader_push_string_from_user(loader, user_strings[i]);
         if (IS_ERR(rc))
-            break;
+            return rc;
     }
-
-    mutex_unlock(&vm->lock);
-    return rc;
+    return 0;
 }
 
 noreturn static void loader_commit(struct loader* loader) {
@@ -320,17 +318,42 @@ noreturn static void loader_commit(struct loader* loader) {
 }
 
 NODISCARD static int loader_load(struct loader* loader) {
+    static int (*const loaders[])(struct loader*) = {
+        elf_load,
+        shebang_load,
+    };
+
+    int rc = 0;
     struct vm* prev_vm = vm_enter(loader->vm);
     mutex_lock(&loader->vm->lock);
-    int rc = elf_load(loader);
-    mutex_unlock(&loader->vm->lock);
-    if (IS_ERR(rc)) {
-        vm_enter(prev_vm);
-        return rc;
+
+    for (size_t depth = 0;; ++depth) {
+        // Linux imposes a limit of 4 interpreter recursions
+        if (depth > 4) {
+            rc = -ELOOP;
+            break;
+        }
+        for (size_t i = 0; i < ARRAY_SIZE(loaders); ++i) {
+            rc = loaders[i](loader);
+            if (rc == -ENOEXEC)
+                continue;
+            if (IS_ERR(rc) || !loader->commit)
+                break;
+            mutex_unlock(&loader->vm->lock);
+            if (prev_vm != kernel_vm)
+                vm_unref(prev_vm);
+            loader_commit(loader);
+        }
+        if (IS_ERR(rc)) {
+            // An error occurred or no loader could handle the executable
+            break;
+        }
     }
-    if (prev_vm != kernel_vm)
-        vm_unref(prev_vm);
-    loader_commit(loader);
+
+    ASSERT(IS_ERR(rc));
+    mutex_unlock(&loader->vm->lock);
+    vm_enter(prev_vm);
+    return rc;
 }
 
 int execve_kernel(const char* pathname, const char* const* argv,
@@ -352,6 +375,10 @@ int execve_kernel(const char* pathname, const char* const* argv,
     loader.env_start = loader.stack_ptr;
 
     loader.argc = count_strings_kernel(argv);
+    if (loader.argc == 0) {
+        rc = -EINVAL;
+        goto fail;
+    }
     loader.arg_end = loader.stack_ptr;
     rc = loader_push_strings_from_kernel(&loader, argv, loader.argc);
     if (IS_ERR(rc))
@@ -394,7 +421,13 @@ int execve_user(const char* pathname, const char* const* user_argv,
         goto fail;
     }
     loader.arg_end = loader.stack_ptr;
-    rc = loader_push_strings_from_user(&loader, user_argv, loader.argc);
+    if (loader.argc > 0) {
+        rc = loader_push_strings_from_user(&loader, user_argv, loader.argc);
+    } else {
+        // Linux provides an empty string as argv[0] if argv is empty
+        static const char* const empty_argv[] = {"", NULL};
+        rc = loader_push_strings_from_kernel(&loader, empty_argv, 1);
+    }
     if (IS_ERR(rc))
         goto fail;
     loader.arg_start = loader.stack_ptr;
