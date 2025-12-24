@@ -121,16 +121,26 @@ int clear_user(void* user_to, size_t n) {
 }
 
 ssize_t strnlen_user(const char* user_str, size_t n) {
-    if (is_user_range(user_str, n))
-        return safe_strnlen(user_str, n);
-    return -EFAULT;
+    if (!is_user_address(user_str))
+        return -EFAULT;
+    ssize_t len = safe_strnlen(user_str, n);
+    if (IS_ERR(len))
+        return len;
+    if (!is_user_range(user_str, len))
+        return -EFAULT;
+    return len;
 }
 
 ssize_t strncpy_from_user(char* dest, const char* user_src, size_t n) {
     ASSERT(is_kernel_address(dest));
-    if (is_kernel_range(dest, n) && is_user_range(user_src, n))
-        return safe_strncpy(dest, user_src, n);
-    return -EFAULT;
+    if (!is_kernel_range(dest, n) || !is_user_address(user_src))
+        return -EFAULT;
+    ssize_t len = safe_strncpy(dest, user_src, n);
+    if (IS_ERR(len))
+        return len;
+    if (!is_user_range(user_src, len))
+        return -EFAULT;
+    return len;
 }
 
 extern char safe_memcpy_copy[];
