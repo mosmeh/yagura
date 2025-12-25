@@ -76,6 +76,6 @@ struct virtq_desc_chain {
 
 bool virtq_desc_chain_init(struct virtq_desc_chain*, struct virtq*,
                            size_t num_descriptors);
-void virtq_desc_chain_push_buf(struct virtq_desc_chain*, void* buf, size_t len,
-                               bool device_writable);
+void virtq_desc_chain_push_buf(struct virtq_desc_chain*, uintptr_t phys_addr,
+                               size_t len, bool device_writable);
 int virtq_desc_chain_submit(struct virtq_desc_chain*);

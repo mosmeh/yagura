@@ -5,6 +5,7 @@
 #include <kernel/device/device.h>
 #include <kernel/fs/file.h>
 #include <kernel/memory/memory.h>
+#include <kernel/memory/phys.h>
 #include <kernel/panic.h>
 
 static struct slab tmpfs_inode_slab;
@@ -163,22 +164,21 @@ static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
 
 // This is called only when populating the page cache.
 // Since tmpfs is empty when created, we can just return no data.
-static ssize_t tmpfs_pread(struct inode* inode, void* buffer, size_t count,
-                           uint64_t offset) {
+static int tmpfs_read(struct inode* inode, struct page* page,
+                      size_t page_index) {
     (void)inode;
-    (void)buffer;
-    (void)count;
-    (void)offset;
+    (void)page_index;
+    page_fill(page, 0, 0, PAGE_SIZE);
     return 0;
 }
 
 // The page cache stores the actual data, so we don't need to do anything here.
-static ssize_t tmpfs_pwrite(struct inode* inode, const void* buffer,
-                            size_t count, uint64_t offset) {
+static int tmpfs_write(struct inode* inode, struct page* page,
+                       size_t page_index) {
     (void)inode;
-    (void)buffer;
-    (void)offset;
-    return count;
+    (void)page;
+    (void)page_index;
+    return 0;
 }
 
 // Truncating is handled by invalidating the page cache, so nothing to do here.
@@ -199,8 +199,8 @@ static const struct file_ops dir_fops = {
 };
 static const struct inode_ops file_iops = {
     .destroy = tmpfs_destroy,
-    .pread = tmpfs_pread,
-    .pwrite = tmpfs_pwrite,
+    .read = tmpfs_read,
+    .write = tmpfs_write,
     .truncate = tmpfs_truncate,
 };
 static const struct file_ops file_fops = {0};

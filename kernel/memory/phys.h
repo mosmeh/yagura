@@ -12,7 +12,9 @@ void phys_range_add_reserved(const char* type, phys_addr_t start, size_t size);
 
 struct page {
     size_t index;
+    struct block* blocks;
     unsigned flags; // PAGE_*
+    uint8_t dirty;  // Bitmap of dirty blocks
     struct tree_node tree_node;
 };
 
@@ -21,6 +23,7 @@ extern struct page* zero_page;
 
 struct page* page_get(size_t pfn);
 size_t page_to_pfn(const struct page*);
+phys_addr_t page_to_phys(const struct page*);
 
 struct page* page_alloc(void);
 

@@ -3,6 +3,7 @@
 #include <kernel/fs/fs.h>
 
 struct vec;
+struct buf;
 
 void file_init(void);
 void path_init(void);
@@ -32,5 +33,7 @@ NODISCARD int filemap_sync(struct filemap*, size_t start, size_t end);
 
 // Truncates the filemap to the given length.
 NODISCARD int filemap_truncate(struct filemap*, uint64_t length);
+
+void buf_destroy(struct buf*);
 
 int proc_print_mounts(struct file*, struct vec*);

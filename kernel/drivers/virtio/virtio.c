@@ -76,8 +76,9 @@ bool virtq_desc_chain_init(struct virtq_desc_chain* chain, struct virtq* virtq,
     return true;
 }
 
-void virtq_desc_chain_push_buf(struct virtq_desc_chain* chain, void* buf,
-                               size_t len, bool device_writable) {
+void virtq_desc_chain_push_buf(struct virtq_desc_chain* chain,
+                               uintptr_t phys_addr, size_t len,
+                               bool device_writable) {
     struct virtq* virtq = chain->virtq;
     ASSERT(virtq->num_free_descs > 0);
 
@@ -88,7 +89,7 @@ void virtq_desc_chain_push_buf(struct virtq_desc_chain* chain, void* buf,
     struct virtq_desc* d = &virtq->desc[head];
 
     // 2. Set d.addr to the physical address of the start of b
-    d->addr = virt_to_phys(buf);
+    d->addr = phys_addr;
 
     // 3. Set d.len to the length of b.
     d->len = len;

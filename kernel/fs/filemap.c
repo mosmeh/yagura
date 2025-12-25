@@ -1,6 +1,7 @@
 #include "private.h"
 #include <common/integer.h>
 #include <common/string.h>
+#include <kernel/device/device.h>
 #include <kernel/memory/phys.h>
 
 static struct slab filemap_slab;
@@ -24,33 +25,6 @@ void filemap_destroy(struct filemap* filemap) {
         return;
     pages_clear(&filemap->pages);
     slab_free(&filemap_slab, filemap);
-}
-
-NODISCARD static int populate_page(struct filemap* filemap, struct page* page) {
-    struct inode* inode = filemap->inode;
-    ASSERT(inode_is_locked_by_current(inode));
-    ASSERT(inode->iops->pread);
-
-    uint64_t byte_offset = (uint64_t)page->index << PAGE_SHIFT;
-
-    unsigned char buf[PAGE_SIZE];
-    unsigned char* dest = buf;
-    size_t to_read = MIN(PAGE_SIZE, inode->size - byte_offset);
-    while (to_read > 0) {
-        ssize_t nread = inode->iops->pread(inode, dest, to_read, byte_offset);
-        if (IS_ERR(nread))
-            return nread;
-        if (nread == 0) {
-            memset(dest, 0, to_read);
-            break;
-        }
-        dest += nread;
-        to_read -= nread;
-        byte_offset += nread;
-    }
-    page_copy_from_buffer(page, buf, 0, PAGE_SIZE);
-
-    return 0;
 }
 
 struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
@@ -91,7 +65,8 @@ struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
         return page;
     page->index = index;
 
-    int rc = populate_page(filemap, page);
+    ASSERT(inode->iops->read);
+    int rc = inode->iops->read(inode, page, index);
     if (IS_ERR(rc)) {
         page_free(page);
         return ERR_PTR(rc);
@@ -107,10 +82,10 @@ NODISCARD static int writeback_page(struct filemap* filemap,
                                     struct page* page) {
     struct inode* inode = filemap->inode;
     ASSERT(inode_is_locked_by_current(inode));
-    if (!(page->flags & PAGE_DIRTY))
+    if (!page->dirty)
         return 0;
 
-    ASSERT(inode->iops->pwrite);
+    ASSERT(inode->iops->write);
 
     // Invalidate the mappings to detect writes to the page again.
     // If another task attempts to write to this page during the writeback,
@@ -122,26 +97,12 @@ NODISCARD static int writeback_page(struct filemap* filemap,
 
     uint64_t byte_offset = (uint64_t)page->index << PAGE_SHIFT;
     if (inode->size > byte_offset) {
-        size_t to_write = MIN(PAGE_SIZE, inode->size - byte_offset);
-
-        unsigned char page_buf[PAGE_SIZE];
-        page_copy_to_buffer(page, page_buf, 0, to_write);
-
-        const unsigned char* src = page_buf;
-        while (to_write > 0) {
-            ssize_t nwritten =
-                inode->iops->pwrite(inode, src, to_write, byte_offset);
-            if (IS_ERR(nwritten))
-                return nwritten;
-            if (nwritten == 0)
-                break;
-            src += nwritten;
-            to_write -= nwritten;
-            byte_offset += nwritten;
-        }
+        int rc = inode->iops->write(inode, page, page->index);
+        if (IS_ERR(rc))
+            return rc;
     }
 
-    page->flags &= ~PAGE_DIRTY;
+    page->dirty = 0;
     return 0;
 }
 
@@ -163,7 +124,7 @@ static struct page* find_page_with_lower_bound(const struct filemap* filemap,
     return result;
 }
 
-NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
+int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
     struct inode* inode = filemap->inode;
     ASSERT(inode_is_locked_by_current(inode));
     if (start > end)
@@ -196,7 +157,7 @@ NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
 
     bool has_any_dirty_pages = false;
     for (page = pages_first(&filemap->pages); page; page = pages_next(page)) {
-        if (page->flags & PAGE_DIRTY) {
+        if (page->dirty) {
             has_any_dirty_pages = true;
             break;
         }
@@ -207,7 +168,7 @@ NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
     return rc;
 }
 
-NODISCARD int filemap_truncate(struct filemap* filemap, uint64_t length) {
+int filemap_truncate(struct filemap* filemap, uint64_t length) {
     struct inode* inode = filemap->inode;
     ASSERT(inode_is_locked_by_current(inode));
 

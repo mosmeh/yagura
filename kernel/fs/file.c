@@ -50,7 +50,7 @@ static ssize_t default_file_pread(struct file* file, void* user_buffer,
                                   size_t count, uint64_t offset) {
     struct filemap* filemap = file->filemap;
     struct inode* inode = filemap->inode;
-    if (!inode->iops->pread)
+    if (!inode->iops->read)
         return -EINVAL;
 
     SCOPED_LOCK(inode, inode);
@@ -116,7 +116,7 @@ static ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
                                    size_t count, uint64_t offset) {
     struct filemap* filemap = file->filemap;
     struct inode* inode = filemap->inode;
-    if (!inode->iops->pwrite)
+    if (!inode->iops->write)
         return -EINVAL;
 
     const unsigned char* user_src = user_buffer;
@@ -140,7 +140,7 @@ static ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
         ++page_index;
         page_offset = 0;
 
-        page->flags |= PAGE_DIRTY;
+        page->dirty = ~0;
         inode->flags |= INODE_DIRTY;
         inode->size = MAX(inode->size, offset + nwritten);
     }

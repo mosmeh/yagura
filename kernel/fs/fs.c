@@ -30,7 +30,7 @@ static struct page* inode_get_page(struct vm_obj* obj, size_t index,
     if (IS_ERR(ASSERT(page)))
         return page;
     if (write) {
-        page->flags |= PAGE_DIRTY;
+        page->dirty = ~0;
         inode->flags |= INODE_DIRTY;
     }
     return page;
