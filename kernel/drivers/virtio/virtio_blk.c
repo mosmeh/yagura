@@ -28,8 +28,8 @@ static bool unblock_request(void* raw_ctx) {
     return ctx->virtq->num_free_descs >= ctx->num_descriptors;
 }
 
-static int submit_request(struct block_dev* block_dev, void* buffer,
-                          uint64_t sector, uint64_t nsectors, uint32_t type,
+static int submit_request(struct block_dev* block_dev, struct page* page,
+                          uint64_t sector, uint32_t type,
                           bool device_writable) {
     struct virtio_blk* blk = blk_from_block_dev(block_dev);
     struct virtq* virtq = blk->virtio->virtqs[0];
@@ -37,11 +37,10 @@ static int submit_request(struct block_dev* block_dev, void* buffer,
         .type = type,
         .sector = sector,
     };
-    uint64_t count = nsectors << block_dev->block_bits;
     struct virtio_blk_req_footer footer = {0};
 
     size_t num_descriptors = 2;
-    if (buffer)
+    if (page)
         ++num_descriptors;
     struct unblock_ctx unblock_ctx = {
         .virtq = blk->virtio->virtqs[0],
@@ -60,10 +59,13 @@ retry:
         block_dev_unlock(block_dev);
         goto retry;
     }
-    virtq_desc_chain_push_buf(&chain, &header, sizeof(header), false);
-    if (buffer)
-        virtq_desc_chain_push_buf(&chain, buffer, count, device_writable);
-    virtq_desc_chain_push_buf(&chain, &footer, sizeof(footer), true);
+    virtq_desc_chain_push_buf(&chain, virt_to_phys(&header), sizeof(header),
+                              false);
+    if (page)
+        virtq_desc_chain_push_buf(&chain, page_to_phys(page), PAGE_SIZE,
+                                  device_writable);
+    virtq_desc_chain_push_buf(&chain, virt_to_phys(&footer), sizeof(footer),
+                              true);
     rc = virtq_desc_chain_submit(&chain);
     block_dev_unlock(block_dev);
     if (IS_ERR(rc))
@@ -79,20 +81,19 @@ retry:
     }
 }
 
-static ssize_t virtio_blk_read(struct block_dev* block_dev, void* buffer,
-                               uint64_t index, uint64_t nblocks) {
-    return submit_request(block_dev, buffer, index, nblocks, VIRTIO_BLK_T_IN,
-                          true);
+static ssize_t virtio_blk_read(struct block_dev* block_dev, struct page* page,
+                               uint64_t block_index) {
+    return submit_request(block_dev, page, block_index, VIRTIO_BLK_T_IN, true);
 }
 
-static ssize_t virtio_blk_write(struct block_dev* block_dev, const void* buffer,
-                                uint64_t index, uint64_t nblocks) {
-    return submit_request(block_dev, (void*)buffer, index, nblocks,
-                          VIRTIO_BLK_T_OUT, false);
+static ssize_t virtio_blk_write(struct block_dev* block_dev, struct page* page,
+                                uint64_t block_index) {
+    return submit_request(block_dev, page, block_index, VIRTIO_BLK_T_OUT,
+                          false);
 }
 
 static int virtio_blk_flush(struct block_dev* block_dev) {
-    return submit_request(block_dev, NULL, 1, 0, VIRTIO_BLK_T_FLUSH, false);
+    return submit_request(block_dev, NULL, 0, VIRTIO_BLK_T_FLUSH, false);
 }
 
 static void init_device(const struct pci_addr* addr) {

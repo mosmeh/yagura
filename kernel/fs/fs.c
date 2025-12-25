@@ -29,7 +29,7 @@ static struct page* inode_get_page(struct vm_obj* obj, size_t index,
     if (IS_ERR(ASSERT(page)))
         return page;
     if (write) {
-        page->flags |= PAGE_DIRTY;
+        page->dirty = ~0;
         inode->flags |= INODE_DIRTY;
     }
     return page;
@@ -201,15 +201,15 @@ struct inode* mount_create_inode(struct mount* mount, mode_t mode) {
     if (!fs_ops->create_inode)
         return ERR_PTR(-EROFS);
 
-    struct inode* child FREE(inode) = fs_ops->create_inode(mount, mode);
-    if (IS_ERR(ASSERT(child)))
-        return child;
+    struct inode* inode FREE(inode) = fs_ops->create_inode(mount, mode);
+    if (IS_ERR(ASSERT(inode)))
+        return inode;
 
-    int rc = mount_commit_inode(mount, child);
+    int rc = mount_commit_inode(mount, inode);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
-    return TAKE_PTR(child);
+    return TAKE_PTR(inode);
 }
 
 struct inode* mount_lookup_inode(struct mount* mount, ino_t ino) {

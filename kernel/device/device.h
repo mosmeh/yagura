@@ -2,6 +2,7 @@
 
 #include <kernel/api/sys/types.h>
 #include <kernel/fs/fs.h>
+#include <kernel/resource.h>
 
 void device_init(void);
 
@@ -33,10 +34,8 @@ struct block_dev {
 };
 
 struct block_ops {
-    int (*read)(struct block_dev*, void* buffer, uint64_t index,
-                uint64_t nblocks);
-    int (*write)(struct block_dev*, const void* buffer, uint64_t index,
-                 uint64_t nblocks);
+    int (*read)(struct block_dev*, struct page*, uint64_t block_index);
+    int (*write)(struct block_dev*, struct page*, uint64_t block_index);
     int (*flush)(struct block_dev*);
 };
 

@@ -191,6 +191,10 @@ size_t page_to_pfn(const struct page* page) {
     return page - pages;
 }
 
+uintptr_t page_to_phys(const struct page* page) {
+    return page_to_pfn(page) << PAGE_SHIFT;
+}
+
 struct page* page_alloc(void) {
     ssize_t pfn = page_alloc_raw();
     if (IS_ERR(pfn))
