@@ -7,7 +7,7 @@
 #include <kernel/task.h>
 #include <kernel/time.h>
 
-struct poll_blocker {
+struct fd_waiter {
     nfds_t nfds;
     struct pollfd* pollfds;
     struct file** files;
@@ -16,29 +16,29 @@ struct poll_blocker {
     size_t num_events;
 };
 
-static bool unblock_poll(void* data) {
-    struct poll_blocker* blocker = data;
-    for (nfds_t i = 0; i < blocker->nfds; ++i) {
-        struct file* file = blocker->files[i];
+static bool unblock_wait_fds(void* data) {
+    struct fd_waiter* waiter = data;
+    for (nfds_t i = 0; i < waiter->nfds; ++i) {
+        struct file* file = waiter->files[i];
         if (!file)
             continue;
 
-        struct pollfd* pollfd = blocker->pollfds + i;
+        struct pollfd* pollfd = waiter->pollfds + i;
         pollfd->revents = file_poll(file, pollfd->events);
         ASSERT_OK(pollfd->revents);
         ASSERT((pollfd->revents & ~pollfd->events) == 0);
         if (pollfd->revents)
-            ++blocker->num_events;
+            ++waiter->num_events;
     }
-    if (blocker->num_events > 0)
+    if (waiter->num_events > 0)
         return true;
 
     // Check timeout AFTER polling files to update revents even when
     // it immediately times out.
-    if (blocker->has_timeout) {
+    if (waiter->has_timeout) {
         struct timespec now;
         ASSERT_OK(time_now(CLOCK_MONOTONIC, &now));
-        if (timespec_compare(&now, &blocker->deadline) >= 0)
+        if (timespec_compare(&now, &waiter->deadline) >= 0)
             return true;
     }
 
@@ -49,17 +49,23 @@ static bool unblock_poll(void* data) {
 // - The timeout is struct timespec.
 //   On success, updates the timeout to reflect the remaining time.
 // - Does not poll for POLLERR or POLLHUP unless requested.
-NODISCARD static int poll(nfds_t nfds, struct pollfd pollfds[nfds],
-                          struct timespec* timeout) {
+NODISCARD static int wait_fds(nfds_t nfds, struct pollfd pollfds[nfds],
+                              struct timespec* timeout) {
+    if (timeout) {
+        if (timeout->tv_sec < 0 || timeout->tv_nsec < 0 ||
+            timeout->tv_nsec >= NANOS_PER_SEC)
+            return -EINVAL;
+    }
+
     int ret = 0;
-    struct poll_blocker blocker = {
+    struct fd_waiter waiter = {
         .nfds = nfds,
         .pollfds = pollfds,
     };
 
     if (nfds > 0) {
-        blocker.files = kmalloc(sizeof(struct file*) * nfds);
-        if (!blocker.files) {
+        waiter.files = kmalloc(sizeof(struct file*) * nfds);
+        if (!waiter.files) {
             ret = -ENOMEM;
             goto fail;
         }
@@ -67,16 +73,16 @@ NODISCARD static int poll(nfds_t nfds, struct pollfd pollfds[nfds],
         for (nfds_t i = 0; i < nfds; ++i) {
             struct pollfd* pollfd = pollfds + i;
             pollfd->revents = 0;
-            blocker.files[i] = NULL;
+            waiter.files[i] = NULL;
             if (pollfd->fd < 0)
                 continue;
             struct file* file = task_ref_file(pollfd->fd);
             if (IS_ERR(ASSERT(file))) {
                 pollfd->revents = POLLNVAL;
-                ++blocker.num_events;
+                ++waiter.num_events;
                 continue;
             }
-            blocker.files[i] = file;
+            waiter.files[i] = file;
         }
     }
 
@@ -86,16 +92,16 @@ NODISCARD static int poll(nfds_t nfds, struct pollfd pollfds[nfds],
         if (IS_ERR(ret))
             goto fail;
         timespec_add(&deadline, timeout);
-        blocker.has_timeout = true;
-        blocker.deadline = deadline;
+        waiter.has_timeout = true;
+        waiter.deadline = deadline;
     }
 
-    ret = sched_block(unblock_poll, &blocker, 0);
+    ret = sched_block(unblock_wait_fds, &waiter, 0);
     if (IS_ERR(ret))
         goto fail;
 
     if (timeout) {
-        *timeout = blocker.deadline;
+        *timeout = waiter.deadline;
         struct timespec now;
         ret = time_now(CLOCK_MONOTONIC, &now);
         if (IS_ERR(ret))
@@ -103,18 +109,41 @@ NODISCARD static int poll(nfds_t nfds, struct pollfd pollfds[nfds],
         timespec_saturating_sub(timeout, &now);
     }
 
-    ret = blocker.num_events;
+    ret = waiter.num_events;
 
 fail:
-    if (blocker.files) {
+    if (waiter.files) {
         for (nfds_t i = 0; i < nfds; ++i)
-            file_unref(blocker.files[i]);
-        kfree(blocker.files);
+            file_unref(waiter.files[i]);
+        kfree(waiter.files);
     }
     return ret;
 }
 
-int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
+NODISCARD static int
+copy_timespec_from_user32(struct timespec* ts,
+                          const struct timespec32* user_ts32) {
+    struct timespec32 ts32;
+    if (copy_from_user(&ts32, user_ts32, sizeof(struct timespec32)))
+        return -EFAULT;
+    ts->tv_sec = ts32.tv_sec;
+    ts->tv_nsec = ts32.tv_nsec;
+    return 0;
+}
+
+NODISCARD static int copy_timespec_to_user32(struct timespec32* user_ts32,
+                                             const struct timespec* ts) {
+    struct timespec32 ts32 = {
+        .tv_sec = ts->tv_sec,
+        .tv_nsec = ts->tv_nsec,
+    };
+    if (copy_to_user(user_ts32, &ts32, sizeof(struct timespec32)))
+        return -EFAULT;
+    return 0;
+}
+
+NODISCARD static int poll(struct pollfd* user_fds, nfds_t nfds,
+                          struct timespec* timeout) {
     size_t pollfds_size = sizeof(struct pollfd) * nfds;
     struct pollfd* pollfds FREE(kfree) = NULL;
     if (nfds > 0) {
@@ -127,17 +156,91 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
             pollfds[i].events |= POLLERR | POLLHUP;
     }
 
-    struct timespec timeout_ts = {
-        .tv_sec = timeout / 1000,
-        .tv_nsec = (timeout % 1000) * 1000000LL,
-    };
-    // Negative timeout means infinite.
-    int ret = poll(nfds, pollfds, timeout >= 0 ? &timeout_ts : NULL);
+    int ret = wait_fds(nfds, pollfds, timeout);
     if (IS_ERR(ret))
         return ret;
 
     if (nfds > 0) {
         if (copy_to_user(user_fds, pollfds, pollfds_size))
+            return -EFAULT;
+    }
+
+    return ret;
+}
+
+int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
+    struct timespec ts_timeout;
+    bool has_timeout = false;
+    if (timeout >= 0) { // Negative timeout means infinite.
+        ts_timeout = (struct timespec){
+            .tv_sec = timeout / MILLIS_PER_SEC,
+            .tv_nsec = (timeout % MILLIS_PER_SEC) * 1000000LL,
+        };
+        has_timeout = true;
+    }
+    return poll(user_fds, nfds, has_timeout ? &ts_timeout : NULL);
+}
+
+int sys_ppoll(struct pollfd* user_fds, nfds_t nfds,
+              struct timespec* user_timeout, const sigset_t* user_sigmask,
+              size_t sigsetsize) {
+    if (sigsetsize != sizeof(sigset_t))
+        return -EINVAL;
+
+    struct timespec timeout;
+    if (user_timeout) {
+        if (copy_from_user(&timeout, user_timeout, sizeof(struct timespec)))
+            return -EFAULT;
+    }
+
+    sigset_t old_sigmask;
+    if (user_sigmask) {
+        sigset_t sigmask;
+        if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
+            return -EFAULT;
+        old_sigmask = task_set_blocked_signals(sigmask);
+    }
+
+    int ret = poll(user_fds, nfds, user_timeout ? &timeout : NULL);
+
+    if (user_sigmask)
+        task_set_blocked_signals(old_sigmask);
+
+    if (user_timeout) {
+        if (copy_to_user(user_timeout, &timeout, sizeof(struct timespec)))
+            return -EFAULT;
+    }
+
+    return ret;
+}
+
+int sys_ppoll_time32(struct pollfd* user_fds, nfds_t nfds,
+                     struct timespec32* user_timeout,
+                     const sigset_t* user_sigmask, size_t sigsetsize) {
+    if (sigsetsize != sizeof(sigset_t))
+        return -EINVAL;
+
+    struct timespec timeout;
+    if (user_timeout) {
+        if (copy_timespec_from_user32(&timeout, user_timeout))
+            return -EFAULT;
+    }
+
+    sigset_t old_sigmask;
+    if (user_sigmask) {
+        sigset_t sigmask;
+        if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
+            return -EFAULT;
+        old_sigmask = task_set_blocked_signals(sigmask);
+    }
+
+    int ret = poll(user_fds, nfds, user_timeout ? &timeout : NULL);
+
+    if (user_sigmask)
+        task_set_blocked_signals(old_sigmask);
+
+    if (user_timeout) {
+        if (copy_timespec_to_user32(user_timeout, &timeout))
             return -EFAULT;
     }
 
@@ -156,19 +259,12 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
 #define WRITE_SET (POLLOUT | POLLERR | POLLNVAL)
 #define EXCEPT_SET (POLLPRI | POLLNVAL)
 
-int sys_select(int nfds, unsigned long* user_readfds,
-               unsigned long* user_writefds, unsigned long* user_exceptfds,
-               struct linux_timeval* user_timeout) {
+NODISCARD static int select(int nfds, unsigned long* user_readfds,
+                            unsigned long* user_writefds,
+                            unsigned long* user_exceptfds,
+                            struct timespec* timeout) {
     if (nfds < 0)
         return -EINVAL;
-
-    struct linux_timeval timeout = {0};
-    if (user_timeout) {
-        if (copy_from_user(&timeout, user_timeout, sizeof(timeout)))
-            return -EFAULT;
-        if (timeout.tv_sec < 0 || timeout.tv_usec < 0)
-            return -EINVAL;
-    }
 
     size_t num_fd_bytes = 0;
     unsigned long* fds FREE(kfree) = NULL;
@@ -231,26 +327,11 @@ int sys_select(int nfds, unsigned long* user_readfds,
         }
     }
 
-    struct timespec timeout_ts = {
-        .tv_sec = timeout.tv_sec + timeout.tv_usec / 1000000,
-        .tv_nsec = (timeout.tv_usec % 1000000) * 1000LL,
-    };
-
-    int ret = poll(num_pollfds, pollfds, user_timeout ? &timeout_ts : NULL);
-
+    int ret = wait_fds(num_pollfds, pollfds, timeout);
     for (size_t i = 0; i < num_pollfds; ++i) {
         if (pollfds[i].revents & POLLNVAL)
             return -EBADF;
     }
-
-    // On Linux, timeout is modified even on EINTR.
-    if (user_timeout && (IS_OK(ret) || ret == -EINTR)) {
-        timeout.tv_sec = timeout_ts.tv_sec;
-        timeout.tv_usec = divmodi64(timeout_ts.tv_nsec, 1000, NULL);
-        if (copy_to_user(user_timeout, &timeout, sizeof(timeout)))
-            return -EFAULT;
-    }
-
     if (IS_ERR(ret))
         return ret;
 
@@ -289,6 +370,99 @@ int sys_select(int nfds, unsigned long* user_readfds,
             ++num_ready;
     }
     return num_ready;
+}
+
+int sys_select(int nfds, unsigned long* user_readfds,
+               unsigned long* user_writefds, unsigned long* user_exceptfds,
+               struct linux_timeval* user_timeout) {
+    struct timespec ts_timeout;
+    if (user_timeout) {
+        struct linux_timeval tv_timeout;
+        if (copy_from_user(&tv_timeout, user_timeout, sizeof(tv_timeout)))
+            return -EFAULT;
+        ts_timeout = (struct timespec){
+            .tv_sec = tv_timeout.tv_sec + tv_timeout.tv_usec / MICROS_PER_SEC,
+            .tv_nsec = (tv_timeout.tv_usec % MICROS_PER_SEC) * 1000LL,
+        };
+    }
+
+    int ret = select(nfds, user_readfds, user_writefds, user_exceptfds,
+                     user_timeout ? &ts_timeout : NULL);
+
+    if (user_timeout) {
+        struct linux_timeval tv_timeout = {
+            .tv_sec = ts_timeout.tv_sec,
+            .tv_usec = divmodi64(ts_timeout.tv_nsec, 1000, NULL),
+        };
+        if (copy_to_user(user_timeout, &tv_timeout, sizeof(tv_timeout)))
+            return -EFAULT;
+    }
+
+    return ret;
+}
+
+int sys_pselect6(int nfds, unsigned long* user_readfds,
+                 unsigned long* user_writefds, unsigned long* user_exceptfds,
+                 struct timespec* user_timeout, const sigset_t* user_sigmask) {
+    struct timespec timeout;
+    if (user_timeout) {
+        if (copy_from_user(&timeout, user_timeout, sizeof(struct timespec)))
+            return -EFAULT;
+    }
+
+    sigset_t old_sigmask;
+    if (user_sigmask) {
+        sigset_t sigmask;
+        if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
+            return -EFAULT;
+        old_sigmask = task_set_blocked_signals(sigmask);
+    }
+
+    int ret = select(nfds, user_readfds, user_writefds, user_exceptfds,
+                     user_timeout ? &timeout : NULL);
+
+    if (user_sigmask)
+        task_set_blocked_signals(old_sigmask);
+
+    if (user_timeout) {
+        if (copy_to_user(user_timeout, &timeout, sizeof(struct timespec)))
+            return -EFAULT;
+    }
+
+    return ret;
+}
+
+int sys_pselect6_time32(int nfds, unsigned long* user_readfds,
+                        unsigned long* user_writefds,
+                        unsigned long* user_exceptfds,
+                        struct timespec32* user_timeout,
+                        const sigset_t* user_sigmask) {
+    struct timespec timeout;
+    if (user_timeout) {
+        if (copy_timespec_from_user32(&timeout, user_timeout))
+            return -EFAULT;
+    }
+
+    sigset_t old_sigmask;
+    if (user_sigmask) {
+        sigset_t sigmask;
+        if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
+            return -EFAULT;
+        old_sigmask = task_set_blocked_signals(sigmask);
+    }
+
+    int ret = select(nfds, user_readfds, user_writefds, user_exceptfds,
+                     user_timeout ? &timeout : NULL);
+
+    if (user_sigmask)
+        task_set_blocked_signals(old_sigmask);
+
+    if (user_timeout) {
+        if (copy_timespec_to_user32(user_timeout, &timeout))
+            return -EFAULT;
+    }
+
+    return ret;
 }
 
 struct sel_arg_struct {

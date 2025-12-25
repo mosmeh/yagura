@@ -177,8 +177,6 @@
     F(readlinkat)                                                              \
     F(fchmodat)                                                                \
     F(faccessat)                                                               \
-    F(pselect6)                                                                \
-    F(ppoll)                                                                   \
     F(unshare)                                                                 \
     F(set_robust_list)                                                         \
     F(get_robust_list)                                                         \
@@ -254,8 +252,6 @@
     F(timerfd_gettime64)                                                       \
     F(timerfd_settime64)                                                       \
     F(utimensat_time64)                                                        \
-    F(pselect6_time64)                                                         \
-    F(ppoll_time64)                                                            \
     F(io_pgetevents_time64)                                                    \
     F(recvmmsg_time64)                                                         \
     F(mq_timedsend_time64)                                                     \

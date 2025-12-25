@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kernel/api/signal.h>
+#include <kernel/api/time.h>
 #include <sys/time.h>
 
 #define FD_SETSIZE 1024
@@ -28,3 +30,7 @@ typedef struct {
 
 int select(int nfds, fd_set* restrict readfds, fd_set* restrict writefds,
            fd_set* restrict exceptfds, struct timeval* restrict timeout);
+
+int pselect(int nfds, fd_set* restrict readfds, fd_set* restrict writefds,
+            fd_set* restrict exceptfds, const struct timespec* restrict timeout,
+            const sigset_t* restrict sigmask);

@@ -52,29 +52,30 @@ done:
 }
 
 int sys_sigprocmask(int how, const sigset_t* user_set, sigset_t* user_oldset) {
-    if (user_oldset) {
-        if (copy_to_user(user_oldset, &current->blocked_signals,
-                         sizeof(sigset_t)))
-            return -EFAULT;
-    }
+    sigset_t oldset;
     if (user_set) {
         sigset_t set;
         if (copy_from_user(&set, user_set, sizeof(sigset_t)))
             return -EFAULT;
-        set &= ~(sigmask(SIGKILL) | sigmask(SIGSTOP));
         switch (how) {
         case SIG_BLOCK:
-            current->blocked_signals |= set;
+            set |= current->blocked_signals;
             break;
         case SIG_UNBLOCK:
-            current->blocked_signals &= ~set;
+            set = current->blocked_signals & ~set;
             break;
         case SIG_SETMASK:
-            current->blocked_signals = set;
             break;
         default:
             return -EINVAL;
         }
+        oldset = task_set_blocked_signals(set);
+    } else {
+        oldset = current->blocked_signals;
+    }
+    if (user_oldset) {
+        if (copy_to_user(user_oldset, &oldset, sizeof(sigset_t)))
+            return -EFAULT;
     }
     return 0;
 }
@@ -85,10 +86,9 @@ int sys_sigsuspend(const sigset_t* user_mask) {
     sigset_t mask;
     if (copy_from_user(&mask, user_mask, sizeof(sigset_t)))
         return -EFAULT;
-    sigset_t old_mask = current->blocked_signals;
-    current->blocked_signals = mask;
+    sigset_t old_mask = task_set_blocked_signals(mask);
     int rc = sys_pause();
-    current->blocked_signals = old_mask;
+    task_set_blocked_signals(old_mask);
     return rc;
 }
 
@@ -129,7 +129,7 @@ int sys_sigreturn(struct registers* regs) {
     regs->eflags =
         (regs->eflags & ~FIX_EFLAGS) | (ctx.regs.eflags & FIX_EFLAGS);
 
-    current->blocked_signals = ctx.blocked_signals;
+    task_set_blocked_signals(ctx.blocked_signals);
 
     return ctx.regs.eax;
 }

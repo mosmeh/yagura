@@ -6,6 +6,10 @@
 
 #define CLK_TCK 250
 
+#define MILLIS_PER_SEC 1000LL
+#define MICROS_PER_SEC 1000000LL
+#define NANOS_PER_SEC 1000000000LL
+
 struct timespec;
 
 extern volatile atomic_uint uptime;
