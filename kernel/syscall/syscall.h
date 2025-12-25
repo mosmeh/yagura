@@ -58,6 +58,7 @@ void syscall_init(void);
     F(fcntl, sys_fcntl, 0)                                                     \
     F(setpgid, sys_setpgid, 0)                                                 \
     F(oldolduname, sys_olduname, 0)                                            \
+    F(chroot, sys_chroot, 0)                                                   \
     F(dup2, sys_dup2, 0)                                                       \
     F(getppid, sys_getppid, 0)                                                 \
     F(getpgrp, sys_getpgrp, 0)                                                 \
@@ -207,6 +208,7 @@ int sys_ioctl(int fd, unsigned cmd, unsigned long arg);
 int sys_fcntl(int fd, int cmd, unsigned long arg);
 int sys_setpgid(pid_t pid, pid_t pgid);
 int sys_olduname(struct linux_oldold_utsname* buf);
+int sys_chroot(const char* path);
 int sys_dup2(int oldfd, int newfd);
 pid_t sys_getppid(void);
 pid_t sys_getpgrp(void);

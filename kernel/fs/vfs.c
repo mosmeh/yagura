@@ -13,14 +13,6 @@
 #include <kernel/panic.h>
 #include <kernel/task.h>
 
-static struct inode* root;
-
-struct path* vfs_get_root(void) {
-    if (!root)
-        return NULL;
-    return path_create_root(root);
-}
-
 struct file_system* file_systems;
 
 int file_system_register(struct file_system* fs) {
@@ -202,8 +194,15 @@ static struct path* follow_symlink(const struct path* parent,
 static struct path* resolve_path_at(const struct path* base,
                                     const char* pathname, int flags,
                                     unsigned symlink_depth) {
-    struct path* path FREE(path) =
-        is_absolute_path(pathname) ? vfs_get_root() : path_dup(base);
+    struct path* path FREE(path) = NULL;
+    if (is_absolute_path(pathname)) {
+        struct fs* fs = current->fs;
+        mutex_lock(&fs->lock);
+        path = path_dup(fs->root);
+        mutex_unlock(&fs->lock);
+    } else {
+        path = path_dup(base);
+    }
     if (IS_ERR(ASSERT(path)))
         return path;
 
@@ -417,9 +416,14 @@ void vfs_init(const multiboot_module_t* initrd_mod) {
     ASSERT(fs);
     struct mount* mount = file_system_mount(fs, "tmpfs");
     ASSERT_PTR(mount);
-    root = mount->root;
-    ASSERT(root);
-    ASSERT_OK(fs_chdir(current->fs, vfs_get_root()));
+
+    struct path* root FREE(path) = path_create_root(mount->root);
+    ASSERT_PTR(root);
+
+    mutex_lock(&current->fs->lock);
+    ASSERT_OK(fs_chroot(current->fs, root));
+    ASSERT_OK(fs_chdir(current->fs, root));
+    mutex_unlock(&current->fs->lock);
 
     kprintf("vfs: populating root fs with initrd at P%#x - P%#x\n",
             initrd_mod->mod_start, initrd_mod->mod_end);

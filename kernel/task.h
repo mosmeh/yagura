@@ -58,6 +58,7 @@ struct task {
 };
 
 struct fs {
+    struct path* root;
     struct path* cwd;
     struct mutex lock;
     refcount_t refcount;
@@ -67,6 +68,7 @@ struct fs* fs_clone(struct fs*);
 struct fs* fs_ref(struct fs*);
 void fs_unref(struct fs*);
 
+NODISCARD int fs_chroot(struct fs*, struct path*);
 NODISCARD int fs_chdir(struct fs*, struct path*);
 
 struct files {

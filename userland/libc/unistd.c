@@ -164,6 +164,10 @@ int fsync(int fd) { return __syscall_return(SYSCALL1(fsync, fd)); }
 
 int fdatasync(int fd) { return __syscall_return(SYSCALL1(fdatasync, fd)); }
 
+int chroot(const char* path) {
+    return __syscall_return(SYSCALL1(chroot, path));
+}
+
 char* getcwd(char* buf, size_t size) {
     int rc = SYSCALL2(getcwd, buf, size);
     if (IS_ERR(rc)) {
