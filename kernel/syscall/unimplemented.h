@@ -21,7 +21,6 @@
     F(acct)                                                                    \
     F(umount2)                                                                 \
     F(umask)                                                                   \
-    F(chroot)                                                                  \
     F(ustat)                                                                   \
     F(setsid)                                                                  \
     F(sgetmask)                                                                \

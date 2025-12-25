@@ -16,6 +16,7 @@
 #define ROOT_DIR PATH_SEPARATOR_STR
 
 typedef struct multiboot_mod_list multiboot_module_t;
+struct path;
 
 void fs_init(const multiboot_module_t* initrd_mod);
 
@@ -233,8 +234,6 @@ extern struct file_system* file_systems;
 NODISCARD int file_system_register(struct file_system*);
 const struct file_system* file_system_find(const char* name);
 struct mount* file_system_mount(const struct file_system*, const char* source);
-
-struct path* vfs_get_root(void);
 
 NODISCARD int vfs_mount(const struct file_system*, const char* source,
                         const char* target);

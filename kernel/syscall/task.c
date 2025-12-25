@@ -503,6 +503,29 @@ clock_t sys_times(struct tms* user_buf) {
     return uptime;
 }
 
+int sys_chroot(const char* user_path) {
+    char path[PATH_MAX];
+    ssize_t path_len = strncpy_from_user(path, user_path, PATH_MAX);
+    if (IS_ERR(path_len))
+        return path_len;
+    if (path_len >= PATH_MAX)
+        return -ENAMETOOLONG;
+
+    struct fs* fs = current->fs;
+    mutex_lock(&fs->lock);
+
+    struct path* new_root FREE(path) = vfs_resolve_path_at(fs->cwd, path, 0);
+    if (IS_ERR(ASSERT(new_root))) {
+        mutex_unlock(&fs->lock);
+        return PTR_ERR(new_root);
+    }
+
+    int rc = fs_chroot(fs, new_root);
+
+    mutex_unlock(&fs->lock);
+    return rc;
+}
+
 int sys_getcwd(char* user_buf, size_t size) {
     if (!user_buf)
         return -EINVAL;
