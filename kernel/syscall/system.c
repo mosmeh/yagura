@@ -170,5 +170,5 @@ int sys_dbgprint(const char* user_str) {
         return str_len;
     if ((size_t)str_len >= sizeof(str))
         return -E2BIG;
-    return kprint(user_str);
+    return kprint(str);
 }
