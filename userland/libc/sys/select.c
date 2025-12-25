@@ -17,3 +17,14 @@ int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     }
     return __syscall_return(rc);
 }
+
+int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
+            const struct timespec* timeout, const sigset_t* sigmask) {
+    // The syscall may modify the timeout, so we need to make a copy.
+    struct timespec copied_timeout;
+    if (timeout)
+        copied_timeout = *timeout;
+    return __syscall_return(
+        SYSCALL6(pselect6, nfds, readfds, writefds, exceptfds,
+                 timeout ? &copied_timeout : NULL, sigmask));
+}
