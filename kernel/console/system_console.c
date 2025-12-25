@@ -2,6 +2,7 @@
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/device/device.h>
+#include <kernel/fs/file.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>

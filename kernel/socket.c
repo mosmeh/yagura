@@ -2,6 +2,7 @@
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/socket.h>
 #include <kernel/containers/ring_buf.h>
+#include <kernel/fs/file.h>
 #include <kernel/panic.h>
 #include <kernel/socket.h>
 #include <kernel/task.h>

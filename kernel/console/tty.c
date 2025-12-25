@@ -7,6 +7,7 @@
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/api/termios.h>
+#include <kernel/fs/file.h>
 #include <kernel/panic.h>
 #include <kernel/task.h>
 

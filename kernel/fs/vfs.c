@@ -4,6 +4,7 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
+#include <kernel/fs/file.h>
 #include <kernel/fs/fs.h>
 #include <kernel/fs/path.h>
 #include <kernel/kmsg.h>
