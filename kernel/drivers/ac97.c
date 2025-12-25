@@ -1,7 +1,8 @@
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/linux/major.h>
-#include <kernel/api/sound.h>
+#include <kernel/api/linux/sound.h>
+#include <kernel/api/linux/soundcard.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/arch/io.h>
@@ -175,8 +176,8 @@ static int write_single_buffer(struct file* file, const void* user_buffer,
 
 static struct mutex lock;
 
-static ssize_t ac97_device_pwrite(struct file* file, const void* user_buffer,
-                                  size_t count, uint64_t offset) {
+static ssize_t ac97_pwrite(struct file* file, const void* user_buffer,
+                           size_t count, uint64_t offset) {
     (void)offset;
     const unsigned char* user_src = user_buffer;
     size_t nwritten = 0;
@@ -193,18 +194,17 @@ static ssize_t ac97_device_pwrite(struct file* file, const void* user_buffer,
     return nwritten;
 }
 
-static int ac97_device_ioctl(struct file* file, unsigned cmd,
-                             unsigned long arg) {
+static int ac97_ioctl(struct file* file, unsigned cmd, unsigned long arg) {
     (void)file;
 
     switch (cmd) {
-    case SOUND_GET_SAMPLE_RATE: {
+    case SOUND_PCM_READ_RATE: {
         uint16_t value = in16(mixer_base + MIXER_SAMPLE_RATE);
         if (copy_to_user((void*)arg, &value, sizeof(uint16_t)))
             return -EFAULT;
         return 0;
     }
-    case SOUND_SET_SAMPLE_RATE: {
+    case SOUND_PCM_WRITE_RATE: {
         uint16_t value;
         if (copy_from_user(&value, (const void*)arg, sizeof(uint16_t)))
             return -EFAULT;
@@ -216,13 +216,15 @@ static int ac97_device_ioctl(struct file* file, unsigned cmd,
             return -EFAULT;
         return 0;
     }
-    case SOUND_GET_ATTENUATION: {
+    case SOUND_MIXER_READ_VOLUME:
+    case SOUND_MIXER_READ_PCM: {
         uint16_t value = in16(mixer_base + MIXER_MASTER_OUTPUT_VOLUME);
         if (copy_to_user((void*)arg, &value, sizeof(uint16_t)))
             return -EFAULT;
         return 0;
     }
-    case SOUND_SET_ATTENUATION: {
+    case SOUND_MIXER_WRITE_VOLUME:
+    case SOUND_MIXER_WRITE_PCM: {
         uint16_t value;
         if (copy_from_user(&value, (const void*)arg, sizeof(uint16_t)))
             return -EFAULT;
@@ -236,7 +238,7 @@ static int ac97_device_ioctl(struct file* file, unsigned cmd,
     return -EINVAL;
 }
 
-static short ac97_device_poll(struct file* file, short events) {
+static short ac97_poll(struct file* file, short events) {
     (void)file;
     short revents = 0;
     if (events & POLLIN)
@@ -280,14 +282,14 @@ void ac97_init(void) {
     arch_interrupts_set_handler(IRQ(irq_num), irq_handler);
 
     static const struct file_ops fops = {
-        .pwrite = ac97_device_pwrite,
-        .ioctl = ac97_device_ioctl,
-        .poll = ac97_device_poll,
+        .pwrite = ac97_pwrite,
+        .ioctl = ac97_ioctl,
+        .poll = ac97_poll,
     };
     static struct char_dev char_dev = {
         .name = "dsp",
         .fops = &fops,
-        .dev = makedev(SOUND_MAJOR, 3),
+        .dev = makedev(SOUND_MAJOR, SND_DEV_DSP),
     };
     ASSERT_OK(char_dev_register(&char_dev));
 }

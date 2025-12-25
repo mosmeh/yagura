@@ -1,7 +1,7 @@
 #include <common/stdint.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <sound.h>
+#include <linux/soundcard.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -233,7 +233,7 @@ int main(int argc, char* const argv[]) {
     }
 
     uint16_t inout_sample_rate = sample_rate;
-    if (ioctl(dsp_fd, SOUND_SET_SAMPLE_RATE, &inout_sample_rate) < 0) {
+    if (ioctl(dsp_fd, SOUND_PCM_WRITE_RATE, &inout_sample_rate) < 0) {
         perror("ioctl");
         close(dsp_fd);
         free(samples);
