@@ -75,16 +75,18 @@ NODISCARD bool memory_handle_page_fault(struct registers*, void* virt_addr);
 
 #define PAGE_RESERVED 0x1  // Page is reserved and cannot be allocated
 #define PAGE_ALLOCATED 0x2 // Page is currently allocated
-#define PAGE_DIRTY 0x4     // Page has been modified since the last writeback
 
 struct page {
     size_t index;
+    struct block* blocks;
     unsigned flags; // PAGE_*
+    uint8_t dirty;  // Bitmap of dirty blocks
     struct tree_node tree_node;
 };
 
 struct page* page_get(size_t pfn);
 size_t page_to_pfn(const struct page*);
+uintptr_t page_to_phys(const struct page*);
 
 struct page* page_alloc(void);
 
