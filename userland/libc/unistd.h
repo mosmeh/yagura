@@ -51,6 +51,8 @@ int syncfs(int fd);
 int fsync(int fd);
 int fdatasync(int fd);
 
+int chroot(const char* path);
+
 char* getcwd(char* buf, size_t size);
 int chdir(const char* path);
 

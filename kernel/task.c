@@ -23,27 +23,34 @@ static struct fs* fs_create(void) {
     if (!fs)
         return ERR_PTR(-ENOMEM);
     *fs = (struct fs){.refcount = REFCOUNT_INIT_ONE};
-    fs->cwd = vfs_get_root();
-    if (IS_ERR(fs->cwd)) {
-        kfree(fs);
-        return ERR_CAST(fs->cwd);
-    }
     return fs;
 }
 
 struct fs* fs_clone(struct fs* fs) {
-    struct fs* new_fs = kmalloc(sizeof(struct fs));
-    if (!new_fs)
-        return ERR_PTR(-ENOMEM);
-    *new_fs = (struct fs){.refcount = REFCOUNT_INIT_ONE};
+    struct fs* new_fs FREE(kfree) = fs_create();
+    if (IS_ERR(ASSERT(new_fs)))
+        return new_fs;
+
     mutex_lock(&fs->lock);
-    new_fs->cwd = path_dup(fs->cwd);
-    mutex_unlock(&fs->lock);
-    if (IS_ERR(ASSERT(new_fs->cwd))) {
-        kfree(new_fs);
-        return ERR_CAST(new_fs->cwd);
+
+    struct path* root FREE(path) = path_dup(fs->root);
+    if (IS_ERR(ASSERT(root))) {
+        mutex_unlock(&fs->lock);
+        return ERR_CAST(root);
     }
-    return new_fs;
+
+    struct path* cwd FREE(path) = path_dup(fs->cwd);
+    if (IS_ERR(ASSERT(cwd))) {
+        mutex_unlock(&fs->lock);
+        return ERR_CAST(cwd);
+    }
+
+    mutex_unlock(&fs->lock);
+
+    new_fs->root = TAKE_PTR(root);
+    new_fs->cwd = TAKE_PTR(cwd);
+
+    return TAKE_PTR(new_fs);
 }
 
 struct fs* fs_ref(struct fs* fs) {
@@ -58,10 +65,29 @@ void fs_unref(struct fs* fs) {
     if (refcount_dec(&fs->refcount))
         return;
     path_destroy_recursive(fs->cwd);
+    path_destroy_recursive(fs->root);
     kfree(fs);
 }
 
+int fs_chroot(struct fs* fs, struct path* new_root) {
+    ASSERT(mutex_is_locked_by_current(&fs->lock));
+
+    if (!S_ISDIR(new_root->inode->mode))
+        return -ENOTDIR;
+
+    struct path* dup_root FREE(path) = path_dup(new_root);
+    if (IS_ERR(ASSERT(dup_root)))
+        return PTR_ERR(dup_root);
+
+    path_destroy_recursive(fs->root);
+    fs->root = TAKE_PTR(dup_root);
+
+    return 0;
+}
+
 int fs_chdir(struct fs* fs, struct path* new_cwd) {
+    ASSERT(mutex_is_locked_by_current(&fs->lock));
+
     if (!S_ISDIR(new_cwd->inode->mode))
         return -ENOTDIR;
 

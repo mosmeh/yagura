@@ -2,7 +2,6 @@
 #include <common/string.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/fs/fs.h>
-#include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
@@ -36,9 +35,6 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
     void* initrd FREE(phys) = phys_map(phys_addr, size, VM_READ);
     ASSERT_PTR(initrd);
 
-    struct path* root FREE(path) = vfs_get_root();
-    ASSERT_PTR(root);
-
     unsigned char* cursor = initrd;
     for (;;) {
         const struct cpio_odc_header* header = (const void*)cursor;
@@ -56,7 +52,7 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
 
         if (S_ISREG(mode) || S_ISLNK(mode)) {
             struct file* file FREE(file) =
-                vfs_open_at(root, filename, O_CREAT | O_EXCL | O_WRONLY, mode);
+                vfs_open(filename, O_CREAT | O_EXCL | O_WRONLY, mode);
             ASSERT_PTR(file);
 
             file->inode->rdev = rdev;
@@ -73,8 +69,7 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
             memcpy(dest, content, file_size);
             vm_obj_unmap(dest);
         } else {
-            struct inode* inode FREE(inode) =
-                vfs_create_at(root, filename, mode);
+            struct inode* inode FREE(inode) = vfs_create(filename, mode);
             ASSERT_PTR(inode);
             inode->rdev = rdev;
         }

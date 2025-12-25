@@ -4,6 +4,7 @@
 #include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
+#include <kernel/task.h>
 
 static struct slab path_slab;
 
@@ -18,15 +19,25 @@ struct path* path_create_root(struct inode* root) {
 }
 
 char* path_to_string(const struct path* path) {
-    if (!path->parent) // Root directory
+    if (!path->parent) // Root directory of the VFS
+        return kstrdup(ROOT_DIR);
+
+    struct fs* fs = current->fs;
+    mutex_lock(&fs->lock);
+    struct inode* root_inode FREE(inode) = inode_ref(fs->root->inode);
+    mutex_unlock(&fs->lock);
+
+    if (path->inode == root_inode) // Root directory of the chroot
         return kstrdup(ROOT_DIR);
 
     size_t len = 1; // For the null terminator
     for (const struct path* it = path; it; it = it->parent) {
+        if (it->inode == root_inode)
+            break;
         if (it->basename)
             len += strlen(it->basename) + 1; // +1 for the '/'
         else
-            ASSERT(it->parent == NULL); // Root directory
+            ASSERT(it->parent == NULL); // Root directory of the VFS
     }
     char* s = kmalloc(len);
     if (!s)
@@ -34,8 +45,10 @@ char* path_to_string(const struct path* path) {
     char* p = s + len - 1;
     *p = 0;
     for (const struct path* it = path; it; it = it->parent) {
+        if (it->inode == root_inode)
+            break;
         if (!it->basename) {
-            ASSERT(it->parent == NULL); // Root directory
+            ASSERT(it->parent == NULL); // Root directory of the VFS
             break;
         }
         size_t basename_len = strlen(it->basename);

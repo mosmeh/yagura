@@ -6,7 +6,7 @@
 #include <kernel/syscall/syscall.h>
 #include <kernel/task.h>
 
-int copy_pathname_from_user(char* dest, const char* user_src) {
+int copy_pathname_from_user(char dest[static PATH_MAX], const char* user_src) {
     ssize_t pathname_len = strncpy_from_user(dest, user_src, PATH_MAX);
     if (IS_ERR(pathname_len))
         return pathname_len;

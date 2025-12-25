@@ -1,3 +1,4 @@
+#include "private.h"
 #include <common/string.h>
 #include <kernel/api/asm/ldt.h>
 #include <kernel/api/sched.h>
@@ -58,11 +59,9 @@ int sys_execve(const char* user_pathname, char* const user_argv[],
         return -EFAULT;
 
     char pathname[PATH_MAX];
-    ssize_t pathname_len = strncpy_from_user(pathname, user_pathname, PATH_MAX);
-    if (IS_ERR(pathname_len))
-        return pathname_len;
-    if (pathname_len >= PATH_MAX)
-        return -ENAMETOOLONG;
+    int rc = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(rc))
+        return rc;
 
     return execve_user(pathname, (const char* const*)user_argv,
                        (const char* const*)user_envp);
@@ -503,6 +502,27 @@ clock_t sys_times(struct tms* user_buf) {
     return uptime;
 }
 
+int sys_chroot(const char* user_path) {
+    char path[PATH_MAX];
+    int rc = copy_pathname_from_user(path, user_path);
+    if (IS_ERR(rc))
+        return rc;
+
+    struct fs* fs = current->fs;
+    mutex_lock(&fs->lock);
+
+    struct path* new_root FREE(path) = vfs_resolve_path_at(fs->cwd, path, 0);
+    if (IS_ERR(ASSERT(new_root))) {
+        mutex_unlock(&fs->lock);
+        return PTR_ERR(new_root);
+    }
+
+    rc = fs_chroot(fs, new_root);
+
+    mutex_unlock(&fs->lock);
+    return rc;
+}
+
 int sys_getcwd(char* user_buf, size_t size) {
     if (!user_buf)
         return -EINVAL;
@@ -526,11 +546,9 @@ int sys_getcwd(char* user_buf, size_t size) {
 
 int sys_chdir(const char* user_path) {
     char path[PATH_MAX];
-    ssize_t path_len = strncpy_from_user(path, user_path, PATH_MAX);
-    if (IS_ERR(path_len))
-        return path_len;
-    if (path_len >= PATH_MAX)
-        return -ENAMETOOLONG;
+    int rc = copy_pathname_from_user(path, user_path);
+    if (IS_ERR(rc))
+        return rc;
 
     struct fs* fs = current->fs;
     mutex_lock(&fs->lock);
@@ -541,7 +559,7 @@ int sys_chdir(const char* user_path) {
         return PTR_ERR(new_cwd);
     }
 
-    int rc = fs_chdir(fs, new_cwd);
+    rc = fs_chdir(fs, new_cwd);
 
     mutex_unlock(&fs->lock);
     return rc;
