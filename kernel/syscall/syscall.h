@@ -126,6 +126,8 @@ void syscall_init(void);
     F(clock_gettime, sys_clock_gettime32, 0)                                   \
     F(clock_getres, sys_clock_getres_time32, 0)                                \
     F(clock_nanosleep, sys_clock_nanosleep_time32, 0)                          \
+    F(pselect6, sys_pselect6_time32, 0)                                        \
+    F(ppoll, sys_ppoll_time32, 0)                                              \
     F(getcpu, sys_getcpu, 0)                                                   \
     F(dup3, sys_dup3, 0)                                                       \
     F(pipe2, sys_pipe2, 0)                                                     \
@@ -140,6 +142,8 @@ void syscall_init(void);
     F(clock_settime64, sys_clock_settime, 0)                                   \
     F(clock_getres_time64, sys_clock_getres, 0)                                \
     F(clock_nanosleep_time64, sys_clock_nanosleep, 0)                          \
+    F(pselect6_time64, sys_pselect6, 0)                                        \
+    F(ppoll_time64, sys_ppoll, 0)                                              \
     F(dbgprint, sys_dbgprint, 0)
 
 struct registers;
@@ -275,8 +279,8 @@ gid_t sys_getegid(void);
 ssize_t sys_getdents64(int fd, struct linux_dirent* dirp, size_t count);
 int sys_fcntl64(int fd, int cmd, unsigned long arg);
 pid_t sys_gettid(void);
-int sys_get_thread_area(struct user_desc* u_info);
 int sys_set_thread_area(struct user_desc* u_info);
+int sys_get_thread_area(struct user_desc* u_info);
 void sys_exit_group(int status);
 int sys_clock_settime32(clockid_t clockid, const struct timespec32* tp);
 int sys_clock_gettime32(clockid_t clockid, struct timespec32* tp);
@@ -284,6 +288,12 @@ int sys_clock_getres_time32(clockid_t clockid, struct timespec32* res);
 int sys_clock_nanosleep_time32(clockid_t clockid, int flags,
                                const struct timespec32* request,
                                struct timespec32* remain);
+int sys_pselect6_time32(int nfds, unsigned long* readfds,
+                        unsigned long* writefds, unsigned long* exceptfds,
+                        struct timespec32* timeout, const sigset_t* sigmask);
+int sys_ppoll_time32(struct pollfd* fds, nfds_t nfds,
+                     struct timespec32* timeout, const sigset_t* sigmask,
+                     size_t sigsetsize);
 int sys_getcpu(unsigned int* cpu, unsigned int* node,
                struct getcpu_cache* tcache);
 int sys_dup3(int oldfd, int newfd, int flags);
@@ -302,4 +312,9 @@ int sys_clock_getres(clockid_t clockid, struct timespec* res);
 int sys_clock_nanosleep(clockid_t clockid, int flags,
                         const struct timespec* request,
                         struct timespec* remain);
+int sys_pselect6(int nfds, unsigned long* readfds, unsigned long* writefds,
+                 unsigned long* exceptfds, struct timespec* timeout,
+                 const sigset_t* sigmask);
+int sys_ppoll(struct pollfd* fds, nfds_t nfds, struct timespec* timeout,
+              const sigset_t* sigmask, size_t sigsetsize);
 int sys_dbgprint(const char* str);

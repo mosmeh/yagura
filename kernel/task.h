@@ -137,6 +137,9 @@ struct file* task_ref_file(int fd);
 
 int task_free_fd(int fd);
 
+// Returns the previous blocked signal set.
+sigset_t task_set_blocked_signals(sigset_t);
+
 // Send to all tasks with tid > 1. pid_t argument is ignored.
 #define SIGNAL_DEST_ALL_USER_TASKS 0x1
 // Send to all tasks with given tgid

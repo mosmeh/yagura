@@ -460,6 +460,11 @@ struct file* task_ref_file(int fd) {
     return file;
 }
 
+sigset_t task_set_blocked_signals(sigset_t sigset) {
+    return atomic_exchange(&current->blocked_signals,
+                           sigset & ~(sigmask(SIGKILL) | sigmask(SIGSTOP)));
+}
+
 static enum {
     DISP_TERM,
     DISP_IGN,
@@ -640,8 +645,7 @@ void task_handle_signal(struct registers* regs, int signum,
     sigset_t new_blocked = current->blocked_signals | action->sa_mask;
     if (!(action->sa_flags & SA_NODEFER))
         new_blocked |= sigmask(signum);
-    new_blocked &= ~(sigmask(SIGKILL) | sigmask(SIGSTOP));
-    current->blocked_signals = new_blocked;
+    task_set_blocked_signals(new_blocked);
 
     return;
 
