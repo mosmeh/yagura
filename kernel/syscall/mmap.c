@@ -5,6 +5,7 @@
 #include <kernel/api/sys/mman.h>
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/syscall.h>
+#include <kernel/fs/file.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>

@@ -3,6 +3,7 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/socket.h>
 #include <kernel/api/sys/un.h>
+#include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/socket.h>
 #include <kernel/syscall/syscall.h>

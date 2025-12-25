@@ -6,6 +6,7 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/asm_wrapper.h>
 #include <kernel/exec/exec.h>
+#include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task.h>

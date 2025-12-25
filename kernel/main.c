@@ -5,6 +5,7 @@
 #include <kernel/drivers/drivers.h>
 #include <kernel/drivers/serial.h>
 #include <kernel/exec/exec.h>
+#include <kernel/fs/file.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>

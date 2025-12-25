@@ -3,6 +3,7 @@
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/cpu.h>
+#include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>

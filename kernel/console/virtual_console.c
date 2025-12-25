@@ -11,6 +11,7 @@
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/console/screen/screen.h>
 #include <kernel/drivers/hid/hid.h>
+#include <kernel/fs/file.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>

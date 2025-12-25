@@ -41,6 +41,7 @@ OBJS := \
 	exec/elf.o \
 	exec/exec.o \
 	exec/shebang.o \
+	fs/file.o \
 	fs/filemap.o \
 	fs/fs.o \
 	fs/initrd.o \

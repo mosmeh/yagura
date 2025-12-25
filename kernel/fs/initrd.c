@@ -1,6 +1,7 @@
 #include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/fs/file.h>
 #include <kernel/fs/fs.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>

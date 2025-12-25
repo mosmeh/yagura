@@ -5,7 +5,7 @@
 #include <kernel/api/sys/poll.h>
 #include <kernel/containers/ring_buf.h>
 #include <kernel/device/device.h>
-#include <kernel/fs/fs.h>
+#include <kernel/fs/file.h>
 #include <kernel/panic.h>
 #include <kernel/task.h>
 
