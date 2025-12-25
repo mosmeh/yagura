@@ -19,7 +19,7 @@ static int system_console_open(struct file* file) {
 void system_console_init(void) {
     const char* console = cmdline_lookup("console");
     if (!console)
-        console = "tty1";
+        console = "tty0";
 
     struct char_dev* backing_dev = char_dev_find_by_name(console);
     if (!backing_dev) {

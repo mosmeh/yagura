@@ -508,6 +508,12 @@ static struct virtual_console* virtual_console_create(uint8_t tty_num,
     return console;
 }
 
+static int tty0_open(struct file* file) {
+    file->private_data = &active_console->tty;
+    file->fops = &tty_fops;
+    return 0;
+}
+
 void virtual_console_init(struct screen* screen) {
     for (size_t i = 0; i < NUM_CONSOLES; ++i) {
         uint8_t tty_num = i + 1;
@@ -517,6 +523,16 @@ void virtual_console_init(struct screen* screen) {
         consoles[i] = console;
     }
     activate_console(0);
+
+    static const struct file_ops tty0_fops = {
+        .open = tty0_open,
+    };
+    static struct char_dev tty0_char_dev = {
+        .name = "tty0",
+        .dev = makedev(TTY_MAJOR, 0),
+        .fops = &tty0_fops,
+    };
+    ASSERT_OK(char_dev_register(&tty0_char_dev));
 
     keyboard_set_event_handlers(&event_handlers);
 }
