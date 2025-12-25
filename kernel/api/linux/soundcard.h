@@ -1,0 +1,26 @@
+#pragma once
+
+#include <kernel/api/linux/ioctl.h>
+
+#define _SIO _IO
+#define _SIOR _IOR
+#define _SIOW _IOW
+#define _SIOWR _IOWR
+
+#define SNDCTL_DSP_SPEED _SIOWR('P', 2, int)
+
+#define SOUND_PCM_READ_RATE _SIOR('P', 2, int)
+#define SOUND_PCM_READ_CHANNELS _SIOR('P', 6, int)
+
+#define SOUND_PCM_WRITE_RATE SNDCTL_DSP_SPEED
+
+#define SOUND_MIXER_VOLUME 0
+#define SOUND_MIXER_PCM 4
+
+#define MIXER_READ(dev) _SIOR('M', dev, int)
+#define SOUND_MIXER_READ_VOLUME MIXER_READ(SOUND_MIXER_VOLUME)
+#define SOUND_MIXER_READ_PCM MIXER_READ(SOUND_MIXER_PCM)
+
+#define MIXER_WRITE(dev) _SIOWR('M', dev, int)
+#define SOUND_MIXER_WRITE_VOLUME MIXER_WRITE(SOUND_MIXER_VOLUME)
+#define SOUND_MIXER_WRITE_PCM MIXER_WRITE(SOUND_MIXER_PCM)
