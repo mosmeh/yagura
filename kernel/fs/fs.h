@@ -64,13 +64,10 @@ struct inode_ops {
     int (*sync)(struct inode*);
 };
 
-struct inode* inode_ref(struct inode*);
-void inode_unref(struct inode*);
-
-DEFINE_FREE(inode, struct inode*, inode_unref)
-
 void inode_lock(struct inode*);
 void inode_unlock(struct inode*);
+
+DEFINE_REFCOUNTED_SUB(inode, struct inode*, vm_obj, vm_obj)
 
 NODISCARD struct inode* inode_lookup(struct inode* parent, const char* name);
 NODISCARD int inode_link(struct inode* parent, const char* name,

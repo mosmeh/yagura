@@ -76,6 +76,63 @@ static inline size_t refcount_dec(refcount_t* refcount) {
     return c - 1;
 }
 
+// Reference counting helper macros
+//
+// struct base_obj {
+//     refcount_t refcount;
+// };
+//
+// void __base_obj_destroy(struct base_obj*);
+// DEFINE_REFCOUNTED_BASE(base_obj, struct base_obj*, refcount,
+//                        __base_obj_destroy)
+//
+// struct sub_obj {
+//    struct base_obj base;
+// };
+// DEFINE_REFCOUNTED_SUB(sub_obj, struct sub_obj*, base_obj, base)
+//
+// void use_obj(void) {
+//     struct base_obj* base_obj = create_base_obj(...);
+//     struct base_obj* base_obj2 = base_obj_ref(obj);
+//     struct sub_obj* sub_obj = create_sub_obj(...);
+//     // Use objects
+//     sub_obj_unref(sub_obj);
+//     base_obj_unref(base_obj2);
+//     base_obj_unref(base_obj);
+//  }
+
+#define DEFINE_REFCOUNTED_BASE(name, type, field, destructor)                  \
+    static inline type name##_ref(type obj) {                                  \
+        ASSERT(obj);                                                           \
+        refcount_inc(&obj->field);                                             \
+        return obj;                                                            \
+    }                                                                          \
+                                                                               \
+    static inline void name##_unref(type obj) {                                \
+        if (!obj)                                                              \
+            return;                                                            \
+        if (refcount_dec(&obj->field))                                         \
+            return;                                                            \
+        destructor(obj);                                                       \
+    }                                                                          \
+                                                                               \
+    DEFINE_FREE(name, type, name##_unref)
+
+#define DEFINE_REFCOUNTED_SUB(name, type, base_type, base_field)               \
+    static inline type name##_ref(type obj) {                                  \
+        ASSERT(obj);                                                           \
+        base_type##_ref(&obj->base_field);                                     \
+        return obj;                                                            \
+    }                                                                          \
+                                                                               \
+    static inline void name##_unref(type obj) {                                \
+        if (!obj)                                                              \
+            return;                                                            \
+        base_type##_unref(&obj->base_field);                                   \
+    }                                                                          \
+                                                                               \
+    DEFINE_FREE(name, type, name##_unref)
+
 // Scoped resource management macros
 //
 // DEFINE_FREE(obj, struct obj*, obj_unref)

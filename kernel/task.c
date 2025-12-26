@@ -54,17 +54,7 @@ struct fs* fs_clone(struct fs* fs) {
     return TAKE_PTR(new_fs);
 }
 
-struct fs* fs_ref(struct fs* fs) {
-    ASSERT(fs);
-    refcount_inc(&fs->refcount);
-    return fs;
-}
-
-void fs_unref(struct fs* fs) {
-    if (!fs)
-        return;
-    if (refcount_dec(&fs->refcount))
-        return;
+void __fs_destroy(struct fs* fs) {
     path_destroy_recursive(fs->cwd);
     path_destroy_recursive(fs->root);
     kfree(fs);
@@ -126,17 +116,7 @@ struct files* files_clone(struct files* files) {
     return new_files;
 }
 
-struct files* files_ref(struct files* files) {
-    ASSERT(files);
-    refcount_inc(&files->refcount);
-    return files;
-}
-
-void files_unref(struct files* files) {
-    if (!files)
-        return;
-    if (refcount_dec(&files->refcount))
-        return;
+void __files_destroy(struct files* files) {
     for (size_t i = 0; i < OPEN_MAX; ++i) {
         if (files->entries[i]) {
             file_unref(files->entries[i]);
@@ -164,19 +144,7 @@ struct sighand* sighand_clone(struct sighand* sighand) {
     return new_sighand;
 }
 
-struct sighand* sighand_ref(struct sighand* sighand) {
-    ASSERT(sighand);
-    refcount_inc(&sighand->refcount);
-    return sighand;
-}
-
-void sighand_unref(struct sighand* sighand) {
-    if (!sighand)
-        return;
-    if (refcount_dec(&sighand->refcount))
-        return;
-    kfree(sighand);
-}
+void __sighand_destroy(struct sighand* sighand) { kfree(sighand); }
 
 struct thread_group* thread_group_create(void) {
     struct thread_group* tg = kmalloc(sizeof(struct thread_group));
@@ -186,19 +154,7 @@ struct thread_group* thread_group_create(void) {
     return tg;
 }
 
-struct thread_group* thread_group_ref(struct thread_group* tg) {
-    ASSERT(tg);
-    refcount_inc(&tg->refcount);
-    return tg;
-}
-
-void thread_group_unref(struct thread_group* tg) {
-    if (!tg)
-        return;
-    if (refcount_dec(&tg->refcount))
-        return;
-    kfree(tg);
-}
+void __thread_group_destroy(struct thread_group* tg) { kfree(tg); }
 
 static struct task init_task = {
     .state = TASK_RUNNING,
@@ -327,18 +283,7 @@ pid_t task_spawn(const char* comm, void (*entry_point)(void)) {
     return task->tid;
 }
 
-struct task* task_ref(struct task* task) {
-    ASSERT(task);
-    refcount_inc(&task->refcount);
-    return task;
-}
-
-void task_unref(struct task* task) {
-    if (!task)
-        return;
-    if (refcount_dec(&task->refcount))
-        return;
-
+void __task_destroy(struct task* task) {
     ASSERT(task->tid > 0); // The initial task should never exit.
     ASSERT(task != current);
 

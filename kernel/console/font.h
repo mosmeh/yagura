@@ -26,22 +26,12 @@ struct font {
     refcount_t refcount;
 };
 
-static inline struct font* font_ref(struct font* font) {
-    ASSERT(font);
-    refcount_inc(&font->refcount);
-    return font;
-}
-
-static inline void font_unref(struct font* font) {
-    if (!font)
-        return;
-    if (refcount_dec(&font->refcount))
-        return;
+static inline void __font_destroy(struct font* font) {
     kfree(font->data);
     kfree(font);
 }
 
-DEFINE_FREE(font, struct font*, font_unref)
+DEFINE_REFCOUNTED_BASE(font, struct font*, refcount, __font_destroy)
 
 // Returns the size in bytes of the font data
 static inline size_t font_size(const struct font* font) {

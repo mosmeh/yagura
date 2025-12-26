@@ -5,18 +5,7 @@
 #include <kernel/panic.h>
 #include <kernel/task.h>
 
-struct vm_obj* vm_obj_ref(struct vm_obj* obj) {
-    ASSERT(obj);
-    refcount_inc(&obj->refcount);
-    return obj;
-}
-
-void vm_obj_unref(struct vm_obj* obj) {
-    if (!obj)
-        return;
-    if (refcount_dec(&obj->refcount))
-        return;
-
+void __vm_obj_destroy(struct vm_obj* obj) {
     ASSERT(!obj->shared_regions);
 
     const struct vm_ops* vm_ops = obj->vm_ops;

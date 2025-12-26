@@ -66,8 +66,9 @@ struct fs {
 };
 
 struct fs* fs_clone(struct fs*);
-struct fs* fs_ref(struct fs*);
-void fs_unref(struct fs*);
+
+void __fs_destroy(struct fs*);
+DEFINE_REFCOUNTED_BASE(fs, struct fs*, refcount, __fs_destroy)
 
 NODISCARD int fs_chroot(struct fs*, struct path*);
 NODISCARD int fs_chdir(struct fs*, struct path*);
@@ -79,8 +80,9 @@ struct files {
 };
 
 struct files* files_clone(struct files*);
-struct files* files_ref(struct files*);
-void files_unref(struct files*);
+
+void __files_destroy(struct files*);
+DEFINE_REFCOUNTED_BASE(files, struct files*, refcount, __files_destroy)
 
 struct sighand {
     struct sigaction actions[NSIG - 1];
@@ -89,8 +91,9 @@ struct sighand {
 };
 
 struct sighand* sighand_clone(struct sighand*);
-struct sighand* sighand_ref(struct sighand*);
-void sighand_unref(struct sighand*);
+
+void __sighand_destroy(struct sighand*);
+DEFINE_REFCOUNTED_BASE(sighand, struct sighand*, refcount, __sighand_destroy)
 
 struct sigcontext {
     sigset_t blocked_signals;
@@ -103,8 +106,10 @@ struct thread_group {
 };
 
 struct thread_group* thread_group_create(void);
-struct thread_group* thread_group_ref(struct thread_group*);
-void thread_group_unref(struct thread_group*);
+
+void __thread_group_destroy(struct thread_group*);
+DEFINE_REFCOUNTED_BASE(thread_group, struct thread_group*, refcount,
+                       __thread_group_destroy)
 
 extern struct task* all_tasks;
 extern struct spinlock all_tasks_lock;
@@ -118,10 +123,8 @@ struct task* task_get_current(void);
 struct task* task_create(const char* comm, void (*entry_point)(void));
 pid_t task_spawn(const char* comm, void (*entry_point)(void));
 
-struct task* task_ref(struct task*);
-void task_unref(struct task*);
-
-DEFINE_FREE(task, struct task*, task_unref)
+void __task_destroy(struct task*);
+DEFINE_REFCOUNTED_BASE(task, struct task*, refcount, __task_destroy)
 
 pid_t task_generate_next_tid(void);
 struct task* task_find_by_tid(pid_t);

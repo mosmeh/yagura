@@ -54,14 +54,6 @@ const struct file_ops char_dev_fops = {
     .open = char_dev_open,
 };
 
-void block_dev_ref(struct block_dev* block_dev) {
-    inode_ref(&block_dev->vfs_inode);
-}
-
-void block_dev_unref(struct block_dev* block_dev) {
-    inode_unref(&block_dev->vfs_inode);
-}
-
 void block_dev_lock(struct block_dev* block_dev) {
     inode_lock(&block_dev->vfs_inode);
 }
