@@ -48,26 +48,26 @@ static int submit_request(struct block_dev* block_dev, void* buffer,
         .num_descriptors = num_descriptors,
     };
 
-    int rc;
-retry:
-    rc = sched_block(unblock_request, &unblock_ctx, BLOCK_UNINTERRUPTIBLE);
-    if (IS_ERR(rc))
-        return rc;
+    for (;;) {
+        int rc =
+            sched_block(unblock_request, &unblock_ctx, BLOCK_UNINTERRUPTIBLE);
+        if (IS_ERR(rc))
+            return rc;
 
-    block_dev_lock(block_dev);
-    struct virtq_desc_chain chain;
-    if (!virtq_desc_chain_init(&chain, virtq, num_descriptors)) {
-        block_dev_unlock(block_dev);
-        goto retry;
+        SCOPED_LOCK(block_dev, block_dev);
+
+        struct virtq_desc_chain chain;
+        if (!virtq_desc_chain_init(&chain, virtq, num_descriptors))
+            continue;
+        virtq_desc_chain_push_buf(&chain, &header, sizeof(header), false);
+        if (buffer)
+            virtq_desc_chain_push_buf(&chain, buffer, count, device_writable);
+        virtq_desc_chain_push_buf(&chain, &footer, sizeof(footer), true);
+        rc = virtq_desc_chain_submit(&chain);
+        if (IS_ERR(rc))
+            return rc;
+        break;
     }
-    virtq_desc_chain_push_buf(&chain, &header, sizeof(header), false);
-    if (buffer)
-        virtq_desc_chain_push_buf(&chain, buffer, count, device_writable);
-    virtq_desc_chain_push_buf(&chain, &footer, sizeof(footer), true);
-    rc = virtq_desc_chain_submit(&chain);
-    block_dev_unlock(block_dev);
-    if (IS_ERR(rc))
-        return rc;
 
     switch (footer.status) {
     case VIRTIO_BLK_S_OK:

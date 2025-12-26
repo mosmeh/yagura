@@ -175,7 +175,7 @@ struct task* task_get_current(void) {
 }
 
 struct task* task_create(const char* comm, void (*entry_point)(void)) {
-    struct task* task =
+    struct task* task FREE(kfree) =
         kaligned_alloc(alignof(struct task), sizeof(struct task));
     if (!task)
         return ERR_PTR(-ENOMEM);
@@ -185,55 +185,38 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
     task->state = TASK_RUNNING;
     strlcpy(task->comm, comm, sizeof(task->comm));
 
-    int ret = 0;
-    void* stack = NULL;
+    struct fs* fs FREE(fs) = fs_create();
+    if (IS_ERR(ASSERT(fs)))
+        return ERR_CAST(fs);
 
-    task->fs = fs_create();
-    if (IS_ERR(ASSERT(task->fs))) {
-        ret = PTR_ERR(task->fs);
-        task->fs = NULL;
-        goto fail;
-    }
+    struct files* files FREE(files) = files_create();
+    if (IS_ERR(ASSERT(files)))
+        return ERR_CAST(files);
 
-    task->files = files_create();
-    if (IS_ERR(ASSERT(task->files))) {
-        ret = PTR_ERR(task->files);
-        task->files = NULL;
-        goto fail;
-    }
+    struct sighand* sighand FREE(sighand) = sighand_create();
+    if (IS_ERR(ASSERT(sighand)))
+        return ERR_CAST(sighand);
 
-    task->sighand = sighand_create();
-    if (IS_ERR(ASSERT(task->sighand))) {
-        ret = PTR_ERR(task->sighand);
-        task->sighand = NULL;
-        goto fail;
-    }
+    struct thread_group* thread_group FREE(thread_group) =
+        thread_group_create();
+    if (IS_ERR(ASSERT(thread_group)))
+        return ERR_CAST(thread_group);
+    thread_group->num_running = 1;
 
-    task->thread_group = thread_group_create();
-    if (IS_ERR(ASSERT(task->thread_group))) {
-        ret = PTR_ERR(task->thread_group);
-        task->thread_group = NULL;
-        goto fail;
-    }
-    task->thread_group->num_running = 1;
+    void* stack FREE(kfree) = kmalloc(STACK_SIZE);
+    if (!stack)
+        return ERR_PTR(-ENOMEM);
 
     task->vm = kernel_vm;
-
-    stack = kmalloc(STACK_SIZE);
-    if (!stack) {
-        ret = -ENOMEM;
-        goto fail;
-    }
-
     task->kernel_stack_base = (uintptr_t)stack;
     task->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
     task->esp = task->ebp = task->kernel_stack_top;
 
     // Without this eager population, page fault occurs when switching to this
     // task, but page fault handler cannot run without a valid kernel stack.
-    ret = vm_populate(stack, (void*)task->kernel_stack_top, true);
+    int ret = vm_populate(stack, (void*)task->kernel_stack_top, true);
     if (IS_ERR(ret))
-        goto fail;
+        return ERR_PTR(ret);
 
     task->eip = (uintptr_t)do_iret;
 
@@ -252,16 +235,14 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
         .eflags = X86_EFLAGS_IF | X86_EFLAGS_FIXED,
     };
 
-    return task;
+    // Commit resources
+    task->fs = TAKE_PTR(fs);
+    task->files = TAKE_PTR(files);
+    task->sighand = TAKE_PTR(sighand);
+    task->thread_group = TAKE_PTR(thread_group);
+    TAKE_PTR(stack);
 
-fail:
-    kfree(stack);
-    thread_group_unref(task->thread_group);
-    sighand_unref(task->sighand);
-    files_unref(task->files);
-    fs_unref(task->fs);
-    kfree(task);
-    return ERR_PTR(ret);
+    return TAKE_PTR(task);
 }
 
 pid_t task_spawn(const char* comm, void (*entry_point)(void)) {
