@@ -64,9 +64,7 @@ struct inode_ops {
     int (*sync)(struct inode*);
 };
 
-void inode_lock(struct inode*);
-void inode_unlock(struct inode*);
-
+DEFINE_LOCKED(inode, struct inode*, vm_obj, vm_obj)
 DEFINE_REFCOUNTED_SUB(inode, struct inode*, vm_obj, vm_obj)
 
 NODISCARD struct inode* inode_lookup(struct inode* parent, const char* name);
@@ -106,6 +104,8 @@ struct mount {
     struct mount* next;
     struct mutex lock;
 };
+
+DEFINE_LOCKED(mount, struct mount*, mutex, lock)
 
 // Marks the given inode as ready to be used, adding it to the mount's inode
 // cache.

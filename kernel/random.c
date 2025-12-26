@@ -109,22 +109,17 @@ ssize_t random_get(void* buffer, size_t count) {
     unsigned char* suffix =
         (unsigned char*)ROUND_DOWN((uintptr_t)end, alignof(uint32_t));
 
-    ssize_t ret = 0;
-    mutex_lock(&lock);
+    SCOPED_LOCK(mutex, &lock);
 
     if (prefix < aligned) {
-        if (!fill_remainder(prefix, aligned - prefix)) {
-            ret = -EIO;
-            goto done;
-        }
+        if (!fill_remainder(prefix, aligned - prefix))
+            return -EIO;
     }
 
     for (unsigned char* p = aligned; p < suffix; p += alignof(uint32_t)) {
         uint32_t v = 0;
-        if (!next(&v)) {
-            ret = -EIO;
-            goto done;
-        }
+        if (!next(&v))
+            return -EIO;
         p[0] = v & 0xff;
         p[1] = (v >> 8) & 0xff;
         p[2] = (v >> 16) & 0xff;
@@ -132,14 +127,9 @@ ssize_t random_get(void* buffer, size_t count) {
     }
 
     if (suffix < end) {
-        if (!fill_remainder(suffix, end - suffix)) {
-            ret = -EIO;
-            goto done;
-        }
+        if (!fill_remainder(suffix, end - suffix))
+            return -EIO;
     }
 
-    ret = count;
-done:
-    mutex_unlock(&lock);
-    return ret;
+    return count;
 }

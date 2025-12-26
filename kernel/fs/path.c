@@ -22,10 +22,12 @@ char* path_to_string(const struct path* path) {
     if (!path->parent) // Root directory of the VFS
         return kstrdup(ROOT_DIR);
 
-    struct fs* fs = current->fs;
-    mutex_lock(&fs->lock);
-    struct inode* root_inode FREE(inode) = inode_ref(fs->root->inode);
-    mutex_unlock(&fs->lock);
+    struct inode* root_inode FREE(inode) = NULL;
+    {
+        struct fs* fs = current->fs;
+        SCOPED_LOCK(fs, fs);
+        root_inode = inode_ref(fs->root->inode);
+    }
 
     if (path->inode == root_inode) // Root directory of the chroot
         return kstrdup(ROOT_DIR);

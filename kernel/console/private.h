@@ -42,6 +42,8 @@ struct tty {
     struct spinlock lock;
 };
 
+DEFINE_LOCKED(tty, struct tty*, spinlock, lock)
+
 extern const struct file_ops tty_fops;
 
 NODISCARD int tty_register(struct tty*);

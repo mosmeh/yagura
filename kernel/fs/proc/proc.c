@@ -136,27 +136,20 @@ static struct inode* alloc_inode(ino_t ino, struct proc_entry* entry) {
 
 struct inode* proc_create_inode(struct mount* mount, ino_t ino,
                                 struct proc_entry* entry) {
-    mutex_lock(&mount->lock);
+    SCOPED_LOCK(mount, mount);
 
     struct inode* inode FREE(inode) = mount_lookup_inode(mount, ino);
-    if (inode) {
-        mutex_unlock(&mount->lock);
+    if (inode)
         return TAKE_PTR(inode);
-    }
 
     inode = alloc_inode(ino, entry);
-    if (IS_ERR(ASSERT(inode))) {
-        mutex_unlock(&mount->lock);
+    if (IS_ERR(ASSERT(inode)))
         return inode;
-    }
 
     int rc = mount_commit_inode(mount, inode);
-    if (IS_ERR(rc)) {
-        mutex_unlock(&mount->lock);
+    if (IS_ERR(rc))
         return ERR_PTR(rc);
-    }
 
-    mutex_unlock(&mount->lock);
     return TAKE_PTR(inode);
 }
 
@@ -179,7 +172,7 @@ struct inode* proc_lookup(struct inode* parent, const char* name,
 
 int proc_getdents(struct file* file, getdents_callback_fn callback, void* ctx,
                   const struct proc_entry* entries, size_t num_entries) {
-    mutex_lock(&file->lock);
+    SCOPED_LOCK(file, file);
     ino_t parent_ino = file->inode->ino;
     for (size_t i = file->offset; i < num_entries; ++i) {
         const struct proc_entry* entry = &entries[i];
@@ -188,7 +181,6 @@ int proc_getdents(struct file* file, getdents_callback_fn callback, void* ctx,
             break;
         ++file->offset;
     }
-    mutex_unlock(&file->lock);
     return 0;
 }
 

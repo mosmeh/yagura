@@ -89,3 +89,13 @@ void spinlock_unlock(struct spinlock* s) {
             sti();
     }
 }
+
+bool spinlock_is_locked_by_current(const struct spinlock* s) {
+    unsigned v = s->lock;
+    if (!(v & SPINLOCK_LOCKED))
+        return false;
+    if ((v >> SPINLOCK_CPU_ID_SHIFT) != cpu_get_id())
+        return false;
+    ASSERT(s->level > 0);
+    return true;
+}

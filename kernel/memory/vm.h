@@ -33,6 +33,8 @@ struct vm_obj {
     refcount_t refcount;
 };
 
+DEFINE_LOCKED(vm_obj, struct vm_obj*, mutex, lock)
+
 void __vm_obj_destroy(struct vm_obj*);
 DEFINE_REFCOUNTED_BASE(vm_obj, struct vm_obj*, refcount, __vm_obj_destroy)
 
@@ -82,9 +84,11 @@ struct vm_region {
 extern struct vm* kernel_vm;
 
 struct vm* vm_create(void* start, void* end);
+
+DEFINE_LOCKED(vm, struct vm*, mutex, lock)
+
 struct vm* vm_ref(struct vm*);
 void vm_unref(struct vm*);
-
 DEFINE_FREE(vm, struct vm*, vm_unref)
 
 // Switches to the virtual memory space. Returns the previous vm.

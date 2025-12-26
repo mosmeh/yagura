@@ -68,25 +68,24 @@ struct vm_region* vm_region_clone(struct vm* new_vm,
 
 void vm_region_set_obj(struct vm_region* region, struct vm_obj* obj,
                        size_t offset) {
-    ASSERT(mutex_is_locked_by_current(&region->vm->lock));
+    ASSERT(vm_is_locked_by_current(region->vm));
     ASSERT(!region->obj);
     ASSERT(!region->shared_next);
     ASSERT(obj);
 
     region->offset = offset;
 
-    mutex_lock(&obj->lock);
+    SCOPED_LOCK(vm_obj, obj);
     region->obj = vm_obj_ref(obj);
     if (region->flags & VM_SHARED) {
         region->shared_next = obj->shared_regions;
         obj->shared_regions = region;
     }
-    mutex_unlock(&obj->lock);
 }
 
 void vm_region_unset_obj(struct vm_region* region) {
     struct vm_obj* obj = region->obj;
-    mutex_lock(&obj->lock);
+    SCOPED_LOCK(vm_obj, obj);
     struct vm_region* prev = NULL;
     struct vm_region* it = obj->shared_regions;
     for (; it; it = it->shared_next) {
@@ -103,7 +102,6 @@ void vm_region_unset_obj(struct vm_region* region) {
         obj->shared_regions = region->shared_next;
     }
     region->shared_next = NULL;
-    mutex_unlock(&obj->lock);
 }
 
 struct page* vm_region_get_page(struct vm_region* region, size_t index,
@@ -133,41 +131,28 @@ struct page* vm_region_get_page(struct vm_region* region, size_t index,
     const struct vm_ops* vm_ops = obj->vm_ops;
     ASSERT(vm_ops);
 
-    int ret = 0;
-    mutex_lock(&obj->lock);
+    SCOPED_LOCK(vm_obj, obj);
 
     ASSERT(vm_ops->get_page);
     struct page* shared_page =
         vm_ops->get_page(obj, region->offset + index, write);
-    if (IS_ERR(ASSERT(shared_page))) {
-        ret = PTR_ERR(shared_page);
-        goto fail;
-    }
-    ASSERT(shared_page);
-
-    if (!write || (region->flags & VM_SHARED)) {
-        mutex_unlock(&obj->lock);
+    if (IS_ERR(ASSERT(shared_page)))
         return shared_page;
-    }
+
+    if (!write || (region->flags & VM_SHARED))
+        return shared_page;
 
     // Copy on write
     struct page* private_page = page_alloc();
-    if (IS_ERR(ASSERT(private_page))) {
-        ret = PTR_ERR(private_page);
-        goto fail;
-    }
+    if (IS_ERR(ASSERT(private_page)))
+        return private_page;
     private_page->index = index;
     *new_node = &private_page->tree_node;
     tree_insert(&region->private_pages, parent, *new_node);
 
     page_copy(private_page, shared_page);
 
-    mutex_unlock(&obj->lock);
     return private_page;
-
-fail:
-    mutex_unlock(&obj->lock);
-    return ERR_PTR(ret);
 }
 
 void* vm_region_to_virt(const struct vm_region* region) {
@@ -176,7 +161,7 @@ void* vm_region_to_virt(const struct vm_region* region) {
 
 int vm_region_resize(struct vm_region* region, size_t new_npages) {
     struct vm* vm = region->vm;
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
 
     if (region->obj)
         ASSERT(vm == kernel_vm || vm == current->vm);
@@ -231,7 +216,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
     ASSERT(!(flags & ~mask));
 
     struct vm* vm = region->vm;
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
 
     if (region->obj)
         ASSERT(vm == kernel_vm || vm == current->vm);
@@ -366,7 +351,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
 
 int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
     struct vm* vm = region->vm;
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
 
     if (region->obj)
         ASSERT(vm == kernel_vm || vm == current->vm);
@@ -441,7 +426,7 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
 int vm_region_invalidate(const struct vm_region* region, size_t offset,
                          size_t npages) {
     struct vm* vm = region->vm;
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
 
     if (region->obj)
         ASSERT(vm == kernel_vm || vm == current->vm);
