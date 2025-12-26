@@ -27,7 +27,7 @@ void* krealloc(void* ptr, size_t new_size) {
     if (!ptr)
         return kmalloc(new_size);
 
-    mutex_lock(&kernel_vm->lock);
+    SCOPED_LOCK(vm, kernel_vm);
 
     struct vm_region* region = vm_find(kernel_vm, ptr);
     ASSERT(region);
@@ -35,13 +35,10 @@ void* krealloc(void* ptr, size_t new_size) {
 
     size_t new_npages = DIV_CEIL(new_size, PAGE_SIZE);
     size_t old_npages = region->end - region->start;
-    if (new_npages == old_npages) {
-        mutex_unlock(&kernel_vm->lock);
+    if (new_npages == old_npages)
         return ptr;
-    }
 
     int rc = vm_region_resize(region, new_npages);
-    mutex_unlock(&kernel_vm->lock);
     if (IS_ERR(rc))
         return NULL;
 

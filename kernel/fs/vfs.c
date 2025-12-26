@@ -50,7 +50,7 @@ struct mount_point {
 
 static struct mount* mounts;
 static struct mount_point* mount_points;
-static struct mutex mount_lock;
+static struct mutex mounts_lock;
 
 struct mount* file_system_mount(const struct file_system* fs,
                                 const char* source) {
@@ -74,17 +74,15 @@ struct mount* file_system_mount(const struct file_system* fs,
         mount->dev = makedev(UNNAMED_MAJOR, id);
     }
 
-    mutex_lock(&mount_lock);
+    SCOPED_LOCK(mutex, &mounts_lock);
     mount->next = mounts;
     mounts = mount;
-    mutex_unlock(&mount_lock);
-
     return mount;
 }
 
 static struct inode* resolve_mounts(struct inode* host) {
     struct inode* needle = host;
-    mutex_lock(&mount_lock);
+    SCOPED_LOCK(mutex, &mounts_lock);
     for (;;) {
         struct mount_point* it = mount_points;
         while (it) {
@@ -97,16 +95,13 @@ static struct inode* resolve_mounts(struct inode* host) {
         needle = it->guest->root;
     }
     inode_ref(needle);
-    mutex_unlock(&mount_lock);
     return needle;
 }
 
 int vfs_mount(const struct file_system* fs, const char* source,
               const char* target) {
-    mutex_lock(&current->fs->lock);
-    int ret = vfs_mount_at(fs, current->fs->cwd, source, target);
-    mutex_unlock(&current->fs->lock);
-    return ret;
+    SCOPED_LOCK(fs, current->fs);
+    return vfs_mount_at(fs, current->fs->cwd, source, target);
 }
 
 int vfs_mount_at(const struct file_system* fs, const struct path* base,
@@ -132,29 +127,23 @@ int vfs_mount_at(const struct file_system* fs, const struct path* base,
     mp->host = inode_ref(host);
     mp->guest = mount;
 
-    mutex_lock(&mount_lock);
+    SCOPED_LOCK(mutex, &mounts_lock);
     mp->next = mount_points;
     mount_points = TAKE_PTR(mp);
-    mutex_unlock(&mount_lock);
-
     return 0;
 }
 
 int proc_print_mounts(struct file* file, struct vec* vec) {
     (void)file;
-    int rc = 0;
-    mutex_lock(&mount_lock);
+    SCOPED_LOCK(mutex, &mounts_lock);
     for (struct mount_point* it = mount_points; it; it = it->next) {
         const struct file_system* fs = it->guest->fs;
         char* path FREE(kfree) = path_to_string(it->path);
-        if (!path) {
-            rc = -ENOMEM;
-            break;
-        }
+        if (!path)
+            return -ENOMEM;
         vec_printf(vec, "%s %s %s rw 0 0\n", fs->name, path, fs->name);
     }
-    mutex_unlock(&mount_lock);
-    return rc;
+    return 0;
 }
 
 static bool is_absolute_path(const char* path) {
@@ -198,9 +187,8 @@ static struct path* resolve_path_at(const struct path* base,
     struct path* path FREE(path) = NULL;
     if (is_absolute_path(pathname)) {
         struct fs* fs = current->fs;
-        mutex_lock(&fs->lock);
+        SCOPED_LOCK(fs, fs);
         path = path_dup(fs->root);
-        mutex_unlock(&fs->lock);
     } else {
         path = path_dup(base);
     }
@@ -281,10 +269,8 @@ static struct path* resolve_path_at(const struct path* base,
 }
 
 struct path* vfs_resolve_path(const char* pathname, int flags) {
-    mutex_lock(&current->fs->lock);
-    struct path* ret = vfs_resolve_path_at(current->fs->cwd, pathname, flags);
-    mutex_unlock(&current->fs->lock);
-    return ret;
+    SCOPED_LOCK(fs, current->fs);
+    return vfs_resolve_path_at(current->fs->cwd, pathname, flags);
 }
 
 struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
@@ -341,10 +327,8 @@ static struct path* create_at(const struct path* base, const char* pathname,
 }
 
 struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
-    mutex_lock(&current->fs->lock);
-    struct file* ret = vfs_open_at(current->fs->cwd, pathname, flags, mode);
-    mutex_unlock(&current->fs->lock);
-    return ret;
+    SCOPED_LOCK(fs, current->fs);
+    return vfs_open_at(current->fs->cwd, pathname, flags, mode);
 }
 
 struct file* vfs_open_at(const struct path* base, const char* pathname,
@@ -360,10 +344,8 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
 }
 
 int vfs_stat(const char* pathname, struct kstat* buf, int flags) {
-    mutex_lock(&current->fs->lock);
-    int ret = vfs_stat_at(current->fs->cwd, pathname, buf, flags);
-    mutex_unlock(&current->fs->lock);
-    return ret;
+    SCOPED_LOCK(fs, current->fs);
+    return vfs_stat_at(current->fs->cwd, pathname, buf, flags);
 }
 
 int vfs_stat_at(const struct path* base, const char* pathname,
@@ -376,10 +358,8 @@ int vfs_stat_at(const struct path* base, const char* pathname,
 }
 
 struct inode* vfs_create(const char* pathname, mode_t mode) {
-    mutex_lock(&current->fs->lock);
-    struct inode* ret = vfs_create_at(current->fs->cwd, pathname, mode);
-    mutex_unlock(&current->fs->lock);
-    return ret;
+    SCOPED_LOCK(fs, current->fs);
+    return vfs_create_at(current->fs->cwd, pathname, mode);
 }
 
 struct inode* vfs_create_at(const struct path* base, const char* pathname,
@@ -393,15 +373,13 @@ struct inode* vfs_create_at(const struct path* base, const char* pathname,
 }
 
 int vfs_sync(void) {
-    int rc = 0;
-    mutex_lock(&mount_lock);
+    SCOPED_LOCK(mutex, &mounts_lock);
     for (struct mount* it = mounts; it; it = it->next) {
-        rc = mount_sync(it);
+        int rc = mount_sync(it);
         if (IS_ERR(rc))
-            break;
+            return rc;
     }
-    mutex_unlock(&mount_lock);
-    return rc;
+    return 0;
 }
 
 void tmpfs_init(void);
@@ -421,10 +399,11 @@ void vfs_init(const multiboot_module_t* initrd_mod) {
     struct path* root FREE(path) = path_create_root(mount->root);
     ASSERT_PTR(root);
 
-    mutex_lock(&current->fs->lock);
-    ASSERT_OK(fs_chroot(current->fs, root));
-    ASSERT_OK(fs_chdir(current->fs, root));
-    mutex_unlock(&current->fs->lock);
+    {
+        SCOPED_LOCK(fs, current->fs);
+        ASSERT_OK(fs_chroot(current->fs, root));
+        ASSERT_OK(fs_chdir(current->fs, root));
+    }
 
     kprintf("vfs: populating root fs with initrd at P%#x - P%#x\n",
             initrd_mod->mod_start, initrd_mod->mod_end);

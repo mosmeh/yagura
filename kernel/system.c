@@ -23,26 +23,23 @@ static struct utsname utsname = {
 static struct mutex utsname_lock;
 
 void utsname_get(struct utsname* buf) {
-    mutex_lock(&utsname_lock);
+    SCOPED_LOCK(mutex, &utsname_lock);
     *buf = utsname;
-    mutex_unlock(&utsname_lock);
 }
 
 int utsname_set_hostname(const char* hostname, size_t len) {
     if (len >= sizeof(utsname.nodename))
         return -EINVAL;
-    mutex_lock(&utsname_lock);
+    SCOPED_LOCK(mutex, &utsname_lock);
     strlcpy(utsname.nodename, hostname, len + 1);
-    mutex_unlock(&utsname_lock);
     return 0;
 }
 
 int utsname_set_domainname(const char* domainname, size_t len) {
     if (len >= sizeof(utsname.domainname))
         return -EINVAL;
-    mutex_lock(&utsname_lock);
+    SCOPED_LOCK(mutex, &utsname_lock);
     strlcpy(utsname.domainname, domainname, len + 1);
-    mutex_unlock(&utsname_lock);
     return 0;
 }
 

@@ -89,7 +89,7 @@ struct vm* vm_enter(struct vm* vm) {
 struct vm* vm_clone(struct vm* vm) {
     ASSERT(vm != kernel_vm);
 
-    struct vm* new_vm = slab_alloc(&vm_slab);
+    struct vm* new_vm FREE(vm) = slab_alloc(&vm_slab);
     if (IS_ERR(ASSERT(new_vm)))
         return new_vm;
 
@@ -99,24 +99,19 @@ struct vm* vm_clone(struct vm* vm) {
         .refcount = REFCOUNT_INIT_ONE,
     };
 
-    mutex_lock(&new_vm->lock);
-    mutex_lock(&vm->lock);
-    int ret = 0;
+    SCOPED_LOCK(vm, new_vm);
+    SCOPED_LOCK(vm, vm);
 
     struct page_directory* page_directory = page_directory_create();
-    if (IS_ERR(ASSERT(page_directory))) {
-        ret = PTR_ERR(page_directory);
-        goto fail;
-    }
+    if (IS_ERR(ASSERT(page_directory)))
+        return ERR_CAST(page_directory);
     new_vm->page_directory = page_directory;
 
     for (const struct vm_region* it = vm_first_region(vm); it;
          it = vm_next_region(it)) {
         struct vm_region* new_region = vm_region_clone(new_vm, it);
-        if (IS_ERR(ASSERT(new_region))) {
-            ret = PTR_ERR(new_region);
-            goto fail;
-        }
+        if (IS_ERR(ASSERT(new_region)))
+            return ERR_CAST(new_region);
 
         struct tree_node** new_node = &new_vm->regions.root;
         struct tree_node* parent = NULL;
@@ -135,14 +130,7 @@ struct vm* vm_clone(struct vm* vm) {
         tree_insert(&new_vm->regions, parent, *new_node);
     }
 
-fail:
-    mutex_unlock(&vm->lock);
-    mutex_unlock(&new_vm->lock);
-    if (IS_ERR(ret)) {
-        vm_unref(new_vm);
-        return ERR_PTR(ret);
-    }
-    return new_vm;
+    return TAKE_PTR(new_vm);
 }
 
 static bool vm_contains(const struct vm* vm, void* virt_addr) {
@@ -159,7 +147,7 @@ static struct vm* virt_addr_to_vm(void* virt_addr) {
 }
 
 NODISCARD static int map_page(struct vm* vm, void* virt_addr, bool write) {
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
 
     struct vm_region* region = vm_find(vm, virt_addr);
     if (!region)
@@ -200,9 +188,11 @@ bool vm_handle_page_fault(void* virt_addr, uint32_t error_code) {
     }
 
     bool int_flag = push_sti();
-    mutex_lock(&vm->lock);
-    int rc = map_page(vm, virt_addr, error_code & X86_PF_WRITE);
-    mutex_unlock(&vm->lock);
+    int rc;
+    {
+        SCOPED_LOCK(vm, vm);
+        rc = map_page(vm, virt_addr, error_code & X86_PF_WRITE);
+    }
     pop_sti(int_flag);
 
     return IS_OK(rc);
@@ -240,7 +230,7 @@ int vm_populate(void* virt_start_addr, void* virt_end_addr, bool write) {
 
 struct page* vm_get_page(struct vm* vm, void* virt_addr) {
     // If vm is not locked, the returned page may become invalid anytime.
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
 
     struct vm_region* region = vm_find(vm, virt_addr);
     if (!region)
@@ -291,7 +281,7 @@ static struct vm_region* find_region_with_upper_bound(const struct vm* vm,
 }
 
 struct vm_region* vm_find(const struct vm* vm, void* virt_addr) {
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
     if (!vm_contains(vm, virt_addr))
         return NULL;
     size_t index = (uintptr_t)virt_addr >> PAGE_SHIFT;
@@ -322,7 +312,7 @@ static struct vm_region* find_intersection(const struct vm* vm, size_t start,
 struct vm_region* vm_find_intersection(const struct vm* vm,
                                        void* virt_start_addr,
                                        void* virt_end_addr) {
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
     size_t start = (uintptr_t)virt_start_addr >> PAGE_SHIFT;
     size_t end = DIV_CEIL((uintptr_t)virt_end_addr, PAGE_SIZE);
     return find_intersection(vm, start, end);
@@ -362,7 +352,7 @@ static ssize_t find_gap(const struct vm* vm, size_t npages,
 }
 
 ssize_t vm_find_gap(struct vm* vm, size_t npages) {
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
 
     if (npages == 0)
         return -EINVAL;
@@ -427,12 +417,12 @@ void vm_insert_region(struct vm* vm, struct vm_region* new_region) {
 
 void vm_remove_region(struct vm_region* region) {
     struct vm* vm = region->vm;
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
     tree_remove(&vm->regions, &region->tree_node);
 }
 
 struct vm_region* vm_alloc(struct vm* vm, size_t npages) {
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
 
     if (npages == 0)
         return ERR_PTR(-EINVAL);
@@ -457,7 +447,7 @@ struct vm_region* vm_alloc(struct vm* vm, size_t npages) {
 }
 
 struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
     ASSERT((uintptr_t)virt_addr % PAGE_SIZE == 0);
 
     if (npages == 0)

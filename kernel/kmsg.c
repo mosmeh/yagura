@@ -33,19 +33,16 @@ static struct spinlock lock;
 
 size_t kmsg_read(char* buf, size_t count) {
     size_t dest_index = 0;
-
-    spinlock_lock(&lock);
+    SCOPED_LOCK(spinlock, &lock);
     for (size_t src_index = read_index;
          dest_index < count && src_index != write_index;
          src_index = (src_index + 1) % KMSG_BUF_SIZE)
         buf[dest_index++] = ring_buf[src_index];
-    spinlock_unlock(&lock);
-
     return dest_index;
 }
 
 void kmsg_write(const char* buf, size_t count) {
-    spinlock_lock(&lock);
+    SCOPED_LOCK(spinlock, &lock);
     for (size_t i = 0; i < count; ++i) {
         ring_buf[write_index] = buf[i];
         write_index = (write_index + 1) % KMSG_BUF_SIZE;
@@ -53,5 +50,4 @@ void kmsg_write(const char* buf, size_t count) {
             read_index = (read_index + 1) % KMSG_BUF_SIZE;
     }
     serial_write(0, buf, count);
-    spinlock_unlock(&lock);
 }

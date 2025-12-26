@@ -124,11 +124,10 @@ void serial_write(uint8_t index, const char* s, size_t count) {
 
     // This function is called by kprintf, which might be used in critical
     // situations. Thus it is protected with a spinlock instead of a mutex.
-    spinlock_lock(lock);
+    SCOPED_LOCK(spinlock, lock);
     for (size_t i = 0; i < count; ++i) {
         if (s[i] == '\n')
             write_char(port, '\r');
         write_char(port, s[i]);
     }
-    spinlock_unlock(lock);
 }

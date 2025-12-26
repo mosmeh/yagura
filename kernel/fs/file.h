@@ -34,6 +34,8 @@ struct file_ops {
     struct vm_obj* (*mmap)(struct file*);
 };
 
+DEFINE_LOCKED(file, struct file*, mutex, lock)
+
 void __file_destroy(struct file*);
 DEFINE_REFCOUNTED_BASE(file, struct file*, refcount, __file_destroy)
 

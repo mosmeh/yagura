@@ -74,10 +74,11 @@ int sys_sysinfo(struct sysinfo* user_info) {
     memory_get_stats(&memory_stats);
 
     size_t num_procs = 0;
-    spinlock_lock(&all_tasks_lock);
-    for (struct task* task = all_tasks; task; task = task->all_tasks_next)
-        ++num_procs;
-    spinlock_unlock(&all_tasks_lock);
+    {
+        SCOPED_LOCK(spinlock, &all_tasks_lock);
+        for (struct task* task = all_tasks; task; task = task->all_tasks_next)
+            ++num_procs;
+    }
 
     struct sysinfo info = {
         .uptime = divmodi64(uptime, CLK_TCK, NULL),

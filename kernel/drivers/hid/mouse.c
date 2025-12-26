@@ -38,14 +38,13 @@ static void irq_handler(struct registers* reg) {
         ++state;
         return;
     case 2: {
-        spinlock_lock(&queue_lock);
+        SCOPED_LOCK(spinlock, &queue_lock);
         for (size_t i = 0; i < sizeof(buf); ++i) {
             queue[write_index] = buf[i];
             write_index = (write_index + 1) % QUEUE_SIZE;
             if (write_index == read_index)
                 read_index = (read_index + 1) % QUEUE_SIZE;
         }
-        spinlock_unlock(&queue_lock);
         state = 0;
         return;
     }
@@ -54,10 +53,8 @@ static void irq_handler(struct registers* reg) {
 }
 
 static bool can_read(void) {
-    spinlock_lock(&queue_lock);
-    bool ret = read_index != write_index;
-    spinlock_unlock(&queue_lock);
-    return ret;
+    SCOPED_LOCK(spinlock, &queue_lock);
+    return read_index != write_index;
 }
 
 static bool unblock_read(struct file* file) {
@@ -73,22 +70,20 @@ static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
         if (IS_ERR(rc))
             return rc;
 
+        SCOPED_LOCK(spinlock, &queue_lock);
+
         size_t nread = 0;
-        spinlock_lock(&queue_lock);
         unsigned char* user_out = user_buffer;
         while (nread < count) {
             if (read_index == write_index)
                 break;
             if (copy_to_user(user_out, &queue[read_index],
-                             sizeof(unsigned char))) {
-                spinlock_unlock(&queue_lock);
+                             sizeof(unsigned char)))
                 return -EFAULT;
-            }
             ++nread;
             ++user_out;
             read_index = (read_index + 1) % QUEUE_SIZE;
         }
-        spinlock_unlock(&queue_lock);
 
         if (nread > 0)
             return nread;

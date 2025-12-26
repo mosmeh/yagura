@@ -396,7 +396,7 @@ struct waitpid_blocker {
 
 static bool unblock_waitpid(void* data) {
     struct waitpid_blocker* blocker = data;
-    spinlock_lock(&all_tasks_lock);
+    SCOPED_LOCK(spinlock, &all_tasks_lock);
 
     struct task* prev = NULL;
     struct task* it = all_tasks;
@@ -425,7 +425,6 @@ static bool unblock_waitpid(void* data) {
         it = it->all_tasks_next;
     }
     if (!it) {
-        spinlock_unlock(&all_tasks_lock);
         if (!any_target_exists) {
             blocker->waited_task = NULL;
             return true;
@@ -439,7 +438,6 @@ static bool unblock_waitpid(void* data) {
         all_tasks = it->all_tasks_next;
     blocker->waited_task = it;
 
-    spinlock_unlock(&all_tasks_lock);
     return true;
 }
 
@@ -509,18 +507,13 @@ int sys_chroot(const char* user_path) {
         return rc;
 
     struct fs* fs = current->fs;
-    mutex_lock(&fs->lock);
+    SCOPED_LOCK(fs, fs);
 
     struct path* new_root FREE(path) = vfs_resolve_path_at(fs->cwd, path, 0);
-    if (IS_ERR(ASSERT(new_root))) {
-        mutex_unlock(&fs->lock);
+    if (IS_ERR(ASSERT(new_root)))
         return PTR_ERR(new_root);
-    }
 
-    rc = fs_chroot(fs, new_root);
-
-    mutex_unlock(&fs->lock);
-    return rc;
+    return fs_chroot(fs, new_root);
 }
 
 int sys_getcwd(char* user_buf, size_t size) {
@@ -529,9 +522,11 @@ int sys_getcwd(char* user_buf, size_t size) {
     if (size <= 1)
         return -ERANGE;
 
-    mutex_lock(&current->fs->lock);
-    char* cwd_str FREE(kfree) = path_to_string(current->fs->cwd);
-    mutex_unlock(&current->fs->lock);
+    char* cwd_str FREE(kfree) = NULL;
+    {
+        SCOPED_LOCK(fs, current->fs);
+        cwd_str = path_to_string(current->fs->cwd);
+    }
     if (!cwd_str)
         return -ENOMEM;
 
@@ -551,18 +546,13 @@ int sys_chdir(const char* user_path) {
         return rc;
 
     struct fs* fs = current->fs;
-    mutex_lock(&fs->lock);
+    SCOPED_LOCK(fs, fs);
 
     struct path* new_cwd FREE(path) = vfs_resolve_path_at(fs->cwd, path, 0);
-    if (IS_ERR(ASSERT(new_cwd))) {
-        mutex_unlock(&fs->lock);
+    if (IS_ERR(ASSERT(new_cwd)))
         return PTR_ERR(new_cwd);
-    }
 
-    rc = fs_chdir(fs, new_cwd);
-
-    mutex_unlock(&fs->lock);
-    return rc;
+    return fs_chdir(fs, new_cwd);
 }
 
 int sys_prctl(int op, unsigned long arg2, unsigned long arg3,
@@ -572,17 +562,15 @@ int sys_prctl(int op, unsigned long arg2, unsigned long arg3,
     (void)arg5;
 
     switch (op) {
-    case PR_SET_NAME:
-        mutex_lock(&current->lock);
+    case PR_SET_NAME: {
+        SCOPED_LOCK(task, current);
         char comm[sizeof(current->comm)];
         ssize_t len = strncpy_from_user(comm, (const char*)arg2, sizeof(comm));
-        if (IS_ERR(len)) {
-            mutex_unlock(&current->lock);
+        if (IS_ERR(len))
             return len;
-        }
         strlcpy(current->comm, comm, sizeof(current->comm));
-        mutex_unlock(&current->lock);
         return 0;
+    }
     case PR_GET_NAME:
         if (copy_to_user((char*)arg2, current->comm, sizeof(current->comm)))
             return -EFAULT;

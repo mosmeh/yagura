@@ -41,7 +41,7 @@ static void enqueue_ready(struct task* task) {
     ASSERT(!task->blocked_next);
     task_ref(task);
 
-    spinlock_lock(&ready_queue_lock);
+    SCOPED_LOCK(spinlock, &ready_queue_lock);
     if (ready_queue) {
         struct task* it = ready_queue;
         for (;;) {
@@ -54,22 +54,21 @@ static void enqueue_ready(struct task* task) {
     } else {
         ready_queue = task;
     }
-    spinlock_unlock(&ready_queue_lock);
 }
 
 static struct task* dequeue_ready(void) {
-    spinlock_lock(&ready_queue_lock);
-    if (!ready_queue) {
-        spinlock_unlock(&ready_queue_lock);
-        struct task* task = task_ref(cpu_get_current()->idle_task);
-        task->state = TASK_RUNNING;
-        return task;
+    {
+        SCOPED_LOCK(spinlock, &ready_queue_lock);
+        if (ready_queue) {
+            struct task* task = ready_queue;
+            ASSERT(task->state == TASK_RUNNING);
+            ready_queue = task->ready_queue_next;
+            task->ready_queue_next = NULL;
+            return task;
+        }
     }
-    struct task* task = ready_queue;
-    ASSERT(task->state == TASK_RUNNING);
-    ready_queue = task->ready_queue_next;
-    task->ready_queue_next = NULL;
-    spinlock_unlock(&ready_queue_lock);
+    struct task* task = task_ref(cpu_get_current()->idle_task);
+    task->state = TASK_RUNNING;
     return task;
 }
 
@@ -78,22 +77,23 @@ void sched_register(struct task* task) {
     ASSERT(task->state == TASK_RUNNING);
     task_ref(task);
 
-    spinlock_lock(&all_tasks_lock);
-    struct task* prev = NULL;
-    struct task* it = all_tasks;
-    while (it && it->tid < task->tid) {
-        ASSERT(it != task);
-        prev = it;
-        it = it->all_tasks_next;
+    {
+        SCOPED_LOCK(spinlock, &all_tasks_lock);
+        struct task* prev = NULL;
+        struct task* it = all_tasks;
+        while (it && it->tid < task->tid) {
+            ASSERT(it != task);
+            prev = it;
+            it = it->all_tasks_next;
+        }
+        if (prev) {
+            task->all_tasks_next = it;
+            prev->all_tasks_next = task;
+        } else {
+            task->all_tasks_next = all_tasks;
+            all_tasks = task;
+        }
     }
-    if (prev) {
-        task->all_tasks_next = it;
-        prev->all_tasks_next = task;
-    } else {
-        task->all_tasks_next = all_tasks;
-        all_tasks = task;
-    }
-    spinlock_unlock(&all_tasks_lock);
 
     enqueue_ready(task);
 }
@@ -104,14 +104,13 @@ static struct spinlock blocked_tasks_lock;
 static void add_blocked(struct task* task) {
     ASSERT(task);
     ASSERT(!task->blocked_next);
-    spinlock_lock(&blocked_tasks_lock);
+    SCOPED_LOCK(spinlock, &blocked_tasks_lock);
     task->blocked_next = blocked_tasks;
     blocked_tasks = task_ref(task);
-    spinlock_unlock(&blocked_tasks_lock);
 }
 
 static void unblock_tasks(void) {
-    spinlock_lock(&blocked_tasks_lock);
+    SCOPED_LOCK(spinlock, &blocked_tasks_lock);
 
     struct task* prev = NULL;
     for (struct task* it = blocked_tasks; it;) {
@@ -157,8 +156,6 @@ static void unblock_tasks(void) {
         task_unref(it);
         it = next;
     }
-
-    spinlock_unlock(&blocked_tasks_lock);
 }
 
 void __reschedule(struct task* task) {

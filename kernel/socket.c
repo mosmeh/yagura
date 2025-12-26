@@ -32,6 +32,8 @@ struct unix_socket {
     atomic_bool is_open_for_writing_to_acceptor;
 };
 
+DEFINE_LOCKED(unix_socket, struct unix_socket*, inode, vfs_inode)
+
 static struct slab unix_socket_slab;
 static struct mount* sock_mount;
 
@@ -58,14 +60,6 @@ static struct unix_socket* unix_socket_from_inode(struct inode* inode) {
 
 static struct unix_socket* unix_socket_from_file(struct file* file) {
     return unix_socket_from_inode(file->inode);
-}
-
-static void socket_lock(struct unix_socket* socket) {
-    inode_lock(&socket->vfs_inode);
-}
-
-static void socket_unlock(struct unix_socket* socket) {
-    inode_unlock(&socket->vfs_inode);
 }
 
 static void unix_socket_destroy(struct inode* inode) {
@@ -125,13 +119,13 @@ static ssize_t unix_socket_pread(struct file* file, void* user_buffer,
         if (IS_ERR(rc))
             return rc;
 
-        socket_lock(socket);
-        if (!ring_buf_is_empty(buf)) {
-            ssize_t nread = ring_buf_read_to_user(buf, user_buffer, count);
-            socket_unlock(socket);
-            return nread;
+        {
+            SCOPED_LOCK(unix_socket, socket);
+            if (!ring_buf_is_empty(buf)) {
+                ssize_t nread = ring_buf_read_to_user(buf, user_buffer, count);
+                return nread;
+            }
         }
-        socket_unlock(socket);
 
         if (!is_open_for_reading(file))
             return 0;
@@ -171,14 +165,12 @@ static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
             return -EPIPE;
         }
 
-        socket_lock(socket);
+        SCOPED_LOCK(unix_socket, socket);
         if (!ring_buf_is_full(buf)) {
             ssize_t nwritten =
                 ring_buf_write_from_user(buf, user_buffer, count);
-            socket_unlock(socket);
             return nwritten;
         }
-        socket_unlock(socket);
     }
 }
 
@@ -265,14 +257,11 @@ int unix_socket_bind(struct inode* inode, struct inode* addr_inode) {
     if (!is_unix_socket(inode))
         return -ENOTSOCK;
     struct unix_socket* socket = unix_socket_from_inode(inode);
-    socket_lock(socket);
-    if (socket->is_bound) {
-        socket_unlock(socket);
+    SCOPED_LOCK(unix_socket, socket);
+    if (socket->is_bound)
         return -EINVAL;
-    }
     addr_inode->bound_socket = inode;
     socket->is_bound = true;
-    socket_unlock(socket);
     return 0;
 }
 
@@ -280,23 +269,19 @@ int unix_socket_listen(struct inode* inode, int backlog) {
     if (!is_unix_socket(inode))
         return -ENOTSOCK;
     struct unix_socket* socket = unix_socket_from_inode(inode);
-    socket_lock(socket);
+    SCOPED_LOCK(unix_socket, socket);
     switch (socket->state) {
     case SOCKET_STATE_OPENED:
     case SOCKET_STATE_LISTENING:
         break;
     default:
-        socket_unlock(socket);
         return -EINVAL;
     }
-    if (!socket->is_bound) {
-        socket_unlock(socket);
+    if (!socket->is_bound)
         return -EINVAL;
-    }
     socket->backlog = backlog;
     if (socket->state == SOCKET_STATE_OPENED)
         socket->state = SOCKET_STATE_LISTENING;
-    socket_unlock(socket);
     return 0;
 }
 
@@ -310,35 +295,34 @@ struct inode* unix_socket_accept(struct file* file) {
 
     struct unix_socket* listener = unix_socket_from_file(file);
 
-    socket_lock(listener);
-    bool is_listening = listener->state == SOCKET_STATE_LISTENING;
-    socket_unlock(listener);
-    if (!is_listening)
-        return ERR_PTR(-EINVAL);
+    {
+        SCOPED_LOCK(unix_socket, listener);
+        if (listener->state != SOCKET_STATE_LISTENING)
+            return ERR_PTR(-EINVAL);
+    }
 
     for (;;) {
         int rc = file_block(file, is_acceptable, 0);
         if (IS_ERR(rc))
             return ERR_PTR(rc);
 
-        socket_lock(listener);
-
-        struct unix_socket* connector = listener->next;
-        if (connector) {
-            listener->next = connector->next;
-            --listener->num_pending;
+        struct unix_socket* connector;
+        {
+            SCOPED_LOCK(unix_socket, listener);
+            connector = listener->next;
+            if (connector) {
+                listener->next = connector->next;
+                --listener->num_pending;
+            }
         }
-
-        socket_unlock(listener);
 
         if (!connector)
             continue;
 
-        socket_lock(connector);
+        SCOPED_LOCK(unix_socket, connector);
         ASSERT(connector->state == SOCKET_STATE_PENDING);
         connector->state = SOCKET_STATE_CONNECTED;
         connector->is_connected = true;
-        socket_unlock(connector);
         return &connector->vfs_inode;
     }
 }
@@ -355,51 +339,46 @@ int unix_socket_connect(struct file* file, struct inode* addr_inode) {
     if (!bound_socket)
         return -ECONNREFUSED;
     ASSERT(is_unix_socket(bound_socket));
+
     struct unix_socket* listener = unix_socket_from_inode(bound_socket);
-
     struct unix_socket* connector = unix_socket_from_file(file);
-    socket_lock(connector);
 
-    switch (connector->state) {
-    case SOCKET_STATE_LISTENING:
-        socket_unlock(connector);
-        return -EINVAL;
-    case SOCKET_STATE_PENDING:
-    case SOCKET_STATE_CONNECTED:
-        socket_unlock(connector);
-        return -EISCONN;
-    default:
-        break;
+    {
+        SCOPED_LOCK(unix_socket, connector);
+
+        switch (connector->state) {
+        case SOCKET_STATE_LISTENING:
+            return -EINVAL;
+        case SOCKET_STATE_PENDING:
+        case SOCKET_STATE_CONNECTED:
+            return -EISCONN;
+        default:
+            break;
+        }
+
+        SCOPED_LOCK(unix_socket, listener);
+
+        if (listener->state != SOCKET_STATE_LISTENING ||
+            listener->num_pending >= (size_t)listener->backlog)
+            return -ECONNREFUSED;
+
+        ++listener->num_pending;
+
+        connector->connector_file = file;
+        connector->state = SOCKET_STATE_PENDING;
+        connector->next = NULL;
+
+        inode_ref(&connector->vfs_inode);
+
+        if (listener->next) {
+            struct unix_socket* it = listener->next;
+            while (it->next)
+                it = it->next;
+            it->next = connector;
+        } else {
+            listener->next = connector;
+        }
     }
-
-    socket_lock(listener);
-
-    if (listener->state != SOCKET_STATE_LISTENING ||
-        listener->num_pending >= (size_t)listener->backlog) {
-        socket_unlock(listener);
-        socket_unlock(connector);
-        return -ECONNREFUSED;
-    }
-
-    ++listener->num_pending;
-
-    connector->connector_file = file;
-    connector->state = SOCKET_STATE_PENDING;
-    connector->next = NULL;
-
-    inode_ref(&connector->vfs_inode);
-
-    if (listener->next) {
-        struct unix_socket* it = listener->next;
-        while (it->next)
-            it = it->next;
-        it->next = connector;
-    } else {
-        listener->next = connector;
-    }
-
-    socket_unlock(listener);
-    socket_unlock(connector);
 
     return file_block(file, is_connectable, 0);
 }

@@ -42,15 +42,11 @@ static void activate_console(size_t index) {
     if (active_console == console)
         return;
 
-    spinlock_lock(&console->tty.lock);
-
+    SCOPED_LOCK(tty, &console->tty);
     vt_invalidate_all(console->vt);
 
-    spinlock_lock(&screen_lock);
+    SCOPED_LOCK(spinlock, &screen_lock);
     vt_flush(console->vt);
-    spinlock_unlock(&screen_lock);
-
-    spinlock_unlock(&console->tty.lock);
 
     active_console = console;
 }
@@ -58,12 +54,11 @@ static void activate_console(size_t index) {
 static void on_raw(unsigned char scancode) {
     struct virtual_console* console = active_console;
     struct tty* tty = &console->tty;
-    spinlock_lock(&tty->lock);
+    SCOPED_LOCK(tty, tty);
     if (console->mode == K_RAW) {
         char x = scancode;
         tty_emit(tty, &x, 1);
     }
-    spinlock_unlock(&tty->lock);
 }
 
 static unsigned char modifiers;
@@ -72,14 +67,14 @@ extern char* func_table[MAX_NR_FUNC];
 static struct spinlock key_map_lock;
 
 static void xlate(unsigned char keycode, bool down) {
-    spinlock_lock(&key_map_lock);
-    const unsigned short* key_map = key_maps[modifiers];
-    if (!key_map) {
-        spinlock_unlock(&key_map_lock);
-        return;
+    unsigned short key_sym;
+    {
+        SCOPED_LOCK(spinlock, &key_map_lock);
+        const unsigned short* key_map = key_maps[modifiers];
+        if (!key_map)
+            return;
+        key_sym = key_map[keycode];
     }
-    unsigned short key_sym = key_map[keycode];
-    spinlock_unlock(&key_map_lock);
 
     unsigned char type = KTYP(key_sym);
     unsigned char value = KVAL(key_sym);
@@ -145,7 +140,7 @@ static void xlate(unsigned char keycode, bool down) {
 static void on_key(unsigned char keycode, bool down) {
     struct virtual_console* console = active_console;
     struct tty* tty = &console->tty;
-    spinlock_lock(&tty->lock);
+    SCOPED_LOCK(tty, tty);
     switch (console->mode) {
     case K_RAW:
         break;
@@ -168,7 +163,6 @@ static void on_key(unsigned char keycode, bool down) {
     default:
         UNREACHABLE();
     }
-    spinlock_unlock(&tty->lock);
 }
 
 static const struct keyboard_events event_handlers = {
@@ -182,9 +176,8 @@ static void virtual_console_echo(struct tty* tty, const char* buf,
         CONTAINER_OF(tty, struct virtual_console, tty);
     vt_write(console->vt, buf, count);
     if (active_console == console) {
-        spinlock_lock(&screen_lock);
+        SCOPED_LOCK(spinlock, &screen_lock);
         vt_flush(console->vt);
-        spinlock_unlock(&screen_lock);
     }
 }
 
@@ -210,15 +203,16 @@ static uint32_t default_palette[NUM_COLORS] = {
 static struct spinlock default_palette_lock;
 
 static void set_font(struct virtual_console* console, struct font* font) {
-    spinlock_lock(&console->tty.lock);
-    struct font* old_font = vt_swap_font(console->vt, font);
-    spinlock_unlock(&console->tty.lock);
+    struct font* old_font;
+    {
+        SCOPED_LOCK(tty, &console->tty);
+        old_font = vt_swap_font(console->vt, font);
+    }
     font_unref(old_font);
 
     if (active_console == console) {
-        spinlock_lock(&screen_lock);
+        SCOPED_LOCK(spinlock, &screen_lock);
         vt_flush(console->vt);
-        spinlock_unlock(&screen_lock);
     }
 }
 
@@ -241,9 +235,11 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
         break;
     }
     case KDGKBMODE: {
-        spinlock_lock(&tty->lock);
-        int mode = console->mode;
-        spinlock_unlock(&tty->lock);
+        int mode;
+        {
+            SCOPED_LOCK(tty, tty);
+            mode = console->mode;
+        }
         if (copy_to_user((void*)arg, &mode, sizeof(int)))
             return -EFAULT;
         break;
@@ -258,9 +254,8 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
         default:
             return -EINVAL;
         }
-        spinlock_lock(&tty->lock);
+        SCOPED_LOCK(tty, tty);
         console->mode = mode;
-        spinlock_unlock(&tty->lock);
         break;
     }
     case KDGKBENT: {
@@ -268,16 +263,17 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
         if (copy_from_user(&entry, (const void*)arg, sizeof(struct kbentry)))
             return -EFAULT;
         unsigned short value;
-        spinlock_lock(&key_map_lock);
-        const unsigned short* key_map = key_maps[entry.kb_table];
-        if (key_map) {
-            value = U(key_map[entry.kb_index]);
-            if (KTYP(value) >= NR_TYPES)
-                value = K_HOLE;
-        } else {
-            value = entry.kb_index ? K_HOLE : K_NOSUCHMAP;
+        {
+            SCOPED_LOCK(spinlock, &key_map_lock);
+            const unsigned short* key_map = key_maps[entry.kb_table];
+            if (key_map) {
+                value = U(key_map[entry.kb_index]);
+                if (KTYP(value) >= NR_TYPES)
+                    value = K_HOLE;
+            } else {
+                value = entry.kb_index ? K_HOLE : K_NOSUCHMAP;
+            }
         }
-        spinlock_unlock(&key_map_lock);
         if (copy_to_user((unsigned char*)arg +
                              offsetof(struct kbentry, kb_value),
                          &value, sizeof(unsigned short)))
@@ -290,14 +286,13 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
             return -EFAULT;
         if (!entry.kb_index && entry.kb_value == K_NOSUCHMAP) {
             if (entry.kb_table) {
-                spinlock_lock(&key_map_lock);
+                SCOPED_LOCK(spinlock, &key_map_lock);
                 unsigned short* key_map = key_maps[entry.kb_table];
                 if (key_map) {
                     key_maps[entry.kb_table] = NULL;
                     if (key_map[0] == U(K_ALLOCATED))
                         kfree(key_map);
                 }
-                spinlock_unlock(&key_map_lock);
             }
         } else {
             if (KTYP(entry.kb_value) >= NR_TYPES)
@@ -306,27 +301,21 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
                 return -EINVAL;
 
             // Allocate before disabling the interrupts
-            unsigned short* new_key_map =
+            unsigned short* new_key_map FREE(kfree) =
                 kmalloc(sizeof(unsigned short) * NR_KEYS);
 
-            spinlock_lock(&key_map_lock);
+            SCOPED_LOCK(spinlock, &key_map_lock);
             unsigned short* key_map = key_maps[entry.kb_table];
             if (!key_map) {
-                if (!new_key_map) {
-                    spinlock_unlock(&key_map_lock);
+                if (!new_key_map)
                     return -ENOMEM;
-                }
-                new_key_map[0] = U(K_ALLOCATED);
+                key_map = TAKE_PTR(new_key_map);
+                key_map[0] = U(K_ALLOCATED);
                 for (size_t i = 1; i < NR_KEYS; ++i)
-                    new_key_map[i] = U(K_HOLE);
-                key_maps[entry.kb_table] = new_key_map;
-                key_map = new_key_map;
-                new_key_map = NULL;
+                    key_map[i] = U(K_HOLE);
+                key_maps[entry.kb_table] = key_map;
             }
             key_map[entry.kb_index] = U(entry.kb_value);
-            spinlock_unlock(&key_map_lock);
-
-            kfree(new_key_map); // In case it was not used
         }
         break;
     }
@@ -430,15 +419,16 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
     }
     case GIO_CMAP: {
         unsigned char cmap[NUM_COLORS * 3];
-        spinlock_lock(&default_palette_lock);
-        size_t i = 0;
-        for (size_t c = 0; c < NUM_COLORS; ++c) {
-            uint32_t color = default_palette[c];
-            cmap[i++] = (color >> 16) & 0xff; // R
-            cmap[i++] = (color >> 8) & 0xff;  // G
-            cmap[i++] = color & 0xff;         // B
+        {
+            SCOPED_LOCK(spinlock, &default_palette_lock);
+            size_t i = 0;
+            for (size_t c = 0; c < NUM_COLORS; ++c) {
+                uint32_t color = default_palette[c];
+                cmap[i++] = (color >> 16) & 0xff; // R
+                cmap[i++] = (color >> 8) & 0xff;  // G
+                cmap[i++] = color & 0xff;         // B
+            }
         }
-        spinlock_unlock(&default_palette_lock);
 
         if (copy_to_user((void*)arg, cmap, sizeof(cmap)))
             return -EFAULT;
@@ -449,26 +439,25 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
         if (copy_from_user(cmap, (const void*)arg, sizeof(cmap)))
             return -EFAULT;
 
-        spinlock_lock(&default_palette_lock);
-        size_t i = 0;
-        for (size_t c = 0; c < NUM_COLORS; ++c) {
-            uint32_t color = 0;
-            color |= cmap[i++] << 16; // R
-            color |= cmap[i++] << 8;  // G
-            color |= cmap[i++];       // B
-            default_palette[c] = color;
+        {
+            SCOPED_LOCK(spinlock, &default_palette_lock);
+            size_t i = 0;
+            for (size_t c = 0; c < NUM_COLORS; ++c) {
+                uint32_t color = 0;
+                color |= cmap[i++] << 16; // R
+                color |= cmap[i++] << 8;  // G
+                color |= cmap[i++];       // B
+                default_palette[c] = color;
+            }
+            for (i = 0; i < NUM_CONSOLES; ++i) {
+                struct virtual_console* console = consoles[i];
+                SCOPED_LOCK(tty, &console->tty);
+                vt_set_palette(console->vt, default_palette);
+            }
         }
-        for (i = 0; i < NUM_CONSOLES; ++i) {
-            struct virtual_console* console = consoles[i];
-            spinlock_lock(&console->tty.lock);
-            vt_set_palette(console->vt, default_palette);
-            spinlock_unlock(&console->tty.lock);
-        }
-        spinlock_unlock(&default_palette_lock);
 
-        spinlock_lock(&screen_lock);
+        SCOPED_LOCK(spinlock, &screen_lock);
         vt_flush(active_console->vt);
-        spinlock_unlock(&screen_lock);
         break;
     }
     case VT_ACTIVATE: {

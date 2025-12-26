@@ -16,18 +16,14 @@ void __vm_obj_destroy(struct vm_obj* obj) {
 
 void* vm_obj_map(struct vm_obj* obj, size_t offset, size_t npages,
                  unsigned flags) {
-    mutex_lock(&kernel_vm->lock);
+    SCOPED_LOCK(vm, kernel_vm);
 
     struct vm_region* region = vm_alloc(kernel_vm, npages);
-    if (IS_ERR(ASSERT(region))) {
-        mutex_unlock(&kernel_vm->lock);
+    if (IS_ERR(ASSERT(region)))
         return ERR_CAST(region);
-    }
 
     ASSERT_OK(vm_region_set_flags(region, 0, npages, flags, ~0));
     vm_region_set_obj(region, obj, offset);
-
-    mutex_unlock(&kernel_vm->lock);
 
     return vm_region_to_virt(region);
 }
@@ -36,18 +32,17 @@ void vm_obj_unmap(void* virt_addr) {
     if (!virt_addr)
         return;
 
-    mutex_lock(&kernel_vm->lock);
+    SCOPED_LOCK(vm, kernel_vm);
     struct vm_region* region = vm_find(kernel_vm, virt_addr);
     ASSERT(region);
     ASSERT(ROUND_DOWN((uintptr_t)virt_addr, PAGE_SIZE) ==
            (uintptr_t)vm_region_to_virt(region));
     ASSERT_OK(vm_region_free(region, 0, region->end - region->start));
-    mutex_unlock(&kernel_vm->lock);
 }
 
 int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
                                size_t npages) {
-    ASSERT(mutex_is_locked_by_current(&obj->lock));
+    ASSERT(vm_obj_is_locked_by_current(obj));
     int rc = 0;
     struct vm* original_vm = current->vm;
     for (const struct vm_region* region = obj->shared_regions; region;
@@ -65,10 +60,8 @@ int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
         size_t region_npages =
             MIN(npages, region->end - region->start - region_offset);
 
-        mutex_lock(&vm->lock);
+        SCOPED_LOCK(vm, vm);
         rc = vm_region_invalidate(region, region_offset, region_npages);
-        mutex_unlock(&vm->lock);
-
         if (IS_ERR(rc))
             break;
     }
@@ -93,7 +86,7 @@ static struct page* zero_page;
 
 static struct page* anon_get_page(struct vm_obj* obj, size_t index,
                                   bool write) {
-    ASSERT(mutex_is_locked_by_current(&obj->lock));
+    ASSERT(vm_obj_is_locked_by_current(obj));
     struct anon* anon = CONTAINER_OF(obj, struct anon, vm_obj);
 
     struct tree_node** new_node = &anon->shared_pages.root;
@@ -164,7 +157,7 @@ static void phys_destroy(struct vm_obj* obj) {
 static struct page* phys_get_page(struct vm_obj* obj, size_t index,
                                   bool write) {
     (void)write;
-    ASSERT(mutex_is_locked_by_current(&obj->lock));
+    ASSERT(vm_obj_is_locked_by_current(obj));
     struct phys* phys = CONTAINER_OF(obj, struct phys, vm_obj);
     size_t pfn = phys->start + index;
     if (phys->end <= pfn)

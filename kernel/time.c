@@ -47,22 +47,21 @@ void time_init(void) { now.tv_sec = rtc_now(); }
 void time_tick(void) {
     ++uptime;
 
-    spinlock_lock(&now_lock);
+    SCOPED_LOCK(spinlock, &now_lock);
     now.tv_nsec += NANOS_PER_SEC / CLK_TCK;
     if (now.tv_nsec >= NANOS_PER_SEC) {
         ++now.tv_sec;
         now.tv_nsec -= NANOS_PER_SEC;
     }
-    spinlock_unlock(&now_lock);
 }
 
 int time_now(clockid_t clock_id, struct timespec* tp) {
     switch (clock_id) {
-    case CLOCK_REALTIME:
-        spinlock_lock(&now_lock);
+    case CLOCK_REALTIME: {
+        SCOPED_LOCK(spinlock, &now_lock);
         *tp = now;
-        spinlock_unlock(&now_lock);
         break;
+    }
     case CLOCK_MONOTONIC: {
         unsigned t = uptime;
         tp->tv_sec = t / CLK_TCK;
@@ -82,11 +81,11 @@ int time_set(clockid_t clock_id, const struct timespec* tp) {
         return -EINVAL;
 
     switch (clock_id) {
-    case CLOCK_REALTIME:
-        spinlock_lock(&now_lock);
+    case CLOCK_REALTIME: {
+        SCOPED_LOCK(spinlock, &now_lock);
         now = *tp;
-        spinlock_unlock(&now_lock);
         break;
+    }
     default:
         return -EINVAL;
     }

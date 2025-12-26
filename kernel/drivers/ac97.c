@@ -179,19 +179,16 @@ static ssize_t ac97_device_pwrite(struct file* file, const void* user_buffer,
     (void)offset;
     const unsigned char* user_src = user_buffer;
     size_t nwritten = 0;
-    mutex_lock(&lock);
+    SCOPED_LOCK(mutex, &lock);
     while (count > 0) {
         size_t size = MIN(PAGE_SIZE, count);
         int rc = write_single_buffer(file, user_src, size);
-        if (IS_ERR(rc)) {
-            mutex_unlock(&lock);
+        if (IS_ERR(rc))
             return rc;
-        }
         user_src += size;
         count -= size;
         nwritten += size;
     }
-    mutex_unlock(&lock);
     return nwritten;
 }
 

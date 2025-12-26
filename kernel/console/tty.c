@@ -85,44 +85,36 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
     (void)offset;
 
     struct tty* tty = tty_from_file(file);
-
     for (;;) {
         int rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 
-        spinlock_lock(&tty->lock);
-        if (can_read(tty))
-            break;
-        spinlock_unlock(&tty->lock);
-    }
+        SCOPED_LOCK(tty, tty);
+        if (!can_read(tty))
+            continue;
 
-    ssize_t ret = 0;
-    char* user_dest = user_buf;
-    while (count) {
-        struct attr_char ac;
-        ssize_t nread = ring_buf_read(tty->input_buf, &ac, sizeof(ac));
-        if (IS_ERR(nread)) {
-            ret = nread;
-            break;
-        }
-        if (!nread)
-            break;
-        if (ac.ch) {
-            if (copy_to_user(user_dest, &ac.ch, sizeof(char))) {
-                ret = -EFAULT;
+        size_t nread = 0;
+        char* user_dest = user_buf;
+        while (count) {
+            struct attr_char ac;
+            ssize_t n = ring_buf_read(tty->input_buf, &ac, sizeof(ac));
+            if (IS_ERR(n))
+                return n;
+            if (!n)
                 break;
+            if (ac.ch) {
+                if (copy_to_user(user_dest, &ac.ch, sizeof(char)))
+                    return -EFAULT;
+                ++user_dest;
+                ++nread;
+                --count;
             }
-            ++user_dest;
-            ++ret;
-            --count;
+            if (ac.eol)
+                break;
         }
-        if (ac.eol)
-            break;
+        return nread;
     }
-
-    spinlock_unlock(&tty->lock);
-    return ret;
 }
 
 static void echo(struct tty* tty, const char* buf, size_t count) {
@@ -156,105 +148,96 @@ static ssize_t tty_pwrite(struct file* file, const void* user_buf, size_t count,
                           uint64_t offset) {
     (void)offset;
     struct tty* tty = tty_from_file(file);
-    spinlock_lock(&tty->lock);
+    SCOPED_LOCK(tty, tty);
 
     char buf[256];
     const unsigned char* user_src = user_buf;
     size_t nwritten = 0;
     while (nwritten < count) {
         size_t to_write = MIN(count - nwritten, sizeof(buf));
-        if (copy_from_user(buf, user_src, to_write)) {
-            spinlock_unlock(&tty->lock);
+        if (copy_from_user(buf, user_src, to_write))
             return -EFAULT;
-        }
         processed_echo(tty, buf, to_write);
         user_src += to_write;
         nwritten += to_write;
     }
 
-    spinlock_unlock(&tty->lock);
     return nwritten;
 }
 
 static int tty_ioctl(struct file* file, unsigned cmd, unsigned long arg) {
     struct tty* tty = tty_from_file(file);
     struct termios* termios = &tty->termios;
-    int ret = 0;
     switch (cmd) {
-    case TIOCGPGRP:
-        spinlock_lock(&tty->lock);
+    case TIOCGPGRP: {
+        SCOPED_LOCK(tty, tty);
         if (copy_to_user((void*)arg, &tty->pgid, sizeof(pid_t)))
-            ret = -EFAULT;
-        spinlock_unlock(&tty->lock);
+            return -EFAULT;
         break;
-    case TIOCSPGRP:
-        spinlock_lock(&tty->lock);
+    }
+    case TIOCSPGRP: {
+        SCOPED_LOCK(tty, tty);
         if (copy_from_user(&tty->pgid, (const void*)arg, sizeof(pid_t)))
-            ret = -EFAULT;
-        spinlock_unlock(&tty->lock);
+            return -EFAULT;
         break;
-    case TCGETS:
-        spinlock_lock(&tty->lock);
+    }
+    case TCGETS: {
+        SCOPED_LOCK(tty, tty);
         if (copy_to_user((void*)arg, termios, sizeof(struct termios)))
-            ret = -EFAULT;
-        spinlock_unlock(&tty->lock);
+            return -EFAULT;
         break;
+    }
     case TCSETS:
     case TCSETSW:
-    case TCSETSF:
-        spinlock_lock(&tty->lock);
-        if (copy_from_user(termios, (const void*)arg, sizeof(struct termios))) {
-            ret = -EFAULT;
-        } else if (cmd == TCSETSF) {
+    case TCSETSF: {
+        SCOPED_LOCK(tty, tty);
+        if (copy_from_user(termios, (const void*)arg, sizeof(struct termios)))
+            return -EFAULT;
+        if (cmd == TCSETSF) {
             tty->line_len = 0;
             ring_buf_clear(tty->input_buf);
         }
-        spinlock_unlock(&tty->lock);
         break;
+    }
     case TIOCGWINSZ: {
-        spinlock_lock(&tty->lock);
-        struct winsize winsize = {
-            .ws_col = tty->num_columns,
-            .ws_row = tty->num_rows,
-            .ws_xpixel = 0,
-            .ws_ypixel = 0,
-        };
-        spinlock_unlock(&tty->lock);
+        struct winsize winsize;
+        {
+            SCOPED_LOCK(tty, tty);
+            winsize = (struct winsize){
+                .ws_col = tty->num_columns,
+                .ws_row = tty->num_rows,
+                .ws_xpixel = 0,
+                .ws_ypixel = 0,
+            };
+        }
         if (copy_to_user((void*)arg, &winsize, sizeof(struct winsize)))
-            ret = -EFAULT;
+            return -EFAULT;
         break;
     }
     case TIOCSWINSZ: {
         struct winsize winsize;
-        if (copy_from_user(&winsize, (const void*)arg,
-                           sizeof(struct winsize))) {
-            ret = -EFAULT;
-        } else {
-            spinlock_lock(&tty->lock);
-            tty->num_columns = winsize.ws_col;
-            tty->num_rows = winsize.ws_row;
-            spinlock_unlock(&tty->lock);
-        }
+        if (copy_from_user(&winsize, (const void*)arg, sizeof(struct winsize)))
+            return -EFAULT;
+        SCOPED_LOCK(tty, tty);
+        tty->num_columns = winsize.ws_col;
+        tty->num_rows = winsize.ws_row;
         break;
     }
     default:
         if (tty->ops->ioctl)
-            ret = tty->ops->ioctl(tty, file, cmd, arg);
-        else
-            ret = -ENOTTY;
-        break;
+            return tty->ops->ioctl(tty, file, cmd, arg);
+        return -ENOTTY;
     }
-    return ret;
+    return 0;
 }
 
 static short tty_poll(struct file* file, short events) {
     short revents = 0;
     if (events & POLLIN) {
         struct tty* tty = tty_from_file(file);
-        spinlock_lock(&tty->lock);
+        SCOPED_LOCK(tty, tty);
         if (can_read(tty))
             revents |= POLLIN;
-        spinlock_unlock(&tty->lock);
     }
     if (events & POLLOUT)
         revents |= POLLOUT;
@@ -361,15 +344,11 @@ NODISCARD static int on_char(struct tty* tty, char ch) {
 }
 
 ssize_t tty_emit(struct tty* tty, const char* buf, size_t count) {
-    spinlock_lock(&tty->lock);
-    int ret = 0;
+    SCOPED_LOCK(tty, tty);
     for (size_t i = 0; i < count; ++i) {
-        ret = on_char(tty, buf[i]);
+        int ret = on_char(tty, buf[i]);
         if (IS_ERR(ret))
-            break;
+            return ret;
     }
-    spinlock_unlock(&tty->lock);
-    if (IS_ERR(ret))
-        return ret;
     return count;
 }

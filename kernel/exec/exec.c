@@ -35,7 +35,7 @@ NODISCARD static ssize_t count_strings_user(const char* const* user_strings) {
 NODISCARD
 static int copy_from_kernel_to_remote_vm(struct vm* vm, void* user_dest,
                                          const void* src, size_t size) {
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
     size_t offset = 0;
     while (offset < size) {
         uintptr_t curr_addr = (uintptr_t)user_dest + offset;
@@ -54,7 +54,7 @@ static int copy_from_kernel_to_remote_vm(struct vm* vm, void* user_dest,
 NODISCARD
 static int copy_from_user_to_remote_vm(struct vm* vm, void* user_dest,
                                        const void* user_src, size_t size) {
-    ASSERT(mutex_is_locked_by_current(&vm->lock));
+    ASSERT(vm_is_locked_by_current(vm));
     size_t offset = 0;
     while (offset < size) {
         uintptr_t curr_addr = (uintptr_t)user_dest + offset;
@@ -116,8 +116,12 @@ void exec_image_unload(struct exec_image* image) {
     }
 }
 
-NODISCARD static int loader_alloc_stack(struct loader* loader) {
-    struct vm* vm = loader->vm;
+NODISCARD static int loader_init_vm(struct loader* loader) {
+    struct vm* vm FREE(vm) = vm_create(0, (void*)KERNEL_VIRT_ADDR);
+    if (IS_ERR(ASSERT(vm)))
+        return PTR_ERR(vm);
+
+    SCOPED_LOCK(vm, vm);
 
     STATIC_ASSERT(STACK_SIZE % PAGE_SIZE == 0);
 
@@ -145,6 +149,7 @@ NODISCARD static int loader_alloc_stack(struct loader* loader) {
         return PTR_ERR(stack_obj);
     vm_region_set_obj(stack_region, stack_obj, 0);
 
+    loader->vm = TAKE_PTR(vm);
     loader->stack_base = stack_base;
     loader->stack_ptr = stack_base + STACK_SIZE;
     return rc;
@@ -155,20 +160,6 @@ static void loader_deinit_vm(struct loader* loader) {
         vm_unref(loader->vm);
         loader->vm = NULL;
     }
-}
-
-NODISCARD static int loader_init_vm(struct loader* loader) {
-    struct vm* vm = vm_create(0, (void*)KERNEL_VIRT_ADDR);
-    if (IS_ERR(ASSERT(vm)))
-        return PTR_ERR(vm);
-
-    loader->vm = vm;
-
-    mutex_lock(&vm->lock);
-    int rc = loader_alloc_stack(loader);
-    mutex_unlock(&vm->lock);
-
-    return rc;
 }
 
 static void loader_deinit(struct loader* loader) {
@@ -211,10 +202,8 @@ int loader_push_string_from_kernel(struct loader* loader, const char* str) {
     loader->stack_ptr = new_sp;
 
     struct vm* vm = loader->vm;
-    mutex_lock(&vm->lock);
-    int rc = copy_from_kernel_to_remote_vm(vm, new_sp, str, size);
-    mutex_unlock(&vm->lock);
-    return rc;
+    SCOPED_LOCK(vm, vm);
+    return copy_from_kernel_to_remote_vm(vm, new_sp, str, size);
 }
 
 int loader_push_string_from_user(struct loader* loader, const char* user_str) {
@@ -231,10 +220,8 @@ int loader_push_string_from_user(struct loader* loader, const char* user_str) {
     loader->stack_ptr = new_sp;
 
     struct vm* vm = loader->vm;
-    mutex_lock(&vm->lock);
-    int rc = copy_from_user_to_remote_vm(vm, new_sp, user_str, size);
-    mutex_unlock(&vm->lock);
-    return rc;
+    SCOPED_LOCK(vm, vm);
+    return copy_from_user_to_remote_vm(vm, new_sp, user_str, size);
 }
 
 void loader_pop_string(struct loader* loader) {
@@ -278,13 +265,14 @@ noreturn static void loader_commit(struct loader* loader) {
     const char* comm = basename(loader->pathname);
 
     struct task* task = current;
-    mutex_lock(&task->lock);
-    strlcpy(task->comm, comm, sizeof(task->comm));
-    task->arg_start = (uintptr_t)loader->arg_start;
-    task->arg_end = (uintptr_t)loader->arg_end;
-    task->env_start = (uintptr_t)loader->env_start;
-    task->env_end = (uintptr_t)loader->env_end;
-    mutex_unlock(&task->lock);
+    {
+        SCOPED_LOCK(task, task);
+        strlcpy(task->comm, comm, sizeof(task->comm));
+        task->arg_start = (uintptr_t)loader->arg_start;
+        task->arg_end = (uintptr_t)loader->arg_end;
+        task->env_start = (uintptr_t)loader->env_start;
+        task->env_end = (uintptr_t)loader->env_end;
+    }
 
     cli();
 

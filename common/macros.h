@@ -3,6 +3,9 @@
 #define _STRINGIFY(x) #x
 #define STRINGIFY(x) _STRINGIFY(x)
 
+#define _CONCAT(a, b) a##b
+#define CONCAT(a, b) _CONCAT(a, b)
+
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -17,6 +20,8 @@
 
 #define NODISCARD __attribute__((__warn_unused_result__))
 #define NOINLINE __attribute__((noinline))
+#define MAYBE_UNUSED __attribute__((unused))
+#define CLEANUP(func) __attribute__((__cleanup__(func)))
 #define STATIC_ASSERT(x) _Static_assert(x, "Static assertion failed")
 
 #define PRINTF_LIKE(a, b) __attribute__((format(printf, a, b)))

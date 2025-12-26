@@ -34,21 +34,16 @@ int sys_sigaction(int signum, const struct sigaction* user_act,
             return -EFAULT;
     }
 
-    int ret = 0;
     struct sighand* sighand = current->sighand;
-    spinlock_lock(&sighand->lock);
+    SCOPED_LOCK(sighand, sighand);
     struct sigaction* slot = &sighand->actions[signum - 1];
     if (user_oldact) {
-        if (copy_to_user(user_oldact, slot, sizeof(struct sigaction))) {
-            ret = -EFAULT;
-            goto done;
-        }
+        if (copy_to_user(user_oldact, slot, sizeof(struct sigaction)))
+            return -EFAULT;
     }
     if (user_act)
         *slot = act;
-done:
-    spinlock_unlock(&sighand->lock);
-    return ret;
+    return 0;
 }
 
 int sys_sigprocmask(int how, const sigset_t* user_set, sigset_t* user_oldset) {

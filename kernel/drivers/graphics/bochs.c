@@ -64,17 +64,15 @@ static void configure(size_t width, size_t height, size_t bpp) {
 }
 
 static int bochs_fb_get_info(struct fb_info* out_info) {
-    mutex_lock(&lock);
+    SCOPED_LOCK(mutex, &lock);
     *out_info = info;
-    mutex_unlock(&lock);
     return 0;
 }
 
 static int bochs_fb_set_info(struct fb_info* inout_info) {
-    mutex_lock(&lock);
+    SCOPED_LOCK(mutex, &lock);
     configure(inout_info->width, inout_info->height, inout_info->bpp);
     *inout_info = info;
-    mutex_unlock(&lock);
     return 0;
 }
 

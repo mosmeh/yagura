@@ -67,6 +67,8 @@ struct fs {
 
 struct fs* fs_clone(struct fs*);
 
+DEFINE_LOCKED(fs, struct fs*, mutex, lock)
+
 void __fs_destroy(struct fs*);
 DEFINE_REFCOUNTED_BASE(fs, struct fs*, refcount, __fs_destroy)
 
@@ -81,6 +83,8 @@ struct files {
 
 struct files* files_clone(struct files*);
 
+DEFINE_LOCKED(files, struct files*, mutex, lock)
+
 void __files_destroy(struct files*);
 DEFINE_REFCOUNTED_BASE(files, struct files*, refcount, __files_destroy)
 
@@ -91,6 +95,8 @@ struct sighand {
 };
 
 struct sighand* sighand_clone(struct sighand*);
+
+DEFINE_LOCKED(sighand, struct sighand*, spinlock, lock)
 
 void __sighand_destroy(struct sighand*);
 DEFINE_REFCOUNTED_BASE(sighand, struct sighand*, refcount, __sighand_destroy)
@@ -122,6 +128,8 @@ struct task* task_get_current(void);
 
 struct task* task_create(const char* comm, void (*entry_point)(void));
 pid_t task_spawn(const char* comm, void (*entry_point)(void));
+
+DEFINE_LOCKED(task, struct task*, mutex, lock)
 
 void __task_destroy(struct task*);
 DEFINE_REFCOUNTED_BASE(task, struct task*, refcount, __task_destroy)

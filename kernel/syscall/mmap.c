@@ -66,16 +66,14 @@ void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
     }
 
     struct vm* vm = current->vm;
-    mutex_lock(&vm->lock);
+    SCOPED_LOCK(vm, vm);
 
     size_t npages = DIV_CEIL(length, PAGE_SIZE);
     struct vm_region* region = (flags & MAP_FIXED)
                                    ? vm_alloc_at(vm, addr, npages)
                                    : vm_alloc(vm, npages);
-    if (IS_ERR(ASSERT(region))) {
-        mutex_unlock(&vm->lock);
+    if (IS_ERR(ASSERT(region)))
         return region;
-    }
 
     unsigned vm_flags = prot_to_vm_flags(prot) | VM_USER;
     if (flags & MAP_SHARED)
@@ -84,7 +82,6 @@ void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
 
     vm_region_set_obj(region, obj, pgoff);
 
-    mutex_unlock(&vm->lock);
     return vm_region_to_virt(region);
 }
 
@@ -118,21 +115,19 @@ NODISCARD static int for_each_overlapping_region(
     size_t end = DIV_CEIL((uintptr_t)addr + length, PAGE_SIZE);
 
     struct vm* vm = current->vm;
-    mutex_lock(&vm->lock);
-    int ret = 0;
+    SCOPED_LOCK(vm, vm);
     struct vm_region* region =
         vm_find_intersection(vm, addr, (void*)(end << PAGE_SHIFT));
     while (region && start < region->end) {
         struct vm_region* prev = vm_prev_region(region);
         size_t offset = MAX(start, region->start) - region->start;
         size_t npages = MIN(end, region->end) - region->start - offset;
-        ret = fn(region, offset, npages, ctx);
+        int ret = fn(region, offset, npages, ctx);
         if (IS_ERR(ret))
-            break;
+            return ret;
         region = prev;
     }
-    mutex_unlock(&vm->lock);
-    return ret;
+    return 0;
 }
 
 static int unmap(struct vm_region* region, size_t offset, size_t npages,

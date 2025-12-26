@@ -54,35 +54,27 @@ NODISCARD static ssize_t read_all(struct file* file, void* user_buffer,
 ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
+
     struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
-    mutex_lock(&file->lock);
-    ssize_t ret = 0;
+
+    SCOPED_LOCK(file, file);
+    size_t nread = 0;
     for (int i = 0; i < iovcnt; ++i) {
         struct iovec iov;
-        if (copy_from_user(&iov, user_iov + i, sizeof(struct iovec))) {
-            ret = -EFAULT;
-            break;
-        }
-        if (!is_user_range(iov.iov_base, iov.iov_len)) {
-            ret = -EFAULT;
-            break;
-        }
-        ssize_t nread = read_all(file, iov.iov_base, iov.iov_len);
-        if (nread == -EINTR) {
-            if (ret == 0)
-                ret = -ERESTARTSYS;
-            break;
-        }
-        if (IS_ERR(nread)) {
-            ret = nread;
-            break;
-        }
-        ret += nread;
+        if (copy_from_user(&iov, user_iov + i, sizeof(struct iovec)))
+            return -EFAULT;
+        if (!is_user_range(iov.iov_base, iov.iov_len))
+            return -EFAULT;
+        ssize_t n = read_all(file, iov.iov_base, iov.iov_len);
+        if (n == -EINTR && nread == 0)
+            return -ERESTARTSYS;
+        if (IS_ERR(n))
+            return n;
+        nread += n;
     }
-    mutex_unlock(&file->lock);
-    return ret;
+    return nread;
 }
 
 ssize_t sys_write(int fd, const void* user_buf, size_t count) {
@@ -133,35 +125,27 @@ NODISCARD static ssize_t write_all(struct file* file, const void* user_buffer,
 ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
+
     struct file* file FREE(file) = task_ref_file(fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
-    mutex_lock(&file->lock);
-    ssize_t ret = 0;
+
+    SCOPED_LOCK(file, file);
+    size_t nwritten = 0;
     for (int i = 0; i < iovcnt; ++i) {
         struct iovec iov;
-        if (copy_from_user(&iov, user_iov + i, sizeof(struct iovec))) {
-            ret = -EFAULT;
-            break;
-        }
-        if (!is_user_range(iov.iov_base, iov.iov_len)) {
-            ret = -EFAULT;
-            break;
-        }
-        ssize_t nwritten = write_all(file, iov.iov_base, iov.iov_len);
-        if (nwritten == -EINTR) {
-            if (ret == 0)
-                ret = -ERESTARTSYS;
-            break;
-        }
-        if (IS_ERR(nwritten)) {
-            ret = nwritten;
-            break;
-        }
-        ret += nwritten;
+        if (copy_from_user(&iov, user_iov + i, sizeof(struct iovec)))
+            return -EFAULT;
+        if (!is_user_range(iov.iov_base, iov.iov_len))
+            return -EFAULT;
+        ssize_t n = write_all(file, iov.iov_base, iov.iov_len);
+        if (n == -EINTR && nwritten == 0)
+            return -ERESTARTSYS;
+        if (IS_ERR(n))
+            return n;
+        nwritten += n;
     }
-    mutex_unlock(&file->lock);
-    return ret;
+    return nwritten;
 }
 
 off_t sys_lseek(int fd, off_t offset, int whence) {
