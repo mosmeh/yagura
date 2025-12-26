@@ -26,18 +26,7 @@ struct file* file_create(struct inode* inode, int flags) {
     return file;
 }
 
-struct file* file_ref(struct file* file) {
-    ASSERT(file);
-    refcount_inc(&file->refcount);
-    return file;
-}
-
-void file_unref(struct file* file) {
-    if (!file)
-        return;
-    if (refcount_dec(&file->refcount))
-        return;
-
+void __file_destroy(struct file* file) {
     struct inode* inode = file->inode;
     if (file->fops->close)
         file->fops->close(file);
