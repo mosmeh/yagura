@@ -33,10 +33,8 @@ struct vm_obj {
     refcount_t refcount;
 };
 
-struct vm_obj* vm_obj_ref(struct vm_obj*);
-void vm_obj_unref(struct vm_obj*);
-
-DEFINE_FREE(vm_obj, struct vm_obj*, vm_obj_unref)
+void __vm_obj_destroy(struct vm_obj*);
+DEFINE_REFCOUNTED_BASE(vm_obj, struct vm_obj*, refcount, __vm_obj_destroy)
 
 // Maps the given vm_obj into kernel virtual address space.
 // Returns the virtual address.
@@ -86,6 +84,8 @@ extern struct vm* kernel_vm;
 struct vm* vm_create(void* start, void* end);
 struct vm* vm_ref(struct vm*);
 void vm_unref(struct vm*);
+
+DEFINE_FREE(vm, struct vm*, vm_unref)
 
 // Switches to the virtual memory space. Returns the previous vm.
 struct vm* vm_enter(struct vm*);

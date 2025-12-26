@@ -12,18 +12,6 @@ void fs_init(const multiboot_module_t* initrd_mod) {
     pipe_init();
 }
 
-struct inode* inode_ref(struct inode* inode) {
-    ASSERT(inode);
-    vm_obj_ref(&inode->vm_obj);
-    return inode;
-}
-
-void inode_unref(struct inode* inode) {
-    if (!inode)
-        return;
-    vm_obj_unref(&inode->vm_obj);
-}
-
 void inode_lock(struct inode* inode) { mutex_lock(&inode->vm_obj.lock); }
 
 void inode_unlock(struct inode* inode) { mutex_unlock(&inode->vm_obj.lock); }

@@ -34,10 +34,8 @@ struct file_ops {
     struct vm_obj* (*mmap)(struct file*);
 };
 
-struct file* file_ref(struct file*);
-void file_unref(struct file*);
-
-DEFINE_FREE(file, struct file*, file_unref)
+void __file_destroy(struct file*);
+DEFINE_REFCOUNTED_BASE(file, struct file*, refcount, __file_destroy)
 
 NODISCARD ssize_t file_read(struct file*, void* user_buffer, size_t count);
 NODISCARD ssize_t file_pread(struct file*, void* user_buffer, size_t count,
