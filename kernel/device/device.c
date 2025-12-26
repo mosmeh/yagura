@@ -54,14 +54,6 @@ const struct file_ops char_dev_fops = {
     .open = char_dev_open,
 };
 
-void block_dev_lock(struct block_dev* block_dev) {
-    inode_lock(&block_dev->vfs_inode);
-}
-
-void block_dev_unlock(struct block_dev* block_dev) {
-    inode_unlock(&block_dev->vfs_inode);
-}
-
 static struct block_dev* block_dev_from_inode(struct inode* inode) {
     return CONTAINER_OF(inode, struct block_dev, vfs_inode);
 }

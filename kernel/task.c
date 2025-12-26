@@ -32,21 +32,15 @@ struct fs* fs_clone(struct fs* fs) {
     if (IS_ERR(ASSERT(new_fs)))
         return new_fs;
 
-    mutex_lock(&fs->lock);
+    SCOPED_LOCK(fs, fs);
 
     struct path* root FREE(path) = path_dup(fs->root);
-    if (IS_ERR(ASSERT(root))) {
-        mutex_unlock(&fs->lock);
+    if (IS_ERR(ASSERT(root)))
         return ERR_CAST(root);
-    }
 
     struct path* cwd FREE(path) = path_dup(fs->cwd);
-    if (IS_ERR(ASSERT(cwd))) {
-        mutex_unlock(&fs->lock);
+    if (IS_ERR(ASSERT(cwd)))
         return ERR_CAST(cwd);
-    }
-
-    mutex_unlock(&fs->lock);
 
     new_fs->root = TAKE_PTR(root);
     new_fs->cwd = TAKE_PTR(cwd);
@@ -61,7 +55,7 @@ void __fs_destroy(struct fs* fs) {
 }
 
 int fs_chroot(struct fs* fs, struct path* new_root) {
-    ASSERT(mutex_is_locked_by_current(&fs->lock));
+    ASSERT(fs_is_locked_by_current(fs));
 
     if (!S_ISDIR(new_root->inode->mode))
         return -ENOTDIR;
@@ -77,7 +71,7 @@ int fs_chroot(struct fs* fs, struct path* new_root) {
 }
 
 int fs_chdir(struct fs* fs, struct path* new_cwd) {
-    ASSERT(mutex_is_locked_by_current(&fs->lock));
+    ASSERT(fs_is_locked_by_current(fs));
 
     if (!S_ISDIR(new_cwd->inode->mode))
         return -ENOTDIR;
@@ -105,14 +99,12 @@ struct files* files_clone(struct files* files) {
     if (IS_ERR(ASSERT(new_files)))
         return new_files;
 
-    mutex_lock(&files->lock);
+    SCOPED_LOCK(files, files);
     memcpy(new_files->entries, files->entries, sizeof(files->entries));
     for (size_t i = 0; i < OPEN_MAX; ++i) {
         if (files->entries[i])
             file_ref(files->entries[i]);
     }
-    mutex_unlock(&files->lock);
-
     return new_files;
 }
 
@@ -138,9 +130,8 @@ struct sighand* sighand_clone(struct sighand* sighand) {
     struct sighand* new_sighand = sighand_create();
     if (IS_ERR(ASSERT(new_sighand)))
         return new_sighand;
-    spinlock_lock(&sighand->lock);
+    SCOPED_LOCK(sighand, sighand);
     memcpy(new_sighand->actions, sighand->actions, sizeof(sighand->actions));
-    spinlock_unlock(&sighand->lock);
     return new_sighand;
 }
 
@@ -302,16 +293,13 @@ void __task_destroy(struct task* task) {
 pid_t task_generate_next_tid(void) { return atomic_fetch_add(&next_tid, 1); }
 
 struct task* task_find_by_tid(pid_t tid) {
-    spinlock_lock(&all_tasks_lock);
+    SCOPED_LOCK(spinlock, &all_tasks_lock);
     struct task* it = all_tasks;
     for (; it; it = it->all_tasks_next) {
         if (it->tid == tid)
-            break;
+            return task_ref(it);
     }
-    if (it)
-        task_ref(it);
-    spinlock_unlock(&all_tasks_lock);
-    return it;
+    return NULL;
 }
 
 static noreturn void exit(int exit_status) {
@@ -327,25 +315,27 @@ static noreturn void exit(int exit_status) {
     }
 
     sti();
-    mutex_lock(&current->lock);
-    thread_group_unref(current->thread_group);
-    current->thread_group = NULL;
-    sighand_unref(current->sighand);
-    current->sighand = NULL;
-    files_unref(current->files);
-    current->files = NULL;
-    fs_unref(current->fs);
-    current->fs = NULL;
-    mutex_unlock(&current->lock);
+    {
+        SCOPED_LOCK(task, current);
+        thread_group_unref(current->thread_group);
+        current->thread_group = NULL;
+        sighand_unref(current->sighand);
+        current->sighand = NULL;
+        files_unref(current->files);
+        current->files = NULL;
+        fs_unref(current->fs);
+        current->fs = NULL;
+    }
 
     cli();
-    spinlock_lock(&all_tasks_lock);
-    for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
-        // Orphaned child task is adopted by init task.
-        if (it->ppid == current->tgid)
-            it->ppid = 1;
+    {
+        SCOPED_LOCK(spinlock, &all_tasks_lock);
+        for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
+            // Orphaned child task is adopted by init task.
+            if (it->ppid == current->tgid)
+                it->ppid = 1;
+        }
     }
-    spinlock_unlock(&all_tasks_lock);
     current->state = TASK_DEAD;
     sched_yield();
     UNREACHABLE();
@@ -376,45 +366,36 @@ int task_alloc_fd(int fd, struct file* file) {
     if (fd >= OPEN_MAX)
         return -EBADF;
 
-    int ret = 0;
-    mutex_lock(&current->files->lock);
+    SCOPED_LOCK(files, current->files);
 
     if (fd >= 0) {
         struct file** entry = current->files->entries + fd;
         file_unref(*entry);
         *entry = file_ref(file);
-        ret = fd;
-        goto done;
+        return fd;
     }
 
-    ret = -EMFILE;
     struct file** it = current->files->entries;
     for (int i = 0; i < OPEN_MAX; ++i, ++it) {
         if (*it)
             continue;
         *it = file_ref(file);
-        ret = i;
-        goto done;
+        return i;
     }
 
-done:
-    mutex_unlock(&current->files->lock);
-    return ret;
+    return -EMFILE;
 }
 
 int task_free_fd(int fd) {
     if (fd < 0 || OPEN_MAX <= fd)
         return -EBADF;
 
-    mutex_lock(&current->files->lock);
+    SCOPED_LOCK(files, current->files);
     struct file** file = current->files->entries + fd;
-    if (!*file) {
-        mutex_unlock(&current->files->lock);
+    if (!*file)
         return -EBADF;
-    }
     file_unref(*file);
     *file = NULL;
-    mutex_unlock(&current->files->lock);
     return 0;
 }
 
@@ -422,14 +403,11 @@ struct file* task_ref_file(int fd) {
     if (fd < 0 || OPEN_MAX <= fd)
         return ERR_PTR(-EBADF);
 
-    mutex_lock(&current->files->lock);
+    SCOPED_LOCK(files, current->files);
     struct file* file = current->files->entries[fd];
     if (file)
-        file_ref(file);
-    mutex_unlock(&current->files->lock);
-    if (!file)
-        return ERR_PTR(-EBADF);
-    return file;
+        return file_ref(file);
+    return ERR_PTR(-EBADF);
 }
 
 sigset_t task_set_blocked_signals(sigset_t sigset) {
@@ -482,10 +460,8 @@ static void do_send_signal(struct task* task, int signum) {
     task->pending_signals &= ~cleared_signals;
 
     struct sighand* sighand = task->sighand;
-    spinlock_lock(&sighand->lock);
+    SCOPED_LOCK(sighand, sighand);
     sighandler_t handler = sighand->actions[signum - 1].sa_handler;
-    spinlock_unlock(&sighand->lock);
-
     bool ignored = (handler == SIG_IGN) ||
                    (handler == SIG_DFL && default_disposition == DISP_IGN);
     if (!ignored)
@@ -501,8 +477,9 @@ int task_send_signal(pid_t pid, int signum, int flags) {
     if (signum < 0 || signum >= NSIG)
         return -EINVAL;
 
+    SCOPED_LOCK(spinlock, &all_tasks_lock);
+
     bool found_dest = false;
-    spinlock_lock(&all_tasks_lock);
     for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
         if (flags & SIGNAL_DEST_ALL_USER_TASKS) {
             if (it->tid <= 1)
@@ -529,7 +506,6 @@ int task_send_signal(pid_t pid, int signum, int flags) {
 
         do_send_signal(it, signum);
     }
-    spinlock_unlock(&all_tasks_lock);
 
     return found_dest ? 0 : -ESRCH;
 }

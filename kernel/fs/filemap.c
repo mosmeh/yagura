@@ -55,7 +55,7 @@ NODISCARD static int populate_page(struct filemap* filemap, struct page* page) {
 struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
                                  bool write) {
     struct inode* inode = filemap->inode;
-    ASSERT(mutex_is_locked_by_current(&inode->vm_obj.lock));
+    ASSERT(inode_is_locked_by_current(inode));
 
     struct tree_node** new_node = &filemap->pages.root;
     struct tree_node* parent = NULL;
@@ -105,7 +105,7 @@ struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
 NODISCARD static int writeback_page(struct filemap* filemap,
                                     struct page* page) {
     struct inode* inode = filemap->inode;
-    ASSERT(mutex_is_locked_by_current(&inode->vm_obj.lock));
+    ASSERT(inode_is_locked_by_current(inode));
     if (!(page->flags & PAGE_DIRTY))
         return 0;
 
@@ -164,7 +164,7 @@ static struct page* find_page_with_lower_bound(const struct filemap* filemap,
 
 NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
     struct inode* inode = filemap->inode;
-    ASSERT(mutex_is_locked_by_current(&inode->vm_obj.lock));
+    ASSERT(inode_is_locked_by_current(inode));
     if (start > end)
         return -EINVAL;
     if (end == start)
@@ -208,7 +208,7 @@ NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
 
 NODISCARD int filemap_truncate(struct filemap* filemap, uint64_t length) {
     struct inode* inode = filemap->inode;
-    ASSERT(mutex_is_locked_by_current(&inode->vm_obj.lock));
+    ASSERT(inode_is_locked_by_current(inode));
 
     size_t end = DIV_CEIL(length, PAGE_SIZE);
 

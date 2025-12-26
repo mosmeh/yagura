@@ -1,5 +1,6 @@
 #pragma once
 
+#include <common/macros.h>
 #include <kernel/panic.h>
 #include <stdatomic.h>
 
@@ -152,7 +153,6 @@ static inline size_t refcount_dec(refcount_t* refcount) {
             func(_p);                                                          \
     }
 
-#define CLEANUP(func) __attribute__((__cleanup__(func)))
 #define FREE(name) CLEANUP(__free_##name)
 
 #define __TAKE_PTR(ptr, nullvalue)                                             \

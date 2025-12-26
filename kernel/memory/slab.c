@@ -4,6 +4,8 @@
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 
+DEFINE_LOCKED(slab, struct slab*, mutex, lock)
+
 static struct slab* slabs;
 
 void slab_init(struct slab* slab, const char* name, size_t obj_size) {
@@ -26,41 +28,41 @@ NODISCARD static int ensure_cache(struct slab* slab) {
     if (slab->free_list)
         return 0;
 
-    int ret = 0;
-    ssize_t pfn = -1;
-    mutex_lock(&kernel_vm->lock);
+    uintptr_t start_addr;
+    uintptr_t body_addr;
+    {
+        SCOPED_LOCK(vm, kernel_vm);
 
-    ssize_t start = vm_find_gap(kernel_vm, 1);
-    if (IS_ERR(start)) {
-        ret = start;
-        goto fail;
+        ssize_t start = vm_find_gap(kernel_vm, 1);
+        if (IS_ERR(start))
+            return start;
+
+        ssize_t pfn = page_alloc_raw();
+        if (IS_ERR(pfn))
+            return pfn;
+
+        start_addr = (uintptr_t)start << PAGE_SHIFT;
+        int ret = page_table_map(start_addr, pfn, 1, PTE_WRITE | PTE_GLOBAL);
+        if (IS_ERR(ret)) {
+            page_free_raw(pfn);
+            return ret;
+        }
+
+        struct vm_region* region = (struct vm_region*)start_addr;
+        *region = (struct vm_region){
+            .vm = kernel_vm,
+            .start = start,
+            .end = start + 1,
+            .flags = VM_READ | VM_WRITE | VM_SHARED,
+        };
+        vm_insert_region(kernel_vm, region);
+
+        body_addr = (uintptr_t)(region + 1);
     }
-
-    pfn = page_alloc_raw();
-    if (IS_ERR(pfn)) {
-        ret = pfn;
-        goto fail;
-    }
-
-    uintptr_t start_addr = (uintptr_t)start << PAGE_SHIFT;
-    ret = page_table_map(start_addr, pfn, 1, PTE_WRITE | PTE_GLOBAL);
-    if (IS_ERR(ret))
-        goto fail;
-
-    struct vm_region* region = (struct vm_region*)start_addr;
-    *region = (struct vm_region){
-        .vm = kernel_vm,
-        .start = start,
-        .end = start + 1,
-        .flags = VM_READ | VM_WRITE | VM_SHARED,
-    };
-    vm_insert_region(kernel_vm, region);
-
-    mutex_unlock(&kernel_vm->lock);
 
     uintptr_t end_addr = start_addr + PAGE_SIZE;
     struct slab_obj* obj =
-        (struct slab_obj*)ROUND_UP((uintptr_t)(region + 1), slab->obj_size);
+        (struct slab_obj*)ROUND_UP(body_addr, slab->obj_size);
     while ((uintptr_t)obj + slab->obj_size <= end_addr) {
         obj->next = slab->free_list;
         slab->free_list = obj;
@@ -69,36 +71,26 @@ NODISCARD static int ensure_cache(struct slab* slab) {
     }
 
     return 0;
-
-fail:
-    if (IS_OK(pfn))
-        page_free_raw(pfn);
-    mutex_unlock(&kernel_vm->lock);
-    return ret;
 }
 
 void* slab_alloc(struct slab* slab) {
-    mutex_lock(&slab->lock);
+    SCOPED_LOCK(slab, slab);
     int rc = ensure_cache(slab);
-    if (IS_ERR(rc)) {
-        mutex_unlock(&slab->lock);
+    if (IS_ERR(rc))
         return ERR_PTR(rc);
-    }
     struct slab_obj* obj = slab->free_list;
     slab->free_list = obj->next;
     ++slab->num_active_objs;
-    mutex_unlock(&slab->lock);
     return obj;
 }
 
 void slab_free(struct slab* slab, void* obj) {
     if (!obj)
         return;
-    mutex_lock(&slab->lock);
+    SCOPED_LOCK(slab, slab);
     ((struct slab_obj*)obj)->next = slab->free_list;
     slab->free_list = obj;
     --slab->num_active_objs;
-    mutex_unlock(&slab->lock);
 }
 
 int proc_print_slabinfo(struct file* file, struct vec* vec) {

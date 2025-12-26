@@ -12,10 +12,6 @@ void fs_init(const multiboot_module_t* initrd_mod) {
     pipe_init();
 }
 
-void inode_lock(struct inode* inode) { mutex_lock(&inode->vm_obj.lock); }
-
-void inode_unlock(struct inode* inode) { mutex_unlock(&inode->vm_obj.lock); }
-
 static void inode_destroy(struct vm_obj* obj) {
     struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
     ASSERT(inode->iops->destroy);
@@ -27,7 +23,7 @@ static void inode_destroy(struct vm_obj* obj) {
 
 static struct page* inode_get_page(struct vm_obj* obj, size_t index,
                                    bool write) {
-    ASSERT(mutex_is_locked_by_current(&obj->lock));
+    ASSERT(vm_obj_is_locked_by_current(obj));
     struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
     struct page* page = filemap_ensure_page(inode->filemap, index, true);
     if (IS_ERR(ASSERT(page)))
@@ -77,10 +73,8 @@ int inode_sync(struct inode* inode, uint64_t offset, uint64_t nbytes) {
         end = SIZE_MAX;
     }
 
-    inode_lock(inode);
-    int rc = filemap_sync(inode->filemap, start, end);
-    inode_unlock(inode);
-    return rc;
+    SCOPED_LOCK(inode, inode);
+    return filemap_sync(inode->filemap, start, end);
 }
 
 int inode_truncate(struct inode* inode, uint64_t length) {
@@ -89,25 +83,22 @@ int inode_truncate(struct inode* inode, uint64_t length) {
     if (S_ISDIR(inode->mode))
         return -EISDIR;
 
-    int rc = 0;
-    inode_lock(inode);
+    SCOPED_LOCK(inode, inode);
 
     uint64_t old_size = inode->size;
     if (old_size == length)
-        goto exit;
+        return 0;
 
-    rc = inode->iops->truncate(inode, length);
+    int rc = inode->iops->truncate(inode, length);
     if (IS_ERR(rc))
-        goto exit;
+        return rc;
 
     inode->size = length;
 
     if (length < old_size)
-        rc = filemap_truncate(inode->filemap, length);
+        return filemap_truncate(inode->filemap, length);
 
-exit:
-    inode_unlock(inode);
-    return rc;
+    return 0;
 }
 
 struct file* inode_open(struct inode* inode, int flags) {
@@ -163,7 +154,7 @@ struct file* inode_open(struct inode* inode, int flags) {
 }
 
 int inode_stat(struct inode* inode, struct kstat* buf) {
-    inode_lock(inode);
+    SCOPED_LOCK(inode, inode);
     *buf = (struct kstat){
         .st_ino = inode->ino,
         .st_dev = inode->mount->dev,
@@ -173,7 +164,6 @@ int inode_stat(struct inode* inode, struct kstat* buf) {
         .st_blksize = 1 << inode->block_bits,
         .st_blocks = inode->blocks,
     };
-    inode_unlock(inode);
     return 0;
 }
 
@@ -193,13 +183,13 @@ int mount_commit_inode(struct mount* mount, struct inode* inode) {
 
     inode->mount = mount;
 
-    mutex_lock(&mount->lock);
+    SCOPED_LOCK(mount, mount);
+
     inode->flags |= INODE_READY;
     for (struct inode* it = mount->inodes; it; it = it->next)
         ASSERT(it->ino != inode->ino);
     inode->next = mount->inodes;
     mount->inodes = inode_ref(inode);
-    mutex_unlock(&mount->lock);
 
     return 0;
 }
@@ -224,38 +214,32 @@ struct inode* mount_create_inode(struct mount* mount, mode_t mode) {
 
 struct inode* mount_lookup_inode(struct mount* mount, ino_t ino) {
     ASSERT(ino > 0);
-    mutex_lock(&mount->lock);
+    SCOPED_LOCK(mount, mount);
     struct inode* inode = mount->inodes;
     for (; inode; inode = inode->next) {
         if (inode->ino == ino)
-            break;
+            return inode_ref(inode);
     }
-    if (inode)
-        inode_ref(inode);
-    mutex_unlock(&mount->lock);
-    return inode;
+    return NULL;
 }
 
 void mount_set_root(struct mount* mount, struct inode* inode) {
     ASSERT(inode->flags & INODE_READY);
     ASSERT(refcount_get(&inode->vm_obj.refcount) > 0);
 
-    mutex_lock(&mount->lock);
+    SCOPED_LOCK(mount, mount);
     ASSERT(!mount->root);
     mount->root = inode_ref(inode);
-    mutex_unlock(&mount->lock);
 }
 
 int mount_sync(struct mount* mount) {
-    int rc = 0;
-    mutex_lock(&mount->lock);
+    SCOPED_LOCK(mount, mount);
     for (struct inode* inode = mount->inodes; inode; inode = inode->next) {
         if (!(inode->flags & INODE_DIRTY))
             continue;
-        rc = inode_sync(inode, 0, UINT64_MAX);
+        int rc = inode_sync(inode, 0, UINT64_MAX);
         if (IS_ERR(rc))
-            break;
+            return rc;
     }
-    mutex_unlock(&mount->lock);
-    return rc;
+    return 0;
 }

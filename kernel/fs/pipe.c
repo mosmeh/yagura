@@ -16,6 +16,8 @@ struct pipe {
     atomic_size_t num_writers;
 };
 
+DEFINE_LOCKED(pipe, struct pipe*, inode, vfs_inode)
+
 static struct slab pipe_slab;
 static struct mount* pipe_mount;
 
@@ -31,10 +33,6 @@ void pipe_init(void) {
     pipe_mount = file_system_mount(&pipe_fs, "pipefs");
     ASSERT_PTR(pipe_mount);
 }
-
-static void pipe_lock(struct pipe* pipe) { inode_lock(&pipe->vfs_inode); }
-
-static void pipe_unlock(struct pipe* pipe) { inode_unlock(&pipe->vfs_inode); }
 
 static struct pipe* pipe_from_inode(struct inode* inode) {
     return CONTAINER_OF(inode, struct pipe, vfs_inode);
@@ -152,16 +150,14 @@ static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
         if (IS_ERR(rc))
             return rc;
 
-        pipe_lock(pipe);
+        SCOPED_LOCK(pipe, pipe);
+
         if (!ring_buf_is_empty(buf)) {
             ssize_t nread = ring_buf_read_to_user(buf, user_buffer, count);
-            pipe_unlock(pipe);
             return nread;
         }
 
-        bool no_writer = pipe->num_writers == 0;
-        pipe_unlock(pipe);
-        if (no_writer)
+        if (pipe->num_writers == 0)
             return 0;
     }
 }
@@ -183,24 +179,21 @@ static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
         if (IS_ERR(rc))
             return rc;
 
-        pipe_lock(pipe);
-        if (pipe->num_readers == 0) {
-            pipe_unlock(pipe);
-            int rc = task_send_signal(current->tid, SIGPIPE, 0);
-            if (IS_ERR(rc))
-                return rc;
-            return -EPIPE;
-        }
+        SCOPED_LOCK(pipe, pipe);
 
-        if (ring_buf_is_full(buf)) {
-            pipe_unlock(pipe);
+        if (pipe->num_readers == 0)
+            break;
+
+        if (ring_buf_is_full(buf))
             continue;
-        }
 
-        ssize_t nwritten = ring_buf_write_from_user(buf, user_buffer, count);
-        pipe_unlock(pipe);
-        return nwritten;
+        return ring_buf_write_from_user(buf, user_buffer, count);
     }
+
+    int rc = task_send_signal(current->tid, SIGPIPE, 0);
+    if (IS_ERR(rc))
+        return rc;
+    return -EPIPE;
 }
 
 static short pipe_poll(struct file* file, short events) {

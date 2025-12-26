@@ -63,14 +63,13 @@ static struct inode* tmpfs_lookup(struct inode* vfs_parent, const char* name) {
     struct tmpfs_inode* parent =
         CONTAINER_OF(vfs_parent, struct tmpfs_inode, vfs_inode);
 
-    inode_lock(vfs_parent);
+    SCOPED_LOCK(inode, vfs_parent);
 
     struct tmpfs_dentry* dentry = find_dentry(parent, name);
-    struct inode* inode = dentry ? inode_ref(dentry->inode) : NULL;
+    if (dentry)
+        return inode_ref(dentry->inode);
 
-    inode_unlock(vfs_parent);
-
-    return inode ? inode : ERR_PTR(-ENOENT);
+    return ERR_PTR(-ENOENT);
 }
 
 static int tmpfs_link(struct inode* vfs_parent, const char* name,
@@ -78,9 +77,7 @@ static int tmpfs_link(struct inode* vfs_parent, const char* name,
     struct tmpfs_inode* parent =
         CONTAINER_OF(vfs_parent, struct tmpfs_inode, vfs_inode);
 
-    int rc = 0;
-    struct tmpfs_dentry* dentry = NULL;
-    inode_lock(vfs_parent);
+    SCOPED_LOCK(inode, vfs_parent);
 
     struct tree_node** new_tree_node = &parent->children.root;
     struct tree_node* parent_tree_node = NULL;
@@ -89,57 +86,45 @@ static int tmpfs_link(struct inode* vfs_parent, const char* name,
         struct tmpfs_dentry* dentry =
             CONTAINER_OF(parent_tree_node, struct tmpfs_dentry, tree_node);
         int cmp = strcmp(name, dentry->name);
-        if (cmp < 0) {
+        if (cmp < 0)
             new_tree_node = &parent_tree_node->left;
-        } else if (cmp > 0) {
+        else if (cmp > 0)
             new_tree_node = &parent_tree_node->right;
-        } else {
-            rc = -EEXIST;
-            goto fail;
-        }
+        else
+            return -EEXIST;
     }
 
-    dentry = slab_alloc(&tmpfs_dentry_slab);
-    if (IS_ERR(ASSERT(dentry))) {
-        rc = PTR_ERR(dentry);
-        goto fail;
-    }
+    struct tmpfs_dentry* dentry = slab_alloc(&tmpfs_dentry_slab);
+    if (IS_ERR(ASSERT(dentry)))
+        return PTR_ERR(dentry);
     *dentry = (struct tmpfs_dentry){0};
     dentry->name = kstrdup(name);
     if (!dentry->name) {
-        rc = -ENOMEM;
-        goto fail;
+        slab_free(&tmpfs_dentry_slab, dentry);
+        return -ENOMEM;
     }
     dentry->inode = inode_ref(vfs_child);
 
     *new_tree_node = &dentry->tree_node;
     tree_insert(&parent->children, parent_tree_node, *new_tree_node);
 
-    goto exit;
-
-fail:
-    slab_free(&tmpfs_dentry_slab, dentry);
-exit:
-    inode_unlock(vfs_parent);
-    return rc;
+    return 0;
 }
 
 static int tmpfs_unlink(struct inode* vfs_parent, const char* name) {
     struct tmpfs_inode* parent =
         CONTAINER_OF(vfs_parent, struct tmpfs_inode, vfs_inode);
 
-    int rc = -ENOENT;
-    inode_lock(vfs_parent);
+    SCOPED_LOCK(inode, vfs_parent);
 
     struct tmpfs_dentry* dentry = find_dentry(parent, name);
     if (dentry) {
         tree_remove(&parent->children, &dentry->tree_node);
         tmpfs_dentry_destroy(dentry);
-        rc = 0;
+        return 0;
     }
 
-    inode_unlock(vfs_parent);
-    return rc;
+    return -ENOENT;
 }
 
 static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
@@ -148,18 +133,18 @@ static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
     struct tmpfs_inode* inode =
         CONTAINER_OF(vfs_inode, struct tmpfs_inode, vfs_inode);
 
-    inode_lock(vfs_inode);
+    SCOPED_LOCK(inode, vfs_inode);
 
     struct tree_node* tree_node = tree_first(&inode->children);
     if (!tree_node)
-        goto unlock_inode;
+        return 0;
 
-    mutex_lock(&file->lock);
+    SCOPED_LOCK(file, file);
 
     for (uint64_t i = 0; i < file->offset; ++i) {
         tree_node = tree_next(tree_node);
         if (!tree_node)
-            goto unlock_file;
+            return 0;
     }
 
     for (; tree_node; tree_node = tree_next(tree_node)) {
@@ -172,11 +157,6 @@ static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
             break;
         ++file->offset;
     }
-
-unlock_file:
-    mutex_unlock(&file->lock);
-unlock_inode:
-    inode_unlock(vfs_inode);
 
     return 0;
 }
