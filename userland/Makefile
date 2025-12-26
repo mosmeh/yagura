@@ -5,6 +5,21 @@ CFLAGS += \
 LDFLAGS += -L.
 
 BIN_TARGET_NAMES := \
+	eyes \
+	fib \
+	getty \
+	imgview \
+	init-test \
+	mandelbrot \
+	mouse-cursor \
+	moused \
+	play \
+	ps \
+	usertests \
+	xv6-usertests
+OUTDIR := ../base/bin
+
+DISABLED_BIN_TARGET_NAMES := \
 	cal \
 	cat \
 	clear \
@@ -13,31 +28,20 @@ BIN_TARGET_NAMES := \
 	dd \
 	echo \
 	env \
-	eyes \
-	fib \
-	getty \
 	grep \
 	halt \
 	hexdump \
-	imgview \
-	init \
-	init-test \
 	kill \
 	less \
 	ln \
 	loadfont \
 	ls \
-	mandelbrot \
 	mkdir \
 	mkfifo \
 	mknod \
 	mount \
-	mouse-cursor \
-	moused \
 	mv \
-	play \
 	poweroff \
-	ps \
 	pwd \
 	readlink \
 	reboot \
@@ -49,10 +53,8 @@ BIN_TARGET_NAMES := \
 	stty \
 	touch \
 	uname \
-	usertests \
-	wc \
-	xv6-usertests
-OUTDIR := ../base/bin
+	wc
+DISABLED_BIN_TARGETS := $(DISABLED_BIN_TARGET_NAMES:%=$(OUTDIR)/%)
 
 BIN_TARGETS := $(BIN_TARGET_NAMES:%=$(OUTDIR)/%)
 BIN_TARGET_OBJS := $(BIN_TARGET_NAMES:=.o)
@@ -123,7 +125,7 @@ $(LIBC_TARGET): $(LIBC_OBJS)
 	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 clean:
-	$(RM) $(BIN_TARGETS) $(BIN_TARGET_OBJS) $(BIN_TARGET_DEPS) $(LIBC_TARGET) $(LIBC_OBJS) $(LIBC_DEPS)
+	$(RM) $(BIN_TARGETS) $(BIN_TARGET_OBJS) $(BIN_TARGET_DEPS) $(LIBC_TARGET) $(LIBC_OBJS) $(LIBC_DEPS) $(DISABLED_BIN_TARGETS)
 
 -include $(BIN_TARGET_DEPS)
 -include $(LIBC_DEPS)

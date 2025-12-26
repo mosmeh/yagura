@@ -3,9 +3,13 @@ compile_flags.txt
 /kernel/kernel
 /kernel/kernel.*
 /base/bin/**
+!/base/bin/init
 !/base/**/.gitkeep
 /base/root/src
+/base/lib
+/base/lib32
 /initrd
 /disk/boot/*
 !/disk/boot/grub
 /disk_image
+virtio-blk

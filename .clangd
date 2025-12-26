@@ -1,0 +1,18 @@
+CompileFlags:
+  Add:
+  - -xc
+  - -std=c11
+  - -m32
+  - -nostdlib
+  - -ffreestanding
+  - -Wextra
+  - -I/data/yagura/userland
+  - -isystem/data/yagura/userland/libc
+  - -isystem/data/yagura/kernel/api
+  - -isystem/data/yagura
+Index:
+  StandardLibrary: No
+Diagnostics:
+  Includes:
+    IgnoreHeader:
+    - types.h

@@ -1,0 +1,12 @@
+#!/bin/busybox sh
+
+/bin/busybox --install -s /bin
+
+mkdir -p /proc
+mount -t proc proc /proc
+
+export PATH=/bin
+export HOME=/root
+cd
+
+exec sh

@@ -26,10 +26,14 @@ all: kernel initrd
 initrd: base
 	find $< -mindepth 1 ! -name '.gitkeep' -printf "%P\n" | sort | cpio -oc -D $< -F $@
 
-base: $@/* userland
+base: $@/* userland base/dev/console
 	$(RM) -r $@/root/src
 	-git -c advice.detachedHead=false clone . $@/root/src
 	$(RM) -r $@/root/src/.git
+
+base/dev/console:
+	mkdir -p base/dev
+	sudo mknod --mode 600 $@ c 5 1
 
 $(SUBDIRS):
 	$(MAKE) -C $@ all
