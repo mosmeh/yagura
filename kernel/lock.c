@@ -52,14 +52,14 @@ bool mutex_is_locked_by_current(const struct mutex* m) {
 }
 
 #define SPINLOCK_LOCKED 0x1
-#define SPINLOCK_PUSHED_INTERRUPT 0x2
+#define SPINLOCK_PREV_INT_FLAG 0x2
 #define SPINLOCK_CPU_ID_SHIFT 2
 
 void spinlock_lock(struct spinlock* s) {
     unsigned desired = SPINLOCK_LOCKED;
     if (interrupts_enabled())
-        desired |= SPINLOCK_PUSHED_INTERRUPT;
-    cli();
+        desired |= SPINLOCK_PREV_INT_FLAG;
+    disable_interrupts();
     uint8_t cpu_id = cpu_get_id();
     desired |= (unsigned)cpu_id << SPINLOCK_CPU_ID_SHIFT;
     for (;;) {
@@ -85,8 +85,8 @@ void spinlock_unlock(struct spinlock* s) {
     ASSERT(s->level > 0);
     if (--s->level == 0) {
         atomic_store_explicit(&s->lock, 0, memory_order_release);
-        if (v & SPINLOCK_PUSHED_INTERRUPT)
-            sti();
+        if (v & SPINLOCK_PREV_INT_FLAG)
+            enable_interrupts();
     }
 }
 

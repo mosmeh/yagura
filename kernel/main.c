@@ -122,7 +122,9 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
     task_init();
     memory_init(mb_info);
 
-    sti(); // Allow memory allocation that expects interrupts to be enabled
+    // Allow memory allocation that expects interrupts to be enabled
+    enable_interrupts();
+
     ASSERT_OK(task_spawn("init", kernel_init));
     sched_start();
 }

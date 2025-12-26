@@ -365,18 +365,16 @@ int sys_set_thread_area(struct user_desc* user_u_info) {
     }
     u_info.entry_number = index;
 
-    bool int_flag = push_cli();
+    {
+        SCOPED_DISABLE_INTERRUPTS();
 
-    int rc = set_tls_entry(current, &u_info);
-    if (IS_ERR(rc)) {
-        pop_cli(int_flag);
-        return rc;
+        int rc = set_tls_entry(current, &u_info);
+        if (IS_ERR(rc))
+            return rc;
+
+        memcpy(cpu_get_current()->gdt + GDT_ENTRY_TLS_MIN, current->tls,
+               sizeof(current->tls));
     }
-
-    memcpy(cpu_get_current()->gdt + GDT_ENTRY_TLS_MIN, current->tls,
-           sizeof(current->tls));
-
-    pop_cli(int_flag);
 
     if (should_alloc) {
         if (copy_to_user((unsigned char*)user_u_info +

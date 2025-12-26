@@ -1,9 +1,9 @@
 #include <common/stdlib.h>
 #include <common/string.h>
-#include <kernel/asm_wrapper.h>
 #include <kernel/cpu.h>
 #include <kernel/drivers/hid/ps2.h>
 #include <kernel/fs/fs.h>
+#include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/safe_string.h>
@@ -49,7 +49,7 @@ noreturn void reboot(void) {
 }
 
 noreturn void halt(void) {
-    cli();
+    disable_interrupts();
     if (smp_active)
         cpu_broadcast_message_coalesced(IPI_MESSAGE_HALT, true);
     for (;;)
@@ -111,7 +111,7 @@ static void dump_stack_trace(uintptr_t eip, uintptr_t ebp) {
 }
 
 noreturn void panic(const char* file, size_t line, const char* format, ...) {
-    cli();
+    disable_interrupts();
 
     kprint("PANIC: ");
     va_list args;

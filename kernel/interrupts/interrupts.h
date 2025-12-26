@@ -52,28 +52,40 @@ static inline bool interrupts_enabled(void) {
     return read_eflags() & X86_EFLAGS_IF;
 }
 
-static inline bool push_cli(void) {
-    bool enabled = interrupts_enabled();
-    cli();
-    return enabled;
-}
+static inline void enable_interrupts(void) { __asm__ volatile("sti"); }
 
-static inline void pop_cli(bool was_enabled) {
-    ASSERT(!interrupts_enabled());
-    if (was_enabled)
-        sti();
-}
+static inline void disable_interrupts(void) { __asm__ volatile("cli"); }
 
-static inline bool push_sti(void) {
-    bool enabled = interrupts_enabled();
-    sti();
-    return enabled;
-}
+#define SCOPED_ENABLE_INTERRUPTS()                                             \
+    __RESTORE_INTERRUPTS_ON_LEAVE(true);                                       \
+    enable_interrupts();
 
-static inline void pop_sti(bool was_enabled) {
-    ASSERT(interrupts_enabled());
-    if (!was_enabled)
-        cli();
+#define SCOPED_DISABLE_INTERRUPTS()                                            \
+    __RESTORE_INTERRUPTS_ON_LEAVE(false);                                      \
+    disable_interrupts();
+
+struct __interrupts_restorer {
+    bool previous_state;
+    bool expected_state;
+};
+
+#define __RESTORE_INTERRUPTS_ON_LEAVE(new_state)                               \
+    struct __interrupts_restorer CONCAT(__interrupts_restorer, __COUNTER__)    \
+        CLEANUP(__interrupts_restorer_leave) = {                               \
+            .previous_state = interrupts_enabled(),                            \
+            .expected_state = (new_state),                                     \
+    };
+
+static inline void __interrupts_restorer_leave(void* p) {
+    struct __interrupts_restorer* guard = p;
+    bool current_state = interrupts_enabled();
+    ASSERT(current_state == guard->expected_state);
+    if (current_state == guard->previous_state)
+        return;
+    if (guard->previous_state)
+        enable_interrupts();
+    else
+        disable_interrupts();
 }
 
 void do_iret(struct registers);
