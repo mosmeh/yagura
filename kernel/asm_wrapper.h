@@ -13,10 +13,6 @@ static inline uint32_t read_eflags(void) {
     return eflags;
 }
 
-static inline void sti(void) { __asm__ volatile("sti"); }
-
-static inline void cli(void) { __asm__ volatile("cli"); }
-
 static inline uint32_t read_cr0(void) {
     uint32_t cr0;
     __asm__("mov %%cr0, %%eax" : "=a"(cr0));

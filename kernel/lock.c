@@ -59,7 +59,7 @@ void spinlock_lock(struct spinlock* s) {
     unsigned desired = SPINLOCK_LOCKED;
     if (interrupts_enabled())
         desired |= SPINLOCK_PUSHED_INTERRUPT;
-    cli();
+    disable_interrupts();
     uint8_t cpu_id = cpu_get_id();
     desired |= (unsigned)cpu_id << SPINLOCK_CPU_ID_SHIFT;
     for (;;) {
@@ -86,7 +86,7 @@ void spinlock_unlock(struct spinlock* s) {
     if (--s->level == 0) {
         atomic_store_explicit(&s->lock, 0, memory_order_release);
         if (v & SPINLOCK_PUSHED_INTERRUPT)
-            sti();
+            enable_interrupts();
     }
 }
 
