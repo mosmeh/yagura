@@ -139,7 +139,7 @@ void __reschedule(struct task* task) {
 }
 
 noreturn static void switch_context(void) {
-    cli();
+    disable_interrupts();
 
     struct cpu* cpu = cpu_get_current();
     struct task* prev_task = cpu->current_task;
@@ -185,11 +185,11 @@ noreturn static void switch_context(void) {
 noreturn void __switch_context(void) { switch_context(); }
 
 void sched_start(void) {
-    cli();
+    disable_interrupts();
     struct task* task = cpu_get_current()->current_task;
     if (task) {
         // Turn this task into the idle task for this CPU.
-        sti();
+        enable_interrupts();
         ASSERT_OK(sched_block(NULL, NULL, BLOCK_UNINTERRUPTIBLE));
         do_idle();
     }
@@ -197,7 +197,7 @@ void sched_start(void) {
 }
 
 void sched_yield(void) {
-    bool int_flag = push_cli();
+    SCOPED_DISABLE_INTERRUPTS();
     struct cpu* cpu = cpu_get_current();
     struct task* task = cpu->current_task;
     ASSERT(task);
@@ -224,8 +224,6 @@ void sched_yield(void) {
                      :
                      : "a"(task)
                      : "edx", "ecx", "memory");
-
-    pop_cli(int_flag);
 }
 
 void sched_tick(struct registers* regs) {
@@ -263,7 +261,7 @@ int sched_block(unblock_fn unblock, void* data, int flags) {
     if (unblock && unblock(data))
         return 0;
 
-    bool int_flag = push_cli();
+    SCOPED_DISABLE_INTERRUPTS();
 
     current->unblock = unblock ? unblock : never_unblock;
     current->block_data = data;
@@ -271,8 +269,6 @@ int sched_block(unblock_fn unblock, void* data, int flags) {
                                                      : TASK_INTERRUPTIBLE;
 
     sched_yield();
-
-    pop_cli(int_flag);
 
     return current->interrupted ? -EINTR : 0;
 }

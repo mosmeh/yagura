@@ -187,15 +187,9 @@ bool vm_handle_page_fault(void* virt_addr, uint32_t error_code) {
         ASSERT(error_code & X86_PF_USER);
     }
 
-    bool int_flag = push_sti();
-    int rc;
-    {
-        SCOPED_LOCK(vm, vm);
-        rc = map_page(vm, virt_addr, error_code & X86_PF_WRITE);
-    }
-    pop_sti(int_flag);
-
-    return IS_OK(rc);
+    SCOPED_ENABLE_INTERRUPTS();
+    SCOPED_LOCK(vm, vm);
+    return IS_OK(map_page(vm, virt_addr, error_code & X86_PF_WRITE));
 }
 
 int vm_populate(void* virt_start_addr, void* virt_end_addr, bool write) {

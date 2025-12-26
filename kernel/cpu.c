@@ -371,15 +371,16 @@ void cpu_free_message(struct ipi_message* msg) {
 }
 
 void cpu_broadcast_message_queued(struct ipi_message* msg, bool eager) {
-    bool int_flag = push_cli();
-    uint8_t cpu_id = cpu_get_id();
-    for (size_t i = 0; i < num_cpus; ++i) {
-        if (i == cpu_id)
-            continue;
-        while (!mpsc_enqueue(cpus[i]->queued_msgs, msg))
-            cpu_pause();
+    {
+        SCOPED_DISABLE_INTERRUPTS();
+        uint8_t cpu_id = cpu_get_id();
+        for (size_t i = 0; i < num_cpus; ++i) {
+            if (i == cpu_id)
+                continue;
+            while (!mpsc_enqueue(cpus[i]->queued_msgs, msg))
+                cpu_pause();
+        }
     }
-    pop_cli(int_flag);
     if (eager)
         lapic_broadcast_ipi();
 }
@@ -410,7 +411,7 @@ void cpu_unicast_message_coalesced(struct cpu* dest, unsigned int type,
 
 static void handle_halt(struct ipi_message* msg) {
     (void)msg;
-    cli();
+    disable_interrupts();
     for (;;)
         hlt();
 }
@@ -438,7 +439,7 @@ void cpu_process_messages(void) {
     if (!smp_active)
         return;
 
-    bool int_flag = push_cli();
+    SCOPED_DISABLE_INTERRUPTS();
     struct cpu* cpu = cpu_get_current();
     for (;;) {
         int bit = __builtin_ffs(cpu->coalesced_msgs);
@@ -455,5 +456,4 @@ void cpu_process_messages(void) {
         message_handlers[msg->type](msg);
         refcount_dec(&msg->refcount);
     }
-    pop_cli(int_flag);
 }
