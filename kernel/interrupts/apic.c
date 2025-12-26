@@ -63,7 +63,7 @@ static void lapic_write(uint32_t reg, uint32_t value) {
 #define CALIBRATION_TICKS 10
 
 void lapic_init_cpu(void) {
-    bool int_flag = push_cli();
+    SCOPED_DISABLE_INTERRUPTS();
 
     // Set logical APIC ID to be the same as the local APIC ID
     lapic_write(LAPIC_LDR, lapic_get_id() << 24);
@@ -88,23 +88,23 @@ void lapic_init_cpu(void) {
     // Set ICR to a large value so that we can read TCCR before the timer ticks.
     lapic_write(LAPIC_TICR, UINT32_MAX);
 
-    sti();
-    uint32_t start_uptime = uptime;
-    while (uptime <= start_uptime)
-        pause();
-    // uptime = start_uptime + 1
-    uint32_t start_tccr = lapic_read(LAPIC_TCCR);
-    while (uptime <= start_uptime + CALIBRATION_TICKS)
-        pause();
-    cli();
+    uint32_t start_tccr;
+    {
+        SCOPED_ENABLE_INTERRUPTS();
+        uint32_t start_uptime = uptime;
+        while (uptime <= start_uptime)
+            pause();
+        // uptime = start_uptime + 1
+        start_tccr = lapic_read(LAPIC_TCCR);
+        while (uptime <= start_uptime + CALIBRATION_TICKS)
+            pause();
+    }
     // uptime = start_uptime + CALIBRATION_TICKS + 1
     uint32_t end_tccr = lapic_read(LAPIC_TCCR);
 
     ASSERT(start_tccr >= end_tccr);
     uint32_t period = (start_tccr - end_tccr) / CALIBRATION_TICKS;
     lapic_write(LAPIC_TICR, MAX(1, period));
-
-    pop_cli(int_flag);
 }
 
 uint8_t lapic_get_id(void) { return lapic ? (lapic_read(LAPIC_ID) >> 24) : 0; }

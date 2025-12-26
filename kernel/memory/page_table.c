@@ -135,7 +135,7 @@ static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
     ASSERT((virt_addr % PAGE_SIZE) == 0);
     ASSERT((size % PAGE_SIZE) == 0);
 
-    bool int_flag = push_cli();
+    SCOPED_DISABLE_INTERRUPTS();
 
     struct ipi_message* msg = NULL;
     if (smp_active) {
@@ -183,8 +183,6 @@ static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
             cpu_pause();
         cpu_free_message(msg);
     }
-
-    pop_cli(int_flag);
 }
 
 NODISCARD static int map(uintptr_t virt_addr, size_t pfn, uint16_t flags) {
@@ -245,7 +243,8 @@ void* kmap(uintptr_t phys_addr) {
     ASSERT(phys_addr);
     ASSERT(phys_addr % PAGE_SIZE == 0);
 
-    bool int_flag = push_cli();
+    bool int_flag = interrupts_enabled();
+    disable_interrupts();
 
     struct kmap_ctrl* kmap = &cpu_get_current()->kmap;
     size_t index = kmap->num_mapped++;
@@ -255,7 +254,7 @@ void* kmap(uintptr_t phys_addr) {
     if (int_flag)
         ASSERT(index == 0);
     if (index == 0)
-        kmap->pushed_cli = int_flag;
+        kmap->prev_int_flag = int_flag;
 
     kmap->phys_addrs[index] = phys_addr;
 
@@ -293,7 +292,8 @@ void kunmap(void* addr) {
     flush_tlb_single((uintptr_t)addr);
 
     if (kmap->num_mapped == 0) {
-        pop_cli(kmap->pushed_cli);
-        kmap->pushed_cli = false;
+        if (kmap->prev_int_flag)
+            enable_interrupts();
+        kmap->prev_int_flag = false;
     }
 }

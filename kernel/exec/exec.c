@@ -8,6 +8,7 @@
 #include <kernel/exec/exec.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
+#include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task.h>
 
@@ -274,7 +275,7 @@ noreturn static void loader_commit(struct loader* loader) {
         task->env_end = (uintptr_t)loader->env_end;
     }
 
-    cli();
+    disable_interrupts();
 
     memset(task->tls, 0, sizeof(task->tls));
 

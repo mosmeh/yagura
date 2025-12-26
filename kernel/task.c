@@ -168,10 +168,9 @@ void task_init(void) {
 }
 
 struct task* task_get_current(void) {
-    bool int_flag = push_cli();
+    SCOPED_DISABLE_INTERRUPTS();
     struct task* task = cpu_get_current()->current_task;
     ASSERT(task);
-    pop_cli(int_flag);
     return task;
 }
 
@@ -314,7 +313,7 @@ static noreturn void exit(int exit_status) {
             ASSERT_OK(task_send_signal(current->ppid, current->exit_signal, 0));
     }
 
-    sti();
+    enable_interrupts();
     {
         SCOPED_LOCK(task, current);
         thread_group_unref(current->thread_group);
@@ -327,7 +326,7 @@ static noreturn void exit(int exit_status) {
         current->fs = NULL;
     }
 
-    cli();
+    disable_interrupts();
     {
         SCOPED_LOCK(spinlock, &all_tasks_lock);
         for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
@@ -541,11 +540,12 @@ int task_pop_signal(struct sigaction* out_action) {
         case DISP_STOP: {
             spinlock_unlock(&sighand->lock);
 
-            bool int_flag = push_cli();
-            current->state = TASK_STOPPED;
-            sched_yield();
+            {
+                SCOPED_DISABLE_INTERRUPTS();
+                current->state = TASK_STOPPED;
+                sched_yield();
+            }
             // Here we were resumed by SIGCONT.
-            pop_cli(int_flag);
 
             spinlock_lock(&sighand->lock);
             break;

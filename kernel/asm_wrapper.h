@@ -13,10 +13,6 @@ static inline uint32_t read_eflags(void) {
     return eflags;
 }
 
-static inline void sti(void) { __asm__ volatile("sti"); }
-
-static inline void cli(void) { __asm__ volatile("cli"); }
-
 static inline uint32_t read_cr0(void) {
     uint32_t cr0;
     __asm__("mov %%cr0, %%eax" : "=a"(cr0));
@@ -91,9 +87,8 @@ static inline void out32(uint16_t port, uint32_t data) {
 
 static inline void delay(uint32_t usec) {
     uint8_t dummy;
-    while (usec--) {
+    while (usec--)
         __asm__ volatile("inb $0x80, %0" : "=a"(dummy));
-    }
 }
 
 static inline void hlt(void) { __asm__ volatile("hlt"); }
