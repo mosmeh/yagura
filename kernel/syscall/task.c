@@ -162,7 +162,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     if ((flags & CLONE_THREAD) && !(flags & CLONE_SIGHAND))
         return -EINVAL;
 
-    struct task* task =
+    struct task* task FREE(kfree) =
         kaligned_alloc(alignof(struct task), sizeof(struct task));
     if (!task)
         return -ENOMEM;
@@ -196,12 +196,9 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
 
     strlcpy(task->comm, current->comm, sizeof(task->comm));
 
-    int rc = 0;
-    void* stack = kmalloc(STACK_SIZE);
-    if (!stack) {
-        rc = -ENOMEM;
-        goto fail;
-    }
+    void* stack FREE(kfree) = kmalloc(STACK_SIZE);
+    if (!stack)
+        return -ENOMEM;
 
     task->kernel_stack_base = (uintptr_t)stack;
     task->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
@@ -209,9 +206,9 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
 
     // Without this eager population, page fault occurs when switching to this
     // task, but page fault handler cannot run without a valid kernel stack.
-    rc = vm_populate(stack, (void*)task->kernel_stack_top, true);
+    int rc = vm_populate(stack, (void*)task->kernel_stack_top, true);
     if (IS_ERR(rc))
-        goto fail;
+        return rc;
 
     // push the argument of do_iret()
     task->esp -= sizeof(struct registers);
@@ -222,59 +219,49 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     if (user_stack)
         child_regs->esp = (uintptr_t)user_stack;
 
+    struct vm* vm FREE(vm) = NULL;
     if (flags & CLONE_VM) {
-        task->vm = vm_ref(current->vm);
+        vm = vm_ref(current->vm);
     } else {
-        struct vm* vm = vm_clone(current->vm);
-        if (IS_ERR(ASSERT(vm))) {
-            rc = PTR_ERR(vm);
-            goto fail;
-        }
-        task->vm = vm;
+        vm = vm_clone(current->vm);
+        if (IS_ERR(ASSERT(vm)))
+            return PTR_ERR(vm);
     }
 
+    struct fs* fs FREE(fs) = NULL;
     if (flags & CLONE_FS) {
-        task->fs = fs_ref(current->fs);
+        fs = fs_ref(current->fs);
     } else {
-        struct fs* fs = fs_clone(current->fs);
-        if (IS_ERR(ASSERT(fs))) {
-            rc = PTR_ERR(fs);
-            goto fail;
-        }
-        task->fs = fs;
+        fs = fs_clone(current->fs);
+        if (IS_ERR(ASSERT(fs)))
+            return PTR_ERR(fs);
     }
 
+    struct files* files FREE(files) = NULL;
     if (flags & CLONE_FILES) {
-        task->files = files_ref(current->files);
+        files = files_ref(current->files);
     } else {
-        struct files* files = files_clone(current->files);
-        if (IS_ERR(ASSERT(files))) {
-            rc = PTR_ERR(files);
-            goto fail;
-        }
-        task->files = files;
+        files = files_clone(current->files);
+        if (IS_ERR(ASSERT(files)))
+            return PTR_ERR(files);
     }
 
+    struct sighand* sighand FREE(sighand) = NULL;
     if (flags & CLONE_SIGHAND) {
-        task->sighand = sighand_ref(current->sighand);
+        sighand = sighand_ref(current->sighand);
     } else {
-        struct sighand* sighand = sighand_clone(current->sighand);
-        if (IS_ERR(ASSERT(sighand))) {
-            rc = PTR_ERR(sighand);
-            goto fail;
-        }
-        task->sighand = sighand;
+        sighand = sighand_clone(current->sighand);
+        if (IS_ERR(ASSERT(sighand)))
+            return PTR_ERR(sighand);
     }
 
+    struct thread_group* thread_group FREE(thread_group) = NULL;
     if (flags & CLONE_THREAD) {
-        task->thread_group = thread_group_ref(current->thread_group);
+        thread_group = thread_group_ref(current->thread_group);
     } else {
-        struct thread_group* tg = thread_group_create();
-        if (IS_ERR(ASSERT(tg))) {
-            rc = PTR_ERR(tg);
-            goto fail;
-        }
-        task->thread_group = tg;
+        thread_group = thread_group_create();
+        if (IS_ERR(ASSERT(thread_group)))
+            return PTR_ERR(thread_group);
         task->exit_signal = flags & 0xff;
     }
 
@@ -282,27 +269,29 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
 
     if (flags & CLONE_SETTLS) {
         struct user_desc u_info;
-        if (copy_from_user(&u_info, user_tls, sizeof(struct user_desc))) {
-            rc = -EFAULT;
-            goto fail;
-        }
-        if (!is_user_desc_valid(&u_info)) {
-            rc = -EINVAL;
-            goto fail;
-        }
+        if (copy_from_user(&u_info, user_tls, sizeof(struct user_desc)))
+            return -EFAULT;
+        if (!is_user_desc_valid(&u_info))
+            return -EINVAL;
         rc = set_tls_entry(task, &u_info);
         if (IS_ERR(rc))
-            goto fail;
+            return rc;
     }
 
     if (flags & CLONE_PARENT_SETTID) {
-        if (copy_to_user(user_parent_tid, &tid, sizeof(pid_t))) {
-            rc = -EFAULT;
-            goto fail;
-        }
+        if (copy_to_user(user_parent_tid, &tid, sizeof(pid_t)))
+            return -EFAULT;
     }
 
-    ++task->thread_group->num_running;
+    ++thread_group->num_running;
+
+    // Commit resources
+    TAKE_PTR(stack);
+    task->vm = TAKE_PTR(vm);
+    task->fs = TAKE_PTR(fs);
+    task->files = TAKE_PTR(files);
+    task->sighand = TAKE_PTR(sighand);
+    task->thread_group = TAKE_PTR(thread_group);
 
     sched_register(task);
 
@@ -310,19 +299,11 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         rc = sched_block(unblock_vfork, task, TASK_UNINTERRUPTIBLE);
 
     task_unref(task);
+    TAKE_PTR(task); // Avoid double free
+
     if (IS_ERR(rc))
         return rc;
     return tid;
-
-fail:
-    thread_group_unref(task->thread_group);
-    sighand_unref(task->sighand);
-    files_unref(task->files);
-    fs_unref(task->fs);
-    vm_unref(task->vm);
-    kfree(stack);
-    kfree(task);
-    return rc;
 }
 
 int sys_get_thread_area(struct user_desc* user_u_info) {

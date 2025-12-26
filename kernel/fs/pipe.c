@@ -62,7 +62,7 @@ static bool unblock_open(struct file* file) {
 
 static int pipe_open(struct file* file) {
     bool is_fifo = false;
-    struct inode* pipe_inode;
+    struct inode* pipe_inode FREE(inode) = NULL;
     if (file->inode->mount == pipe_mount) {
         // Anonymous pipe
         pipe_inode = file->inode;
@@ -86,7 +86,6 @@ static int pipe_open(struct file* file) {
     }
     inode_ref(pipe_inode);
 
-    int rc = 0;
     struct pipe* pipe = pipe_from_inode(pipe_inode);
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
@@ -96,25 +95,20 @@ static int pipe_open(struct file* file) {
         ++pipe->num_writers;
         break;
     default:
-        rc = -EINVAL;
-        goto fail;
+        return -EINVAL;
     }
     file->private_data = pipe;
 
     if (is_fifo) {
-        rc = file_block(file, unblock_open, 0);
+        int rc = file_block(file, unblock_open, 0);
         if (rc == -EAGAIN && (file->flags & O_ACCMODE) == O_WRONLY) {
-            rc = -ENXIO;
             file->private_data = NULL;
-            goto fail;
+            return -ENXIO;
         }
     }
 
-    return rc;
-
-fail:
-    inode_unref(&pipe->vfs_inode);
-    return rc;
+    TAKE_PTR(pipe_inode);
+    return 0;
 }
 
 static int pipe_close(struct file* file) {
@@ -236,14 +230,12 @@ struct inode* pipe_create(void) {
         .vfs_inode = INODE_INIT,
     };
 
-    int rc = 0;
-
-    pipe->buf = ring_buf_create(PIPE_BUF);
-    if (IS_ERR(pipe->buf)) {
-        rc = PTR_ERR(pipe->buf);
-        pipe->buf = NULL;
-        goto fail;
+    struct ring_buf* buf = ring_buf_create(PIPE_BUF);
+    if (IS_ERR(buf)) {
+        slab_free(&pipe_slab, pipe);
+        return ERR_CAST(buf);
     }
+    pipe->buf = buf;
 
     struct inode* inode = &pipe->vfs_inode;
     inode->ino = atomic_fetch_add(&next_ino, 1);
@@ -254,16 +246,11 @@ struct inode* pipe_create(void) {
     inode->fops = &pipe_fops;
     inode->mode = S_IFIFO;
 
-    rc = mount_commit_inode(pipe_mount, inode);
+    int rc = mount_commit_inode(pipe_mount, inode);
     if (IS_ERR(rc)) {
         inode_unref(inode);
-        goto fail;
+        return ERR_PTR(rc);
     }
 
     return inode;
-
-fail:
-    ring_buf_destroy(pipe->buf);
-    slab_free(&pipe_slab, pipe);
-    return ERR_PTR(rc);
 }
