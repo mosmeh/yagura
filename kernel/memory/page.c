@@ -167,11 +167,17 @@ void page_init(const multiboot_info_t* mb_info) {
                                        PTE_WRITE | PTE_GLOBAL));
     }
 
+    // All the pages in use at this point will be marked as reserved.
     for (size_t i = 0; i < pfn_end; ++i) {
-        if (bitmap_get(i))
+        struct page* page = page_get(i);
+        if (bitmap_get(i)) {
+            *page = (struct page){0};
             ++total_pages;
-        else
-            page_get(i)->flags = PAGE_RESERVED;
+        } else {
+            *page = (struct page){
+                .flags = PAGE_RESERVED,
+            };
+        }
     }
 
     free_pages = total_pages;
