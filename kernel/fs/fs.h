@@ -131,14 +131,12 @@ NODISCARD int mount_sync(struct mount*);
 
 struct file_system {
     char name[16];
-    const struct fs_ops* fs_ops;
-    unsigned flags;
-    struct file_system* next;
-};
 
-struct fs_ops {
     struct mount* (*mount)(const char* source);
     struct inode* (*create_inode)(struct mount*, mode_t);
+
+    unsigned flags;
+    struct file_system* next;
 };
 
 extern struct file_system* file_systems;

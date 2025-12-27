@@ -22,10 +22,6 @@ int file_system_register(struct file_system* fs) {
     if (file_system_find(fs->name))
         return -EEXIST;
 
-    static const struct fs_ops noop_fs_ops = {0};
-    if (!fs->fs_ops)
-        fs->fs_ops = &noop_fs_ops;
-
     fs->next = file_systems;
     file_systems = fs;
 
@@ -55,8 +51,8 @@ static struct mutex mounts_lock;
 struct mount* file_system_mount(const struct file_system* fs,
                                 const char* source) {
     struct mount* mount;
-    if (fs->fs_ops->mount) {
-        mount = fs->fs_ops->mount(source);
+    if (fs->mount) {
+        mount = fs->mount(source);
         if (IS_ERR(ASSERT(mount)))
             return mount;
     } else {

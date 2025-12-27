@@ -197,19 +197,18 @@ int mount_commit_inode(struct mount* mount, struct inode* inode) {
 struct inode* mount_create_inode(struct mount* mount, mode_t mode) {
     ASSERT(mode & S_IFMT);
 
-    const struct fs_ops* fs_ops = mount->fs->fs_ops;
-    if (!fs_ops->create_inode)
+    if (!mount->fs->create_inode)
         return ERR_PTR(-EROFS);
 
-    struct inode* child FREE(inode) = fs_ops->create_inode(mount, mode);
-    if (IS_ERR(ASSERT(child)))
-        return child;
+    struct inode* inode FREE(inode) = mount->fs->create_inode(mount, mode);
+    if (IS_ERR(ASSERT(inode)))
+        return inode;
 
-    int rc = mount_commit_inode(mount, child);
+    int rc = mount_commit_inode(mount, inode);
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
-    return TAKE_PTR(child);
+    return TAKE_PTR(inode);
 }
 
 struct inode* mount_lookup_inode(struct mount* mount, ino_t ino) {
