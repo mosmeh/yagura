@@ -205,12 +205,9 @@ void proc_init(void) {
     slab_init(&proc_inode_slab, "proc_inode", sizeof(struct proc_inode));
     slab_init(&vec_slab, "proc_vec", sizeof(struct vec));
 
-    static const struct fs_ops fs_ops = {
-        .mount = proc_mount,
-    };
     static struct file_system fs = {
         .name = "proc",
-        .fs_ops = &fs_ops,
+        .mount = proc_mount,
     };
     ASSERT_OK(file_system_register(&fs));
 }

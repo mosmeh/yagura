@@ -259,13 +259,10 @@ void tmpfs_init(void) {
     slab_init(&tmpfs_inode_slab, "tmpfs_inode", sizeof(struct tmpfs_inode));
     slab_init(&tmpfs_dentry_slab, "tmpfs_dentry", sizeof(struct tmpfs_dentry));
 
-    static const struct fs_ops fs_ops = {
-        .mount = tmpfs_mount,
-        .create_inode = tmpfs_create_inode,
-    };
     static struct file_system fs = {
         .name = "tmpfs",
-        .fs_ops = &fs_ops,
+        .mount = tmpfs_mount,
+        .create_inode = tmpfs_create_inode,
     };
     ASSERT_OK(file_system_register(&fs));
 }
