@@ -4,12 +4,12 @@
 #include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 ssize_t sys_read(int fd, void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     int rc = file_read(file, user_buf, count);
@@ -22,7 +22,7 @@ ssize_t sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
                          uint32_t pos_hi) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
@@ -55,7 +55,7 @@ ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
 
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
@@ -80,7 +80,7 @@ ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
 ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     int rc = file_write(file, user_buf, count);
@@ -93,7 +93,7 @@ ssize_t sys_ia32_pwrite64(int fd, const void* user_buf, size_t count,
                           uint32_t pos_lo, uint32_t pos_hi) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
@@ -126,7 +126,7 @@ ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
 
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
@@ -149,7 +149,7 @@ ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
 }
 
 off_t sys_lseek(int fd, off_t offset, int whence) {
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return file_seek(file, offset, whence);
@@ -158,7 +158,7 @@ off_t sys_lseek(int fd, off_t offset, int whence) {
 int sys_llseek(unsigned int fd, unsigned long offset_high,
                unsigned long offset_low, loff_t* user_result,
                unsigned int whence) {
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     loff_t offset = ((loff_t)offset_high << 32) | offset_low;
@@ -182,7 +182,7 @@ NODISCARD static int truncate(const char* user_path, uint64_t length) {
 }
 
 NODISCARD static int ftruncate(int fd, uint64_t length) {
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return file_truncate(file, length);
@@ -205,7 +205,7 @@ int sys_ia32_ftruncate64(int fd, unsigned long offset_low,
 }
 
 int sys_fsync(int fd) {
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return file_sync(file, 0, UINT64_MAX);

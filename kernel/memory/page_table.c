@@ -4,7 +4,7 @@
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 #define PTE_FLAGS_MASK 0xfff
 

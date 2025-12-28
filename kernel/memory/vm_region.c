@@ -1,6 +1,6 @@
 #include "private.h"
 #include <kernel/memory/vm.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 static struct slab region_slab;
 

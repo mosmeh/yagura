@@ -5,7 +5,7 @@
 #include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 int copy_pathname_from_user(char dest[static PATH_MAX], const char* user_src) {
     ssize_t pathname_len = strncpy_from_user(dest, user_src, PATH_MAX);
@@ -28,7 +28,7 @@ int sys_open(const char* user_pathname, int flags, unsigned mode) {
         return -ERESTARTSYS;
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
-    return task_alloc_fd(-1, file);
+    return files_alloc_fd(current->files, -1, file);
 }
 
 int sys_creat(const char* user_pathname, mode_t mode) {

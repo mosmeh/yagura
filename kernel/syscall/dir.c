@@ -6,7 +6,7 @@
 #include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 static bool set_has_children(const char* name, ino_t ino, unsigned char type,
                              void* ctx) {
@@ -97,7 +97,7 @@ static bool getdents_callback(const char* name, ino_t ino, unsigned char type,
 
 NODISCARD static ssize_t getdents(int fd, void* user_buf, size_t count,
                                   fill_dir_fn fill_dir) {
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 

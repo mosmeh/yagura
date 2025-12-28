@@ -1,7 +1,7 @@
 #include "private.h"
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/vm.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 struct vm* kernel_vm;
 static struct slab vm_slab;

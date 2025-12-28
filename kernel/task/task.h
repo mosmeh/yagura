@@ -58,6 +58,30 @@ struct task {
     refcount_t refcount;
 };
 
+extern struct task* all_tasks;
+extern struct spinlock all_tasks_lock;
+extern struct fpu_state initial_fpu_state;
+
+void task_init(void);
+
+#define current task_get_current()
+struct task* task_get_current(void);
+
+struct task* task_create(const char* comm, void (*entry_point)(void));
+pid_t task_spawn(const char* comm, void (*entry_point)(void));
+
+DEFINE_LOCKED(task, struct task*, mutex, lock)
+
+void __task_destroy(struct task*);
+DEFINE_REFCOUNTED_BASE(task, struct task*, refcount, __task_destroy)
+
+pid_t task_generate_next_tid(void);
+struct task* task_find_by_tid(pid_t);
+
+noreturn void task_exit(int status);
+noreturn void task_exit_thread_group(int status);
+noreturn void task_crash(int signum);
+
 struct fs {
     struct path* root;
     struct path* cwd;
@@ -88,6 +112,15 @@ DEFINE_LOCKED(files, struct files*, mutex, lock)
 void __files_destroy(struct files*);
 DEFINE_REFCOUNTED_BASE(files, struct files*, refcount, __files_destroy)
 
+// If fd >= 0, allocates given file descriptor. If it is already used,
+// replacing and freeing the old file.
+// If fd < 0, allocates lowest-numbered file descriptor that was unused.
+NODISCARD int files_alloc_fd(struct files*, int fd, struct file*);
+
+int files_free_fd(struct files*, int fd);
+
+struct file* files_ref_file(struct files*, int fd);
+
 struct sighand {
     struct sigaction actions[NSIG - 1];
     struct spinlock lock;
@@ -101,11 +134,6 @@ DEFINE_LOCKED(sighand, struct sighand*, spinlock, lock)
 void __sighand_destroy(struct sighand*);
 DEFINE_REFCOUNTED_BASE(sighand, struct sighand*, refcount, __sighand_destroy)
 
-struct sigcontext {
-    sigset_t blocked_signals;
-    struct registers regs;
-};
-
 struct thread_group {
     atomic_size_t num_running;
     refcount_t refcount;
@@ -116,39 +144,6 @@ struct thread_group* thread_group_create(void);
 void __thread_group_destroy(struct thread_group*);
 DEFINE_REFCOUNTED_BASE(thread_group, struct thread_group*, refcount,
                        __thread_group_destroy)
-
-extern struct task* all_tasks;
-extern struct spinlock all_tasks_lock;
-extern struct fpu_state initial_fpu_state;
-
-void task_init(void);
-
-#define current task_get_current()
-struct task* task_get_current(void);
-
-struct task* task_create(const char* comm, void (*entry_point)(void));
-pid_t task_spawn(const char* comm, void (*entry_point)(void));
-
-DEFINE_LOCKED(task, struct task*, mutex, lock)
-
-void __task_destroy(struct task*);
-DEFINE_REFCOUNTED_BASE(task, struct task*, refcount, __task_destroy)
-
-pid_t task_generate_next_tid(void);
-struct task* task_find_by_tid(pid_t);
-
-noreturn void task_exit(int status);
-noreturn void task_exit_thread_group(int status);
-noreturn void task_crash(int signum);
-
-// If fd >= 0, allocates given file descriptor. If it is already used,
-// replacing and freeing the old file.
-// If fd < 0, allocates lowest-numbered file descriptor that was unused.
-NODISCARD int task_alloc_fd(int fd, struct file*);
-
-struct file* task_ref_file(int fd);
-
-int task_free_fd(int fd);
 
 // Returns the previous blocked signal set.
 sigset_t task_set_blocked_signals(sigset_t);
@@ -175,3 +170,8 @@ NODISCARD int task_pop_signal(struct sigaction* out_action);
 // Handles a signal for the current task.
 void task_handle_signal(struct registers* regs, int signum,
                         const struct sigaction* action);
+
+struct sigcontext {
+    sigset_t blocked_signals;
+    struct registers regs;
+};

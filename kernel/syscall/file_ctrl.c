@@ -2,17 +2,18 @@
 #include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
-int sys_close(int fd) { return task_free_fd(fd); }
+int sys_close(int fd) { return files_free_fd(current->files, fd); }
 
 int sys_fcntl(int fd, int cmd, unsigned long arg) {
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct files* files = current->files;
+    struct file* file FREE(file) = files_ref_file(files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     switch (cmd) {
     case F_DUPFD:
-        return task_alloc_fd(-1, file);
+        return files_alloc_fd(files, -1, file);
     case F_GETFL:
         return file->flags;
     case F_SETFL:
@@ -28,37 +29,40 @@ int sys_fcntl64(int fd, int cmd, unsigned long arg) {
 }
 
 int sys_dup(int oldfd) {
-    struct file* file FREE(file) = task_ref_file(oldfd);
+    struct files* files = current->files;
+    struct file* file FREE(file) = files_ref_file(files, oldfd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
-    return task_alloc_fd(-1, file);
+    return files_alloc_fd(files, -1, file);
 }
 
 int sys_dup2(int oldfd, int newfd) {
     if (newfd < 0)
         return -EBADF;
-    struct file* oldfd_file FREE(file) = task_ref_file(oldfd);
+    struct files* files = current->files;
+    struct file* oldfd_file FREE(file) = files_ref_file(files, oldfd);
     if (IS_ERR(ASSERT(oldfd_file)))
         return PTR_ERR(oldfd_file);
     if (oldfd == newfd)
         return oldfd;
-    return task_alloc_fd(newfd, oldfd_file);
+    return files_alloc_fd(files, newfd, oldfd_file);
 }
 
 int sys_dup3(int oldfd, int newfd, int flags) {
     (void)flags;
     if (newfd < 0)
         return -EBADF;
-    struct file* oldfd_file FREE(file) = task_ref_file(oldfd);
+    struct files* files = current->files;
+    struct file* oldfd_file FREE(file) = files_ref_file(files, oldfd);
     if (IS_ERR(ASSERT(oldfd_file)))
         return PTR_ERR(oldfd_file);
     if (oldfd == newfd)
         return -EINVAL;
-    return task_alloc_fd(newfd, oldfd_file);
+    return files_alloc_fd(files, newfd, oldfd_file);
 }
 
 int sys_ioctl(int fd, unsigned cmd, unsigned long arg) {
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     int rc = file_ioctl(file, cmd, arg);
@@ -85,20 +89,22 @@ int sys_pipe2(int user_pipefd[2], int flags) {
     if (IS_ERR(ASSERT(writer_file)))
         return PTR_ERR(writer_file);
 
-    int reader_fd = task_alloc_fd(-1, reader_file);
+    struct files* files = current->files;
+
+    int reader_fd = files_alloc_fd(files, -1, reader_file);
     if (IS_ERR(reader_fd))
         return reader_fd;
 
-    int writer_fd = task_alloc_fd(-1, writer_file);
+    int writer_fd = files_alloc_fd(files, -1, writer_file);
     if (IS_ERR(writer_fd)) {
-        task_free_fd(reader_fd);
+        files_free_fd(files, reader_fd);
         return writer_fd;
     }
 
     int fds[2] = {reader_fd, writer_fd};
     if (copy_to_user(user_pipefd, fds, sizeof(int[2]))) {
-        task_free_fd(writer_fd);
-        task_free_fd(reader_fd);
+        files_free_fd(files, writer_fd);
+        files_free_fd(files, reader_fd);
         return -EFAULT;
     }
 

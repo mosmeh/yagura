@@ -10,7 +10,7 @@
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 #define TASK_GATE 0x5
 #define INTERRUPT_GATE16 0x6

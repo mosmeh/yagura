@@ -3,7 +3,7 @@
 #include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 int sys_kill(pid_t pid, int sig) {
     if (pid > 0)

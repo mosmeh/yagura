@@ -5,7 +5,7 @@
 #include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 static pid_t pid_from_ino(ino_t ino) {
     pid_t pid = ino >> PROC_PID_INO_SHIFT;
