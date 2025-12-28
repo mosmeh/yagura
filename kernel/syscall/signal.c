@@ -100,9 +100,8 @@ int sys_sigpending(sigset_t* user_set) {
      X86_EFLAGS_CF | X86_EFLAGS_RF)
 
 int sys_sigreturn(struct registers* regs) {
-    uintptr_t esp = regs->esp + sizeof(int); // Pop signum
     struct sigcontext ctx;
-    if (copy_from_user(&ctx, (void*)esp, sizeof(struct sigcontext)))
+    if (copy_from_user(&ctx, (void*)regs->esp, sizeof(struct sigcontext)))
         task_crash(SIGSEGV);
 
     regs->ss = ctx.regs.ss | 3;
