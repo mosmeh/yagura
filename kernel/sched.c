@@ -6,7 +6,7 @@
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 #include <kernel/time.h>
 
 static noreturn void do_idle(void) {

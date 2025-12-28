@@ -5,7 +5,7 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
 #include <kernel/syscall/syscall.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 #include <kernel/time.h>
 
 struct fd_waiter {
@@ -71,13 +71,14 @@ NODISCARD static int wait_fds(nfds_t nfds, struct pollfd pollfds[nfds],
             goto fail;
         }
 
+        struct files* files = current->files;
         for (nfds_t i = 0; i < nfds; ++i) {
             struct pollfd* pollfd = pollfds + i;
             pollfd->revents = 0;
             waiter.files[i] = NULL;
             if (pollfd->fd < 0)
                 continue;
-            struct file* file = task_ref_file(pollfd->fd);
+            struct file* file = files_ref_file(files, pollfd->fd);
             if (IS_ERR(ASSERT(file))) {
                 pollfd->revents = POLLNVAL;
                 ++waiter.num_events;

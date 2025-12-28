@@ -7,7 +7,7 @@
 #include <kernel/device/device.h>
 #include <kernel/fs/file.h>
 #include <kernel/panic.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 struct pipe {
     struct inode vfs_inode;

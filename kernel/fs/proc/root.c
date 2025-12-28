@@ -9,7 +9,7 @@
 #include <kernel/device/device.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 #include <kernel/time.h>
 
 static int print_cmdline(struct file* file, struct vec* vec) {

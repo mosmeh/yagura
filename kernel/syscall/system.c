@@ -10,7 +10,7 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/system.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 #include <kernel/time.h>
 
 // There is no support for users and groups in this kernel.

@@ -2,7 +2,7 @@
 #include <kernel/fs/file.h>
 #include <kernel/fs/fs.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 int sys_mount(const char* user_source, const char* user_target,
               const char* user_filesystemtype, unsigned long mountflags,
@@ -46,7 +46,7 @@ int sys_sync(void) {
 }
 
 int sys_syncfs(int fd) {
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return mount_sync(file->inode->mount);

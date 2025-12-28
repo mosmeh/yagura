@@ -12,7 +12,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/multiboot.h>
 #include <kernel/panic.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 struct file_system* file_systems;
 

@@ -3,7 +3,7 @@
 #include <common/string.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 void __vm_obj_destroy(struct vm_obj* obj) {
     ASSERT(!obj->shared_regions);

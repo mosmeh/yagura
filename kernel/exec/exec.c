@@ -10,7 +10,7 @@
 #include <kernel/fs/path.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 static size_t count_strings_kernel(const char* const* strings) {
     size_t count = 0;

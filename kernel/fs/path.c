@@ -4,7 +4,7 @@
 #include <kernel/fs/path.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 static struct slab path_slab;
 

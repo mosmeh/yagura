@@ -14,7 +14,7 @@
 #include <kernel/sched.h>
 #include <kernel/socket.h>
 #include <kernel/syscall/syscall.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 #include <kernel/time.h>
 
 static void open_console(void) {
@@ -25,7 +25,7 @@ static void open_console(void) {
     }
     int rc;
     for (int i = 0; i < 3; ++i)
-        rc = task_alloc_fd(-1, file);
+        rc = files_alloc_fd(current->files, -1, file);
     (void)rc;
 }
 

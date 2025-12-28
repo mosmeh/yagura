@@ -10,7 +10,7 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
 #include <kernel/syscall/syscall.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 NODISCARD static int validate_file_prot(struct file* file, int prot,
                                         int flags) {
@@ -52,7 +52,7 @@ void* sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
         if (IS_ERR(ASSERT(obj)))
             return obj;
     } else {
-        struct file* file FREE(file) = task_ref_file(fd);
+        struct file* file FREE(file) = files_ref_file(current->files, fd);
         if (IS_ERR(ASSERT(file)))
             return file;
         if (S_ISDIR(file->inode->mode))

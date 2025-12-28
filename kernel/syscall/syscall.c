@@ -4,7 +4,7 @@
 #include <kernel/panic.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/syscall/unimplemented.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 #define F(name)                                                                \
     static int sys_ni_##name(const struct registers* regs) {                   \

@@ -5,7 +5,7 @@
 #include <kernel/fs/file.h>
 #include <kernel/panic.h>
 #include <kernel/socket.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 struct unix_socket {
     struct inode vfs_inode;

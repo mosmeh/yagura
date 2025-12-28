@@ -89,7 +89,9 @@ OBJS := \
 	syscall/task.o \
 	syscall/time.o \
 	system.o \
-	task.o \
+	task/fs.o \
+	task/signal.o \
+	task/task.o \
 	time.o \
 	../common/libgen.o \
 	../common/stdio.o \

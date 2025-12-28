@@ -3,7 +3,7 @@
 #include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
-#include <kernel/task.h>
+#include <kernel/task/task.h>
 
 NODISCARD static int stat(const char* user_pathname, struct kstat* buf) {
     char pathname[PATH_MAX];
@@ -22,7 +22,7 @@ NODISCARD static int lstat(const char* user_pathname, struct kstat* buf) {
 }
 
 NODISCARD static int fstat(int fd, struct kstat* buf) {
-    struct file* file FREE(file) = task_ref_file(fd);
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return inode_stat(file->inode, buf);
