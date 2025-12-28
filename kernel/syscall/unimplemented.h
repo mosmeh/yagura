@@ -17,7 +17,6 @@
     F(nice)                                                                    \
     F(brk)                                                                     \
     F(setgid)                                                                  \
-    F(signal)                                                                  \
     F(acct)                                                                    \
     F(umount2)                                                                 \
     F(umask)                                                                   \

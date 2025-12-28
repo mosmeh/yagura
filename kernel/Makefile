@@ -89,6 +89,7 @@ OBJS := \
 	syscall/task.o \
 	syscall/time.o \
 	system.o \
+	task/asm.o \
 	task/fs.o \
 	task/signal.o \
 	task/task.o \

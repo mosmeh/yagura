@@ -52,6 +52,7 @@ void syscall_init(void);
     F(pipe, sys_pipe, 0)                                                       \
     F(times, sys_times, 0)                                                     \
     F(getgid, sys_getgid16, 0)                                                 \
+    F(signal, sys_signal, 0)                                                   \
     F(geteuid, sys_geteuid16, 0)                                               \
     F(getegid, sys_getegid16, 0)                                               \
     F(ioctl, sys_ioctl, 0)                                                     \
@@ -202,6 +203,7 @@ int sys_dup(int oldfd);
 int sys_pipe(int pipefd[2]);
 clock_t sys_times(struct tms* buf);
 gid_t sys_getgid16(void);
+sighandler_t sys_signal(int signum, sighandler_t handler);
 uid_t sys_geteuid16(void);
 gid_t sys_getegid16(void);
 int sys_ioctl(int fd, unsigned cmd, unsigned long arg);

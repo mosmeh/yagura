@@ -176,20 +176,27 @@ int task_pop_signal(struct sigaction* out_action) {
     return 0;
 }
 
+extern unsigned char signal_trampoline_start[];
+extern unsigned char signal_trampoline_end[];
+
 void task_handle_signal(struct registers* regs, int signum,
                         const struct sigaction* action) {
     ASSERT(0 < signum && signum < NSIG);
-    ASSERT(action->sa_flags & SA_RESTORER);
 
-    uintptr_t esp = ROUND_DOWN(regs->esp, 16);
-
-    // Push the context of the interrupted task
     struct sigcontext ctx = {
         .regs = *regs,
         .blocked_signals = current->blocked_signals,
     };
+    ASSERT((uintptr_t)signal_trampoline_start + sizeof(ctx.trampoline) ==
+           (uintptr_t)signal_trampoline_end);
+    memcpy(ctx.trampoline, signal_trampoline_start, sizeof(ctx.trampoline));
+
+    uintptr_t esp = ROUND_DOWN(regs->esp, 16);
+
+    // Push the context of the interrupted task
     esp -= sizeof(struct sigcontext);
-    if (copy_to_user((void*)esp, &ctx, sizeof(struct sigcontext)))
+    struct sigcontext* user_ctx = (struct sigcontext*)esp;
+    if (copy_to_user(user_ctx, &ctx, sizeof(struct sigcontext)))
         goto fail;
 
     // Push the argument of the signal handler
@@ -197,9 +204,13 @@ void task_handle_signal(struct registers* regs, int signum,
     if (copy_to_user((void*)esp, &signum, sizeof(int)))
         goto fail;
 
+    uintptr_t trampoline = (action->sa_flags & SA_RESTORER)
+                               ? (uintptr_t)action->sa_restorer
+                               : (uintptr_t)user_ctx->trampoline;
+
     // Push the return address of the signal handler
     esp -= sizeof(uintptr_t);
-    if (copy_to_user((void*)esp, &action->sa_restorer, sizeof(uintptr_t)))
+    if (copy_to_user((void*)esp, &trampoline, sizeof(uintptr_t)))
         goto fail;
 
     regs->esp = esp;
