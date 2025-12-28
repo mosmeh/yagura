@@ -16,8 +16,8 @@ int sys_kill(pid_t pid, int sig) {
     return task_send_signal(-pid, sig, SIGNAL_DEST_PROCESS_GROUP);
 }
 
-int sys_sigaction(int signum, const struct sigaction* user_act,
-                  struct sigaction* user_oldact) {
+NODISCARD static int sigaction(int signum, const struct sigaction* act,
+                               struct sigaction* oldact) {
     if (signum <= 0 || NSIG <= signum)
         return -EINVAL;
     switch (signum) {
@@ -26,23 +26,44 @@ int sys_sigaction(int signum, const struct sigaction* user_act,
         return -EINVAL;
     }
 
+    struct sighand* sighand = current->sighand;
+    SCOPED_LOCK(sighand, sighand);
+    struct sigaction* slot = &sighand->actions[signum - 1];
+    if (oldact)
+        *oldact = *slot;
+    if (act)
+        *slot = *act;
+    return 0;
+}
+
+sighandler_t sys_signal(int signum, sighandler_t handler) {
+    struct sigaction act = {
+        .sa_handler = handler,
+        .sa_flags = SA_RESETHAND | SA_NODEFER,
+    };
+    struct sigaction oldact;
+    int rc = sigaction(signum, &act, &oldact);
+    if (IS_ERR(rc))
+        return (sighandler_t)rc;
+    return oldact.sa_handler;
+}
+
+int sys_sigaction(int signum, const struct sigaction* user_act,
+                  struct sigaction* user_oldact) {
     struct sigaction act;
     if (user_act) {
         if (copy_from_user(&act, user_act, sizeof(struct sigaction)))
             return -EFAULT;
-        if ((!(act.sa_flags & SA_RESTORER) || !act.sa_restorer))
-            return -EFAULT;
     }
-
-    struct sighand* sighand = current->sighand;
-    SCOPED_LOCK(sighand, sighand);
-    struct sigaction* slot = &sighand->actions[signum - 1];
+    struct sigaction oldact;
+    int rc =
+        sigaction(signum, user_act ? &act : NULL, user_oldact ? &oldact : NULL);
+    if (IS_ERR(rc))
+        return rc;
     if (user_oldact) {
-        if (copy_to_user(user_oldact, slot, sizeof(struct sigaction)))
+        if (copy_to_user(user_oldact, &oldact, sizeof(struct sigaction)))
             return -EFAULT;
     }
-    if (user_act)
-        *slot = act;
     return 0;
 }
 

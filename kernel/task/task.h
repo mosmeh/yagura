@@ -174,4 +174,5 @@ void task_handle_signal(struct registers* regs, int signum,
 struct sigcontext {
     sigset_t blocked_signals;
     struct registers regs;
+    unsigned char trampoline[8];
 };
