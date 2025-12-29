@@ -76,6 +76,7 @@ void sched_register(struct task* task) {
     ASSERT(task);
     ASSERT(task->state == TASK_RUNNING);
     task_ref(task);
+    ++task->thread_group->num_running_tasks;
 
     {
         SCOPED_LOCK(spinlock, &tasks_lock);

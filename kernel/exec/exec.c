@@ -330,8 +330,7 @@ NODISCARD static int loader_load(struct loader* loader) {
             if (IS_ERR(rc) || !loader->commit)
                 break;
             mutex_unlock(&loader->vm->lock);
-            if (prev_vm != kernel_vm)
-                vm_unref(prev_vm);
+            vm_unref(prev_vm);
             loader_commit(loader);
         }
         if (IS_ERR(rc)) {
