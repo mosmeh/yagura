@@ -87,23 +87,18 @@ void smp_init(void) {
     ASSERT_OK(page_table_map(0, 0, init_npages, PTE_WRITE));
 
     kprintf("smp: starting %u APs\n", num_cpus - 1);
-    for (size_t i = 0; i < num_cpus; ++i) {
-        struct cpu* cpu = cpus[i];
-        if (cpu == cpu_get_bsp())
-            continue;
 
-        uint32_t dest = (uint32_t)cpu->apic_id << 24;
+    // INIT IPI
+    lapic_write_icr(0, LAPIC_ICRLO_INIT | LAPIC_ICRLO_ASSERT |
+                           LAPIC_ICRLO_ALL_EXCL_SELF);
+    delay(10000);
 
-        // INIT IPI
-        lapic_write_icr(dest, LAPIC_ICRLO_INIT | LAPIC_ICRLO_ASSERT);
-        delay(10000);
-
-        // Start Up IPI
-        for (int j = 0; j < 2; ++j) {
-            lapic_write_icr(dest, LAPIC_ICRLO_STARTUP | LAPIC_ICRLO_ASSERT |
-                                      (AP_TRAMPOLINE_ADDR >> 12));
-            delay(200);
-        }
+    // Start Up IPI
+    for (int i = 0; i < 2; ++i) {
+        lapic_write_icr(0, LAPIC_ICRLO_STARTUP | LAPIC_ICRLO_ASSERT |
+                               LAPIC_ICRLO_ALL_EXCL_SELF |
+                               (AP_TRAMPOLINE_ADDR >> 12));
+        delay(200);
     }
 
     while (num_ready_cpus < num_cpus)
