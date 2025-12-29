@@ -76,7 +76,7 @@ void syscall_init(void);
     F(oldlstat, sys_lstat, 0)                                                  \
     F(readlink, sys_readlink, 0)                                               \
     F(reboot, sys_reboot, 0)                                                   \
-    F(readdir, sys_readdir, 0)                                                 \
+    F(readdir, sys_old_readdir, 0)                                             \
     F(mmap, sys_old_mmap, 0)                                                   \
     F(munmap, sys_munmap, 0)                                                   \
     F(truncate, sys_truncate, 0)                                               \
@@ -232,7 +232,7 @@ int sys_symlink(const char* target, const char* linkpath);
 int sys_lstat(const char* pathname, struct linux_old_stat* buf);
 ssize_t sys_readlink(const char* pathname, char* buf, size_t bufsiz);
 int sys_reboot(int magic, int magic2, int op, void* arg);
-ssize_t sys_readdir(int fd, struct linux_old_dirent* dirp, size_t count);
+ssize_t sys_old_readdir(int fd, struct linux_old_dirent* dirp, size_t count);
 void* sys_old_mmap(struct mmap_arg_struct*);
 int sys_munmap(void* addr, size_t length);
 int sys_truncate(const char* path, off_t length);
