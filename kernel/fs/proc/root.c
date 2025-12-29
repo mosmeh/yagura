@@ -113,7 +113,7 @@ static int print_meminfo(struct file* file, struct vec* vec) {
 
 static int print_self(struct file* file, struct vec* vec) {
     (void)file;
-    return vec_printf(vec, "%d", current->tgid);
+    return vec_printf(vec, "%d", current->thread_group->tgid);
 }
 
 NODISCARD static int sprintf_ticks(struct vec* vec, int64_t ticks) {
@@ -188,12 +188,12 @@ int proc_root_getdents(struct file* file, getdents_callback_fn callback,
     if (file->offset < ARRAY_SIZE(entries))
         return 0;
 
-    SCOPED_LOCK(spinlock, &all_tasks_lock);
+    SCOPED_LOCK(spinlock, &tasks_lock);
 
     pid_t offset_pid = (pid_t)(file->offset - ARRAY_SIZE(entries));
-    struct task* it = all_tasks;
+    struct task* it = tasks;
     while (it->tid <= offset_pid) {
-        it = it->all_tasks_next;
+        it = it->tasks_next;
         if (!it)
             break;
     }
@@ -208,7 +208,7 @@ int proc_root_getdents(struct file* file, getdents_callback_fn callback,
             break;
 
         file->offset = it->tid + ARRAY_SIZE(entries);
-        it = it->all_tasks_next;
+        it = it->tasks_next;
     }
 
     return 0;

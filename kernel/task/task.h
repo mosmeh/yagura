@@ -20,7 +20,7 @@ struct task {
     uint32_t eip, esp, ebp, ebx, esi, edi;
     struct fpu_state fpu_state;
 
-    pid_t tid, tgid, pgid, ppid;
+    pid_t tid;
 
     atomic_uint state;
     int exit_status;
@@ -37,7 +37,6 @@ struct task {
     struct files* files;
 
     struct sighand* sighand;
-    int exit_signal;
     _Atomic(sigset_t) pending_signals;
     _Atomic(sigset_t) blocked_signals;
 
@@ -50,7 +49,7 @@ struct task {
     atomic_size_t user_ticks;
     atomic_size_t kernel_ticks;
 
-    struct task* all_tasks_next;
+    struct task* tasks_next; // global tasks list
     struct task* ready_queue_next;
     struct task* blocked_next;
 
@@ -58,8 +57,8 @@ struct task {
     refcount_t refcount;
 };
 
-extern struct task* all_tasks;
-extern struct spinlock all_tasks_lock;
+extern struct task* tasks;
+extern struct spinlock tasks_lock;
 extern struct fpu_state initial_fpu_state;
 
 void task_init(void);
@@ -135,7 +134,11 @@ void __sighand_destroy(struct sighand*);
 DEFINE_REFCOUNTED_BASE(sighand, struct sighand*, refcount, __sighand_destroy)
 
 struct thread_group {
-    atomic_size_t num_running;
+    pid_t tgid;
+    _Atomic(pid_t) pgid, ppid;
+    atomic_size_t num_running_tasks;
+    _Atomic(sigset_t) pending_signals;
+    int exit_signal;
     refcount_t refcount;
 };
 
@@ -145,31 +148,35 @@ void __thread_group_destroy(struct thread_group*);
 DEFINE_REFCOUNTED_BASE(thread_group, struct thread_group*, refcount,
                        __thread_group_destroy)
 
+// Returns the set of pending signals for the current task,
+// excluding blocked signals.
+sigset_t task_get_pending_signals(struct task*);
+
 // Returns the previous blocked signal set.
-sigset_t task_set_blocked_signals(sigset_t);
+sigset_t task_set_blocked_signals(struct task*, sigset_t);
 
-// Send to all tasks with tid > 1. pid_t argument is ignored.
-#define SIGNAL_DEST_ALL_USER_TASKS 0x1
-// Send to all tasks with given tgid
-#define SIGNAL_DEST_THREAD_GROUP 0x2
-// Send to all tasks with given pgid
-#define SIGNAL_DEST_PROCESS_GROUP 0x4
-// Don't send to the current task
-#define SIGNAL_DEST_EXCLUDE_CURRENT 0x8
+// Sends a process-directed signal to thread groups matching the given criteria.
+// Returns -ESRCH if no matching thread group is found.
+NODISCARD int signal_send_to_thread_groups(pid_t pgid, pid_t tgid, int signum);
 
-// Sends a signal to a task.
-// Returns -ESRCH if the matching task was not found.
-NODISCARD int task_send_signal(pid_t, int signum, int flags);
+// Sends a thread-directed signal to the tasks matching the given criteria.
+// Returns -ESRCH if no matching task is found.
+NODISCARD int signal_send_to_tasks(pid_t tgid, pid_t tid, int signum);
+
+// The matching rules for id are as follows:
+// - If id = N > 0: matches tasks with id = N.
+// - If id = -N < 0: matches tasks with id != N.
+// - If id = 0: matches tasks with any id.
 
 // Returns the signal number that should be handled by the current task,
 // or 0 if no signal is pending.
 // If out_action is not NULL, it is filled with the sigaction for the signal.
 // This function exits the current task if it popped a fatal signal.
-NODISCARD int task_pop_signal(struct sigaction* out_action);
+NODISCARD int signal_pop(struct sigaction* out_action);
 
 // Handles a signal for the current task.
-void task_handle_signal(struct registers* regs, int signum,
-                        const struct sigaction* action);
+void signal_handle(struct registers* regs, int signum,
+                   const struct sigaction* action);
 
 struct sigcontext {
     sigset_t blocked_signals;

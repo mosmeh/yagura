@@ -184,7 +184,7 @@ static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
         return ring_buf_write_from_user(buf, user_buffer, count);
     }
 
-    int rc = task_send_signal(current->tid, SIGPIPE, 0);
+    int rc = signal_send_to_tasks(0, current->tid, SIGPIPE);
     if (IS_ERR(rc))
         return rc;
     return -EPIPE;

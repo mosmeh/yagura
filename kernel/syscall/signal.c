@@ -4,16 +4,39 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
+#include <limits.h>
 
 int sys_kill(pid_t pid, int sig) {
-    if (pid > 0)
-        return task_send_signal(pid, sig, 0);
-    if (pid == 0)
-        return task_send_signal(current->pgid, sig, SIGNAL_DEST_PROCESS_GROUP);
-    if (pid == -1)
-        return task_send_signal(
-            0, sig, SIGNAL_DEST_ALL_USER_TASKS | SIGNAL_DEST_EXCLUDE_CURRENT);
-    return task_send_signal(-pid, sig, SIGNAL_DEST_PROCESS_GROUP);
+    if (pid > 0) {
+        // Send the signal to the process with the specified pid.
+        return signal_send_to_thread_groups(0, pid, sig);
+    }
+    if (pid == 0) {
+        // Send the signal to all processes in the caller's process group.
+        return signal_send_to_thread_groups(current->thread_group->pgid, 0,
+                                            sig);
+    }
+    if (pid == -1) {
+        // Send the signal to all processes except the calling process.
+        return signal_send_to_thread_groups(0, -current->thread_group->tgid,
+                                            sig);
+    }
+    if (pid == INT_MIN)
+        return -ESRCH; // -INT_MIN overflows
+    // Send the signal to all processes in the specified process group.
+    return signal_send_to_thread_groups(-pid, 0, sig);
+}
+
+int sys_tkill(pid_t tid, int sig) {
+    if (tid <= 0)
+        return -EINVAL;
+    return signal_send_to_tasks(0, tid, sig);
+}
+
+int sys_tgkill(pid_t tgid, pid_t tid, int sig) {
+    if (tgid <= 0 || tid <= 0)
+        return -EINVAL;
+    return signal_send_to_tasks(tgid, tid, sig);
 }
 
 NODISCARD static int sigaction(int signum, const struct sigaction* act,
@@ -85,7 +108,7 @@ int sys_sigprocmask(int how, const sigset_t* user_set, sigset_t* user_oldset) {
         default:
             return -EINVAL;
         }
-        oldset = task_set_blocked_signals(set);
+        oldset = task_set_blocked_signals(current, set);
     } else {
         oldset = current->blocked_signals;
     }
@@ -102,9 +125,9 @@ int sys_sigsuspend(const sigset_t* user_mask) {
     sigset_t mask;
     if (copy_from_user(&mask, user_mask, sizeof(sigset_t)))
         return -EFAULT;
-    sigset_t old_mask = task_set_blocked_signals(mask);
+    sigset_t old_mask = task_set_blocked_signals(current, mask);
     int rc = sys_pause();
-    task_set_blocked_signals(old_mask);
+    task_set_blocked_signals(current, old_mask);
     return rc;
 }
 
@@ -144,7 +167,7 @@ int sys_sigreturn(struct registers* regs) {
     regs->eflags =
         (regs->eflags & ~FIX_EFLAGS) | (ctx.regs.eflags & FIX_EFLAGS);
 
-    task_set_blocked_signals(ctx.blocked_signals);
+    task_set_blocked_signals(current, ctx.blocked_signals);
 
     return ctx.regs.eax;
 }

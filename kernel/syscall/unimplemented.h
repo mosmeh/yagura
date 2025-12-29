@@ -120,7 +120,6 @@
     F(removexattr)                                                             \
     F(lremovexattr)                                                            \
     F(fremovexattr)                                                            \
-    F(tkill)                                                                   \
     F(sendfile64)                                                              \
     F(futex)                                                                   \
     F(sched_setaffinity)                                                       \
@@ -143,7 +142,6 @@
     F(timer_delete)                                                            \
     F(statfs64)                                                                \
     F(fstatfs64)                                                               \
-    F(tgkill)                                                                  \
     F(utimes)                                                                  \
     F(fadvise64_64)                                                            \
     F(mq_open)                                                                 \

@@ -7,7 +7,11 @@ int kill(pid_t pid, int sig) {
     return __syscall_return(SYSCALL2(kill, pid, sig));
 }
 
-int raise(int sig) { return kill(gettid(), sig); }
+int tgkill(pid_t tgid, pid_t tid, int sig) {
+    return __syscall_return(SYSCALL3(tgkill, tgid, tid, sig));
+}
+
+int raise(int sig) { return __syscall_return(SYSCALL2(tkill, gettid(), sig)); }
 
 sighandler_t signal(int signum, sighandler_t handler) {
     struct sigaction act = {

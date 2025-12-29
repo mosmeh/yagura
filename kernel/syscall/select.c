@@ -200,13 +200,13 @@ int sys_ppoll(struct pollfd* user_fds, nfds_t nfds,
         sigset_t sigmask;
         if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
             return -EFAULT;
-        old_sigmask = task_set_blocked_signals(sigmask);
+        old_sigmask = task_set_blocked_signals(current, sigmask);
     }
 
     int ret = poll(user_fds, nfds, user_timeout ? &timeout : NULL);
 
     if (user_sigmask)
-        task_set_blocked_signals(old_sigmask);
+        task_set_blocked_signals(current, old_sigmask);
 
     if (user_timeout) {
         if (copy_to_user(user_timeout, &timeout, sizeof(struct timespec)))
@@ -233,13 +233,13 @@ int sys_ppoll_time32(struct pollfd* user_fds, nfds_t nfds,
         sigset_t sigmask;
         if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
             return -EFAULT;
-        old_sigmask = task_set_blocked_signals(sigmask);
+        old_sigmask = task_set_blocked_signals(current, sigmask);
     }
 
     int ret = poll(user_fds, nfds, user_timeout ? &timeout : NULL);
 
     if (user_sigmask)
-        task_set_blocked_signals(old_sigmask);
+        task_set_blocked_signals(current, old_sigmask);
 
     if (user_timeout) {
         if (copy_timespec_to_user32(user_timeout, &timeout))
@@ -417,14 +417,14 @@ int sys_pselect6(int nfds, unsigned long* user_readfds,
         sigset_t sigmask;
         if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
             return -EFAULT;
-        old_sigmask = task_set_blocked_signals(sigmask);
+        old_sigmask = task_set_blocked_signals(current, sigmask);
     }
 
     int ret = select(nfds, user_readfds, user_writefds, user_exceptfds,
                      user_timeout ? &timeout : NULL);
 
     if (user_sigmask)
-        task_set_blocked_signals(old_sigmask);
+        task_set_blocked_signals(current, old_sigmask);
 
     if (user_timeout) {
         if (copy_to_user(user_timeout, &timeout, sizeof(struct timespec)))
@@ -450,14 +450,14 @@ int sys_pselect6_time32(int nfds, unsigned long* user_readfds,
         sigset_t sigmask;
         if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
             return -EFAULT;
-        old_sigmask = task_set_blocked_signals(sigmask);
+        old_sigmask = task_set_blocked_signals(current, sigmask);
     }
 
     int ret = select(nfds, user_readfds, user_writefds, user_exceptfds,
                      user_timeout ? &timeout : NULL);
 
     if (user_sigmask)
-        task_set_blocked_signals(old_sigmask);
+        task_set_blocked_signals(current, old_sigmask);
 
     if (user_timeout) {
         if (copy_timespec_to_user32(user_timeout, &timeout))

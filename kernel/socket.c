@@ -159,7 +159,7 @@ static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
             return rc;
 
         if (!is_connector(file) && !socket->is_open_for_writing_to_connector) {
-            int rc = task_send_signal(current->tid, SIGPIPE, 0);
+            int rc = signal_send_to_tasks(0, current->tid, SIGPIPE);
             if (IS_ERR(rc))
                 return rc;
             return -EPIPE;

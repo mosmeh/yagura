@@ -283,14 +283,11 @@ NODISCARD static int on_char(struct tty* tty, char ch) {
 
     if (termios->c_lflag & ISIG) {
         if ((cc_t)ch == termios->c_cc[VINTR])
-            return task_send_signal(tty->pgid, SIGINT,
-                                    SIGNAL_DEST_PROCESS_GROUP);
+            return signal_send_to_thread_groups(tty->pgid, 0, SIGINT);
         if ((cc_t)ch == termios->c_cc[VQUIT])
-            return task_send_signal(tty->pgid, SIGQUIT,
-                                    SIGNAL_DEST_PROCESS_GROUP);
+            return signal_send_to_thread_groups(tty->pgid, 0, SIGQUIT);
         if ((cc_t)ch == termios->c_cc[VSUSP])
-            return task_send_signal(tty->pgid, SIGTSTP,
-                                    SIGNAL_DEST_PROCESS_GROUP);
+            return signal_send_to_thread_groups(tty->pgid, 0, SIGTSTP);
     }
 
     if (ch == '\r' && (termios->c_iflag & ICRNL))
