@@ -90,6 +90,12 @@ int sys_sigaction(int signum, const struct sigaction* user_act,
     return 0;
 }
 
+long sys_sgetmask(void) { return current->blocked_signals; }
+
+long sys_ssetmask(long newmask) {
+    return task_set_blocked_signals(current, newmask);
+}
+
 int sys_sigprocmask(int how, const sigset_t* user_set, sigset_t* user_oldset) {
     sigset_t oldset;
     if (user_set) {

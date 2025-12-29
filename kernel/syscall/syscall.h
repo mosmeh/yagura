@@ -64,6 +64,8 @@ void syscall_init(void);
     F(getppid, sys_getppid, 0)                                                 \
     F(getpgrp, sys_getpgrp, 0)                                                 \
     F(sigaction, sys_sigaction, 0)                                             \
+    F(sgetmask, sys_sgetmask, 0)                                               \
+    F(ssetmask, sys_ssetmask, 0)                                               \
     F(sigsuspend, sys_sigsuspend, 0)                                           \
     F(sigpending, sys_sigpending, 0)                                           \
     F(sethostname, sys_sethostname, 0)                                         \
@@ -218,6 +220,8 @@ pid_t sys_getppid(void);
 pid_t sys_getpgrp(void);
 int sys_sigaction(int signum, const struct sigaction* act,
                   struct sigaction* oldact);
+long sys_sgetmask(void);
+long sys_ssetmask(long newmask);
 int sys_sigsuspend(const sigset_t* mask);
 int sys_sigpending(sigset_t* set);
 int sys_sethostname(const char* name, int len);

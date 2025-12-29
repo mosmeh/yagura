@@ -22,8 +22,6 @@
     F(umask)                                                                   \
     F(ustat)                                                                   \
     F(setsid)                                                                  \
-    F(sgetmask)                                                                \
-    F(ssetmask)                                                                \
     F(setreuid)                                                                \
     F(setregid)                                                                \
     F(setrlimit)                                                               \
