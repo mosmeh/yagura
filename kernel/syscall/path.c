@@ -4,7 +4,6 @@
 #include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
 int copy_pathname_from_user(char dest[static PATH_MAX], const char* user_src) {

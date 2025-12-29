@@ -10,7 +10,6 @@
 #include <kernel/fs/path.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 #include <kernel/time.h>
 
