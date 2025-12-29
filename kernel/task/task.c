@@ -1,5 +1,7 @@
 #include "private.h"
+#include <common/integer.h>
 #include <common/string.h>
+#include <kernel/api/sched.h>
 #include <kernel/cpu.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
@@ -46,74 +48,156 @@ struct task* task_get_current(void) {
 }
 
 struct task* task_create(const char* comm, void (*entry_point)(void)) {
-    struct task* task FREE(kfree) =
-        kaligned_alloc(alignof(struct task), sizeof(struct task));
-    if (!task)
-        return ERR_PTR(-ENOMEM);
-    *task = (struct task){.refcount = REFCOUNT_INIT_ONE};
-
-    task->fpu_state = initial_fpu_state;
-    task->state = TASK_RUNNING;
-    strlcpy(task->comm, comm, sizeof(task->comm));
-
-    struct fs* fs FREE(fs) = fs_create();
-    if (IS_ERR(ASSERT(fs)))
-        return ERR_CAST(fs);
-
-    struct files* files FREE(files) = files_create();
-    if (IS_ERR(ASSERT(files)))
-        return ERR_CAST(files);
-
-    struct sighand* sighand FREE(sighand) = sighand_create();
-    if (IS_ERR(ASSERT(sighand)))
-        return ERR_CAST(sighand);
-
-    struct thread_group* thread_group FREE(thread_group) =
-        thread_group_create();
-    if (IS_ERR(ASSERT(thread_group)))
-        return ERR_CAST(thread_group);
-    thread_group->num_running_tasks = 1;
-
-    void* stack FREE(kfree) = kmalloc(STACK_SIZE);
-    if (!stack)
-        return ERR_PTR(-ENOMEM);
-
-    task->vm = kernel_vm;
-    task->kernel_stack_base = (uintptr_t)stack;
-    task->kernel_stack_top = (uintptr_t)stack + STACK_SIZE;
-    task->esp = task->ebp = task->kernel_stack_top;
-
-    // Without this eager population, page fault occurs when switching to this
-    // task, but page fault handler cannot run without a valid kernel stack.
-    int ret = vm_populate(stack, (void*)task->kernel_stack_top, true);
-    if (IS_ERR(ret))
-        return ERR_PTR(ret);
-
-    task->eip = (uintptr_t)do_iret;
-
-    // push the argument of do_iret()
-    task->esp -= sizeof(struct registers);
-    *(struct registers*)task->esp = (struct registers){
+    struct registers regs = {
         .cs = KERNEL_CS,
         .ss = KERNEL_DS,
         .gs = KERNEL_DS,
         .fs = KERNEL_DS,
         .es = KERNEL_DS,
         .ds = KERNEL_DS,
-        .ebp = task->ebp,
-        .esp = task->esp,
         .eip = (uintptr_t)entry_point,
         .eflags = X86_EFLAGS_IF | X86_EFLAGS_FIXED,
     };
 
-    // Commit resources
-    task->fs = TAKE_PTR(fs);
-    task->files = TAKE_PTR(files);
-    task->sighand = TAKE_PTR(sighand);
-    task->thread_group = TAKE_PTR(thread_group);
-    TAKE_PTR(stack);
+    struct task* task FREE(task) = task_clone(NULL, &regs, 0);
+    if (IS_ERR(ASSERT(task)))
+        return task;
+
+    strlcpy(task->comm, comm, sizeof(task->comm));
 
     return TAKE_PTR(task);
+}
+
+struct task* task_clone(const struct task* task,
+                        const struct registers* new_regs, unsigned flags) {
+    if (!task && flags)
+        return ERR_PTR(-EINVAL);
+    if ((flags & CLONE_SIGHAND) && !(flags & CLONE_VM))
+        return ERR_PTR(-EINVAL);
+    if ((flags & CLONE_THREAD) && !(flags & CLONE_SIGHAND))
+        return ERR_PTR(-EINVAL);
+
+    size_t task_struct_offset = ROUND_UP(STACK_SIZE, alignof(struct task));
+    unsigned char* stack FREE(kfree) =
+        kaligned_alloc(PAGE_SIZE, task_struct_offset + sizeof(struct task));
+    if (!stack)
+        return ERR_PTR(-ENOMEM);
+    void* stack_top = stack + STACK_SIZE;
+
+    // Without this eager population, page fault occurs when switching to this
+    // task, but page fault handler cannot run without a valid kernel stack.
+    int rc = vm_populate(stack, stack_top, true);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
+
+    struct task* new_task = (void*)(stack + task_struct_offset);
+    *new_task = (struct task){
+        .eip = (uintptr_t)do_iret,
+        .esp = (uintptr_t)stack_top,
+        .fpu_state = initial_fpu_state,
+        .state = TASK_RUNNING,
+        .kernel_stack_base = (uintptr_t)stack,
+        .kernel_stack_top = (uintptr_t)stack_top,
+        .refcount = REFCOUNT_INIT_ONE,
+    };
+
+    if (task) {
+        strlcpy(new_task->comm, task->comm, sizeof(new_task->comm));
+
+        new_task->ebx = task->ebx;
+        new_task->esi = task->esi;
+        new_task->edi = task->edi;
+        new_task->ebp = task->ebp;
+        new_task->fpu_state = task->fpu_state;
+
+        new_task->arg_start = task->arg_start;
+        new_task->arg_end = task->arg_end;
+        new_task->env_start = task->env_start;
+        new_task->env_end = task->env_end;
+
+        memcpy(new_task->tls, task->tls, sizeof(new_task->tls));
+
+        new_task->blocked_signals = task->blocked_signals;
+
+        new_task->user_ticks = task->user_ticks;
+        new_task->kernel_ticks = task->kernel_ticks;
+    }
+
+    if (new_regs) {
+        if (!new_regs->cs || !new_regs->ss)
+            return ERR_PTR(-EINVAL);
+
+        new_task->esp -= sizeof(struct registers);
+        struct registers* regs = (struct registers*)new_task->esp;
+        *regs = *new_regs;
+        if (!new_regs->esp && (new_regs->ss & 3) == 0) {
+            // Provide a kernel stack if not given.
+            regs->esp = (uintptr_t)stack_top;
+        }
+    }
+
+    struct vm* vm FREE(vm) = NULL;
+    if (!task)
+        vm = vm_ref(kernel_vm);
+    else if (flags & CLONE_VM)
+        vm = vm_ref(task->vm);
+    else
+        vm = vm_clone(task->vm);
+    if (IS_ERR(ASSERT(vm)))
+        return ERR_CAST(vm);
+
+    struct fs* fs FREE(fs) = NULL;
+    if (!task)
+        fs = fs_create();
+    else if (flags & CLONE_FS)
+        fs = fs_ref(task->fs);
+    else
+        fs = fs_clone(task->fs);
+    if (IS_ERR(ASSERT(fs)))
+        return ERR_CAST(fs);
+
+    struct files* files FREE(files) = NULL;
+    if (!task)
+        files = files_create();
+    else if (flags & CLONE_FILES)
+        files = files_ref(task->files);
+    else
+        files = files_clone(task->files);
+    if (IS_ERR(ASSERT(files)))
+        return ERR_CAST(files);
+
+    struct sighand* sighand FREE(sighand) = NULL;
+    if (!task)
+        sighand = sighand_create();
+    else if (flags & CLONE_SIGHAND)
+        sighand = sighand_ref(task->sighand);
+    else
+        sighand = sighand_clone(task->sighand);
+    if (IS_ERR(ASSERT(sighand)))
+        return ERR_CAST(sighand);
+
+    struct thread_group* thread_group FREE(thread_group) = NULL;
+    if (task && (flags & CLONE_THREAD)) {
+        thread_group = thread_group_ref(task->thread_group);
+    } else {
+        thread_group = thread_group_create();
+        if (IS_ERR(ASSERT(thread_group)))
+            return ERR_CAST(thread_group);
+        if (task) {
+            thread_group->pgid = task->thread_group->pgid;
+            thread_group->ppid = task->thread_group->tgid;
+        }
+        thread_group->exit_signal = flags & 0xff;
+    }
+
+    TAKE_PTR(stack);
+    new_task->vm = TAKE_PTR(vm);
+    new_task->fs = TAKE_PTR(fs);
+    new_task->files = TAKE_PTR(files);
+    new_task->sighand = TAKE_PTR(sighand);
+    new_task->thread_group = TAKE_PTR(thread_group);
+
+    return new_task;
 }
 
 pid_t task_spawn(const char* comm, void (*entry_point)(void)) {
@@ -133,12 +217,9 @@ void __task_destroy(struct task* task) {
     sighand_unref(task->sighand);
     files_unref(task->files);
     fs_unref(task->fs);
-
-    if (task->vm != kernel_vm)
-        vm_unref(task->vm);
+    vm_unref(task->vm);
 
     kfree((void*)task->kernel_stack_base);
-    kfree(task);
 }
 
 pid_t task_generate_next_tid(void) { return atomic_fetch_add(&next_tid, 1); }

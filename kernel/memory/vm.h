@@ -87,9 +87,8 @@ struct vm* vm_create(void* start, void* end);
 
 DEFINE_LOCKED(vm, struct vm*, mutex, lock)
 
-struct vm* vm_ref(struct vm*);
-void vm_unref(struct vm*);
-DEFINE_FREE(vm, struct vm*, vm_unref)
+void __vm_destroy(struct vm*);
+DEFINE_REFCOUNTED_BASE(vm, struct vm*, refcount, __vm_destroy)
 
 // Switches to the virtual memory space. Returns the previous vm.
 struct vm* vm_enter(struct vm*);

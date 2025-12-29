@@ -44,20 +44,8 @@ struct vm* vm_create(void* start, void* end) {
     return vm;
 }
 
-struct vm* vm_ref(struct vm* vm) {
-    ASSERT(vm);
+void __vm_destroy(struct vm* vm) {
     ASSERT(vm != kernel_vm);
-    refcount_inc(&vm->refcount);
-    return vm;
-}
-
-void vm_unref(struct vm* vm) {
-    if (!vm)
-        return;
-    ASSERT(vm != kernel_vm);
-    if (refcount_dec(&vm->refcount))
-        return;
-
     ASSERT(vm != current->vm);
 
     for (;;) {

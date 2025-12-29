@@ -67,6 +67,8 @@ void task_init(void);
 struct task* task_get_current(void);
 
 struct task* task_create(const char* comm, void (*entry_point)(void));
+struct task* task_clone(const struct task*, const struct registers* new_regs,
+                        unsigned flags);
 pid_t task_spawn(const char* comm, void (*entry_point)(void));
 
 DEFINE_LOCKED(task, struct task*, mutex, lock)
