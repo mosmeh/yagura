@@ -4,16 +4,20 @@
 #include <kernel/fs/path.h>
 #include <kernel/task/task.h>
 
+static struct slab fs_slab;
+
+void task_fs_init(void) { slab_init(&fs_slab, "fs", sizeof(struct fs)); }
+
 struct fs* fs_create(void) {
-    struct fs* fs = kmalloc(sizeof(struct fs));
-    if (!fs)
-        return ERR_PTR(-ENOMEM);
+    struct fs* fs = slab_alloc(&fs_slab);
+    if (IS_ERR(fs))
+        return fs;
     *fs = (struct fs){.refcount = REFCOUNT_INIT_ONE};
     return fs;
 }
 
 struct fs* fs_clone(struct fs* fs) {
-    struct fs* new_fs FREE(kfree) = fs_create();
+    struct fs* new_fs FREE(fs) = fs_create();
     if (IS_ERR(ASSERT(new_fs)))
         return new_fs;
 
@@ -36,7 +40,7 @@ struct fs* fs_clone(struct fs* fs) {
 void __fs_destroy(struct fs* fs) {
     path_destroy_recursive(fs->cwd);
     path_destroy_recursive(fs->root);
-    kfree(fs);
+    slab_free(&fs_slab, fs);
 }
 
 int fs_chroot(struct fs* fs, struct path* new_root) {

@@ -6,10 +6,16 @@
 #include <kernel/task/task.h>
 #include <limits.h>
 
+static struct slab sighand_slab;
+
+void task_signal_init(void) {
+    slab_init(&sighand_slab, "sighand", sizeof(struct sighand));
+}
+
 struct sighand* sighand_create(void) {
-    struct sighand* sighand = kmalloc(sizeof(struct sighand));
-    if (!sighand)
-        return ERR_PTR(-ENOMEM);
+    struct sighand* sighand = slab_alloc(&sighand_slab);
+    if (IS_ERR(sighand))
+        return sighand;
     *sighand = (struct sighand){.refcount = REFCOUNT_INIT_ONE};
     return sighand;
 }
@@ -23,7 +29,9 @@ struct sighand* sighand_clone(struct sighand* sighand) {
     return new_sighand;
 }
 
-void __sighand_destroy(struct sighand* sighand) { kfree(sighand); }
+void __sighand_destroy(struct sighand* sighand) {
+    slab_free(&sighand_slab, sighand);
+}
 
 sigset_t task_get_pending_signals(struct task* task) {
     return (task->pending_signals | task->thread_group->pending_signals) &

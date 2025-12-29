@@ -19,6 +19,8 @@ static struct task init_task = {
     .refcount = REFCOUNT_INIT_ONE,
 };
 
+static struct slab thread_group_slab;
+
 void task_init(void) {
     struct cpu* cpu = cpu_get_bsp();
 
@@ -29,6 +31,11 @@ void task_init(void) {
         __asm__ volatile("fnsave %0" : "=m"(initial_fpu_state));
 
     cpu->current_task = cpu->idle_task = task_ref(&init_task);
+
+    slab_init(&thread_group_slab, "thread_group", sizeof(struct thread_group));
+
+    task_fs_init();
+    task_signal_init();
 }
 
 struct task* task_get_current(void) {
@@ -220,11 +227,13 @@ void task_crash(int signum) {
 }
 
 struct thread_group* thread_group_create(void) {
-    struct thread_group* tg = kmalloc(sizeof(struct thread_group));
-    if (!tg)
-        return ERR_PTR(-ENOMEM);
+    struct thread_group* tg = slab_alloc(&thread_group_slab);
+    if (IS_ERR(tg))
+        return tg;
     *tg = (struct thread_group){.refcount = REFCOUNT_INIT_ONE};
     return tg;
 }
 
-void __thread_group_destroy(struct thread_group* tg) { kfree(tg); }
+void __thread_group_destroy(struct thread_group* tg) {
+    slab_free(&thread_group_slab, tg);
+}
