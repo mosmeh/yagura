@@ -140,7 +140,8 @@ static ssize_t fill_dir_old(void* user_buf, size_t buf_size, const char* name,
     return rec_len;
 }
 
-ssize_t sys_readdir(int fd, struct linux_old_dirent* user_dirp, size_t count) {
+ssize_t sys_old_readdir(int fd, struct linux_old_dirent* user_dirp,
+                        size_t count) {
     return getdents(fd, user_dirp, count, fill_dir_old);
 }
 
