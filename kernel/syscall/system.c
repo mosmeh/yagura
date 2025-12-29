@@ -164,6 +164,11 @@ int sys_getcpu(unsigned int* user_cpu, unsigned int* user_node,
     return 0;
 }
 
+ssize_t sys_getrandom(void* user_buf, size_t buflen, unsigned int flags) {
+    (void)flags;
+    return random_get_user(user_buf, buflen);
+}
+
 int sys_dbgprint(const char* user_str) {
     char str[1024];
     ssize_t str_len = strncpy_from_user(str, user_str, sizeof(str));

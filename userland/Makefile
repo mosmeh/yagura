@@ -86,6 +86,7 @@ LIBC_OBJS := \
 	libc/sys/mount.o \
 	libc/sys/poll.o \
 	libc/sys/prctl.o \
+	libc/sys/random.o \
 	libc/sys/select.o \
 	libc/sys/socket.o \
 	libc/sys/stat.o \

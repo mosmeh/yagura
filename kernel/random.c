@@ -5,6 +5,7 @@
 #include <kernel/drivers/rtc.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>
+#include <kernel/memory/safe_string.h>
 #include <stdalign.h>
 
 static bool use_rdrand = false;
@@ -132,4 +133,26 @@ ssize_t random_get(void* buffer, size_t count) {
     }
 
     return count;
+}
+
+ssize_t random_get_user(void* user_buffer, size_t count) {
+    if (!is_user_range(user_buffer, count))
+        return -EFAULT;
+
+    unsigned char buf[256];
+    unsigned char* user_dest = user_buffer;
+    size_t nread = 0;
+    while (nread < count) {
+        size_t to_read = MIN(count - nread, sizeof(buf));
+        ssize_t n = random_get(buf, to_read);
+        if (IS_ERR(n))
+            return n;
+        if (n == 0)
+            break;
+        if (copy_to_user(user_dest, buf, n))
+            return -EFAULT;
+        user_dest += n;
+        nread += n;
+    }
+    return nread;
 }
