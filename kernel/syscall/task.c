@@ -20,31 +20,31 @@ void sys_exit_group(int status) { task_exit_thread_group(status); }
 
 pid_t sys_gettid(void) { return current->tid; }
 
-pid_t sys_getpid(void) { return current->tgid; }
+pid_t sys_getpid(void) { return current->thread_group->tgid; }
 
-pid_t sys_getppid(void) { return current->ppid; }
+pid_t sys_getppid(void) { return current->thread_group->ppid; }
 
-pid_t sys_getpgrp(void) { return current->pgid; }
+pid_t sys_getpgrp(void) { return current->thread_group->pgid; }
 
 pid_t sys_getpgid(pid_t pid) {
     if (pid == 0)
-        return current->pgid;
+        return current->thread_group->pgid;
     struct task* task FREE(task) = task_find_by_tid(pid);
     if (!task)
         return -ESRCH;
-    return task->pgid;
+    return task->thread_group->pgid;
 }
 
 int sys_setpgid(pid_t pid, pid_t pgid) {
     if (pgid < 0)
         return -EINVAL;
 
-    pid_t target_tgid = pid ? pid : current->tgid;
+    pid_t target_tgid = pid ? pid : current->thread_group->tgid;
     struct task* target FREE(task) = task_find_by_tid(target_tgid);
     if (!target)
         return -ESRCH;
 
-    target->pgid = pgid ? pgid : target_tgid;
+    target->thread_group->pgid = pgid ? pgid : target_tgid;
     return 0;
 }
 
@@ -167,7 +167,6 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     if (!task)
         return -ENOMEM;
     *task = (struct task){
-        .pgid = current->pgid,
         .eip = (uintptr_t)do_iret,
         .ebx = current->ebx,
         .esi = current->esi,
@@ -186,13 +185,6 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
 
     pid_t tid = task_generate_next_tid();
     task->tid = tid;
-    if (flags & CLONE_THREAD) {
-        task->tgid = current->tgid;
-        task->ppid = current->ppid;
-    } else {
-        task->tgid = tid;
-        task->ppid = current->tgid;
-    }
 
     strlcpy(task->comm, current->comm, sizeof(task->comm));
 
@@ -262,7 +254,9 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         thread_group = thread_group_create();
         if (IS_ERR(ASSERT(thread_group)))
             return PTR_ERR(thread_group);
-        task->exit_signal = flags & 0xff;
+        thread_group->tgid = tid;
+        thread_group->ppid = current->thread_group->tgid;
+        thread_group->exit_signal = flags & 0xff;
     }
 
     memcpy(task->tls, current->tls, sizeof(current->tls));
@@ -283,7 +277,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
             return -EFAULT;
     }
 
-    ++thread_group->num_running;
+    ++thread_group->num_running_tasks;
 
     // Commit resources
     TAKE_PTR(stack);
@@ -375,33 +369,32 @@ struct waitpid_blocker {
 
 static bool unblock_waitpid(void* data) {
     struct waitpid_blocker* blocker = data;
-    SCOPED_LOCK(spinlock, &all_tasks_lock);
+    SCOPED_LOCK(spinlock, &tasks_lock);
 
     struct task* prev = NULL;
-    struct task* it = all_tasks;
+    struct task* it = tasks;
     bool any_target_exists = false;
 
     while (it) {
-        bool is_target = false;
-        if (blocker->param_pid < -1) {
-            if (it->pgid == -blocker->param_pid)
-                is_target = true;
-        } else if (blocker->param_pid == -1) {
-            if (it->ppid == blocker->current_tgid)
-                is_target = true;
-        } else if (blocker->param_pid == 0) {
-            if (it->pgid == blocker->current_pgid)
-                is_target = true;
-        } else {
-            if (it->tgid == blocker->param_pid)
-                is_target = true;
+        struct thread_group* tg = it->thread_group;
+        bool is_child = tg->ppid == blocker->current_tgid;
+        if (is_child) {
+            bool is_target = false;
+            if (blocker->param_pid < -1)
+                is_target |= tg->pgid == -blocker->param_pid;
+            else if (blocker->param_pid == -1)
+                is_target |= tg->ppid == blocker->current_tgid;
+            else if (blocker->param_pid == 0)
+                is_target |= tg->pgid == blocker->current_pgid;
+            else
+                is_target |= tg->tgid == blocker->param_pid;
+            any_target_exists |= is_target;
+            if (is_target && it->state == TASK_DEAD)
+                break;
         }
-        any_target_exists |= is_target;
-        if (is_target && it->state == TASK_DEAD)
-            break;
 
         prev = it;
-        it = it->all_tasks_next;
+        it = it->tasks_next;
     }
     if (!it) {
         if (!any_target_exists) {
@@ -412,9 +405,9 @@ static bool unblock_waitpid(void* data) {
     }
 
     if (prev)
-        prev->all_tasks_next = it->all_tasks_next;
+        prev->tasks_next = it->tasks_next;
     else
-        all_tasks = it->all_tasks_next;
+        tasks = it->tasks_next;
     blocker->waited_task = it;
 
     return true;
@@ -427,8 +420,8 @@ pid_t sys_wait4(pid_t pid, int* user_wstatus, int options,
 
     struct waitpid_blocker blocker = {
         .param_pid = pid,
-        .current_tgid = current->tgid,
-        .current_pgid = current->pgid,
+        .current_tgid = current->thread_group->tgid,
+        .current_pgid = current->thread_group->pgid,
         .waited_task = NULL,
     };
     if (options & WNOHANG) {

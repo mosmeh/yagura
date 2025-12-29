@@ -121,6 +121,7 @@ void syscall_init(void);
     F(getdents64, sys_getdents64, 0)                                           \
     F(fcntl64, sys_fcntl64, 0)                                                 \
     F(gettid, sys_gettid, 0)                                                   \
+    F(tkill, sys_tkill, 0)                                                     \
     F(set_thread_area, sys_set_thread_area, 0)                                 \
     F(get_thread_area, sys_get_thread_area, 0)                                 \
     F(exit_group, sys_exit_group, 0)                                           \
@@ -128,6 +129,7 @@ void syscall_init(void);
     F(clock_gettime, sys_clock_gettime32, 0)                                   \
     F(clock_getres, sys_clock_getres_time32, 0)                                \
     F(clock_nanosleep, sys_clock_nanosleep_time32, 0)                          \
+    F(tgkill, sys_tgkill, 0)                                                   \
     F(pselect6, sys_pselect6_time32, 0)                                        \
     F(ppoll, sys_ppoll_time32, 0)                                              \
     F(getcpu, sys_getcpu, 0)                                                   \
@@ -283,6 +285,7 @@ gid_t sys_getegid(void);
 ssize_t sys_getdents64(int fd, struct linux_dirent* dirp, size_t count);
 int sys_fcntl64(int fd, int cmd, unsigned long arg);
 pid_t sys_gettid(void);
+int sys_tkill(pid_t tid, int sig);
 int sys_set_thread_area(struct user_desc* u_info);
 int sys_get_thread_area(struct user_desc* u_info);
 void sys_exit_group(int status);
@@ -292,6 +295,7 @@ int sys_clock_getres_time32(clockid_t clockid, struct timespec32* res);
 int sys_clock_nanosleep_time32(clockid_t clockid, int flags,
                                const struct timespec32* request,
                                struct timespec32* remain);
+int sys_tgkill(pid_t tgid, pid_t tid, int sig);
 int sys_pselect6_time32(int nfds, unsigned long* readfds,
                         unsigned long* writefds, unsigned long* exceptfds,
                         struct timespec32* timeout, const sigset_t* sigmask);

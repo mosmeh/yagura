@@ -78,20 +78,20 @@ void sched_register(struct task* task) {
     task_ref(task);
 
     {
-        SCOPED_LOCK(spinlock, &all_tasks_lock);
+        SCOPED_LOCK(spinlock, &tasks_lock);
         struct task* prev = NULL;
-        struct task* it = all_tasks;
+        struct task* it = tasks;
         while (it && it->tid < task->tid) {
             ASSERT(it != task);
             prev = it;
-            it = it->all_tasks_next;
+            it = it->tasks_next;
         }
         if (prev) {
-            task->all_tasks_next = it;
-            prev->all_tasks_next = task;
+            task->tasks_next = it;
+            prev->tasks_next = task;
         } else {
-            task->all_tasks_next = all_tasks;
-            all_tasks = task;
+            task->tasks_next = tasks;
+            tasks = task;
         }
     }
 
@@ -114,7 +114,7 @@ static void unblock_tasks(void) {
 
     struct task* prev = NULL;
     for (struct task* it = blocked_tasks; it;) {
-        sigset_t signals = it->pending_signals & ~it->blocked_signals;
+        sigset_t signals = task_get_pending_signals(it);
 
         bool ready = false;
         switch (it->state) {
@@ -278,10 +278,10 @@ void sched_tick(struct registers* regs) {
         return;
 
     struct sigaction act;
-    int signum = task_pop_signal(&act);
+    int signum = signal_pop(&act);
     ASSERT_OK(signum);
     if (signum > 0)
-        task_handle_signal(regs, signum, &act);
+        signal_handle(regs, signum, &act);
 }
 
 static bool never_unblock(void* data) {

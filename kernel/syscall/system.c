@@ -75,8 +75,8 @@ int sys_sysinfo(struct sysinfo* user_info) {
 
     size_t num_procs = 0;
     {
-        SCOPED_LOCK(spinlock, &all_tasks_lock);
-        for (struct task* task = all_tasks; task; task = task->all_tasks_next)
+        SCOPED_LOCK(spinlock, &tasks_lock);
+        for (struct task* task = tasks; task; task = task->tasks_next)
             ++num_procs;
     }
 

@@ -8,8 +8,8 @@
 struct fpu_state initial_fpu_state;
 static atomic_int next_tid = 1;
 
-struct task* all_tasks;
-struct spinlock all_tasks_lock;
+struct task* tasks;
+struct spinlock tasks_lock;
 
 static struct task init_task = {
     .state = TASK_RUNNING,
@@ -65,7 +65,7 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
         thread_group_create();
     if (IS_ERR(ASSERT(thread_group)))
         return ERR_CAST(thread_group);
-    thread_group->num_running = 1;
+    thread_group->num_running_tasks = 1;
 
     void* stack FREE(kfree) = kmalloc(STACK_SIZE);
     if (!stack)
@@ -113,7 +113,7 @@ pid_t task_spawn(const char* comm, void (*entry_point)(void)) {
     struct task* task FREE(task) = task_create(comm, entry_point);
     if (IS_ERR(ASSERT(task)))
         return PTR_ERR(task);
-    task->tid = task->tgid = task->pgid = task_generate_next_tid();
+    task->tid = task->thread_group->tgid = task_generate_next_tid();
     sched_register(task);
     return task->tid;
 }
@@ -137,13 +137,36 @@ void __task_destroy(struct task* task) {
 pid_t task_generate_next_tid(void) { return atomic_fetch_add(&next_tid, 1); }
 
 struct task* task_find_by_tid(pid_t tid) {
-    SCOPED_LOCK(spinlock, &all_tasks_lock);
-    struct task* it = all_tasks;
-    for (; it; it = it->all_tasks_next) {
+    SCOPED_LOCK(spinlock, &tasks_lock);
+    struct task* it = tasks;
+    for (; it; it = it->tasks_next) {
         if (it->tid == tid)
             return task_ref(it);
     }
     return NULL;
+}
+
+static void notify_exit(struct task* task) {
+    struct thread_group* tg = task->thread_group;
+    ASSERT(tg->num_running_tasks > 0);
+    size_t num_running_tasks = atomic_fetch_sub(&tg->num_running_tasks, 1);
+    ASSERT(num_running_tasks > 0);
+    if (num_running_tasks > 1)
+        return;
+
+    // This is the last task in this thread group.
+
+    {
+        SCOPED_LOCK(spinlock, &tasks_lock);
+        for (struct task* it = tasks; it; it = it->tasks_next) {
+            // Orphaned child procsses are adopted by the init process.
+            if (it->thread_group->ppid == tg->tgid)
+                it->thread_group->ppid = 1;
+        }
+    }
+
+    if (tg->ppid && tg->exit_signal)
+        ASSERT_OK(signal_send_to_thread_groups(0, tg->ppid, tg->exit_signal));
 }
 
 static noreturn void exit(int exit_status) {
@@ -152,34 +175,21 @@ static noreturn void exit(int exit_status) {
 
     current->exit_status = exit_status;
 
-    ASSERT(current->thread_group->num_running > 0);
-    if (--current->thread_group->num_running == 0) {
-        if (current->ppid && current->exit_signal)
-            ASSERT_OK(task_send_signal(current->ppid, current->exit_signal, 0));
-    }
-
     enable_interrupts();
     {
         SCOPED_LOCK(task, current);
-        thread_group_unref(current->thread_group);
-        current->thread_group = NULL;
-        sighand_unref(current->sighand);
-        current->sighand = NULL;
-        files_unref(current->files);
+
+        struct files* files = current->files;
         current->files = NULL;
-        fs_unref(current->fs);
+        files_unref(files);
+
+        struct fs* fs = current->fs;
         current->fs = NULL;
+        fs_unref(fs);
     }
 
     disable_interrupts();
-    {
-        SCOPED_LOCK(spinlock, &all_tasks_lock);
-        for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
-            // Orphaned child task is adopted by init task.
-            if (it->ppid == current->tgid)
-                it->ppid = 1;
-        }
-    }
+    notify_exit(current);
     current->state = TASK_DEAD;
     sched_yield();
     UNREACHABLE();
@@ -188,9 +198,9 @@ static noreturn void exit(int exit_status) {
 void task_exit(int status) { exit((status & 0xff) << 8); }
 
 static noreturn void do_exit_thread_group(int exit_status) {
-    int rc = task_send_signal(current->tgid, SIGKILL,
-                              SIGNAL_DEST_THREAD_GROUP |
-                                  SIGNAL_DEST_EXCLUDE_CURRENT);
+    // Kill all tasks in the thread group except the current task.
+    int rc = signal_send_to_tasks(current->thread_group->tgid, -current->tid,
+                                  SIGKILL);
     ASSERT(IS_OK(rc) || rc == -ESRCH);
     exit(exit_status);
 }
@@ -205,8 +215,7 @@ void task_terminate(int signum) {
 }
 
 void task_crash(int signum) {
-    kprintf("Task crashed: tid=%d tgid=%d signal=%d\n", current->tid,
-            current->tgid, signum);
+    kprintf("Task crashed: tid=%d signal=%d\n", current->tid, signum);
     task_terminate(signum);
 }
 

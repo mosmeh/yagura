@@ -31,8 +31,9 @@ static void open_console(void) {
 
 static noreturn void userland_init(void) {
     ASSERT(current->tid == 1);
-    ASSERT(current->tgid == 1);
-    ASSERT(current->pgid == 1);
+    ASSERT(current->thread_group->tgid == 1);
+    ASSERT(current->thread_group->pgid == 0);
+    ASSERT(current->thread_group->ppid == 0);
 
     open_console();
 

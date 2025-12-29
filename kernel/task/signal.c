@@ -4,6 +4,7 @@
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
+#include <limits.h>
 
 struct sighand* sighand_create(void) {
     struct sighand* sighand = kmalloc(sizeof(struct sighand));
@@ -24,8 +25,13 @@ struct sighand* sighand_clone(struct sighand* sighand) {
 
 void __sighand_destroy(struct sighand* sighand) { kfree(sighand); }
 
-sigset_t task_set_blocked_signals(sigset_t sigset) {
-    return atomic_exchange(&current->blocked_signals,
+sigset_t task_get_pending_signals(struct task* task) {
+    return (task->pending_signals | task->thread_group->pending_signals) &
+           ~task->blocked_signals;
+}
+
+sigset_t task_set_blocked_signals(struct task* task, sigset_t sigset) {
+    return atomic_exchange(&task->blocked_signals,
                            sigset & ~(sigmask(SIGKILL) | sigmask(SIGSTOP)));
 }
 
@@ -51,15 +57,13 @@ static enum {
 
 STATIC_ASSERT(ARRAY_SIZE(default_dispositions) == NSIG);
 
-static void do_send_signal(struct task* task, int signum) {
-    if (!task->sighand) {
-        // The task is already dead.
-        return;
-    }
-
+static void send_signal_to_task(struct task* task, int signum,
+                                bool process_directed) {
     int default_disposition = default_dispositions[signum];
 
-    sigset_t cleared_signals = sigmask(signum);
+    // SIGCONT clears stop signals, and stop signals clear SIGCONT.
+    // This takes effect even if the signal is ignored.
+    sigset_t cleared_signals = 0;
     switch (default_disposition) {
     case DISP_CONT:
         cleared_signals |= sigmask(SIGSTOP) | sigmask(SIGTSTP) |
@@ -71,68 +75,141 @@ static void do_send_signal(struct task* task, int signum) {
     default:
         break;
     }
-    task->pending_signals &= ~cleared_signals;
+    if (cleared_signals) {
+        task->thread_group->pending_signals &= ~cleared_signals;
+        task->pending_signals &= ~cleared_signals;
+    }
 
-    struct sighand* sighand = task->sighand;
-    SCOPED_LOCK(sighand, sighand);
-    sighandler_t handler = sighand->actions[signum - 1].sa_handler;
-    bool ignored = (handler == SIG_IGN) ||
-                   (handler == SIG_DFL && default_disposition == DISP_IGN);
-    if (!ignored)
-        task->pending_signals |= sigmask(signum);
+    sigset_t mask = sigmask(signum);
+
+    if (task->blocked_signals & mask) {
+        // Signal handlers may be changed while the signal is blocked,
+        // so this signal should not be ignored.
+    } else {
+        struct sighand* sighand = task->sighand;
+        SCOPED_LOCK(sighand, sighand);
+        sighandler_t handler = sighand->actions[signum - 1].sa_handler;
+        if (task->thread_group->tgid == 1 && handler == SIG_DFL) {
+            // Signals can be sent to the init process only when
+            // it has explicitly installed handlers.
+            return;
+        }
+        if (handler == SIG_IGN ||
+            (handler == SIG_DFL && default_disposition == DISP_IGN))
+            return;
+    }
+
+    if (process_directed)
+        task->thread_group->pending_signals |= mask;
+    else
+        task->pending_signals |= mask;
 }
 
-int task_send_signal(pid_t pid, int signum, int flags) {
-    ASSERT(pid >= 0);
-    unsigned num_group_flags = (bool)(flags & SIGNAL_DEST_ALL_USER_TASKS) +
-                               (bool)(flags & SIGNAL_DEST_THREAD_GROUP) +
-                               (bool)(flags & SIGNAL_DEST_PROCESS_GROUP);
-    ASSERT(num_group_flags <= 1);
+int signal_send_to_thread_groups(pid_t pgid, pid_t tgid, int signum) {
+    if (pgid == INT_MIN || tgid == INT_MIN)
+        return -EINVAL; // -INT_MIN overflows
     if (signum < 0 || signum >= NSIG)
         return -EINVAL;
 
-    SCOPED_LOCK(spinlock, &all_tasks_lock);
+    SCOPED_LOCK(spinlock, &tasks_lock);
 
-    bool found_dest = false;
-    for (struct task* it = all_tasks; it; it = it->all_tasks_next) {
-        if (flags & SIGNAL_DEST_ALL_USER_TASKS) {
-            if (it->tid <= 1)
+    bool found_task = false;
+    for (struct task* it = tasks; it; it = it->tasks_next) {
+        struct thread_group* tg = it->thread_group;
+        if (pgid > 0) {
+            if (tg->pgid != pgid)
                 continue;
-        } else if (flags & SIGNAL_DEST_THREAD_GROUP) {
-            if (it->tgid != pid)
-                continue;
-        } else if (flags & SIGNAL_DEST_PROCESS_GROUP) {
-            if (it->pgid != pid)
-                continue;
-        } else if (it->tid != pid) {
-            continue;
-        }
-        if (flags & SIGNAL_DEST_EXCLUDE_CURRENT) {
-            if (it == current)
+        } else if (pgid < 0) {
+            if (tg->pgid == -pgid)
                 continue;
         }
-        found_dest = true;
+        if (tgid > 0) {
+            if (tg->tgid != tgid)
+                continue;
+        } else if (tgid < 0) {
+            if (tg->tgid == -tgid)
+                continue;
+        }
+        found_task = true;
 
         if (signum == 0) {
             // signum == 0 is used to check if the task exists.
             continue;
         }
 
-        do_send_signal(it, signum);
+        send_signal_to_task(it, signum, true);
     }
 
-    return found_dest ? 0 : -ESRCH;
+    return found_task ? 0 : -ESRCH;
 }
 
-int task_pop_signal(struct sigaction* out_action) {
+int signal_send_to_tasks(pid_t tgid, pid_t tid, int signum) {
+    if (tgid == INT_MIN || tid == INT_MIN)
+        return -EINVAL; // -INT_MIN overflows
+    if (signum < 0 || signum >= NSIG)
+        return -EINVAL;
+
+    SCOPED_LOCK(spinlock, &tasks_lock);
+
+    bool found_task = false;
+    for (struct task* it = tasks; it; it = it->tasks_next) {
+        if (tgid > 0) {
+            if (it->thread_group->tgid != tgid)
+                continue;
+        } else if (tgid < 0) {
+            if (it->thread_group->tgid == -tgid)
+                continue;
+        }
+        if (tid > 0) {
+            if (it->tid != tid)
+                continue;
+        } else if (tid < 0) {
+            if (it->tid == -tid)
+                continue;
+        }
+        found_task = true;
+
+        if (signum == 0) {
+            // signum == 0 is used to check if the task exists.
+            continue;
+        }
+
+        send_signal_to_task(it, signum, false);
+    }
+
+    return found_task ? 0 : -ESRCH;
+}
+
+static int pop_one_signal(void) {
+    int signum =
+        __builtin_ffs(current->pending_signals & ~current->blocked_signals);
+    if (signum) {
+        current->pending_signals &= ~sigmask(signum);
+        return signum;
+    }
+
+    struct thread_group* tg = current->thread_group;
+    for (;;) {
+        sigset_t pending = tg->pending_signals;
+        int signum = __builtin_ffs(pending & ~current->blocked_signals);
+        if (!signum)
+            break;
+        sigset_t new_pending = pending & ~sigmask(signum);
+        if (atomic_compare_exchange_weak(&tg->pending_signals, &pending,
+                                         new_pending))
+            return signum;
+    }
+
+    return 0;
+}
+
+int signal_pop(struct sigaction* out_action) {
     struct sighand* sighand = current->sighand;
     spinlock_lock(&sighand->lock);
     for (;;) {
-        int signum =
-            __builtin_ffs(current->pending_signals & ~current->blocked_signals);
+        int signum = pop_one_signal();
         if (!signum)
             break;
-        current->pending_signals &= ~sigmask(signum);
 
         struct sigaction* action = &sighand->actions[signum - 1];
         if (action->sa_handler == SIG_IGN)
@@ -179,8 +256,8 @@ int task_pop_signal(struct sigaction* out_action) {
 extern unsigned char signal_trampoline_start[];
 extern unsigned char signal_trampoline_end[];
 
-void task_handle_signal(struct registers* regs, int signum,
-                        const struct sigaction* action) {
+void signal_handle(struct registers* regs, int signum,
+                   const struct sigaction* action) {
     ASSERT(0 < signum && signum < NSIG);
 
     struct sigcontext ctx = {
@@ -219,7 +296,7 @@ void task_handle_signal(struct registers* regs, int signum,
     sigset_t new_blocked = current->blocked_signals | action->sa_mask;
     if (!(action->sa_flags & SA_NODEFER))
         new_blocked |= sigmask(signum);
-    task_set_blocked_signals(new_blocked);
+    task_set_blocked_signals(current, new_blocked);
 
     return;
 

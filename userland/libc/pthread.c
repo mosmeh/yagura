@@ -145,7 +145,7 @@ pthread_t pthread_self(void) {
 int pthread_equal(pthread_t t1, pthread_t t2) { return t1 == t2; }
 
 int pthread_kill(pthread_t thread, int sig) {
-    PTHREAD_RETURN(SYSCALL2(kill, thread->tid, sig));
+    PTHREAD_RETURN(SYSCALL2(tkill, thread->tid, sig));
 }
 
 int pthread_sigmask(int how, const sigset_t* set, sigset_t* oldset) {

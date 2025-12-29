@@ -73,7 +73,7 @@ static void syscall_handler(struct registers* regs) {
     int ret = do_syscall(regs, &flags);
 
     struct sigaction act;
-    int signum = task_pop_signal(&act);
+    int signum = signal_pop(&act);
     ASSERT_OK(signum);
 
     if (flags & SYSCALL_NO_ERROR) {
@@ -103,7 +103,7 @@ static void syscall_handler(struct registers* regs) {
     }
 
     if (signum)
-        task_handle_signal(regs, signum, &act);
+        signal_handle(regs, signum, &act);
 }
 
 void syscall_init(void) {

@@ -7,6 +7,7 @@ extern const char* const sys_signame[];
 extern const char* const sys_siglist[];
 
 int kill(pid_t pid, int sig);
+int tgkill(pid_t tgid, pid_t tid, int sig);
 int raise(int sig);
 
 sighandler_t signal(int signum, sighandler_t handler);
