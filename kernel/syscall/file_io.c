@@ -3,7 +3,6 @@
 #include <kernel/api/sys/uio.h>
 #include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
 ssize_t sys_read(int fd, void* user_buf, size_t count) {

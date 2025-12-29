@@ -1,3 +1,4 @@
+#include "private.h"
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
@@ -6,7 +7,6 @@
 #include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/socket.h>
-#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
 int sys_socket(int domain, int type, int protocol) {

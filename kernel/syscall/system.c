@@ -1,3 +1,4 @@
+#include "private.h"
 #include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/err.h>
@@ -8,7 +9,6 @@
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/syscall/syscall.h>
 #include <kernel/system.h>
 #include <kernel/task/task.h>
 #include <kernel/time.h>

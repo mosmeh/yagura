@@ -1,3 +1,4 @@
+#include "private.h"
 #include <kernel/api/sys/syscall.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>

@@ -1,10 +1,10 @@
+#include "private.h"
 #include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/sys/time.h>
 #include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 #include <kernel/time.h>
 

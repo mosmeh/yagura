@@ -5,7 +5,6 @@
 #include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
 static bool set_has_children(const char* name, ino_t ino, unsigned char type,

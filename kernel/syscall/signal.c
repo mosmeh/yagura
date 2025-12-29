@@ -1,8 +1,8 @@
+#include "private.h"
 #include <kernel/api/asm/processor-flags.h>
 #include <kernel/api/errno.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 #include <limits.h>
 
