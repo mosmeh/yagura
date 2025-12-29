@@ -78,23 +78,7 @@ static ssize_t random_pread(struct file* file, void* user_buffer, size_t count,
                             uint64_t offset) {
     (void)file;
     (void)offset;
-
-    unsigned char buf[256];
-    unsigned char* user_dest = user_buffer;
-    size_t nread = 0;
-    while (nread < count) {
-        size_t to_read = MIN(count - nread, sizeof(buf));
-        ssize_t n = random_get(buf, to_read);
-        if (IS_ERR(n))
-            return n;
-        if (n == 0)
-            break;
-        if (copy_to_user(user_dest, buf, n))
-            return -EFAULT;
-        user_dest += n;
-        nread += n;
-    }
-    return nread;
+    return random_get_user(user_buffer, count);
 }
 
 static const struct file_ops random_fops = {

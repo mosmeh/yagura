@@ -138,6 +138,7 @@ void syscall_init(void);
     F(dup3, sys_dup3, 0)                                                       \
     F(pipe2, sys_pipe2, 0)                                                     \
     F(syncfs, sys_syncfs, 0)                                                   \
+    F(getrandom, sys_getrandom, 0)                                             \
     F(socket, sys_socket, 0)                                                   \
     F(bind, sys_bind, 0)                                                       \
     F(connect, sys_connect, 0)                                                 \
@@ -311,6 +312,7 @@ int sys_getcpu(unsigned int* cpu, unsigned int* node,
 int sys_dup3(int oldfd, int newfd, int flags);
 int sys_pipe2(int pipefd[2], int flags);
 int sys_syncfs(int fd);
+ssize_t sys_getrandom(void* buf, size_t buflen, unsigned int flags);
 int sys_socket(int domain, int type, int protocol);
 int sys_bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
 int sys_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen);

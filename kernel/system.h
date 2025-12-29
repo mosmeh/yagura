@@ -59,6 +59,7 @@ const struct symbol* ksyms_next(const struct symbol* symbol);
 
 void random_init(void);
 ssize_t random_get(void* buffer, size_t count);
+ssize_t random_get_user(void* user_buffer, size_t count);
 
 extern atomic_bool smp_active;
 

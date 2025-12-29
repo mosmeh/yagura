@@ -209,7 +209,6 @@
     F(sched_getattr)                                                           \
     F(renameat2)                                                               \
     F(seccomp)                                                                 \
-    F(getrandom)                                                               \
     F(memfd_create)                                                            \
     F(execveat)                                                                \
     F(socketpair)                                                              \
