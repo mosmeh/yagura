@@ -4,45 +4,28 @@
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/syscall/syscall.h>
-#include <kernel/syscall/unimplemented.h>
 #include <kernel/task/task.h>
 
-#define F(name)                                                                \
-    static int sys_ni_##name(const struct registers* regs) {                   \
-        if (cmdline_contains("ni_syscall_log"))                                \
-            kprintf("syscall: unimplemented syscall " #name                    \
-                    "(%#x, %#x, %#x, %#x, %#x, %#x)\n",                        \
-                    regs->ebx, regs->ecx, regs->edx, regs->esi, regs->edi,     \
-                    regs->ebp);                                                \
-        return -ENOSYS;                                                        \
-    }
-ENUMERATE_UNIMPLEMENTED_SYSCALLS(F)
-#undef F
+long sys_ni_syscall(void) { return -ENOSYS; }
 
 struct syscall {
+    const char* name;
     uintptr_t handler;
     unsigned flags;
 };
 
 static struct syscall syscalls[] = {
-#define F(name)                                                                \
-    [SYS_##name] = {                                                           \
-        (uintptr_t)sys_ni_##name,                                              \
-        SYSCALL_RAW_REGISTERS,                                                 \
-    },
-    ENUMERATE_UNIMPLEMENTED_SYSCALLS(F)
-#undef F
-
 #define F(name, handler, flags)                                                \
     [SYS_##name] = {                                                           \
+        #name,                                                                 \
         (uintptr_t)(handler),                                                  \
         (flags),                                                               \
     },
-        ENUMERATE_SYSCALLS(F)
+    ENUMERATE_SYSCALLS(F)
 #undef F
 };
 
-static int do_syscall(struct registers* regs, unsigned* out_flags) {
+NODISCARD static int do_syscall(struct registers* regs, unsigned* out_flags) {
     if (regs->eax >= ARRAY_SIZE(syscalls))
         return -ENOSYS;
 
@@ -52,6 +35,14 @@ static int do_syscall(struct registers* regs, unsigned* out_flags) {
 
     if (out_flags)
         *out_flags = syscall->flags;
+
+    if (syscall->handler == (uintptr_t)sys_ni_syscall) {
+        if (cmdline_contains("ni_syscall_log"))
+            kprintf("syscall: unimplemented syscall %s"
+                    "(%#x, %#x, %#x, %#x, %#x, %#x)\n",
+                    syscall->name, regs->ebx, regs->ecx, regs->edx, regs->esi,
+                    regs->edi, regs->ebp);
+    }
 
     typedef int (*regs_fn)(struct registers*, int, int, int, int, int, int);
     typedef int (*no_regs_fn)(int, int, int, int, int, int);
