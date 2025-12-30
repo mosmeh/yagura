@@ -220,7 +220,7 @@ static int populate_stack(struct loader* loader, const Elf32_Ehdr* ehdr,
         {AT_CLKTCK, {CLK_TCK}},
         {AT_SECURE, {0}},
         {AT_RANDOM, {(uint32_t)random}},
-        {AT_EXECFN, {(uint32_t)loader->arg_start}},
+        {AT_EXECFN, {(uint32_t)loader->execfn}},
         {AT_NULL, {0}},
     };
     loader->stack_ptr -= sizeof(auxv);

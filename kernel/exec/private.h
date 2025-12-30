@@ -21,6 +21,8 @@ struct loader {
     unsigned char* stack_base;
     unsigned char* stack_ptr;
 
+    char* execfn;
+
     size_t argc, envc;
     void* arg_start;
     void* arg_end;
