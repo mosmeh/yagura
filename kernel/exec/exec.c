@@ -356,6 +356,11 @@ int execve_kernel(const char* pathname, const char* const* argv,
     if (IS_ERR(rc))
         return rc;
 
+    rc = loader_push_string_from_kernel(&loader, pathname);
+    if (IS_ERR(rc))
+        goto fail;
+    loader.execfn = (void*)loader.stack_ptr;
+
     loader.envc = count_strings_kernel(envp);
     loader.env_end = loader.stack_ptr;
     rc = loader_push_strings_from_kernel(&loader, envp, loader.envc);
@@ -392,6 +397,11 @@ int execve_user(const char* pathname, const char* const* user_argv,
     int rc = loader_init(&loader, pathname);
     if (IS_ERR(rc))
         return rc;
+
+    rc = loader_push_string_from_kernel(&loader, pathname);
+    if (IS_ERR(rc))
+        goto fail;
+    loader.execfn = (void*)loader.stack_ptr;
 
     loader.envc = count_strings_user(user_envp);
     if (IS_ERR(loader.envc)) {
