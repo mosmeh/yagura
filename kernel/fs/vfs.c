@@ -336,7 +336,12 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
         return ERR_CAST(path);
 
     ASSERT(path->inode);
-    return inode_open(path->inode, flags);
+    struct file* file = inode_open(path->inode, flags);
+    if (IS_ERR(ASSERT(file)))
+        return file;
+
+    file->path = TAKE_PTR(path);
+    return file;
 }
 
 int vfs_stat(const char* pathname, struct kstat* buf, int flags) {
