@@ -23,5 +23,12 @@ struct stat {
 int stat(const char* pathname, struct stat* buf);
 int lstat(const char* pathname, struct stat* buf);
 int fstat(int fd, struct stat* buf);
+int fstatat(int dirfd, const char* restrict pathname,
+            struct stat* restrict statbuf, int flags);
+
 int mkdir(const char* pathname, mode_t mode);
+int mkdirat(int dirfd, const char* pathname, mode_t mode);
+
+int mknod(const char* pathname, mode_t mode, dev_t dev);
+int mknodat(int dirfd, const char* pathname, mode_t mode, dev_t dev);
 int mkfifo(const char* pathname, mode_t mode);

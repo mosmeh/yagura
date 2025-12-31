@@ -13,6 +13,10 @@ int open(const char* pathname, int flags, ...) {
     return __syscall_return(SYSCALL3(open, pathname, flags, mode));
 }
 
+int openat(int dirfd, const char* pathname, int flags, mode_t mode) {
+    return __syscall_return(SYSCALL4(openat, dirfd, pathname, flags, mode));
+}
+
 int creat(const char* pathname, mode_t mode) {
     return __syscall_return(SYSCALL2(creat, pathname, mode));
 }

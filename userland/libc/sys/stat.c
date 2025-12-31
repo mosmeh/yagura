@@ -56,8 +56,31 @@ int fstat(int fd, struct stat* buf) {
     return rc;
 }
 
+int fstatat(int dirfd, const char* pathname, struct stat* statbuf, int flags) {
+    struct linux_stat64 stat64;
+    int rc = SYSCALL4(fstatat64, dirfd, pathname, &stat64, flags);
+    if (IS_ERR(rc)) {
+        errno = -rc;
+        return -1;
+    }
+    stat64_to_stat(&stat64, statbuf);
+    return rc;
+}
+
 int mkdir(const char* pathname, mode_t mode) {
     return __syscall_return(SYSCALL2(mkdir, pathname, mode));
+}
+
+int mkdirat(int dirfd, const char* pathname, mode_t mode) {
+    return __syscall_return(SYSCALL3(mkdirat, dirfd, pathname, mode));
+}
+
+int mknod(const char* pathname, mode_t mode, dev_t dev) {
+    return __syscall_return(SYSCALL3(mknod, pathname, mode, dev));
+}
+
+int mknodat(int dirfd, const char* pathname, mode_t mode, dev_t dev) {
+    return __syscall_return(SYSCALL4(mknodat, dirfd, pathname, mode, dev));
 }
 
 int mkfifo(const char* pathname, mode_t mode) {

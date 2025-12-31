@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>
 #include <sys/limits.h>
 #include <sys/reboot.h>
+#include <sys/stat.h>
 #include <sys/utsname.h>
 #include <time.h>
 #include <unistd.h>
@@ -82,6 +83,17 @@ int access(const char* pathname, int mode) {
     return __syscall_return(SYSCALL2(access, pathname, mode));
 }
 
+int faccessat(int dirfd, const char* pathname, int mode, int flags) {
+    if (flags & ~AT_SYMLINK_NOFOLLOW)
+        return __syscall_return(-EINVAL);
+    if (flags & AT_SYMLINK_NOFOLLOW) {
+        // File permissions are not implemented. Just check the existence.
+        struct stat buf;
+        return fstatat(dirfd, pathname, &buf, AT_SYMLINK_NOFOLLOW);
+    }
+    return __syscall_return(SYSCALL3(faccessat, dirfd, pathname, mode));
+}
+
 int close(int fd) { return __syscall_return(SYSCALL1(close, fd)); }
 
 ssize_t read(int fd, void* buf, size_t count) {
@@ -112,28 +124,38 @@ off_t lseek(int fd, off_t offset, int whence) {
     return __syscall_return(SYSCALL3(lseek, fd, offset, whence));
 }
 
-int mknod(const char* pathname, mode_t mode, dev_t dev) {
-    return __syscall_return(SYSCALL3(mknod, pathname, mode, dev));
-}
-
 int link(const char* oldpath, const char* newpath) {
     return __syscall_return(SYSCALL2(link, oldpath, newpath));
+}
+
+int linkat(int olddirfd, const char* oldpath, int newdirfd, const char* newpath,
+           int flags) {
+    return __syscall_return(
+        SYSCALL5(linkat, olddirfd, oldpath, newdirfd, newpath, flags));
 }
 
 int symlink(const char* target, const char* linkpath) {
     return __syscall_return(SYSCALL2(symlink, target, linkpath));
 }
 
+int symlinkat(const char* target, int newdirfd, const char* linkpath) {
+    return __syscall_return(SYSCALL3(symlinkat, target, newdirfd, linkpath));
+}
+
 int unlink(const char* pathname) {
     return __syscall_return(SYSCALL1(unlink, pathname));
+}
+
+int unlinkat(int dirfd, const char* pathname, int flags) {
+    return __syscall_return(SYSCALL3(unlinkat, dirfd, pathname, flags));
 }
 
 ssize_t readlink(const char* pathname, char* buf, size_t bufsiz) {
     return __syscall_return(SYSCALL3(readlink, pathname, buf, bufsiz));
 }
 
-int rename(const char* oldpath, const char* newpath) {
-    return __syscall_return(SYSCALL2(rename, oldpath, newpath));
+ssize_t readlinkat(int dirfd, const char* pathname, char* buf, size_t bufsiz) {
+    return __syscall_return(SYSCALL4(readlinkat, dirfd, pathname, buf, bufsiz));
 }
 
 int rmdir(const char* pathname) {

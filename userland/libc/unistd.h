@@ -24,20 +24,30 @@ gid_t getgid(void);
 gid_t getegid(void);
 
 int access(const char* pathname, int mode);
+int faccessat(int dirfd, const char* pathname, int mode, int flags);
+
 int close(int fd);
+
 ssize_t read(int fd, void* buf, size_t count);
 ssize_t write(int fd, const void* buf, size_t count);
 ssize_t pread(int fd, void* buf, size_t count, off_t offset);
 ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset);
+
 int truncate(const char* path, off_t length);
 int ftruncate(int fd, off_t length);
 off_t lseek(int fd, off_t offset, int whence);
-int mknod(const char* pathname, mode_t mode, dev_t dev);
+
 int link(const char* oldpath, const char* newpath);
+int linkat(int olddirfd, const char* oldpath, int newdirfd, const char* newpath,
+           int flags);
 int symlink(const char* target, const char* linkpath);
+int symlinkat(const char* target, int newdirfd, const char* linkpath);
 int unlink(const char* pathname);
-ssize_t readlink(const char* pathname, char* buf, size_t bufsiz);
-int rename(const char* oldpath, const char* newpath);
+int unlinkat(int dirfd, const char* pathname, int flags);
+ssize_t readlink(const char* restrict pathname, char* restrict buf,
+                 size_t bufsiz);
+ssize_t readlinkat(int dirfd, const char* restrict pathname, char* restrict buf,
+                   size_t bufsiz);
 int rmdir(const char* pathname);
 
 int dup(int oldfd);
