@@ -152,11 +152,11 @@ NODISCARD int vfs_mount_at(const struct file_system*, const struct path* base,
 
 // Return a path even if the last component of the path does not exist.
 // The last component of the returned path will have NULL inode in this case.
-#define O_ALLOW_NOENT 0x4000
+#define O_ALLOW_NOENT 0x20000000
 
 // When combined with O_NOFOLLOW, do not return an error if the last component
 // of the path is a symbolic link, and return the symlink itself.
-#define O_NOFOLLOW_NOERROR 0x2000
+#define O_NOFOLLOW_NOERROR 0x40000000
 
 NODISCARD struct file* vfs_open(const char* pathname, int flags, mode_t mode);
 NODISCARD struct file* vfs_open_at(const struct path* base,
