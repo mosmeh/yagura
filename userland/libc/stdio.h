@@ -16,6 +16,11 @@ void perror(const char*);
 
 int getchar(void);
 
+int rename(const char* oldpath, const char* newpath);
+int renameat(int olddirfd, const char* oldpath, int newdirfd,
+             const char* newpath);
+int renameat2(int olddirfd, const char* oldpath, int newdirfd,
+              const char* newpath, unsigned int flags);
 int remove(const char* pathname);
 
 int dbgprint(const char* str);

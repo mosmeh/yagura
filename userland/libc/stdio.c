@@ -57,6 +57,22 @@ int getchar(void) {
     return c;
 }
 
+int rename(const char* oldpath, const char* newpath) {
+    return __syscall_return(SYSCALL2(rename, oldpath, newpath));
+}
+
+int renameat(int olddirfd, const char* oldpath, int newdirfd,
+             const char* newpath) {
+    return __syscall_return(
+        SYSCALL4(renameat, olddirfd, oldpath, newdirfd, newpath));
+}
+
+int renameat2(int olddirfd, const char* oldpath, int newdirfd,
+              const char* newpath, unsigned int flags) {
+    return __syscall_return(
+        SYSCALL5(renameat2, olddirfd, oldpath, newdirfd, newpath, flags));
+}
+
 int remove(const char* pathname) {
     if (unlink(pathname) >= 0)
         return 0;

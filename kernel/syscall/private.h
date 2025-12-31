@@ -315,19 +315,19 @@
     F(inotify_add_watch, sys_ni_syscall, 0)                                    \
     F(inotify_rm_watch, sys_ni_syscall, 0)                                     \
     F(migrate_pages, sys_ni_syscall, 0)                                        \
-    F(openat, sys_ni_syscall, 0)                                               \
-    F(mkdirat, sys_ni_syscall, 0)                                              \
-    F(mknodat, sys_ni_syscall, 0)                                              \
+    F(openat, sys_openat, 0)                                                   \
+    F(mkdirat, sys_mkdirat, 0)                                                 \
+    F(mknodat, sys_mknodat, 0)                                                 \
     F(fchownat, sys_ni_syscall, 0)                                             \
     F(futimesat, sys_ni_syscall, 0)                                            \
-    F(fstatat64, sys_ni_syscall, 0)                                            \
-    F(unlinkat, sys_ni_syscall, 0)                                             \
-    F(renameat, sys_ni_syscall, 0)                                             \
-    F(linkat, sys_ni_syscall, 0)                                               \
-    F(symlinkat, sys_ni_syscall, 0)                                            \
-    F(readlinkat, sys_ni_syscall, 0)                                           \
+    F(fstatat64, sys_fstatat64, 0)                                             \
+    F(unlinkat, sys_unlinkat, 0)                                               \
+    F(renameat, sys_renameat, 0)                                               \
+    F(linkat, sys_linkat, 0)                                                   \
+    F(symlinkat, sys_symlinkat, 0)                                             \
+    F(readlinkat, sys_readlinkat, 0)                                           \
     F(fchmodat, sys_ni_syscall, 0)                                             \
-    F(faccessat, sys_ni_syscall, 0)                                            \
+    F(faccessat, sys_faccessat, 0)                                             \
     F(pselect6, sys_pselect6_time32, 0)                                        \
     F(ppoll, sys_ppoll_time32, 0)                                              \
     F(unshare, sys_ni_syscall, 0)                                              \
@@ -373,7 +373,7 @@
     F(finit_module, sys_ni_syscall, 0)                                         \
     F(sched_setattr, sys_ni_syscall, 0)                                        \
     F(sched_getattr, sys_ni_syscall, 0)                                        \
-    F(renameat2, sys_ni_syscall, 0)                                            \
+    F(renameat2, sys_renameat2, 0)                                             \
     F(seccomp, sys_ni_syscall, 0)                                              \
     F(getrandom, sys_getrandom, 0)                                             \
     F(memfd_create, sys_ni_syscall, 0)                                         \
@@ -596,6 +596,20 @@ int sys_clock_nanosleep_time32(clockid_t clockid, int flags,
                                const struct timespec32* request,
                                struct timespec32* remain);
 int sys_tgkill(pid_t tgid, pid_t tid, int sig);
+int sys_openat(int dirfd, const char* pathname, int flags, mode_t mode);
+int sys_mkdirat(int dirfd, const char* pathname, mode_t mode);
+int sys_mknodat(int dirfd, const char* pathname, mode_t mode, dev_t dev);
+int sys_fstatat64(int dirfd, const char* pathname, struct linux_stat64* buf,
+                  int flags);
+int sys_unlinkat(int dirfd, const char* pathname, int flags);
+int sys_renameat(int olddirfd, const char* oldpath, int newdirfd,
+                 const char* newpath);
+int sys_linkat(int olddirfd, const char* oldpath, int newdirfd,
+               const char* newpath, int flags);
+int sys_symlinkat(const char* target, int newdirfd, const char* linkpath);
+ssize_t sys_readlinkat(int dirfd, const char* pathname, char* buf,
+                       size_t bufsiz);
+int sys_faccessat(int dirfd, const char* pathname, int mode);
 int sys_pselect6_time32(int nfds, unsigned long* readfds,
                         unsigned long* writefds, unsigned long* exceptfds,
                         struct timespec32* timeout, const sigset_t* sigmask);
@@ -607,6 +621,8 @@ int sys_getcpu(unsigned int* cpu, unsigned int* node,
 int sys_dup3(int oldfd, int newfd, int flags);
 int sys_pipe2(int pipefd[2], int flags);
 int sys_syncfs(int fd);
+int sys_renameat2(int olddirfd, const char* oldpath, int newdirfd,
+                  const char* newpath, unsigned int flags);
 ssize_t sys_getrandom(void* buf, size_t buflen, unsigned int flags);
 int sys_socket(int domain, int type, int protocol);
 int sys_bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
@@ -631,3 +647,4 @@ int sys_dbgprint(const char* str);
 NODISCARD int copy_pathname_from_user(char dest[static PATH_MAX],
                                       const char* user_src);
 NODISCARD int ensure_directory_is_empty(struct inode*);
+struct path* path_from_dirfd(int dirfd);

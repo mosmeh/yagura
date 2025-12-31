@@ -1,6 +1,7 @@
 #include "private.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/fs/file.h>
+#include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 
@@ -177,5 +178,57 @@ int sys_fstat64(int fd, struct linux_stat64* user_buf) {
     int rc = fstat(fd, &buf);
     if (IS_ERR(rc))
         return rc;
+    return copy_stat_to_user64(&buf, user_buf);
+}
+
+int sys_fstatat64(int dirfd, const char* user_pathname,
+                  struct linux_stat64* user_buf, int flags) {
+    if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH))
+        return -EINVAL;
+
+    struct kstat buf;
+    if (!user_pathname) {
+        if (!(flags & AT_EMPTY_PATH))
+            return -EFAULT;
+
+        struct file* file FREE(file) = files_ref_file(current->files, dirfd);
+        if (IS_ERR(ASSERT(file)))
+            return PTR_ERR(file);
+
+        int rc = inode_stat(file->inode, &buf);
+        if (IS_ERR(rc))
+            return rc;
+    } else {
+        char pathname[PATH_MAX];
+        int rc = copy_pathname_from_user(pathname, user_pathname);
+        if (IS_ERR(rc))
+            return rc;
+
+        if (pathname[0]) {
+            struct path* base FREE(path) = path_from_dirfd(dirfd);
+            if (IS_ERR(ASSERT(base)))
+                return PTR_ERR(base);
+
+            int vfs_flags = 0;
+            if (flags & AT_SYMLINK_NOFOLLOW)
+                vfs_flags |= O_NOFOLLOW | O_NOFOLLOW_NOERROR;
+            rc = vfs_stat_at(base, pathname, &buf, vfs_flags);
+            if (IS_ERR(rc))
+                return rc;
+        } else {
+            if (!(flags & AT_EMPTY_PATH))
+                return -ENOENT;
+
+            struct file* file FREE(file) =
+                files_ref_file(current->files, dirfd);
+            if (IS_ERR(ASSERT(file)))
+                return PTR_ERR(file);
+
+            int rc = inode_stat(file->inode, &buf);
+            if (IS_ERR(rc))
+                return rc;
+        }
+    }
+
     return copy_stat_to_user64(&buf, user_buf);
 }

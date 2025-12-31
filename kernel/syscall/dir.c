@@ -3,7 +3,6 @@
 #include <common/string.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/fs/file.h>
-#include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 
@@ -29,37 +28,6 @@ int ensure_directory_is_empty(struct inode* inode) {
         return rc;
 
     return has_children ? -ENOTEMPTY : 0;
-}
-
-int sys_mkdir(const char* user_pathname, mode_t mode) {
-    char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
-    struct inode* inode FREE(inode) =
-        vfs_create(pathname, (mode & 0777) | S_IFDIR);
-    if (IS_ERR(ASSERT(inode)))
-        return PTR_ERR(inode);
-    return 0;
-}
-
-int sys_rmdir(const char* user_pathname) {
-    char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
-
-    struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
-    if (IS_ERR(ASSERT(path)))
-        return PTR_ERR(path);
-    if (!path->parent)
-        return -EPERM;
-    if (!S_ISDIR(path->inode->mode))
-        return -ENOTDIR;
-    rc = ensure_directory_is_empty(path->inode);
-    if (IS_ERR(rc))
-        return rc;
-    return inode_unlink(path->parent->inode, path->basename);
 }
 
 typedef ssize_t (*fill_dir_fn)(void* user_buf, size_t buf_size,
