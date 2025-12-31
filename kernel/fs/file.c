@@ -5,6 +5,7 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/fs/file.h>
+#include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/sched.h>
 
@@ -30,6 +31,7 @@ void __file_destroy(struct file* file) {
     struct inode* inode = file->inode;
     if (file->fops->close)
         file->fops->close(file);
+    path_destroy_recursive(file->path);
     slab_free(&file_slab, file);
     inode_unref(inode);
 }

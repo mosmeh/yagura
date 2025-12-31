@@ -7,6 +7,7 @@
 #include <kernel/api/sys/wait.h>
 #include <kernel/cpu.h>
 #include <kernel/exec/exec.h>
+#include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/memory/safe_string.h>
@@ -423,6 +424,18 @@ int sys_chdir(const char* user_path) {
         return PTR_ERR(new_cwd);
 
     return fs_chdir(fs, new_cwd);
+}
+
+int sys_fchdir(int fd) {
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+    if (!S_ISDIR(file->inode->mode) || !file->path)
+        return -ENOTDIR;
+
+    struct fs* fs = current->fs;
+    SCOPED_LOCK(fs, fs);
+    return fs_chdir(fs, file->path);
 }
 
 int sys_prctl(int op, unsigned long arg2, unsigned long arg3,

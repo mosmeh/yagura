@@ -157,7 +157,7 @@
     F(get_kernel_syms, sys_ni_syscall, 0)                                      \
     F(quotactl, sys_ni_syscall, 0)                                             \
     F(getpgid, sys_getpgid, 0)                                                 \
-    F(fchdir, sys_ni_syscall, 0)                                               \
+    F(fchdir, sys_fchdir, 0)                                                   \
     F(bdflush, sys_ni_syscall, 0)                                              \
     F(sysfs, sys_ni_syscall, 0)                                                \
     F(personality, sys_ni_syscall, 0)                                          \
@@ -547,6 +547,7 @@ int sys_newuname(struct utsname* buf);
 int sys_mprotect(void* addr, size_t len, int prot);
 int sys_sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
 pid_t sys_getpgid(pid_t pid);
+int sys_fchdir(int fd);
 int sys_llseek(unsigned int fd, unsigned long offset_high,
                unsigned long offset_low, loff_t* result, unsigned int whence);
 ssize_t sys_getdents(int fd, struct linux_dirent* dirp, size_t count);
