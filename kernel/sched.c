@@ -208,15 +208,10 @@ noreturn static void switch_context(void) {
     // task to prevent other CPUs from using the stack of prev_task while
     // we are still using it.
     __asm__ volatile("movl 0x04(%%ebx), %%esp\n" // esp = task->esp
-                     "movl 0x08(%%ebx), %%ebp\n" // ebp = task->ebp
                      "pushl %%eax\n"
                      "call __reschedule\n"
                      "add $4, %%esp\n"
-                     "movl %%ebx, %%eax\n"
-                     "movl 0x0c(%%eax), %%ebx\n" // ebx = task->ebx
-                     "movl 0x10(%%eax), %%esi\n" // esi = task->esi
-                     "movl 0x14(%%eax), %%edi\n" // edi = task->edi
-                     "movl (%%eax), %%eax\n"     // eax = task->eip
+                     "movl (%%ebx), %%eax\n" // eax = task->eip
                      "jmp *%%eax"
                      :
                      : "b"(task), "a"(prev_task));
@@ -250,17 +245,15 @@ void sched_yield(void) {
     else
         __asm__ volatile("fnsave %0" : "=m"(task->fpu_state));
 
-    __asm__ volatile("movl $1f, (%%eax)\n"       // task->eip
-                     "movl %%esp, 0x04(%%eax)\n" // task->esp
-                     "movl %%ebp, 0x08(%%eax)\n" // task->ebp
-                     "movl %%ebx, 0x0c(%%eax)\n" // task->ebx
-                     "movl %%esi, 0x10(%%eax)\n" // task->esi
-                     "movl %%edi, 0x14(%%eax)\n" // task->edi
+    __asm__ volatile("pushl %%ebp\n"       // ebp cannot be in the clobber list
+                     "movl $1f, (%%eax)\n" // task->eip = $1f
+                     "movl %%esp, 0x04(%%eax)\n" // task->esp = esp
                      "jmp __switch_context\n"
-                     "1:" // switch_context() will jump back here
+                     "1:\n" // switch_context() will jump back here
+                     "popl %%ebp"
                      :
                      : "a"(task)
-                     : "edx", "ecx", "memory");
+                     : "ebx", "ecx", "edx", "esi", "edi", "memory");
 }
 
 void sched_tick(struct registers* regs) {

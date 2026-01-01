@@ -279,31 +279,28 @@ noreturn static void loader_commit(struct loader* loader) {
 
     memset(task->tls, 0, sizeof(task->tls));
 
-    __asm__ volatile(
-        "movw %[user_ds], %%ax\n"
-        "movw %%ax, %%ds\n"
-        "movw %%ax, %%es\n"
-        "movw %%ax, %%fs\n"
-        "movw %%ax, %%gs\n"
-        "movl %[sp], %%esp\n"
-        "pushl %[user_ds]\n"
-        "pushl %[sp]\n"
-        "pushl %[eflags]\n"
-        "pushl %[user_cs]\n"
-        "push %[entry_point]\n"
-        "movl $0, %%eax\n"
-        "movl $0, %%ebx\n"
-        "movl $0, %%ecx\n"
-        "movl $0, %%edx\n"
-        "movl $0, %%esi\n"
-        "movl $0, %%edi\n"
-        "movl $0, %%ebp\n"
-        "iret"
-        :
-        : [user_cs] "i"(USER_CS | 3), [user_ds] "i"(USER_DS | 3),
-          [eflags] "i"(X86_EFLAGS_IF | X86_EFLAGS_FIXED),
-          [sp] "r"(loader->stack_ptr), [entry_point] "r"(loader->entry_point)
-        : "eax");
+    __asm__ volatile("movw %%ax, %%ds\n"
+                     "movw %%ax, %%es\n"
+                     "movw %%ax, %%fs\n"
+                     "movw %%ax, %%gs\n"
+                     "pushl %%eax\n"
+                     "pushl %%ebx\n"
+                     "pushl %[eflags]\n"
+                     "pushl %[user_cs]\n"
+                     "pushl %%ecx\n"
+                     "movl $0, %%eax\n"
+                     "movl $0, %%ebx\n"
+                     "movl $0, %%ecx\n"
+                     "movl $0, %%edx\n"
+                     "movl $0, %%esi\n"
+                     "movl $0, %%edi\n"
+                     "movl $0, %%ebp\n"
+                     "iret"
+                     :
+                     : [user_cs] "i"(USER_CS | 3),
+                       [eflags] "i"(X86_EFLAGS_IF | X86_EFLAGS_FIXED),
+                       "a"(USER_DS | 3), "b"(loader->stack_ptr),
+                       "c"(loader->entry_point));
     UNREACHABLE();
 }
 
