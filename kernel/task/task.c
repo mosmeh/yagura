@@ -104,10 +104,6 @@ struct task* task_clone(const struct task* task,
     if (task) {
         strlcpy(new_task->comm, task->comm, sizeof(new_task->comm));
 
-        new_task->ebx = task->ebx;
-        new_task->esi = task->esi;
-        new_task->edi = task->edi;
-        new_task->ebp = task->ebp;
         new_task->fpu_state = task->fpu_state;
 
         new_task->arg_start = task->arg_start;

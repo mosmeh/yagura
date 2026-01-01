@@ -17,7 +17,7 @@ enum {
 };
 
 struct task {
-    uint32_t eip, esp, ebp, ebx, esi, edi;
+    uint32_t eip, esp;
     struct fpu_state fpu_state;
 
     pid_t tid;
