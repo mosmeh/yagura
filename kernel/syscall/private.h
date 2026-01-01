@@ -104,7 +104,7 @@
     F(getrusage, sys_ni_syscall, 0)                                            \
     F(gettimeofday, sys_gettimeofday, 0)                                       \
     F(settimeofday, sys_settimeofday, 0)                                       \
-    F(getgroups, sys_ni_syscall, 0)                                            \
+    F(getgroups, sys_getgroups16, 0)                                           \
     F(setgroups, sys_ni_syscall, 0)                                            \
     F(select, sys_old_select, 0)                                               \
     F(symlink, sys_symlink, 0)                                                 \
@@ -171,7 +171,7 @@
     F(msync, sys_msync, 0)                                                     \
     F(readv, sys_readv, 0)                                                     \
     F(writev, sys_writev, 0)                                                   \
-    F(getsid, sys_ni_syscall, 0)                                               \
+    F(getsid, sys_getsid, 0)                                                   \
     F(fdatasync, sys_fdatasync, 0)                                             \
     F(_sysctl, sys_ni_syscall, 0)                                              \
     F(mlock, sys_ni_syscall, 0)                                                \
@@ -189,13 +189,13 @@
     F(nanosleep, sys_nanosleep_time32, 0)                                      \
     F(mremap, sys_ni_syscall, 0)                                               \
     F(setresuid, sys_ni_syscall, 0)                                            \
-    F(getresuid, sys_ni_syscall, 0)                                            \
+    F(getresuid, sys_getresuid16, 0)                                           \
     F(vm86, sys_ni_syscall, 0)                                                 \
     F(query_module, sys_ni_syscall, 0)                                         \
     F(poll, sys_poll, 0)                                                       \
     F(nfsservctl, sys_ni_syscall, 0)                                           \
     F(setresgid, sys_ni_syscall, 0)                                            \
-    F(getresgid, sys_ni_syscall, 0)                                            \
+    F(getresgid, sys_getresgid16, 0)                                           \
     F(prctl, sys_prctl, 0)                                                     \
     F(rt_sigreturn, sys_ni_syscall, 0)                                         \
     F(rt_sigaction, sys_ni_syscall, 0)                                         \
@@ -229,13 +229,13 @@
     F(getegid32, sys_getegid, 0)                                               \
     F(setreuid32, sys_ni_syscall, 0)                                           \
     F(setregid32, sys_ni_syscall, 0)                                           \
-    F(getgroups32, sys_ni_syscall, 0)                                          \
+    F(getgroups32, sys_getgroups, 0)                                           \
     F(setgroups32, sys_ni_syscall, 0)                                          \
     F(fchown32, sys_ni_syscall, 0)                                             \
     F(setresuid32, sys_ni_syscall, 0)                                          \
-    F(getresuid32, sys_ni_syscall, 0)                                          \
+    F(getresuid32, sys_getresuid, 0)                                           \
     F(setresgid32, sys_ni_syscall, 0)                                          \
-    F(getresgid32, sys_ni_syscall, 0)                                          \
+    F(getresgid32, sys_getresgid, 0)                                           \
     F(chown32, sys_ni_syscall, 0)                                              \
     F(setuid32, sys_ni_syscall, 0)                                             \
     F(setgid32, sys_ni_syscall, 0)                                             \
@@ -488,7 +488,7 @@ pid_t sys_getpid(void);
 int sys_mount(const char* source, const char* target,
               const char* filesystemtype, unsigned long mountflags,
               const void* data);
-uid_t sys_getuid16(void);
+linux_old_uid_t sys_getuid16(void);
 int sys_stime32(const time32_t* t);
 int sys_fstat(int fd, struct linux_old_stat* buf);
 int sys_pause(void);
@@ -501,10 +501,10 @@ int sys_rmdir(const char* pathname);
 int sys_dup(int oldfd);
 int sys_pipe(int pipefd[2]);
 clock_t sys_times(struct tms* buf);
-gid_t sys_getgid16(void);
+linux_old_gid_t sys_getgid16(void);
 sighandler_t sys_signal(int signum, sighandler_t handler);
-uid_t sys_geteuid16(void);
-gid_t sys_getegid16(void);
+linux_old_uid_t sys_geteuid16(void);
+linux_old_gid_t sys_getegid16(void);
 int sys_ioctl(int fd, unsigned cmd, unsigned long arg);
 int sys_fcntl(int fd, int cmd, unsigned long arg);
 int sys_setpgid(pid_t pid, pid_t pgid);
@@ -522,6 +522,7 @@ int sys_sigpending(sigset_t* set);
 int sys_sethostname(const char* name, int len);
 int sys_gettimeofday(struct linux_timeval* tv, struct timezone* tz);
 int sys_settimeofday(const struct linux_timeval* tv, const struct timezone* tz);
+int sys_getgroups16(int size, linux_old_gid_t* list);
 int sys_old_select(struct sel_arg_struct*);
 int sys_symlink(const char* target, const char* linkpath);
 int sys_lstat(const char* pathname, struct linux_old_stat* buf);
@@ -556,11 +557,16 @@ int sys_select(int nfds, unsigned long* readfds, unsigned long* writefds,
 int sys_msync(void* addr, size_t length, int flags);
 ssize_t sys_readv(int fd, const struct iovec* iov, int iovcnt);
 ssize_t sys_writev(int fd, const struct iovec* iov, int iovcnt);
+pid_t sys_getsid(pid_t pid);
 int sys_fdatasync(int fd);
 int sys_sched_yield(void);
 int sys_nanosleep_time32(const struct timespec32* duration,
                          struct timespec32* rem);
+int sys_getresuid16(linux_old_uid_t* ruid, linux_old_uid_t* euid,
+                    linux_old_uid_t* suid);
 int sys_poll(struct pollfd* fds, nfds_t nfds, int timeout);
+int sys_getresgid16(linux_old_gid_t* rgid, linux_old_gid_t* egid,
+                    linux_old_gid_t* sgid);
 int sys_prctl(int op, unsigned long arg2, unsigned long arg3,
               unsigned long arg4, unsigned long arg5);
 ssize_t sys_ia32_pread64(int fd, void* buf, size_t count, uint32_t pos_lo,
@@ -582,6 +588,9 @@ uid_t sys_getuid(void);
 gid_t sys_getgid(void);
 uid_t sys_geteuid(void);
 gid_t sys_getegid(void);
+int sys_getgroups(int size, gid_t* list);
+int sys_getresuid(uid_t* ruid, uid_t* euid, uid_t* suid);
+int sys_getresgid(gid_t* rgid, gid_t* egid, gid_t* sgid);
 ssize_t sys_getdents64(int fd, struct linux_dirent* dirp, size_t count);
 int sys_fcntl64(int fd, int cmd, unsigned long arg);
 pid_t sys_gettid(void);

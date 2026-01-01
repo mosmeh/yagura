@@ -48,6 +48,16 @@ int sys_setpgid(pid_t pid, pid_t pgid) {
     return 0;
 }
 
+pid_t sys_getsid(pid_t pid) {
+    // As we don't implement setsid(), pretend that sid is always 0.
+    if (pid == 0)
+        return 0;
+    struct task* task FREE(task) = task_find_by_tid(pid);
+    if (!task)
+        return -ESRCH;
+    return 0;
+}
+
 int sys_sched_yield(void) {
     sched_yield();
     return 0;

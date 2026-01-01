@@ -16,21 +16,83 @@
 // There is no support for users and groups in this kernel.
 // It behaves as if the user is always root.
 
-uid_t sys_getuid(void) { return 0; }
+uid_t sys_getuid(void) { return sys_getuid16(); }
 
-uid_t sys_getuid16(void) { return sys_getuid(); }
+linux_old_uid_t sys_getuid16(void) { return 0; }
 
-uid_t sys_geteuid(void) { return 0; }
+uid_t sys_geteuid(void) { return sys_geteuid16(); }
 
-uid_t sys_geteuid16(void) { return sys_geteuid(); }
+linux_old_uid_t sys_geteuid16(void) { return 0; }
 
-gid_t sys_getgid(void) { return 0; }
+gid_t sys_getgid(void) { return sys_getgid16(); }
 
-gid_t sys_getgid16(void) { return sys_getgid(); }
+linux_old_gid_t sys_getgid16(void) { return 0; }
 
-gid_t sys_getegid(void) { return 0; }
+gid_t sys_getegid(void) { return sys_getegid16(); }
 
-gid_t sys_getegid16(void) { return sys_getegid(); }
+linux_old_gid_t sys_getegid16(void) { return 0; }
+
+int sys_getresuid(uid_t* user_ruid, uid_t* user_euid, uid_t* user_suid) {
+    uid_t zero = 0;
+    if (copy_to_user(user_ruid, &zero, sizeof(uid_t)))
+        return -EFAULT;
+    if (copy_to_user(user_euid, &zero, sizeof(uid_t)))
+        return -EFAULT;
+    if (copy_to_user(user_suid, &zero, sizeof(uid_t)))
+        return -EFAULT;
+    return 0;
+}
+
+int sys_getresuid16(linux_old_uid_t* user_ruid, linux_old_uid_t* user_euid,
+                    linux_old_uid_t* user_suid) {
+    linux_old_uid_t zero = 0;
+    if (copy_to_user(user_ruid, &zero, sizeof(linux_old_uid_t)))
+        return -EFAULT;
+    if (copy_to_user(user_euid, &zero, sizeof(linux_old_uid_t)))
+        return -EFAULT;
+    if (copy_to_user(user_suid, &zero, sizeof(linux_old_uid_t)))
+        return -EFAULT;
+    return 0;
+}
+
+int sys_getresgid(gid_t* user_rgid, gid_t* user_egid, gid_t* user_sgid) {
+    gid_t zero = 0;
+    if (copy_to_user(user_rgid, &zero, sizeof(gid_t)))
+        return -EFAULT;
+    if (copy_to_user(user_egid, &zero, sizeof(gid_t)))
+        return -EFAULT;
+    if (copy_to_user(user_sgid, &zero, sizeof(gid_t)))
+        return -EFAULT;
+    return 0;
+}
+
+int sys_getresgid16(linux_old_gid_t* user_rgid, linux_old_gid_t* user_egid,
+                    linux_old_gid_t* user_sgid) {
+    linux_old_gid_t zero = 0;
+    if (copy_to_user(user_rgid, &zero, sizeof(linux_old_gid_t)))
+        return -EFAULT;
+    if (copy_to_user(user_egid, &zero, sizeof(linux_old_gid_t)))
+        return -EFAULT;
+    if (copy_to_user(user_sgid, &zero, sizeof(linux_old_gid_t)))
+        return -EFAULT;
+    return 0;
+}
+
+// NOLINTNEXTLINE(readability-non-const-parameter)
+int sys_getgroups(int size, gid_t* user_list) {
+    (void)user_list;
+    if (size < 0)
+        return -EINVAL;
+    return 0;
+}
+
+// NOLINTNEXTLINE(readability-non-const-parameter)
+int sys_getgroups16(int size, linux_old_gid_t* user_list) {
+    (void)user_list;
+    if (size < 0)
+        return -EINVAL;
+    return 0;
+}
 
 int sys_reboot(int magic, int magic2, int op, void* user_arg) {
     if ((unsigned)magic != LINUX_REBOOT_MAGIC1)

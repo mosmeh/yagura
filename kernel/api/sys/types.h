@@ -18,3 +18,6 @@ typedef int32_t suseconds_t;
 typedef int32_t blksize_t;
 typedef int32_t blkcnt_t;
 typedef int32_t ssize_t;
+
+typedef uint16_t linux_old_uid_t;
+typedef uint16_t linux_old_gid_t;
