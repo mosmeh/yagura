@@ -50,10 +50,10 @@ QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
     -initrd "${INITRD}" \
     -append "${CMDLINE[*]}" \
     -d guest_errors \
-    -device ac97 \
     -chardev stdio,mux=on,id=char0 \
     -serial chardev:char0 \
     -mon char0,mode=readline \
     -m 512M \
     -smp "sockets=1,cores=${NUM_CPUS},threads=1" \
+    -no-reboot \
     "${QEMU_EXTRA_ARGS[@]}"
