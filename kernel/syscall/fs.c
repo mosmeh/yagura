@@ -4,9 +4,9 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 
-int sys_mount(const char* user_source, const char* user_target,
-              const char* user_filesystemtype, unsigned long mountflags,
-              const void* data) {
+long sys_mount(const char* user_source, const char* user_target,
+               const char* user_filesystemtype, unsigned long mountflags,
+               const void* data) {
     (void)mountflags;
     (void)data;
 
@@ -39,13 +39,13 @@ int sys_mount(const char* user_source, const char* user_target,
     return vfs_mount(fs, source, target);
 }
 
-int sys_sync(void) {
+long sys_sync(void) {
     int rc = vfs_sync();
     (void)rc;
     return 0;
 }
 
-int sys_syncfs(int fd) {
+long sys_syncfs(int fd) {
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);

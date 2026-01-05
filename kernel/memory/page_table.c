@@ -235,8 +235,8 @@ void page_table_unmap_local(uintptr_t virt_addr) {
 }
 
 static uintptr_t kmap_addr(size_t index) {
-    return KMAP_START +
-           ((cpu_get_id() * MAX_NUM_KMAPS_PER_CPU + index) << PAGE_SHIFT);
+    return KMAP_START + (((size_t)cpu_get_id() * MAX_NUM_KMAPS_PER_CPU + index)
+                         << PAGE_SHIFT);
 }
 
 void* kmap(uintptr_t phys_addr) {

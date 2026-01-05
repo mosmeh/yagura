@@ -5,7 +5,7 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 
-ssize_t sys_read(int fd, void* user_buf, size_t count) {
+long sys_read(int fd, void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
     struct file* file FREE(file) = files_ref_file(current->files, fd);
@@ -17,8 +17,8 @@ ssize_t sys_read(int fd, void* user_buf, size_t count) {
     return rc;
 }
 
-ssize_t sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
-                         uint32_t pos_hi) {
+long sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
+                      uint32_t pos_hi) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
     struct file* file FREE(file) = files_ref_file(current->files, fd);
@@ -50,7 +50,7 @@ NODISCARD static ssize_t read_all(struct file* file, void* user_buffer,
     return nread;
 }
 
-ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
+long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
 
@@ -76,7 +76,7 @@ ssize_t sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
     return nread;
 }
 
-ssize_t sys_write(int fd, const void* user_buf, size_t count) {
+long sys_write(int fd, const void* user_buf, size_t count) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
     struct file* file FREE(file) = files_ref_file(current->files, fd);
@@ -88,8 +88,8 @@ ssize_t sys_write(int fd, const void* user_buf, size_t count) {
     return rc;
 }
 
-ssize_t sys_ia32_pwrite64(int fd, const void* user_buf, size_t count,
-                          uint32_t pos_lo, uint32_t pos_hi) {
+long sys_ia32_pwrite64(int fd, const void* user_buf, size_t count,
+                       uint32_t pos_lo, uint32_t pos_hi) {
     if (!user_buf || !is_user_range(user_buf, count))
         return -EFAULT;
     struct file* file FREE(file) = files_ref_file(current->files, fd);
@@ -121,7 +121,7 @@ NODISCARD static ssize_t write_all(struct file* file, const void* user_buffer,
     return nwritten;
 }
 
-ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
+long sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
     if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
         return -EFAULT;
 
@@ -147,16 +147,16 @@ ssize_t sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
     return nwritten;
 }
 
-off_t sys_lseek(int fd, off_t offset, int whence) {
+long sys_lseek(int fd, off_t offset, int whence) {
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return file_seek(file, offset, whence);
 }
 
-int sys_llseek(unsigned int fd, unsigned long offset_high,
-               unsigned long offset_low, loff_t* user_result,
-               unsigned int whence) {
+long sys_llseek(unsigned int fd, unsigned long offset_high,
+                unsigned long offset_low, loff_t* user_result,
+                unsigned int whence) {
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
@@ -169,7 +169,7 @@ int sys_llseek(unsigned int fd, unsigned long offset_high,
     return 0;
 }
 
-NODISCARD static int truncate(const char* user_path, uint64_t length) {
+NODISCARD static long truncate(const char* user_path, uint64_t length) {
     char path[PATH_MAX];
     int rc = copy_pathname_from_user(path, user_path);
     if (IS_ERR(rc))
@@ -180,34 +180,34 @@ NODISCARD static int truncate(const char* user_path, uint64_t length) {
     return file_truncate(file, length);
 }
 
-NODISCARD static int ftruncate(int fd, uint64_t length) {
+NODISCARD static long ftruncate(int fd, uint64_t length) {
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return file_truncate(file, length);
 }
 
-int sys_truncate(const char* user_path, off_t length) {
+long sys_truncate(const char* user_path, off_t length) {
     return truncate(user_path, length);
 }
 
-int sys_ftruncate(int fd, off_t length) { return ftruncate(fd, length); }
+long sys_ftruncate(int fd, off_t length) { return ftruncate(fd, length); }
 
-int sys_ia32_truncate64(const char* user_path, unsigned long offset_low,
-                        unsigned long offset_high) {
+long sys_ia32_truncate64(const char* user_path, unsigned long offset_low,
+                         unsigned long offset_high) {
     return truncate(user_path, ((uint64_t)offset_high << 32) | offset_low);
 }
 
-int sys_ia32_ftruncate64(int fd, unsigned long offset_low,
-                         unsigned long offset_high) {
+long sys_ia32_ftruncate64(int fd, unsigned long offset_low,
+                          unsigned long offset_high) {
     return ftruncate(fd, ((uint64_t)offset_high << 32) | offset_low);
 }
 
-int sys_fsync(int fd) {
+long sys_fsync(int fd) {
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return file_sync(file, 0, UINT64_MAX);
 }
 
-int sys_fdatasync(int fd) { return sys_fsync(fd); }
+long sys_fdatasync(int fd) { return sys_fsync(fd); }

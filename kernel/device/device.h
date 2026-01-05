@@ -19,7 +19,7 @@ struct char_dev* char_dev_get(dev_t);
 struct char_dev* char_dev_find_by_name(const char*);
 
 #define SECTOR_SHIFT 9
-#define SECTOR_SIZE (1 << SECTOR_SHIFT)
+#define SECTOR_SIZE (1UL << SECTOR_SHIFT)
 
 #define BLOCK_DEV_INIT {.vfs_inode = INODE_INIT}
 

@@ -12,13 +12,13 @@ typedef struct {
 } fd_set;
 
 #define FD_CLR(fd, set)                                                        \
-    ((set)->fds_bits[(fd) / __NFDBITS] &= ~(1U << ((fd) % __NFDBITS)))
+    ((set)->fds_bits[(fd) / __NFDBITS] &= ~(1UL << ((fd) % __NFDBITS)))
 
 #define FD_SET(fd, set)                                                        \
-    ((set)->fds_bits[(fd) / __NFDBITS] |= (1U << ((fd) % __NFDBITS)))
+    ((set)->fds_bits[(fd) / __NFDBITS] |= (1UL << ((fd) % __NFDBITS)))
 
 #define FD_ISSET(fd, set)                                                      \
-    ((set)->fds_bits[(fd) / __NFDBITS] & (1U << ((fd) % __NFDBITS)))
+    ((set)->fds_bits[(fd) / __NFDBITS] & (1UL << ((fd) % __NFDBITS)))
 
 #define FD_ZERO(set)                                                           \
     do {                                                                       \

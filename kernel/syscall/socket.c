@@ -9,7 +9,7 @@
 #include <kernel/socket.h>
 #include <kernel/task/task.h>
 
-int sys_socket(int domain, int type, int protocol) {
+long sys_socket(int domain, int type, int protocol) {
     (void)protocol;
     if (domain != AF_UNIX || type != SOCK_STREAM)
         return -EAFNOSUPPORT;
@@ -23,7 +23,7 @@ int sys_socket(int domain, int type, int protocol) {
     return files_alloc_fd(current->files, -1, file);
 }
 
-int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
+long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
     struct file* file FREE(file) = files_ref_file(current->files, sockfd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
@@ -54,7 +54,7 @@ int sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
     return unix_socket_bind(file->inode, addr_file->inode);
 }
 
-int sys_listen(int sockfd, int backlog) {
+long sys_listen(int sockfd, int backlog) {
     struct file* file FREE(file) = files_ref_file(current->files, sockfd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
@@ -63,8 +63,8 @@ int sys_listen(int sockfd, int backlog) {
     return unix_socket_listen(file->inode, backlog);
 }
 
-int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
-                int flags) {
+long sys_accept4(int sockfd, struct sockaddr* user_addr,
+                 socklen_t* user_addrlen, int flags) {
     (void)flags;
 
     struct file* file FREE(file) = files_ref_file(current->files, sockfd);
@@ -100,8 +100,8 @@ int sys_accept4(int sockfd, struct sockaddr* user_addr, socklen_t* user_addrlen,
     return files_alloc_fd(current->files, -1, connector_file);
 }
 
-int sys_connect(int sockfd, const struct sockaddr* user_addr,
-                socklen_t addrlen) {
+long sys_connect(int sockfd, const struct sockaddr* user_addr,
+                 socklen_t addrlen) {
     struct file* file FREE(file) = files_ref_file(current->files, sockfd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
@@ -129,7 +129,7 @@ int sys_connect(int sockfd, const struct sockaddr* user_addr,
     return rc;
 }
 
-int sys_shutdown(int sockfd, int how) {
+long sys_shutdown(int sockfd, int how) {
     struct file* file FREE(file) = files_ref_file(current->files, sockfd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);

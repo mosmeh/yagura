@@ -4,9 +4,9 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 
-int sys_close(int fd) { return files_free_fd(current->files, fd); }
+long sys_close(int fd) { return files_free_fd(current->files, fd); }
 
-int sys_fcntl(int fd, int cmd, unsigned long arg) {
+long sys_fcntl(int fd, int cmd, unsigned long arg) {
     struct files* files = current->files;
     struct file* file FREE(file) = files_ref_file(files, fd);
     if (IS_ERR(ASSERT(file)))
@@ -24,11 +24,11 @@ int sys_fcntl(int fd, int cmd, unsigned long arg) {
     }
 }
 
-int sys_fcntl64(int fd, int cmd, unsigned long arg) {
+long sys_fcntl64(int fd, int cmd, unsigned long arg) {
     return sys_fcntl(fd, cmd, arg);
 }
 
-int sys_dup(int oldfd) {
+long sys_dup(int oldfd) {
     struct files* files = current->files;
     struct file* file FREE(file) = files_ref_file(files, oldfd);
     if (IS_ERR(ASSERT(file)))
@@ -36,7 +36,7 @@ int sys_dup(int oldfd) {
     return files_alloc_fd(files, -1, file);
 }
 
-int sys_dup2(int oldfd, int newfd) {
+long sys_dup2(int oldfd, int newfd) {
     if (newfd < 0)
         return -EBADF;
     struct files* files = current->files;
@@ -48,7 +48,7 @@ int sys_dup2(int oldfd, int newfd) {
     return files_alloc_fd(files, newfd, oldfd_file);
 }
 
-int sys_dup3(int oldfd, int newfd, int flags) {
+long sys_dup3(int oldfd, int newfd, int flags) {
     (void)flags;
     if (newfd < 0)
         return -EBADF;
@@ -61,7 +61,7 @@ int sys_dup3(int oldfd, int newfd, int flags) {
     return files_alloc_fd(files, newfd, oldfd_file);
 }
 
-int sys_ioctl(int fd, unsigned cmd, unsigned long arg) {
+long sys_ioctl(int fd, unsigned cmd, unsigned long arg) {
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
@@ -71,9 +71,9 @@ int sys_ioctl(int fd, unsigned cmd, unsigned long arg) {
     return rc;
 }
 
-int sys_pipe(int user_pipefd[2]) { return sys_pipe2(user_pipefd, 0); }
+long sys_pipe(int user_pipefd[2]) { return sys_pipe2(user_pipefd, 0); }
 
-int sys_pipe2(int user_pipefd[2], int flags) {
+long sys_pipe2(int user_pipefd[2], int flags) {
     if (flags & O_ACCMODE)
         return -EINVAL;
 

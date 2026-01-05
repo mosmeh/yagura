@@ -285,8 +285,8 @@ void signal_handle(struct registers* regs, int signum,
         goto fail;
 
     // Push the argument of the signal handler
-    esp -= sizeof(int);
-    if (copy_to_user((void*)esp, &signum, sizeof(int)))
+    esp -= sizeof(long);
+    if (copy_to_user((void*)esp, &signum, sizeof(long)))
         goto fail;
 
     uintptr_t trampoline = (action->sa_flags & SA_RESTORER)

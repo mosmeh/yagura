@@ -14,19 +14,19 @@
 #include <kernel/task/task.h>
 #include <kernel/time.h>
 
-void sys_exit(int status) { task_exit(status); }
+long sys_exit(int status) { task_exit(status); }
 
-void sys_exit_group(int status) { task_exit_thread_group(status); }
+long sys_exit_group(int status) { task_exit_thread_group(status); }
 
-pid_t sys_gettid(void) { return current->tid; }
+long sys_gettid(void) { return current->tid; }
 
-pid_t sys_getpid(void) { return current->thread_group->tgid; }
+long sys_getpid(void) { return current->thread_group->tgid; }
 
-pid_t sys_getppid(void) { return current->thread_group->ppid; }
+long sys_getppid(void) { return current->thread_group->ppid; }
 
-pid_t sys_getpgrp(void) { return current->thread_group->pgid; }
+long sys_getpgrp(void) { return current->thread_group->pgid; }
 
-pid_t sys_getpgid(pid_t pid) {
+long sys_getpgid(pid_t pid) {
     if (pid == 0)
         return current->thread_group->pgid;
     struct task* task FREE(task) = task_find_by_tid(pid);
@@ -35,7 +35,7 @@ pid_t sys_getpgid(pid_t pid) {
     return task->thread_group->pgid;
 }
 
-int sys_setpgid(pid_t pid, pid_t pgid) {
+long sys_setpgid(pid_t pid, pid_t pgid) {
     if (pgid < 0)
         return -EINVAL;
 
@@ -48,7 +48,7 @@ int sys_setpgid(pid_t pid, pid_t pgid) {
     return 0;
 }
 
-pid_t sys_getsid(pid_t pid) {
+long sys_getsid(pid_t pid) {
     // As we don't implement setsid(), pretend that sid is always 0.
     if (pid == 0)
         return 0;
@@ -58,13 +58,13 @@ pid_t sys_getsid(pid_t pid) {
     return 0;
 }
 
-int sys_sched_yield(void) {
+long sys_sched_yield(void) {
     sched_yield();
     return 0;
 }
 
-int sys_execve(const char* user_pathname, char* const user_argv[],
-               char* const user_envp[]) {
+long sys_execve(const char* user_pathname, char* const user_argv[],
+                char* const user_envp[]) {
     if (!user_pathname || !user_argv || !user_envp)
         return -EFAULT;
 
@@ -150,11 +150,11 @@ static int set_tls_entry(struct task* task, const struct user_desc* u) {
     return 0;
 }
 
-pid_t sys_fork(struct registers* regs) {
+long sys_fork(struct registers* regs) {
     return sys_clone(regs, SIGCHLD, NULL, NULL, NULL, NULL);
 }
 
-pid_t sys_vfork(struct registers* regs) {
+long sys_vfork(struct registers* regs) {
     return sys_clone(regs, CLONE_VM | CLONE_VFORK | SIGCHLD, NULL, NULL, NULL,
                      NULL);
 }
@@ -164,8 +164,8 @@ static bool unblock_vfork(void* ctx) {
     return task->state == TASK_DEAD;
 }
 
-int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
-              pid_t* user_parent_tid, pid_t* user_child_tid, void* user_tls) {
+long sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
+               pid_t* user_parent_tid, pid_t* user_child_tid, void* user_tls) {
     (void)user_child_tid;
 
     struct registers child_regs = *regs;
@@ -209,7 +209,7 @@ int sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     return tid;
 }
 
-int sys_get_thread_area(struct user_desc* user_u_info) {
+long sys_get_thread_area(struct user_desc* user_u_info) {
     struct user_desc u_info;
     if (copy_from_user(&u_info, user_u_info, sizeof(struct user_desc)))
         return -EFAULT;
@@ -232,7 +232,7 @@ static int find_free_tls_entry(void) {
     return -ESRCH;
 }
 
-int sys_set_thread_area(struct user_desc* user_u_info) {
+long sys_set_thread_area(struct user_desc* user_u_info) {
     struct user_desc u_info;
     if (copy_from_user(&u_info, user_u_info, sizeof(struct user_desc)))
         return -EFAULT;
@@ -322,8 +322,8 @@ static bool unblock_waitpid(void* data) {
     return true;
 }
 
-pid_t sys_wait4(pid_t pid, int* user_wstatus, int options,
-                struct rusage* user_rusage) {
+long sys_wait4(pid_t pid, int* user_wstatus, int options,
+               struct rusage* user_rusage) {
     if ((options & ~WNOHANG) || user_rusage)
         return -ENOTSUP;
 
@@ -365,11 +365,11 @@ pid_t sys_wait4(pid_t pid, int* user_wstatus, int options,
     return result;
 }
 
-pid_t sys_waitpid(pid_t pid, int* user_wstatus, int options) {
+long sys_waitpid(pid_t pid, int* user_wstatus, int options) {
     return sys_wait4(pid, user_wstatus, options, NULL);
 }
 
-clock_t sys_times(struct tms* user_buf) {
+long sys_times(struct tms* user_buf) {
     if (user_buf) {
         struct tms buf = {
             .tms_utime = current->user_ticks,
@@ -381,7 +381,7 @@ clock_t sys_times(struct tms* user_buf) {
     return uptime;
 }
 
-int sys_chroot(const char* user_path) {
+long sys_chroot(const char* user_path) {
     char path[PATH_MAX];
     int rc = copy_pathname_from_user(path, user_path);
     if (IS_ERR(rc))
@@ -397,7 +397,7 @@ int sys_chroot(const char* user_path) {
     return fs_chroot(fs, new_root);
 }
 
-int sys_getcwd(char* user_buf, size_t size) {
+long sys_getcwd(char* user_buf, size_t size) {
     if (!user_buf)
         return -EINVAL;
     if (size <= 1)
@@ -420,7 +420,7 @@ int sys_getcwd(char* user_buf, size_t size) {
     return len;
 }
 
-int sys_chdir(const char* user_path) {
+long sys_chdir(const char* user_path) {
     char path[PATH_MAX];
     int rc = copy_pathname_from_user(path, user_path);
     if (IS_ERR(rc))
@@ -436,7 +436,7 @@ int sys_chdir(const char* user_path) {
     return fs_chdir(fs, new_cwd);
 }
 
-int sys_fchdir(int fd) {
+long sys_fchdir(int fd) {
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
@@ -448,8 +448,8 @@ int sys_fchdir(int fd) {
     return fs_chdir(fs, file->path);
 }
 
-int sys_prctl(int op, unsigned long arg2, unsigned long arg3,
-              unsigned long arg4, unsigned long arg5) {
+long sys_prctl(int op, unsigned long arg2, unsigned long arg3,
+               unsigned long arg4, unsigned long arg5) {
     (void)arg3;
     (void)arg4;
     (void)arg5;
