@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
             putchar('\n');
         }
 
-        printf("  Size: %-10d\t%s\n"
+        printf("  Size: %-10ld\t%s\n"
                "Device: %d,%d\tLinks: %-5d",
                buf.st_size, file_type(&buf), major(buf.st_dev),
                minor(buf.st_dev), buf.st_nlink);

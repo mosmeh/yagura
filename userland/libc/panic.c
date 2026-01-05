@@ -9,6 +9,6 @@ noreturn void panic(const char* file, size_t line, const char* format, ...) {
     va_start(args, format);
     vdprintf(STDERR_FILENO, format, args);
     va_end(args);
-    dprintf(STDERR_FILENO, " at %s:%u\n", file, line);
+    dprintf(STDERR_FILENO, " at %s:%zu\n", file, line);
     abort();
 }

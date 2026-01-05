@@ -107,7 +107,7 @@ int proc_print_slabinfo(struct file* file, struct vec* vec) {
         size_t obj_offset = ROUND_UP(sizeof(struct vm_region), slab->obj_size);
         size_t objs_per_slab = (PAGE_SIZE - obj_offset) / slab->obj_size;
         size_t pages_per_slab = 1;
-        rc = vec_printf(vec, "%-17s %6u %6u %6u %4u %4u\n", slab->name,
+        rc = vec_printf(vec, "%-17s %6zu %6zu %6zu %4zu %4zu\n", slab->name,
                         slab->num_active_objs, slab->total_objs, slab->obj_size,
                         objs_per_slab, pages_per_slab);
         if (IS_ERR(rc))

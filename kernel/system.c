@@ -118,7 +118,7 @@ noreturn void panic(const char* file, size_t line, const char* format, ...) {
     va_start(args, format);
     kvprintf(format, args);
     va_end(args);
-    kprintf(" at %s:%u\n", file, line);
+    kprintf(" at %s:%zu\n", file, line);
 
     uintptr_t eip = read_eip();
     uintptr_t ebp = (uintptr_t)__builtin_frame_address(0);

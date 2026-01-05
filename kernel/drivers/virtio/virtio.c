@@ -306,7 +306,7 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
     //    device’s virtio configuration space, and population of virtqueues.
     uint16_t max_num_queues = common_cfg->num_queues;
     if (num_virtqs > max_num_queues) {
-        kprintf("virtio: requested %u virtqueues, but only %u are available\n",
+        kprintf("virtio: requested %zu virtqueues, but only %u are available\n",
                 num_virtqs, max_num_queues);
         goto fail_initialization;
     }
@@ -316,7 +316,7 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
 
         uint16_t queue_size = common_cfg->queue_size;
         if (queue_size == 0) {
-            kprintf("virtio: queue %u is not available\n", i);
+            kprintf("virtio: queue %zu is not available\n", i);
             goto fail_initialization;
         }
 
