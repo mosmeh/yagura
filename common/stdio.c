@@ -1,3 +1,5 @@
+#include <common/integer.h>
+#include <common/panic.h>
 #include <common/stdio.h>
 #include <common/string.h>
 #include <stdarg.h>
