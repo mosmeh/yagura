@@ -55,7 +55,7 @@ static ssize_t bitmap_get_free(void) {
 }
 
 static void print_range(const char* type, uintptr_t start, uintptr_t end) {
-    kprintf("page: P0x%08x - P0x%08x (%4u MiB) %s\n", start, end,
+    kprintf("page: P0x%08zx - P0x%08zx (%4zu MiB) %s\n", start, end,
             (end - start) / 0x100000, type);
 }
 
@@ -181,7 +181,7 @@ void page_init(const multiboot_info_t* mb_info) {
     }
 
     free_pages = total_pages;
-    kprintf("page: %u pages (%u MiB) available\n", total_pages,
+    kprintf("page: %zu pages (%zu MiB) available\n", total_pages,
             (total_pages << PAGE_SHIFT) / 0x100000);
 }
 

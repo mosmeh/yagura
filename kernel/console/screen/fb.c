@@ -104,7 +104,7 @@ struct screen* fb_screen_init(void) {
         return ERR_PTR(rc);
     }
     if (fb_info.bpp != 32) {
-        kprintf("fb_screen: unsupported framebuffer bpp=%u\n", fb_info.bpp);
+        kprintf("fb_screen: unsupported framebuffer bpp=%zu\n", fb_info.bpp);
         return ERR_PTR(-ENOTSUP);
     }
 
@@ -125,7 +125,7 @@ struct screen* fb_screen_init(void) {
 
     num_columns = fb_info.width / font_meta.width;
     num_rows = fb_info.height / font_meta.height;
-    kprintf("fb_screen: columns=%u rows=%u\n", num_columns, num_rows);
+    kprintf("fb_screen: columns=%zu rows=%zu\n", num_columns, num_rows);
 
     return &fb_screen;
 }

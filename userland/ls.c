@@ -109,7 +109,7 @@ static int list_dir(const char* path, size_t terminal_width, bool long_format) {
             if (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode))
                 printf(" %4u,%4u ", major(st.st_rdev), minor(st.st_rdev));
             else
-                printf("%10u ", st.st_size);
+                printf("%10lu ", st.st_size);
 
             printf(format, dent->d_name);
             if (S_ISLNK(st.st_mode)) {

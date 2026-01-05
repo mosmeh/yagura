@@ -25,12 +25,15 @@ int vsprintf(char* buffer, const char* format, va_list args) {
     return vsnprintf(buffer, SIZE_MAX, format, args);
 }
 
-static size_t utoa(unsigned value, char* str, unsigned radix) {
+static size_t utoa(unsigned long long value, char* str, unsigned radix) {
     char* c = str;
-    do {
-        unsigned mod = value % radix;
-        *c++ = (mod < 10) ? mod + '0' : mod - 10 + 'a';
-    } while (value /= radix);
+    for (;;) {
+        unsigned long long r = value % radix;
+        value /= radix;
+        *c++ = (r < 10) ? r + '0' : r - 10 + 'a';
+        if (value == 0)
+            break;
+    }
     size_t n = c - str;
 
     char* p1 = str;
@@ -45,6 +48,12 @@ static size_t utoa(unsigned value, char* str, unsigned radix) {
 
     return n;
 }
+
+enum length_spec {
+    LENGTH_DEFAULT,
+    LENGTH_LONG,
+    LENGTH_LONG_LONG,
+};
 
 // NOLINTNEXTLINE(readability-non-const-parameter)
 int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
@@ -96,8 +105,35 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
             ch = *format++;
         }
 
+        enum length_spec length_spec = LENGTH_DEFAULT;
+        switch (ch) {
+        case 'h':
+            if (*format == 'h') {
+                // char (promoted to int)
+                ++format;
+            } else {
+                // short (promoted to int)
+            }
+            ch = *format++;
+            break;
+        case 'l':
+            if (*format == 'l') {
+                length_spec = LENGTH_LONG_LONG;
+                ++format;
+            } else {
+                length_spec = LENGTH_LONG;
+            }
+            ch = *format++;
+            break;
+        case 'z': // size_t
+            length_spec = LENGTH_LONG;
+            ch = *format++;
+            break;
+        }
+
         char num_buf[20];
         size_t num_len = 0;
+        unsigned radix = 10;
 
 #define PUT_NUM_PREFIX(c)                                                      \
     if (pad0) {                                                                \
@@ -112,23 +148,54 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
             PUT((char)va_arg(args, int));
             break;
         case 'p':
+            if (pad_len == 0) {
+                pad0 = true;
+                pad_len = sizeof(void*) * 2;
+            }
+            length_spec = LENGTH_LONG;
+            // falls through
         case 'x':
-            if (alternative_form || ch == 'p') {
+            if (alternative_form) {
                 PUT_NUM_PREFIX('0');
                 PUT_NUM_PREFIX('x');
             }
+            radix = 16;
             // falls through
         case 'd':
         case 'i':
         case 'u': {
-            int value = va_arg(args, int);
-            unsigned uvalue = value;
-            if ((ch == 'd' || ch == 'i') && value < 0) {
-                PUT_NUM_PREFIX('-');
-                uvalue = -value;
+            bool is_signed = ch == 'd' || ch == 'i';
+            uintmax_t value;
+            // NOLINTBEGIN(bugprone-branch-clone) int vs. long on 32-bit arch
+            switch (length_spec) {
+            case LENGTH_DEFAULT:
+                if (is_signed)
+                    value = va_arg(args, int);
+                else
+                    value = va_arg(args, unsigned int);
+                break;
+            case LENGTH_LONG:
+                if (is_signed)
+                    value = va_arg(args, long);
+                else
+                    value = va_arg(args, unsigned long);
+                break;
+            case LENGTH_LONG_LONG:
+                if (is_signed)
+                    value = va_arg(args, long long);
+                else
+                    value = va_arg(args, unsigned long long);
+                break;
+            default:
+                __builtin_unreachable();
             }
-            unsigned radix = (ch == 'x' || ch == 'p') ? 16 : 10;
-            num_len += utoa(uvalue, num_buf + num_len, radix);
+            // NOLINTEND(bugprone-branch-clone)
+
+            if (is_signed && value > INTMAX_MAX) {
+                PUT_NUM_PREFIX('-');
+                value = -value;
+            }
+            num_len += utoa(value, num_buf + num_len, radix);
 
             if (!left_justify && pad_len > num_len) {
                 for (size_t i = 0; i < pad_len - num_len; ++i)
@@ -161,7 +228,8 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
             break;
         }
         default:
-            PUT('?');
+            PUT('%');
+            PUT(ch);
             break;
         }
     }

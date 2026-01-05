@@ -89,10 +89,10 @@ static void dump_stack_trace(uintptr_t eip, uintptr_t ebp) {
         }
         const struct symbol* symbol = in_userland ? NULL : ksyms_lookup(eip);
         if (symbol)
-            kprintf("  0x%08x %s+0x%x\n", eip, symbol->name,
+            kprintf("  0x%p %s+0x%x\n", (void*)eip, symbol->name,
                     eip - symbol->addr);
         else
-            kprintf("  0x%08x\n", eip);
+            kprintf("  0x%p\n", (void*)eip);
 
         if (safe_memcpy(&eip, (uintptr_t*)ebp + 1, sizeof(uintptr_t)))
             break;
@@ -118,7 +118,7 @@ noreturn void panic(const char* file, size_t line, const char* format, ...) {
     va_start(args, format);
     kvprintf(format, args);
     va_end(args);
-    kprintf(" at %s:%u\n", file, line);
+    kprintf(" at %s:%zu\n", file, line);
 
     uintptr_t eip = read_eip();
     uintptr_t ebp = (uintptr_t)__builtin_frame_address(0);

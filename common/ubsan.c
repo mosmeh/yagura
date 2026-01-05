@@ -103,7 +103,7 @@ void __ubsan_handle_type_mismatch_v1(const struct type_mismatch_data* data,
                                      const void* ptr) {
     unsigned alignment = 1U << data->log_alignment;
     bool aligned = ((uintptr_t)ptr & (alignment - 1)) == 0;
-    PANIC("ubsan: type mismatch: ptr=%p type=%s kind=%u alignment=%u (%s)\n",
+    PANIC("ubsan: type mismatch: ptr=0x%p type=%s kind=%u alignment=%u (%s)\n",
           ptr, data->type->name, data->type_check_kind, alignment,
           aligned ? "aligned" : "misaligned");
 }
@@ -133,5 +133,5 @@ struct pointer_overflow_data {
 void __ubsan_handle_pointer_overflow(const struct pointer_overflow_data* data,
                                      const void* base, const void* result) {
     (void)data;
-    PANIC("ubsan: pointer overflow: base=%p result=%p", base, result);
+    PANIC("ubsan: pointer overflow: base=0x%p result=0x%p", base, result);
 }

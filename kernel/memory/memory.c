@@ -19,7 +19,7 @@ bool memory_handle_page_fault(struct registers* regs, void* virt_addr) {
     if (safe_string_handle_page_fault(regs))
         return true;
 
-    kprintf("Page fault (%s%s%s%s) at %p\n",
+    kprintf("Page fault (%s%s%s%s) at 0x%p\n",
             error_code & X86_PF_PROT ? "page-protection " : "non-present ",
             error_code & X86_PF_WRITE ? "write " : "read ",
             error_code & X86_PF_USER ? "user-mode " : "kernel-mode ",

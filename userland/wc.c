@@ -43,7 +43,7 @@ static int process_file(const char* name, const char* filename) {
         }
     }
 
-    printf("%7u %7u %7u %s\n", lines, words, bytes, name);
+    printf("%7zu %7zu %7zu %s\n", lines, words, bytes, name);
 
     if (fd != STDIN_FILENO)
         close(fd);

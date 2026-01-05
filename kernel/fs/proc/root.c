@@ -34,7 +34,7 @@ static int print_cpuinfo(struct file* file, struct vec* vec) {
     for (size_t i = 0; i < num_cpus; ++i) {
         struct cpu* cpu = cpus[i];
         int ret = vec_printf(vec,
-                             "processor       : %u\n"
+                             "processor       : %zu\n"
                              "vendor_id       : %s\n"
                              "cpu family      : %u\n"
                              "model           : %u\n"
@@ -92,8 +92,8 @@ static int print_kallsyms(struct file* file, struct vec* vec) {
     (void)file;
     const struct symbol* symbol = NULL;
     while ((symbol = ksyms_next(symbol))) {
-        int rc = vec_printf(vec, "%08x %c %s\n", symbol->addr, symbol->type,
-                            symbol->name);
+        int rc = vec_printf(vec, "%p %c %s\n", (void*)symbol->addr,
+                            symbol->type, symbol->name);
         if (IS_ERR(rc))
             return rc;
     }
@@ -106,8 +106,8 @@ static int print_meminfo(struct file* file, struct vec* vec) {
     memory_get_stats(&stats);
 
     return vec_printf(vec,
-                      "MemTotal: %8u kB\n"
-                      "MemFree:  %8u kB\n",
+                      "MemTotal: %8zu kB\n"
+                      "MemFree:  %8zu kB\n",
                       stats.total_kibibytes, stats.free_kibibytes);
 }
 

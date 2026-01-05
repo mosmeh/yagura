@@ -109,10 +109,11 @@ static int print_maps(struct file* file, struct vec* vec) {
     SCOPED_LOCK(vm, vm);
     for (struct vm_region* region = vm_first_region(vm); region;
          region = vm_next_region(region)) {
-        int ret = vec_printf(vec, "%08x-%08x %c%c%c\n", region->start,
-                             region->end, region->flags & VM_READ ? 'r' : '-',
-                             region->flags & VM_WRITE ? 'w' : '-',
-                             region->flags & VM_SHARED ? 's' : 'p');
+        int ret = vec_printf(
+            vec, "%08zx-%08zx %c%c%c\n", region->start << PAGE_SHIFT,
+            region->end << PAGE_SHIFT, region->flags & VM_READ ? 'r' : '-',
+            region->flags & VM_WRITE ? 'w' : '-',
+            region->flags & VM_SHARED ? 's' : 'p');
         if (IS_ERR(ret))
             return ret;
     }

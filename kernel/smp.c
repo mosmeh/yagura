@@ -86,7 +86,7 @@ void smp_init(void) {
     size_t init_npages = DIV_CEIL((uintptr_t)init_end, PAGE_SIZE);
     ASSERT_OK(page_table_map(0, 0, init_npages, PTE_WRITE));
 
-    kprintf("smp: starting %u APs\n", num_cpus - 1);
+    kprintf("smp: starting %zu APs\n", num_cpus - 1);
 
     // INIT IPI
     lapic_write_icr(0, LAPIC_ICRLO_INIT | LAPIC_ICRLO_ASSERT |
