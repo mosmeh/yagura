@@ -26,10 +26,10 @@ static struct syscall syscalls[] = {
 };
 
 NODISCARD static long do_syscall(struct registers* regs, unsigned* out_flags) {
-    if (regs->eax >= ARRAY_SIZE(syscalls))
+    if (regs->rax >= ARRAY_SIZE(syscalls))
         return -ENOSYS;
 
-    struct syscall* syscall = syscalls + regs->eax;
+    struct syscall* syscall = syscalls + regs->rax;
     if (!syscall->handler)
         return -ENOSYS;
 
@@ -39,9 +39,9 @@ NODISCARD static long do_syscall(struct registers* regs, unsigned* out_flags) {
     if (syscall->handler == (uintptr_t)sys_ni_syscall) {
         if (cmdline_contains("ni_syscall_log"))
             kprintf("syscall: unimplemented syscall %s"
-                    "(%#x, %#x, %#x, %#x, %#x, %#x)\n",
-                    syscall->name, regs->ebx, regs->ecx, regs->edx, regs->esi,
-                    regs->edi, regs->ebp);
+                    "(%#lx, %#lx, %#lx, %#lx, %#lx, %#lx)\n",
+                    syscall->name, regs->rbx, regs->rcx, regs->rdx, regs->rsi,
+                    regs->rdi, regs->rbp);
     }
 
     typedef long (*regs_fn)(struct registers*, long, long, long, long, long,
@@ -49,12 +49,12 @@ NODISCARD static long do_syscall(struct registers* regs, unsigned* out_flags) {
     typedef long (*no_regs_fn)(long, long, long, long, long, long);
 
     if (syscall->flags & SYSCALL_RAW_REGISTERS)
-        return ((regs_fn)syscall->handler)(regs, regs->ebx, regs->ecx,
-                                           regs->edx, regs->esi, regs->edi,
-                                           regs->ebp);
+        return ((regs_fn)syscall->handler)(regs, regs->rbx, regs->rcx,
+                                           regs->rdx, regs->rsi, regs->rdi,
+                                           regs->rbp);
 
-    return ((no_regs_fn)syscall->handler)(regs->ebx, regs->ecx, regs->edx,
-                                          regs->esi, regs->edi, regs->ebp);
+    return ((no_regs_fn)syscall->handler)(regs->rbx, regs->rcx, regs->rdx,
+                                          regs->rsi, regs->rdi, regs->rbp);
 }
 
 static void syscall_handler(struct registers* regs) {
@@ -70,7 +70,7 @@ static void syscall_handler(struct registers* regs) {
     ASSERT_OK(signum);
 
     if (flags & SYSCALL_NO_ERROR) {
-        regs->eax = ret;
+        regs->rax = ret;
     } else {
         switch (ret) {
         case -ERESTARTSYS:
@@ -78,11 +78,11 @@ static void syscall_handler(struct registers* regs) {
                 // If the syscall was interrupted by a signal with a sigaction
                 // that has SA_RESTART set, re-execute int instruction to
                 // restart the syscall.
-                regs->eip -= 2;
+                regs->rip -= 2;
             } else {
                 // Otherwise, tell the userland that the syscall was
                 // interrupted.
-                regs->eax = -EINTR;
+                regs->rax = -EINTR;
             }
             break;
         default:
@@ -90,7 +90,7 @@ static void syscall_handler(struct registers* regs) {
                 // Ensure we don't return kernel internal errors to userland
                 ASSERT(ret >= -EMAXERRNO);
             }
-            regs->eax = ret;
+            regs->rax = ret;
             break;
         }
     }

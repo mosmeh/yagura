@@ -19,19 +19,28 @@
 #define TRAP_GATE32 0xf
 
 struct idt_gate {
-    uint16_t base_lo : 16;
-    uint16_t segment_selector : 16;
-    uint8_t reserved1 : 8;
-    uint8_t gate_type : 4;
-    bool reserved2 : 1;
-    uint8_t dpl : 2;
-    bool present : 1;
-    uint16_t base_hi : 16;
-} __attribute__((packed));
+    uint16_t offset_1; // offset bits 0..15
+    uint16_t selector; // a code segment selector in GDT or LDT
+
+    struct {
+        uint8_t interrupt_stack_table : 3;
+        uint8_t zero : 5; // unused, set to 0
+    };
+
+    struct {
+        uint8_t gate_type : 4;
+        uint8_t storage_segment : 1;
+        uint8_t dpl : 2;
+        uint8_t present : 1;
+    } type_attr;       // type and attributes
+    uint16_t offset_2; // offset bits 16..31
+    uint32_t offset_3;
+    uint32_t zeros;
+};
 
 struct idtr {
     uint16_t limit;
-    uint32_t base;
+    uintptr_t base;
 } __attribute__((packed));
 
 #define NUM_IDT_ENTRIES 256
@@ -68,25 +77,25 @@ void isr_handler(struct registers* regs) {
     }
 }
 
-static void set_gate(uint8_t index, uint32_t base, uint16_t segment_selector,
+static void set_gate(uint8_t index, uintptr_t base, uint16_t segment_selector,
                      uint8_t gate_type, uint8_t dpl) {
-    struct idt_gate* entry = idt + index;
-    *entry = (struct idt_gate){
-        .base_lo = base & 0xffff,
-        .base_hi = (base >> 16) & 0xffff,
-
-        .segment_selector = segment_selector,
-        .gate_type = gate_type & 0xf,
-        .dpl = dpl & 3,
-        .present = true,
+    idt[index] = (struct idt_gate){
+        .offset_1 = base & 0xffff,
+        .selector = segment_selector,
+        .interrupt_stack_table = 0,
+        .type_attr.gate_type = gate_type,
+        .type_attr.storage_segment = 0,
+        .type_attr.dpl = dpl & 0x3,
+        .type_attr.present = 1,
+        .offset_2 = (base >> 16) & 0xffff,
+        .offset_3 = (base >> 32) & 0xffffffff,
     };
 }
 
 void idt_set_gate_user_callable(uint8_t index) {
     struct idt_gate* entry = idt + index;
-
-    entry->gate_type = TRAP_GATE32;
-    entry->dpl = 3;
+    entry->type_attr.gate_type = TRAP_GATE32;
+    entry->type_attr.dpl = 3;
 }
 
 void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
@@ -103,14 +112,14 @@ static noreturn void crash(const struct registers* regs, int signum) {
 #define DEFINE_ISR_WITHOUT_ERROR_CODE(num)                                     \
     void isr##num(void);                                                       \
     __asm__("isr" #num ":\n"                                                   \
-            "pushl $0\n"                                                       \
-            "pushl $" #num "\n"                                                \
+            "pushq $0\n"                                                       \
+            "pushq $" #num "\n"                                                \
             "jmp isr_entry");
 
 #define DEFINE_ISR_WITH_ERROR_CODE(num)                                        \
     void isr##num(void);                                                       \
     __asm__("isr" #num ":\n"                                                   \
-            "pushl $" #num "\n"                                                \
+            "pushq $" #num "\n"                                                \
             "jmp isr_entry");
 
 #define DEFINE_EXCEPTION(num, msg)                                             \

@@ -1,4 +1,10 @@
-CFLAGS += -isystem..
+CFLAGS += \
+	-mno-red-zone -mcmodel=kernel -fno-pic \
+	-mno-80387 \
+	-mno-mmx \
+	-mno-sse \
+	-mno-sse2 \
+	-isystem..
 
 LINKER_SCRIPT := linker.ld
 LDFLAGS += -Wl,-T$(LINKER_SCRIPT)
@@ -113,6 +119,10 @@ STAGES := \
 	$(TARGET).stage1 \
 	$(TARGET).stage2
 
+$(TARGET).stage0.ksyms.o: ksyms.S
+	@echo "[AS] $<"
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
 # stage1 is built with an empty symbol table
 $(TARGET).stage1: $(TARGET).stage0.ksyms.o $(OBJS) $(LINKER_SCRIPT)
 	@echo "[LD] $@"
@@ -124,13 +134,13 @@ $(TARGET).stage2: $(TARGET).stage1.ksyms.o $(OBJS) $(LINKER_SCRIPT)
 	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
 
 # stage3 will have correct addresses
-$(TARGET): $(TARGET).stage2.ksyms.o $(OBJS) $(LINKER_SCRIPT)
+$(TARGET).stage3: $(TARGET).stage2.ksyms.o $(OBJS) $(LINKER_SCRIPT)
 	@echo "[LD] $@"
 	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
 
-$(TARGET).stage0.ksyms.o: ksyms.S
-	@echo "[AS] $<"
-	@$(CC) $(CFLAGS) -c -o $@ $<
+$(TARGET): $(TARGET).stage3
+	@echo "[OBJCOPY] $@"
+	@objcopy -O elf32-i386 $< $@
 
 %.ksyms.o: ksyms.S %.ksyms
 	@echo "[AS] $<"

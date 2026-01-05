@@ -5,7 +5,7 @@ GIT_HASH := $(shell git describe --always --dirty --exclude '*' 2> /dev/null)
 
 export CFLAGS := \
 	-std=c11 \
-	-m32 \
+	-m64 \
 	-static \
 	-nostdlib -ffreestanding \
 	-fno-omit-frame-pointer \

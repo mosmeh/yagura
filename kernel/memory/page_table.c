@@ -6,129 +6,141 @@
 #include <kernel/panic.h>
 #include <kernel/task/task.h>
 
-#define PTE_FLAGS_MASK 0xfff
+#define PTE_FLAGS_MASK ((1UL << PAGE_SHIFT) - 1)
 
-struct page_directory {
-    alignas(PAGE_SIZE) uint32_t entries[1024];
-};
+#define PAGE_TABLE_LEVELS 4
+#define BITS_PER_LEVEL 9
+#define TO_CANONICAL(addr) ((uintptr_t)((intptr_t)((addr) << 16) >> 16))
 
-struct page_table {
-    alignas(PAGE_SIZE) uint32_t entries[1024];
-};
+#define LEVEL_MASK ((1UL << BITS_PER_LEVEL) - 1)
+#define LEVEL_SHIFT(level) (PAGE_SHIFT + BITS_PER_LEVEL * (level))
+#define LEVEL_SIZE(level) (1UL << LEVEL_SHIFT(level))
+#define LEVEL_INDEX(vaddr, level) (((vaddr) >> LEVEL_SHIFT(level)) & LEVEL_MASK)
 
-static struct page_directory* current_page_directory(void) {
-    struct vm* vm = current->vm;
-    ASSERT(vm);
-    struct page_directory* pd = vm->page_directory;
-    ASSERT(pd);
-    return pd;
+// Level Table
+// 0     PT
+// 1     PD
+// 2     PDPT
+// 3     PML4
+
+static volatile void* get_page_table(uintptr_t vaddr, int level) {
+    ASSERT(0 <= level && level < PAGE_TABLE_LEVELS);
+
+    // Start address of the recursive mapping
+    uintptr_t addr = TO_CANONICAL(RECURSIVE_MAPPING_INDEX *
+                                  LEVEL_SIZE(PAGE_TABLE_LEVELS - 1));
+
+    // Skip PAGE_TABLE_LEVELS below the target level
+    for (int l = 1; l <= level; ++l)
+        addr += RECURSIVE_MAPPING_INDEX * LEVEL_SIZE(PAGE_TABLE_LEVELS - 1 - l);
+
+    // Add offsets for PAGE_TABLE_LEVELS above the target level
+    for (int l = PAGE_TABLE_LEVELS - 1; l > level; --l)
+        addr += LEVEL_INDEX(vaddr, l) * LEVEL_SIZE(l - level - 1);
+
+    return (volatile void*)addr;
 }
 
-static volatile struct page_table* get_page_table_from_index(size_t index) {
-    ASSERT(index < 1024);
-    return (volatile struct page_table*)(0xffc00000 + PAGE_SIZE * index);
+static volatile uint64_t* get_pte(uintptr_t virt_addr) {
+    for (int level = PAGE_TABLE_LEVELS - 1;; --level) {
+        volatile uint64_t* table = get_page_table(virt_addr, level);
+        volatile uint64_t* entry = table + LEVEL_INDEX(virt_addr, level);
+        if (level == 0)
+            return entry;
+        if (!(*entry & PTE_PRESENT))
+            return NULL;
+    }
 }
 
-static volatile struct page_table*
-get_or_create_page_table(uintptr_t virt_addr) {
-    size_t pd_idx = virt_addr >> 22;
-
-    uint32_t* pde = current_page_directory()->entries + pd_idx;
-    bool created = false;
-    if (!(*pde & PTE_PRESENT)) {
+static volatile uint64_t* ensure_pte(uintptr_t virt_addr) {
+    for (int level = PAGE_TABLE_LEVELS - 1;; --level) {
+        volatile uint64_t* table = get_page_table(virt_addr, level);
+        volatile uint64_t* entry = table + LEVEL_INDEX(virt_addr, level);
+        if (level == 0)
+            return entry;
+        if (*entry & PTE_PRESENT)
+            continue;
         ssize_t pfn = page_alloc_raw();
         if (IS_ERR(pfn))
             return ERR_PTR(pfn);
-        *pde = (pfn << PAGE_SHIFT) | PTE_WRITE | PTE_USER | PTE_PRESENT;
-        created = true;
+        *entry = (pfn << PAGE_SHIFT) | PTE_PRESENT | PTE_WRITE | PTE_USER;
+        table = get_page_table(virt_addr, level - 1);
+        flush_tlb_single((uintptr_t)table);
+        memset((void*)table, 0, PAGE_SIZE);
     }
+}
 
-    volatile struct page_table* pt = get_page_table_from_index(pd_idx);
-    if (created)
-        memset((void*)pt, 0, sizeof(struct page_table));
-
+static struct page_table* current_page_table(void) {
+    struct vm* vm = current->vm;
+    ASSERT(vm);
+    struct page_table* pt = vm->page_table;
+    ASSERT(pt);
     return pt;
-}
-
-static volatile uint32_t* get_pte(uintptr_t virt_addr) {
-    size_t pd_idx = virt_addr >> 22;
-    uint32_t pde = current_page_directory()->entries[pd_idx];
-    if (!(pde & PTE_PRESENT))
-        return NULL;
-
-    volatile struct page_table* pt = get_page_table_from_index(pd_idx);
-    return pt->entries + ((virt_addr >> PAGE_SHIFT) & 0x3ff);
-}
-
-static volatile uint32_t* get_or_create_pte(uintptr_t virt_addr) {
-    volatile struct page_table* pt = get_or_create_page_table(virt_addr);
-    if (IS_ERR(ASSERT(pt)))
-        return ERR_CAST(pt);
-    return pt->entries + ((virt_addr >> PAGE_SHIFT) & 0x3ff);
 }
 
 uintptr_t virt_to_phys(void* virt_addr) {
     uintptr_t addr = (uintptr_t)virt_addr;
-    const volatile uint32_t* pte = get_pte(addr);
+    const volatile uint64_t* pte = get_pte(addr);
     ASSERT(pte);
     ASSERT(*pte & PTE_PRESENT);
     return (*pte & ~PTE_FLAGS_MASK) | (addr & PTE_FLAGS_MASK);
 }
 
-struct page_directory* page_directory_create(void) {
+struct page_table* page_table_create(void) {
     // Populate page directory entries for kernel space so that
     // all page directories share the same kernel space
-    for (uintptr_t virt_addr = KERNEL_VIRT_ADDR; virt_addr < KERNEL_VM_END;
-         virt_addr += 1024 << PAGE_SHIFT) {
-        volatile struct page_table* pt = get_or_create_page_table(virt_addr);
-        if (IS_ERR(ASSERT(pt)))
-            return ERR_CAST(pt);
+    size_t count = (KERNEL_VIRT_END - KERNEL_VIRT_START) /
+                   LEVEL_SIZE(PAGE_TABLE_LEVELS - 1);
+    for (size_t i = 0; i < count; ++i) {
+        uintptr_t virt_addr =
+            KERNEL_VIRT_START + i * LEVEL_SIZE(PAGE_TABLE_LEVELS - 1);
+        volatile uint64_t* pte = ensure_pte(virt_addr);
+        if (IS_ERR(ASSERT(pte)))
+            return ERR_CAST(pte);
     }
 
-    struct page_directory* dst = kaligned_alloc(alignof(struct page_directory),
-                                                sizeof(struct page_directory));
+    uint64_t* dst = kaligned_alloc(PAGE_SIZE, PAGE_SIZE);
     if (!dst)
         return ERR_PTR(-ENOMEM);
 
     // userland
-    memset(dst->entries, 0, KERNEL_PDE_IDX * sizeof(uint32_t));
+    memset(dst, 0, 256 * sizeof(uint64_t));
 
     // kernel
-    memcpy(dst->entries + KERNEL_PDE_IDX,
-           kernel_page_directory->entries + KERNEL_PDE_IDX,
-           (1023 - KERNEL_PDE_IDX) * sizeof(uint32_t));
+    memcpy(dst + 256, (uint64_t*)kernel_page_table + 256,
+           256 * sizeof(uint64_t));
 
     // recursive
-    dst->entries[1023] = virt_to_phys(dst) | PTE_WRITE | PTE_PRESENT;
+    dst[RECURSIVE_MAPPING_INDEX] = virt_to_phys(dst) | PTE_WRITE | PTE_PRESENT;
 
-    return dst;
+    return (struct page_table*)dst;
 }
 
-extern unsigned char kernel_page_directory_start[];
+extern unsigned char kernel_page_table_start[];
 
-struct page_directory* kernel_page_directory =
-    (struct page_directory*)((uintptr_t)kernel_page_directory_start +
-                             KERNEL_VIRT_ADDR);
+struct page_table* kernel_page_table =
+    (void*)((uintptr_t)kernel_page_table_start + KERNEL_IMAGE_ADDR);
 
-void page_directory_destroy(struct page_directory* pd) {
-    if (!pd)
+void page_table_destroy(struct page_table* pt) {
+    if (!pt)
         return;
 
-    ASSERT(pd != kernel_page_directory);
-    ASSERT(pd != current_page_directory());
+    ASSERT(pt != kernel_page_table);
+    ASSERT(pt != current_page_table());
 
-    for (size_t i = 0; i < KERNEL_PDE_IDX; ++i) {
+    /*for (size_t i = 0; i < KERNEL_PDE_IDX; ++i) {
         if (pd->entries[i] & PTE_PRESENT)
             page_free_raw(pd->entries[i] >> PAGE_SHIFT);
-    }
+    }*/
 
-    kfree(pd);
+    kfree(pt);
 }
 
-void page_directory_switch(struct page_directory* to) {
+void page_table_switch(struct page_table* to) {
     uintptr_t phys_addr = virt_to_phys(to);
     write_cr3(phys_addr);
-    ASSERT(phys_addr == virt_to_phys((void*)0xfffff000));
+    ASSERT(phys_addr ==
+           virt_to_phys((void*)get_page_table(0, PAGE_TABLE_LEVELS - 1)));
 }
 
 static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
@@ -185,10 +197,10 @@ static void flush_tlb_range(uintptr_t virt_addr, size_t size) {
     }
 }
 
-NODISCARD static int map(uintptr_t virt_addr, size_t pfn, uint16_t flags) {
+NODISCARD static int map(uintptr_t virt_addr, size_t pfn, uint64_t flags) {
     ASSERT(virt_addr % PAGE_SIZE == 0);
     ASSERT(!(flags & ~PTE_FLAGS_MASK));
-    volatile uint32_t* pte = get_or_create_pte(virt_addr);
+    volatile uint64_t* pte = ensure_pte(virt_addr);
     if (IS_ERR(ASSERT(pte)))
         return PTR_ERR(pte);
     *pte = (pfn << PAGE_SHIFT) | flags | PTE_PRESENT;
@@ -196,7 +208,7 @@ NODISCARD static int map(uintptr_t virt_addr, size_t pfn, uint16_t flags) {
 }
 
 int page_table_map(uintptr_t virt_addr, size_t pfn, size_t npages,
-                   uint16_t flags) {
+                   uint64_t flags) {
     ASSERT(virt_addr % PAGE_SIZE == 0);
     for (size_t i = 0; i < npages; ++i) {
         int rc = map(virt_addr + (i << PAGE_SHIFT), pfn + i, flags);
@@ -207,7 +219,7 @@ int page_table_map(uintptr_t virt_addr, size_t pfn, size_t npages,
     return 0;
 }
 
-int page_table_map_local(uintptr_t virt_addr, size_t pfn, uint16_t flags) {
+int page_table_map_local(uintptr_t virt_addr, size_t pfn, uint64_t flags) {
     int rc = map(virt_addr, pfn, flags);
     if (IS_ERR(rc))
         return rc;
@@ -217,7 +229,7 @@ int page_table_map_local(uintptr_t virt_addr, size_t pfn, uint16_t flags) {
 
 static void unmap(uintptr_t virt_addr) {
     ASSERT(virt_addr % PAGE_SIZE == 0);
-    volatile uint32_t* pte = get_pte(virt_addr);
+    volatile uint64_t* pte = get_pte(virt_addr);
     if (pte)
         *pte = 0;
 }
@@ -259,7 +271,7 @@ void* kmap(uintptr_t phys_addr) {
     kmap->phys_addrs[index] = phys_addr;
 
     uintptr_t kaddr = kmap_addr(index);
-    volatile uint32_t* pte = get_or_create_pte(kaddr);
+    volatile uint64_t* pte = ensure_pte(kaddr);
     ASSERT(pte);
     *pte = phys_addr | PTE_WRITE | PTE_PRESENT;
     flush_tlb_single(kaddr);
@@ -285,7 +297,7 @@ void kunmap(void* addr) {
     kmap->phys_addrs[index] = 0;
     --kmap->num_mapped;
 
-    volatile uint32_t* pte = get_pte((uintptr_t)addr);
+    volatile uint64_t* pte = get_pte((uintptr_t)addr);
     ASSERT(pte);
     ASSERT(*pte & PTE_PRESENT);
     *pte = 0;

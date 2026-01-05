@@ -42,18 +42,18 @@ NOINLINE ssize_t safe_strnlen(const char* str, size_t n) {
 
     ssize_t count = 0;
     __asm__ volatile("1:\n"
-                     "test %%edx, %%edx\n"
+                     "test %%rdx, %%rdx\n"
                      "je 2f\n"
-                     "dec %%edx\n"
+                     "dec %%rdx\n"
                      ".globl safe_strnlen_read\n"
                      "safe_strnlen_read:\n"
-                     "cmpb $0, (%%ebx, %%ecx)\n"
+                     "cmpb $0, (%%rbx, %%rcx)\n"
                      "je 2f\n"
-                     "inc %%ecx\n"
+                     "inc %%rcx\n"
                      "jmp 1b\n"
                      ".globl safe_strnlen_on_fault\n"
                      "safe_strnlen_on_fault:\n"
-                     "mov $-1, %%ecx\n"
+                     "mov $-1, %%rcx\n"
                      "2:"
                      : "=c"(count)
                      : "b"(str), "c"(count), "d"(n));
@@ -73,19 +73,19 @@ NOINLINE ssize_t safe_strncpy(char* dest, const char* src, size_t n) {
     __asm__ volatile("1:\n"
                      ".globl safe_strncpy_read\n"
                      "safe_strncpy_read:\n"
-                     "mov (%%esi, %%ecx), %%bl\n"
+                     "mov (%%rsi, %%rcx), %%bl\n"
                      "test %%bl, %%bl\n"
                      "je 2f\n"
                      ".globl safe_strncpy_write\n"
                      "safe_strncpy_write:\n"
-                     "mov %%bl, (%%edi, %%ecx)\n"
-                     "inc %%ecx\n"
-                     "cmp %%ecx, %%eax\n"
+                     "mov %%bl, (%%rdi, %%rcx)\n"
+                     "inc %%rcx\n"
+                     "cmp %%rcx, %%rax\n"
                      "jne 1b\n"
                      "jmp 2f\n"
                      ".globl safe_strncpy_on_fault\n"
                      "safe_strncpy_on_fault:\n"
-                     "mov $-1, %%ecx\n"
+                     "mov $-1, %%rcx\n"
                      "2:"
                      : "=c"(num_copied)
                      : "D"(dest), "S"(src), "a"(n), "c"(0)
@@ -161,21 +161,21 @@ bool safe_string_handle_page_fault(struct registers* regs) {
         // safe_string functions should have been called from kernel mode
         return false;
     }
-    if (regs->eip == (uintptr_t)safe_memcpy_copy) {
-        regs->eip = (uintptr_t)safe_memcpy_on_fault;
+    if (regs->rip == (uintptr_t)safe_memcpy_copy) {
+        regs->rip = (uintptr_t)safe_memcpy_on_fault;
         return true;
     }
-    if (regs->eip == (uintptr_t)safe_memset_write) {
-        regs->eip = (uintptr_t)safe_memset_on_fault;
+    if (regs->rip == (uintptr_t)safe_memset_write) {
+        regs->rip = (uintptr_t)safe_memset_on_fault;
         return true;
     }
-    if (regs->eip == (uintptr_t)safe_strnlen_read) {
-        regs->eip = (uintptr_t)safe_strnlen_on_fault;
+    if (regs->rip == (uintptr_t)safe_strnlen_read) {
+        regs->rip = (uintptr_t)safe_strnlen_on_fault;
         return true;
     }
-    if (regs->eip == (uintptr_t)safe_strncpy_read ||
-        regs->eip == (uintptr_t)safe_strncpy_write) {
-        regs->eip = (uintptr_t)safe_strncpy_on_fault;
+    if (regs->rip == (uintptr_t)safe_strncpy_read ||
+        regs->rip == (uintptr_t)safe_strncpy_write) {
+        regs->rip = (uintptr_t)safe_strncpy_on_fault;
         return true;
     }
     return false;

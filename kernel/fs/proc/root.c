@@ -92,8 +92,8 @@ static int print_kallsyms(struct file* file, struct vec* vec) {
     (void)file;
     const struct symbol* symbol = NULL;
     while ((symbol = ksyms_next(symbol))) {
-        int rc = vec_printf(vec, "%08zx %c %s\n", symbol->addr, symbol->type,
-                            symbol->name);
+        int rc = vec_printf(vec, "%p %c %s\n", (void*)symbol->addr,
+                            symbol->type, symbol->name);
         if (IS_ERR(rc))
             return rc;
     }

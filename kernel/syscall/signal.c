@@ -151,29 +151,34 @@ long sys_sigpending(sigset_t* user_set) {
 
 long sys_sigreturn(struct registers* regs) {
     struct sigcontext ctx;
-    if (copy_from_user(&ctx, (void*)regs->esp, sizeof(struct sigcontext)))
+    if (copy_from_user(&ctx, (void*)regs->rsp, sizeof(struct sigcontext)))
         task_crash(SIGSEGV);
 
     regs->ss = ctx.regs.ss | 3;
     regs->cs = ctx.regs.cs | 3;
-    regs->ds = ctx.regs.ds;
-    regs->es = ctx.regs.es;
-    regs->fs = ctx.regs.fs;
-    regs->gs = ctx.regs.gs;
 
-    regs->ebx = ctx.regs.ebx;
-    regs->ecx = ctx.regs.ecx;
-    regs->edx = ctx.regs.edx;
-    regs->esi = ctx.regs.esi;
-    regs->edi = ctx.regs.edi;
-    regs->ebp = ctx.regs.ebp;
-    regs->esp = ctx.regs.esp;
-    regs->eip = ctx.regs.eip;
+    regs->rax = ctx.regs.rax;
+    regs->rbx = ctx.regs.rbx;
+    regs->rcx = ctx.regs.rcx;
+    regs->rdx = ctx.regs.rdx;
+    regs->rsi = ctx.regs.rsi;
+    regs->rdi = ctx.regs.rdi;
+    regs->rbp = ctx.regs.rbp;
+    regs->r8 = ctx.regs.r8;
+    regs->r9 = ctx.regs.r9;
+    regs->r10 = ctx.regs.r10;
+    regs->r11 = ctx.regs.r11;
+    regs->r12 = ctx.regs.r12;
+    regs->r13 = ctx.regs.r13;
+    regs->r14 = ctx.regs.r14;
+    regs->r15 = ctx.regs.r15;
+    regs->rsp = ctx.regs.rsp;
+    regs->rip = ctx.regs.rip;
 
-    regs->eflags =
-        (regs->eflags & ~FIX_EFLAGS) | (ctx.regs.eflags & FIX_EFLAGS);
+    regs->rflags =
+        (regs->rflags & ~FIX_EFLAGS) | (ctx.regs.rflags & FIX_EFLAGS);
 
     task_set_blocked_signals(current, ctx.blocked_signals);
 
-    return ctx.regs.eax;
+    return ctx.regs.rax;
 }

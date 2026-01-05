@@ -44,7 +44,7 @@ else
     fi
 fi
 
-QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
+QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-x86_64${QEMU_BINARY_SUFFIX}"
 "${QEMU_BIN}" \
     -kernel "${KERNEL}" \
     -initrd "${INITRD}" \

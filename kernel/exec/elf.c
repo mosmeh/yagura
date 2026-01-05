@@ -11,13 +11,13 @@
 
 #define INVALID_ADDR ((void*)(-1))
 
-NODISCARD static int validate_ehdr(const Elf32_Ehdr* ehdr) {
-    if (!IS_ELF(*ehdr) || ehdr->e_ident[EI_CLASS] != ELFCLASS32 ||
+NODISCARD static int validate_ehdr(const Elf64_Ehdr* ehdr) {
+    if (!IS_ELF(*ehdr) || ehdr->e_ident[EI_CLASS] != ELFCLASS64 ||
         ehdr->e_ident[EI_DATA] != ELFDATA2LSB ||
         ehdr->e_ident[EI_VERSION] != EV_CURRENT ||
-        ehdr->e_ident[EI_ABIVERSION] != 0 || ehdr->e_machine != EM_386 ||
+        ehdr->e_ident[EI_ABIVERSION] != 0 || ehdr->e_machine != EM_X86_64 ||
         ehdr->e_version != EV_CURRENT ||
-        ehdr->e_phentsize != sizeof(Elf32_Phdr))
+        ehdr->e_phentsize != sizeof(Elf64_Phdr))
         return -ENOEXEC;
 
     switch (ehdr->e_ident[EI_OSABI]) {
@@ -40,8 +40,8 @@ NODISCARD static int validate_ehdr(const Elf32_Ehdr* ehdr) {
 }
 
 NODISCARD static const char* find_interp(const struct exec_image* image) {
-    const Elf32_Ehdr* ehdr = (const void*)image->data;
-    const Elf32_Phdr* phdr = (const void*)(image->data + ehdr->e_phoff);
+    const Elf64_Ehdr* ehdr = (const void*)image->data;
+    const Elf64_Phdr* phdr = (const void*)(image->data + ehdr->e_phoff);
     for (size_t i = 0; i < ehdr->e_phnum; ++i, ++phdr) {
         if (phdr->p_type != PT_INTERP)
             continue;
@@ -58,8 +58,8 @@ NODISCARD static const char* find_interp(const struct exec_image* image) {
 NODISCARD
 static int load_segments(struct vm* vm, const struct exec_image* image,
                          bool fixed, size_t* inout_base, void** out_phdr_addr) {
-    const Elf32_Ehdr* ehdr = (const void*)image->data;
-    const Elf32_Phdr* phdr = (const void*)(image->data + ehdr->e_phoff);
+    const Elf64_Ehdr* ehdr = (const void*)image->data;
+    const Elf64_Phdr* phdr = (const void*)(image->data + ehdr->e_phoff);
 
     unsigned char* base_addr = INVALID_ADDR;
     unsigned char* phdr_addr = INVALID_ADDR;
@@ -171,7 +171,7 @@ static int load_segments(struct vm* vm, const struct exec_image* image,
 
 NODISCARD static ssize_t load_interp(struct loader* loader,
                                      const struct exec_image* image) {
-    const Elf32_Ehdr* ehdr = (const void*)image->data;
+    const Elf64_Ehdr* ehdr = (const void*)image->data;
     int rc = validate_ehdr(ehdr);
     if (IS_ERR(rc))
         return rc;
@@ -186,7 +186,7 @@ NODISCARD static ssize_t load_interp(struct loader* loader,
 }
 
 NODISCARD
-static int populate_stack(struct loader* loader, const Elf32_Ehdr* ehdr,
+static int populate_stack(struct loader* loader, const Elf64_Ehdr* ehdr,
                           void* phdr_addr, size_t interp_base,
                           void* entry_point) {
     loader->stack_ptr = (void*)ROUND_DOWN((uintptr_t)loader->stack_ptr, 16);
@@ -205,13 +205,13 @@ static int populate_stack(struct loader* loader, const Elf32_Ehdr* ehdr,
     }
     loader->stack_ptr = random;
 
-    Elf32_auxv_t auxv[] = {
-        {AT_PHDR, {(uint32_t)phdr_addr}},
+    Elf64_auxv_t auxv[] = {
+        {AT_PHDR, {(uint64_t)phdr_addr}},
         {AT_PHENT, {ehdr->e_phentsize}},
         {AT_PHNUM, {ehdr->e_phnum}},
         {AT_PAGESZ, {PAGE_SIZE}},
         {AT_BASE, {interp_base}},
-        {AT_ENTRY, {(uint32_t)entry_point}},
+        {AT_ENTRY, {(uint64_t)entry_point}},
         {AT_UID, {0}},
         {AT_EUID, {0}},
         {AT_GID, {0}},
@@ -219,8 +219,8 @@ static int populate_stack(struct loader* loader, const Elf32_Ehdr* ehdr,
         {AT_HWCAP, {cpu_get_bsp()->features[0]}},
         {AT_CLKTCK, {CLK_TCK}},
         {AT_SECURE, {0}},
-        {AT_RANDOM, {(uint32_t)random}},
-        {AT_EXECFN, {(uint32_t)loader->execfn}},
+        {AT_RANDOM, {(uint64_t)random}},
+        {AT_EXECFN, {(uint64_t)loader->execfn}},
         {AT_NULL, {0}},
     };
     loader->stack_ptr -= sizeof(auxv);
@@ -275,7 +275,7 @@ static int populate_stack(struct loader* loader, const Elf32_Ehdr* ehdr,
 }
 
 int elf_load(struct loader* loader) {
-    const Elf32_Ehdr* ehdr = (const void*)loader->image.data;
+    const Elf64_Ehdr* ehdr = (const void*)loader->image.data;
     int rc = validate_ehdr(ehdr);
     if (IS_ERR(rc))
         return rc;

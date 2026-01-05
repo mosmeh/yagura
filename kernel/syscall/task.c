@@ -85,13 +85,13 @@ static int get_tls_entry(struct user_desc* inout_u_info) {
         return -EINVAL;
 
     const struct gdt_segment* s = current->tls + (index - GDT_ENTRY_TLS_MIN);
-    u->base_addr = s->base_lo | (s->base_mid << 16) | (s->base_hi << 24);
+    u->base_addr = s->base_lo | (s->base_hi << 16) | (s->base_hi2 << 24);
     u->limit = s->limit_lo | (s->limit_hi << 16);
-    u->seg_32bit = s->db;
+    u->seg_32bit = s->operation_size32;
     u->contents = s->type >> 2;
     u->read_exec_only = !(s->type & 2);
-    u->limit_in_pages = s->g;
-    u->seg_not_present = !s->p;
+    u->limit_in_pages = s->granularity;
+    u->seg_not_present = !s->segment_present;
     u->useable = s->avl;
     return 0;
 }
@@ -133,21 +133,39 @@ static int set_tls_entry(struct task* task, const struct user_desc* u) {
     }
 
     s->base_lo = u->base_addr & 0xffff;
-    s->base_mid = (u->base_addr >> 16) & 0xff;
-    s->base_hi = (u->base_addr >> 24) & 0xff;
+    s->base_hi = (u->base_addr >> 16) & 0xff;
+    s->base_hi2 = (u->base_addr >> 24) & 0xff;
     s->limit_lo = u->limit & 0xffff;
     s->limit_hi = (u->limit >> 16) & 0xf;
 
     s->type = (!u->read_exec_only << 1) | (u->contents << 2) | 1;
-    s->s = 1;
+    s->descriptor_type = 1;
     s->dpl = 3;
-    s->p = !u->seg_not_present;
+    s->segment_present = !u->seg_not_present;
     s->avl = u->useable;
-    s->l = 0;
-    s->db = u->seg_32bit;
-    s->g = u->limit_in_pages;
+    s->operation_size64 = 0;
+    s->operation_size32 = u->seg_32bit;
+    s->granularity = u->limit_in_pages;
 
     return 0;
+}
+
+NODISCARD
+static int set_tls(struct task* task, void* user_tls) {
+#ifdef __x86_64__
+    task->fsbase = (uintptr_t)user_tls;
+    return 0;
+#endif
+#ifdef __i386__
+    struct user_desc u_info;
+    if (copy_from_user(&u_info, user_tls, sizeof(struct user_desc)))
+        return -EFAULT;
+    if (!is_user_desc_valid(&u_info))
+        return -EINVAL;
+    int rc = set_tls_entry(task, &u_info);
+    if (IS_ERR(rc))
+        return rc;
+#endif
 }
 
 long sys_fork(struct registers* regs) {
@@ -169,9 +187,9 @@ long sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
     (void)user_child_tid;
 
     struct registers child_regs = *regs;
-    child_regs.eax = 0; // returns 0 in the child
+    child_regs.rax = 0; // returns 0 in the child
     if (user_stack)
-        child_regs.esp = (uintptr_t)user_stack;
+        child_regs.rsp = (uintptr_t)user_stack;
 
     struct task* task FREE(task) = task_clone(current, &child_regs, flags);
     if (IS_ERR(ASSERT(task)))
@@ -183,12 +201,7 @@ long sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
         task->thread_group->tgid = tid;
 
     if (flags & CLONE_SETTLS) {
-        struct user_desc u_info;
-        if (copy_from_user(&u_info, user_tls, sizeof(struct user_desc)))
-            return -EFAULT;
-        if (!is_user_desc_valid(&u_info))
-            return -EINVAL;
-        int rc = set_tls_entry(task, &u_info);
+        int rc = set_tls(task, user_tls);
         if (IS_ERR(rc))
             return rc;
     }
@@ -224,15 +237,15 @@ long sys_get_thread_area(struct user_desc* user_u_info) {
 static int find_free_tls_entry(void) {
     for (size_t i = 0; i < ARRAY_SIZE(current->tls); ++i) {
         const struct gdt_segment* s = current->tls + i;
-        if (s->base_lo || s->base_mid || s->base_hi || s->limit_lo ||
-            s->limit_hi || s->access || s->flags)
+        if (s->low || s->high)
             continue;
         return i + GDT_ENTRY_TLS_MIN;
     }
     return -ESRCH;
 }
 
-long sys_set_thread_area(struct user_desc* user_u_info) {
+long sys_set_thread_area(struct registers* regs,
+                         struct user_desc* user_u_info) {
     struct user_desc u_info;
     if (copy_from_user(&u_info, user_u_info, sizeof(struct user_desc)))
         return -EFAULT;
@@ -258,6 +271,11 @@ long sys_set_thread_area(struct user_desc* user_u_info) {
 
         memcpy(cpu_get_current()->gdt + GDT_ENTRY_TLS_MIN, current->tls,
                sizeof(current->tls));
+
+        if (regs->fs == (uint64_t)index * 8 + 3) {
+            current->fsbase = u_info.base_addr;
+            wrmsr(MSR_FS_BASE, current->fsbase);
+        }
     }
 
     if (should_alloc) {

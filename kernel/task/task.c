@@ -51,12 +51,10 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
     struct registers regs = {
         .cs = KERNEL_CS,
         .ss = KERNEL_DS,
-        .gs = KERNEL_DS,
         .fs = KERNEL_DS,
-        .es = KERNEL_DS,
-        .ds = KERNEL_DS,
-        .eip = (uintptr_t)entry_point,
-        .eflags = X86_EFLAGS_IF | X86_EFLAGS_FIXED,
+        .gs = KERNEL_DS,
+        .rip = (uintptr_t)entry_point,
+        .rflags = X86_EFLAGS_IF | X86_EFLAGS_FIXED,
     };
 
     struct task* task FREE(task) = task_clone(NULL, &regs, 0);
@@ -92,8 +90,8 @@ struct task* task_clone(const struct task* task,
 
     struct task* new_task = (void*)(stack + task_struct_offset);
     *new_task = (struct task){
-        .eip = (uintptr_t)do_iret,
-        .esp = (uintptr_t)stack_top,
+        .ip = (uintptr_t)do_iret,
+        .sp = (uintptr_t)stack_top,
         .fpu_state = initial_fpu_state,
         .state = TASK_RUNNING,
         .kernel_stack_base = (uintptr_t)stack,
@@ -104,6 +102,8 @@ struct task* task_clone(const struct task* task,
     if (task) {
         strlcpy(new_task->comm, task->comm, sizeof(new_task->comm));
 
+        new_task->fsbase = task->fsbase;
+        new_task->gsbase = task->gsbase;
         new_task->fpu_state = task->fpu_state;
 
         new_task->arg_start = task->arg_start;
@@ -123,12 +123,12 @@ struct task* task_clone(const struct task* task,
         if (!new_regs->cs || !new_regs->ss)
             return ERR_PTR(-EINVAL);
 
-        new_task->esp -= sizeof(struct registers);
-        struct registers* regs = (struct registers*)new_task->esp;
+        new_task->sp -= sizeof(struct registers);
+        struct registers* regs = (struct registers*)new_task->sp;
         *regs = *new_regs;
-        if (!new_regs->esp && (new_regs->ss & 3) == 0) {
+        if (!new_regs->rsp && (new_regs->ss & 3) == 0) {
             // Provide a kernel stack if not given.
-            regs->esp = (uintptr_t)stack_top;
+            regs->rsp = (uintptr_t)stack_top;
         }
     }
 

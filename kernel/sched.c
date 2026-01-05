@@ -194,10 +194,12 @@ noreturn static void switch_context(void) {
     ASSERT(task->state == TASK_RUNNING);
     cpu->current_task = task;
 
-    page_directory_switch(task->vm->page_directory);
+    page_table_switch(task->vm->page_table);
 
     gdt_set_cpu_kernel_stack(task->kernel_stack_top);
     memcpy(cpu->gdt + GDT_ENTRY_TLS_MIN, task->tls, sizeof(task->tls));
+    wrmsr(MSR_FS_BASE, task->fsbase);
+    wrmsr(MSR_GS_BASE, task->gsbase);
 
     if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
         __asm__ volatile("fxrstor %0" ::"m"(task->fpu_state));
@@ -207,12 +209,11 @@ noreturn static void switch_context(void) {
     // Call __reschedule(prev_task) after switching to the stack of the next
     // task to prevent other CPUs from using the stack of prev_task while
     // we are still using it.
-    __asm__ volatile("movl 0x04(%%ebx), %%esp\n" // esp = task->esp
-                     "pushl %%eax\n"
+    __asm__ volatile("movq 0x08(%%rbx), %%rsp\n" // rsp = task->sp
+                     "movq %%rax, %%rdi\n"
                      "call __reschedule\n"
-                     "add $4, %%esp\n"
-                     "movl (%%ebx), %%eax\n" // eax = task->eip
-                     "jmp *%%eax"
+                     "movq (%%rbx), %%rax\n" // rax = task->ip
+                     "jmp *%%rax"
                      :
                      : "b"(task), "a"(prev_task));
     UNREACHABLE();
@@ -245,15 +246,16 @@ void sched_yield(void) {
     else
         __asm__ volatile("fnsave %0" : "=m"(task->fpu_state));
 
-    __asm__ volatile("pushl %%ebp\n"       // ebp cannot be in the clobber list
-                     "movl $1f, (%%eax)\n" // task->eip = $1f
-                     "movl %%esp, 0x04(%%eax)\n" // task->esp = esp
+    __asm__ volatile("pushq %%rbp\n"
+                     "movq $1f, (%%rax)\n"       // task->ip = $1f
+                     "movq %%rsp, 0x08(%%rax)\n" // task->sp = rsp
                      "jmp __switch_context\n"
                      "1:\n" // switch_context() will jump back here
-                     "popl %%ebp"
+                     "popq %%rbp"
                      :
                      : "a"(task)
-                     : "ebx", "ecx", "edx", "esi", "edi", "memory");
+                     : "rbx", "rcx", "rdx", "rsi", "rdi", "r8", "r9", "r10",
+                       "r11", "r12", "r13", "r14", "r15", "memory");
 }
 
 void sched_tick(struct registers* regs) {

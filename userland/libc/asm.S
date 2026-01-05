@@ -3,7 +3,7 @@
     .text
     .global _start
 _start:
-    pushl %esp
+    movq %rsp, %rdi // argc
     call __start // __start(&argc)
     ud2
 
@@ -12,22 +12,33 @@ _start:
     .hidden syscall
     .type syscall, @function
 syscall:
-    pushl %ebx
-    pushl %esi
-    pushl %edi
-    pushl %ebp
-    movl 20(%esp), %eax
-    movl 24(%esp), %ebx
-    movl 28(%esp), %ecx
-    movl 32(%esp), %edx
-    movl 36(%esp), %esi
-    movl 40(%esp), %edi
-    movl 44(%esp), %ebp
+    pushq %rbx
+    pushq %rsi
+    pushq %rdi
+    pushq %rbp
+    pushq %rdx
+    pushq %rcx
+    pushq %r8
+    pushq %r9
+    pushq %r11
+    movq %rdi, %rax
+    movq %rsi, %rbx
+    movq %rdx, %r11
+    movq %rcx, %rdx
+    movq %r11, %rcx
+    movq %r8, %rsi
+    movq %r9, %rdi
+    movq $0, %rbp
     int $SYSCALL_VECTOR
-    popl %ebp
-    popl %edi
-    popl %esi
-    popl %ebx
+    popq %r11
+    popq %r9
+    popq %r8
+    popq %rcx
+    popq %rdx
+    popq %rbp
+    popq %rdi
+    popq %rsi
+    popq %rbx
     ret
 
 // In case of CLONE_VM, the child shares the same memory space with the parent,
@@ -41,33 +52,33 @@ syscall:
     .hidden __clone
     .type __clone, @function
 __clone:
-    pushl %ebx
-    pushl %esi
-    pushl %edi
-    movl 20(%esp), %ecx   // ecx = new stack
-    andl $-16, %ecx       // align the stack to 16 bytes boundary
-    subl $8, %ecx         // reserve space for fn and arg
-    movl 28(%esp), %eax
-    movl %eax, 4(%ecx)    // push arg to the new stack
-    movl 16(%esp), %eax
-    movl %eax, (%ecx)     // push fn to the new stack
-    movl 24(%esp), %ebx   // ebx = flags
-    movl 32(%esp), %edx   // edx = parent_tid
-    movl 40(%esp), %esi   // esi = child_tid
-    movl 36(%esp), %edi   // edi = tls
-    movl $SYS_clone, %eax
+    pushq %rbx
+    pushq %rsi
+    pushq %rdi
+    movq 40(%rsp), %rcx   // rcx = new stack
+    andq $-16, %rcx       // align the stack to 16 bytes boundary
+    subq $16, %rcx         // reserve space for fn and arg
+    movq 56(%rsp), %rax
+    movq %rax, 8(%rcx)    // push arg to the new stack
+    movq 16(%rsp), %rax
+    movq %rax, (%rcx)     // push fn to the new stack
+    movq 48(%rsp), %rbx   // rbx = flags
+    movq 64(%rsp), %rdx   // rdx = parent_tid
+    movq 80(%rsp), %rsi   // rsi = child_tid
+    movq 72(%rsp), %rdi   // rdi = tls
+    movq $SYS_clone, %rax
     int $SYSCALL_VECTOR   // clone(flags, stack, parent_tid, child_tid, tls)
-    testl %eax, %eax
+    testq %rax, %rax
     jz child
-    popl %edi
-    popl %esi
-    popl %ebx
+    popq %rdi
+    popq %rsi
+    popq %rbx
     ret
 child:
-    popl %eax             // eax = fn
-    call *%eax            // fn(arg)
-    movl %eax, %ebx       // ebx = return value
-    movl $SYS_exit, %eax
+    popq %rax             // rax = fn
+    call *%rax            // fn(arg)
+    movq %rax, %rbx       // rbx = return value
+    movq $SYS_exit, %rax
     int $SYSCALL_VECTOR   // exit(fn(arg))
     ud2
 
@@ -80,13 +91,13 @@ child:
     .globl vfork
     .type vfork, @function
 vfork:
-    popl %edx // save return address
-    movl $SYS_vfork, %eax
+    popq %rdx // save return address
+    movq $SYS_vfork, %rax
     int $SYSCALL_VECTOR
-    pushl %edx
-    pushl %eax
+    pushq %rdx
+    pushq %rax
     call __syscall_return
-    popl %eax
+    popq %rax
     ret
 
 // void __sa_restorer(void);
@@ -94,7 +105,7 @@ vfork:
     .hidden __sa_restorer
     .type __sa_restorer, @object
 __sa_restorer:
-    popl %eax // pop signum
+    popq %rax // pop signum
     movl $SYS_sigreturn, %eax
     int $SYSCALL_VECTOR
     ud2

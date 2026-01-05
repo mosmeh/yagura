@@ -276,17 +276,17 @@ void signal_handle(struct registers* regs, int signum,
            (uintptr_t)signal_trampoline_end);
     memcpy(ctx.trampoline, signal_trampoline_start, sizeof(ctx.trampoline));
 
-    uintptr_t esp = ROUND_DOWN(regs->esp, 16);
+    uintptr_t sp = ROUND_DOWN(regs->rsp, 16);
 
     // Push the context of the interrupted task
-    esp -= sizeof(struct sigcontext);
-    struct sigcontext* user_ctx = (struct sigcontext*)esp;
+    sp -= sizeof(struct sigcontext);
+    struct sigcontext* user_ctx = (struct sigcontext*)sp;
     if (copy_to_user(user_ctx, &ctx, sizeof(struct sigcontext)))
         goto fail;
 
     // Push the argument of the signal handler
-    esp -= sizeof(long);
-    if (copy_to_user((void*)esp, &signum, sizeof(long)))
+    sp -= sizeof(long);
+    if (copy_to_user((void*)sp, &signum, sizeof(long)))
         goto fail;
 
     uintptr_t trampoline = (action->sa_flags & SA_RESTORER)
@@ -294,12 +294,12 @@ void signal_handle(struct registers* regs, int signum,
                                : (uintptr_t)user_ctx->trampoline;
 
     // Push the return address of the signal handler
-    esp -= sizeof(uintptr_t);
-    if (copy_to_user((void*)esp, &trampoline, sizeof(uintptr_t)))
+    sp -= sizeof(uintptr_t);
+    if (copy_to_user((void*)sp, &trampoline, sizeof(uintptr_t)))
         goto fail;
 
-    regs->esp = esp;
-    regs->eip = (uintptr_t)action->sa_handler;
+    regs->rsp = sp;
+    regs->rip = (uintptr_t)action->sa_handler;
 
     sigset_t new_blocked = current->blocked_signals | action->sa_mask;
     if (!(action->sa_flags & SA_NODEFER))

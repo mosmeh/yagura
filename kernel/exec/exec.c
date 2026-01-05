@@ -118,7 +118,7 @@ void exec_image_unload(struct exec_image* image) {
 }
 
 NODISCARD static int loader_init_vm(struct loader* loader) {
-    struct vm* vm FREE(vm) = vm_create(0, (void*)KERNEL_VIRT_ADDR);
+    struct vm* vm FREE(vm) = vm_create(0, (void*)USER_VIRT_END);
     if (IS_ERR(ASSERT(vm)))
         return PTR_ERR(vm);
 
@@ -127,7 +127,7 @@ NODISCARD static int loader_init_vm(struct loader* loader) {
     STATIC_ASSERT(STACK_SIZE % PAGE_SIZE == 0);
 
     size_t npages = 2 + (STACK_SIZE >> PAGE_SHIFT);
-    unsigned char* guard_start = (void*)(KERNEL_VIRT_ADDR - npages * PAGE_SIZE);
+    unsigned char* guard_start = (void*)(USER_VIRT_END - npages * PAGE_SIZE);
     struct vm_region* region = vm_alloc_at(vm, guard_start, npages);
     if (IS_ERR(ASSERT(region)))
         return PTR_ERR(region);
@@ -279,31 +279,36 @@ noreturn static void loader_commit(struct loader* loader) {
 
     memset(task->tls, 0, sizeof(task->tls));
 
-    __asm__ volatile(
-        "movw %[user_ds], %%ax\n"
-        "movw %%ax, %%ds\n"
-        "movw %%ax, %%es\n"
-        "movw %%ax, %%fs\n"
-        "movw %%ax, %%gs\n"
-        "movl %[sp], %%esp\n"
-        "pushl %[user_ds]\n"
-        "pushl %[sp]\n"
-        "pushl %[eflags]\n"
-        "pushl %[user_cs]\n"
-        "push %[entry_point]\n"
-        "movl $0, %%eax\n"
-        "movl $0, %%ebx\n"
-        "movl $0, %%ecx\n"
-        "movl $0, %%edx\n"
-        "movl $0, %%esi\n"
-        "movl $0, %%edi\n"
-        "movl $0, %%ebp\n"
-        "iret"
-        :
-        : [user_cs] "i"(USER_CS | 3), [user_ds] "i"(USER_DS | 3),
-          [eflags] "i"(X86_EFLAGS_IF | X86_EFLAGS_FIXED),
-          [sp] "r"(loader->stack_ptr), [entry_point] "r"(loader->entry_point)
-        : "eax");
+    __asm__ volatile("movw %[user_ds], %%ax\n"
+                     "movw %%ax, %%ds\n"
+                     "movw %%ax, %%es\n"
+                     "movw %%ax, %%fs\n"
+                     "movw %%ax, %%gs\n"
+                     "pushq %[user_ds]\n"
+                     "pushq %%rbx\n"
+                     "pushq %[eflags]\n"
+                     "pushq %[user_cs]\n"
+                     "pushq %%rcx\n"
+                     "movq $0, %%rax\n"
+                     "movq $0, %%rbx\n"
+                     "movq $0, %%rcx\n"
+                     "movq $0, %%rdx\n"
+                     "movq $0, %%rsi\n"
+                     "movq $0, %%rdi\n"
+                     "movq $0, %%rbp\n"
+                     "movq $0, %%r8\n"
+                     "movq $0, %%r9\n"
+                     "movq $0, %%r10\n"
+                     "movq $0, %%r11\n"
+                     "movq $0, %%r12\n"
+                     "movq $0, %%r13\n"
+                     "movq $0, %%r14\n"
+                     "movq $0, %%r15\n"
+                     "iretq"
+                     :
+                     : [user_cs] "i"(USER_CS | 3), [user_ds] "i"(USER_DS | 3),
+                       [eflags] "i"(X86_EFLAGS_IF | X86_EFLAGS_FIXED),
+                       "b"(loader->stack_ptr), "c"(loader->entry_point));
     UNREACHABLE();
 }
 

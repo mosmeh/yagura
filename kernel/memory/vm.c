@@ -16,7 +16,7 @@ void vm_init(void) {
     *kernel_vm = (struct vm){
         .start = start,
         .end = end,
-        .page_directory = kernel_page_directory,
+        .page_table = kernel_page_table,
         .refcount = REFCOUNT_INIT_ONE,
     };
     current->vm = kernel_vm;
@@ -30,15 +30,15 @@ struct vm* vm_create(void* start, void* end) {
     struct vm* vm = slab_alloc(&vm_slab);
     if (IS_ERR(ASSERT(vm)))
         return vm;
-    struct page_directory* page_directory = page_directory_create();
-    if (IS_ERR(ASSERT(page_directory))) {
+    struct page_table* page_table = page_table_create();
+    if (IS_ERR(ASSERT(page_table))) {
         slab_free(&vm_slab, vm);
-        return ERR_CAST(page_directory);
+        return ERR_CAST(page_table);
     }
     *vm = (struct vm){
         .start = DIV_CEIL((uintptr_t)start, PAGE_SIZE),
         .end = (uintptr_t)end >> PAGE_SHIFT,
-        .page_directory = page_directory,
+        .page_table = page_table,
         .refcount = REFCOUNT_INIT_ONE,
     };
     return vm;
@@ -58,19 +58,19 @@ void __vm_destroy(struct vm* vm) {
         vm_region_destroy(region);
     }
 
-    page_directory_destroy(vm->page_directory);
+    page_table_destroy(vm->page_table);
     slab_free(&vm_slab, vm);
 }
 
 struct vm* vm_enter(struct vm* vm) {
     if (vm == current->vm)
         return vm;
-    // current->vm needs to be updated BEFORE page_directory_switch().
+    // current->vm needs to be updated BEFORE page_table_switch().
     // Otherwise, when we are preempted between the two lines,
-    // current->vm->page_directory will get out of sync with the actual
+    // current->vm->page_table will get out of sync with the actual
     // active page directory.
     struct vm* prev_vm = atomic_exchange(&current->vm, vm);
-    page_directory_switch(vm->page_directory);
+    page_table_switch(vm->page_table);
     return prev_vm;
 }
 
@@ -90,10 +90,10 @@ struct vm* vm_clone(struct vm* vm) {
     SCOPED_LOCK(vm, new_vm);
     SCOPED_LOCK(vm, vm);
 
-    struct page_directory* page_directory = page_directory_create();
-    if (IS_ERR(ASSERT(page_directory)))
-        return ERR_CAST(page_directory);
-    new_vm->page_directory = page_directory;
+    struct page_table* page_table = page_table_create();
+    if (IS_ERR(ASSERT(page_table)))
+        return ERR_CAST(page_table);
+    new_vm->page_table = page_table;
 
     for (const struct vm_region* it = vm_first_region(vm); it;
          it = vm_next_region(it)) {

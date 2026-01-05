@@ -65,11 +65,11 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* attrp,
     pth->fn = start_routine;
     pth->arg = arg;
 
-    uint16_t gs;
-    __asm__ volatile("movw %%gs, %0" : "=r"(gs));
+    uint16_t fs;
+    __asm__ volatile("movw %%fs, %0" : "=r"(fs));
     struct user_desc tls_desc = {
-        .entry_number = gs / 8,
-        .base_addr = (unsigned)pth,
+        .entry_number = fs / 8,
+        .base_addr = (uintptr_t)pth,
         .limit = 0xfffff,
         .seg_32bit = 1,
         .limit_in_pages = 1,
@@ -138,7 +138,7 @@ exit:
 
 pthread_t pthread_self(void) {
     pthread_t pth;
-    __asm__ volatile("movl %%gs:0, %0" : "=r"(pth));
+    __asm__ volatile("mov %%fs:0, %0" : "=r"(pth));
     return pth;
 }
 

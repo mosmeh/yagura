@@ -4,21 +4,14 @@
 #include <kernel/cpu.h>
 #include <kernel/memory/memory.h>
 
-// In the current setup, kernel image (including 1MiB offset) has to fit in
-// a single page table (< 4MiB).
-#define KERNEL_IMAGE_END (KERNEL_VIRT_ADDR + (1024 << PAGE_SHIFT))
+#define KERNEL_VM_START 0xffff880000000000
+#define KERNEL_VM_END 0xffffff0000000000
 
-#define PAGES_START KERNEL_IMAGE_END
-#define PAGES_END                                                              \
-    (PAGES_START + ROUND_UP(MAX_NUM_PAGES * sizeof(struct page), PAGE_SIZE))
+#define PAGES_START 0xffffff8000000000
+#define PAGES_END 0xffffffffc0000000
 
-#define KMAP_START PAGES_END
-#define KMAP_END (KMAP_START + MAX_NUM_KMAPS_PER_CPU * MAX_NUM_CPUS * PAGE_SIZE)
-
-#define KERNEL_VM_START KMAP_END
-
-// Last 4MiB is for recursive mapping
-#define KERNEL_VM_END 0xffc00000
+#define KMAP_START 0xffffffffc0400000
+#define KMAP_END 0xffffffffc0800000
 
 struct vm;
 struct vm_region;
@@ -29,8 +22,8 @@ typedef struct multiboot_info multiboot_info_t;
 
 void page_init(const multiboot_info_t*);
 
-struct page_directory* page_directory_create(void);
-void page_directory_destroy(struct page_directory*);
+struct page_table* page_table_create(void);
+void page_table_destroy(struct page_table*);
 
 void vm_init(void);
 void vm_region_init(void);

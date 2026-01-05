@@ -57,7 +57,7 @@ static ssize_t bitmap_get_free(void) {
 }
 
 static void print_range(const char* type, uintptr_t start, uintptr_t end) {
-    kprintf("page: P0x%08zx - P0x%08zx (%4zu MiB) %s\n", start, end,
+    kprintf("page: P0x%016zx - P0x%016zx | %10zu MiB | %s\n", start, end,
             (end - start) / 0x100000, type);
 }
 
@@ -66,9 +66,9 @@ static void detect_memory(const multiboot_info_t* mb_info) {
     // Set the maximum possible value so that we can modify the entire bitmap.
     pfn_end = MAX_NUM_PAGES;
 
-    ASSERT(KERNEL_VIRT_ADDR < (uintptr_t)kernel_end &&
-           (uintptr_t)kernel_end <= KERNEL_IMAGE_END);
-    uintptr_t kernel_phys_end = (uintptr_t)kernel_end - KERNEL_VIRT_ADDR;
+    ASSERT(KERNEL_IMAGE_ADDR < (uintptr_t)kernel_end);
+    ASSERT((uintptr_t)kernel_end <= KERNEL_VIRT_END);
+    uintptr_t kernel_phys_end = (uintptr_t)kernel_end - KERNEL_IMAGE_ADDR;
     uintptr_t available_start = kernel_phys_end;
     uintptr_t available_end = available_start;
 
@@ -76,13 +76,13 @@ static void detect_memory(const multiboot_info_t* mb_info) {
         uint32_t num_entries =
             mb_info->mmap_length / sizeof(multiboot_memory_map_t);
         const multiboot_memory_map_t* entry =
-            (const void*)(mb_info->mmap_addr + KERNEL_VIRT_ADDR);
+            (const void*)(mb_info->mmap_addr + KERNEL_IMAGE_ADDR);
 
         for (uint32_t i = 0; i < num_entries; ++i, ++entry) {
             uint64_t entry_start = entry->addr;
             uint64_t entry_end = entry->addr + entry->len;
 
-            // This is a 32-bit system. Ignore entries beyond 4 GiB.
+            // TODO: support >4GiB memory
             if (entry_start > UINTPTR_MAX || entry_end > UINTPTR_MAX)
                 continue;
 
@@ -140,7 +140,7 @@ static void detect_memory(const multiboot_info_t* mb_info) {
 
     if (mb_info->flags & MULTIBOOT_INFO_MODS) {
         const multiboot_module_t* mod =
-            (const void*)(mb_info->mods_addr + KERNEL_VIRT_ADDR);
+            (const void*)(mb_info->mods_addr + KERNEL_IMAGE_ADDR);
         for (uint32_t i = 0; i < mb_info->mods_count; ++i) {
             print_range("module", mod->mod_start, mod->mod_end);
             for (size_t i = mod->mod_start >> PAGE_SHIFT;

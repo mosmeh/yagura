@@ -17,7 +17,7 @@ enum {
 };
 
 struct task {
-    uintptr_t eip, esp;
+    uintptr_t ip, sp, fsbase, gsbase;
     struct fpu_state fpu_state;
 
     pid_t tid;

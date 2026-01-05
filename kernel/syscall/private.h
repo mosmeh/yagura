@@ -265,7 +265,7 @@
     F(futex, sys_ni_syscall, 0)                                                \
     F(sched_setaffinity, sys_ni_syscall, 0)                                    \
     F(sched_getaffinity, sys_ni_syscall, 0)                                    \
-    F(set_thread_area, sys_set_thread_area, 0)                                 \
+    F(set_thread_area, sys_set_thread_area, SYSCALL_RAW_REGISTERS)             \
     F(get_thread_area, sys_get_thread_area, 0)                                 \
     F(io_setup, sys_ni_syscall, 0)                                             \
     F(io_destroy, sys_ni_syscall, 0)                                           \
@@ -596,7 +596,7 @@ long sys_getdents64(int fd, struct linux_dirent* dirp, size_t count);
 long sys_fcntl64(int fd, int cmd, unsigned long arg);
 long sys_gettid(void);
 long sys_tkill(pid_t tid, int sig);
-long sys_set_thread_area(struct user_desc* u_info);
+long sys_set_thread_area(struct registers*, struct user_desc* u_info);
 long sys_get_thread_area(struct user_desc* u_info);
 long sys_exit_group(int status);
 long sys_clock_settime32(clockid_t clockid, const struct timespec32* tp);

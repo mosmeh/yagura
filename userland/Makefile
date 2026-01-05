@@ -1,7 +1,9 @@
 CFLAGS += \
 	-isystemlibc \
 	-isystem.. \
-	-isystem../kernel/api
+	-isystem../kernel/api \
+	-mno-mmx \
+	-mno-sse2
 LDFLAGS += -L.
 
 BIN_TARGET_NAMES := \

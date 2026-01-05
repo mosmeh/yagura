@@ -3,8 +3,12 @@
 #define PAGE_SHIFT 12
 #define PAGE_SIZE (1UL << PAGE_SHIFT)
 
-#define KERNEL_VIRT_ADDR 0xc0000000
-#define KERNEL_PDE_IDX (KERNEL_VIRT_ADDR >> 22)
+#define USER_VIRT_END 0x800000000000
+#define KERNEL_VIRT_START 0xffff880000000000
+#define KERNEL_IMAGE_ADDR 0xffffffffc0000000
+#define KERNEL_VIRT_END 0xffffffffc0800000
+
+#define RECURSIVE_MAPPING_INDEX 510
 
 // Page is mapped
 #define PTE_PRESENT 0x1
@@ -41,25 +45,29 @@ struct vec;
 struct registers;
 typedef struct multiboot_info multiboot_info_t;
 
-extern struct page_directory* kernel_page_directory;
+extern struct page_table* kernel_page_table;
 
 static inline bool is_user_address(const void* addr) {
-    return addr && (uintptr_t)addr < KERNEL_VIRT_ADDR;
+    return addr && (uintptr_t)addr < USER_VIRT_END;
 }
 
 static inline bool is_user_range(const void* addr, size_t size) {
     if (!is_user_address(addr))
         return false;
     uintptr_t end = (uintptr_t)addr + size;
-    return (uintptr_t)addr <= end && end <= KERNEL_VIRT_ADDR;
+    return (uintptr_t)addr <= end && end <= USER_VIRT_END;
 }
 
 static inline bool is_kernel_address(const void* addr) {
-    return addr && (uintptr_t)addr >= KERNEL_VIRT_ADDR;
+    return addr && KERNEL_VIRT_START <= (uintptr_t)addr &&
+           (uintptr_t)addr < KERNEL_VIRT_END;
 }
 
 static inline bool is_kernel_range(const void* addr, size_t size) {
-    return is_kernel_address(addr) && (uintptr_t)addr <= (uintptr_t)addr + size;
+    if (!is_kernel_address(addr))
+        return false;
+    uintptr_t end = (uintptr_t)addr + size;
+    return (uintptr_t)addr <= end && end <= KERNEL_VIRT_END;
 }
 
 void memory_init(const multiboot_info_t*);
@@ -143,12 +151,12 @@ uintptr_t virt_to_phys(void*);
 
 // Maps the pages to the virtual address.
 NODISCARD int page_table_map(uintptr_t virt_addr, size_t pfn, size_t npages,
-                             uint16_t flags);
+                             uint64_t flags);
 
 // Maps the page to the virtual address. Only the TLB of the current CPU is
 // flushed.
 NODISCARD int page_table_map_local(uintptr_t virt_addr, size_t pfn,
-                                   uint16_t flags);
+                                   uint64_t flags);
 
 // Unmaps the pages at the virtual address.
 void page_table_unmap(uintptr_t virt_addr, size_t npages);
@@ -157,7 +165,7 @@ void page_table_unmap(uintptr_t virt_addr, size_t npages);
 // flushed.
 void page_table_unmap_local(uintptr_t virt_addr);
 
-void page_directory_switch(struct page_directory*);
+void page_table_switch(struct page_table*);
 
 #define MAX_NUM_KMAPS_PER_CPU 4
 

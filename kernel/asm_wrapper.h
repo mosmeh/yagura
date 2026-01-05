@@ -15,38 +15,38 @@ static inline uint32_t read_eflags(void) {
 
 static inline unsigned long read_cr0(void) {
     unsigned long cr0;
-    __asm__("mov %%cr0, %%eax" : "=a"(cr0));
+    __asm__("mov %%cr0, %%rax" : "=a"(cr0));
     return cr0;
 }
 
 static inline void write_cr0(unsigned long value) {
-    __asm__ volatile("mov %%eax, %%cr0" ::"a"(value));
+    __asm__ volatile("mov %%rax, %%cr0" ::"a"(value));
 }
 
 static inline unsigned long read_cr2(void) {
     unsigned long cr2;
-    __asm__("mov %%cr2, %%eax" : "=a"(cr2));
+    __asm__("mov %%cr2, %%rax" : "=a"(cr2));
     return cr2;
 }
 
 static inline unsigned long read_cr3(void) {
     unsigned long cr3;
-    __asm__ volatile("mov %%cr3, %%eax" : "=a"(cr3));
+    __asm__ volatile("mov %%cr3, %%rax" : "=a"(cr3));
     return cr3;
 }
 
 static inline void write_cr3(unsigned long cr3) {
-    __asm__ volatile("mov %%eax, %%cr3" ::"a"(cr3) : "memory");
+    __asm__ volatile("mov %%rax, %%cr3" ::"a"(cr3) : "memory");
 }
 
 static inline unsigned long read_cr4(void) {
     unsigned long cr4;
-    __asm__("mov %%cr4, %%eax" : "=a"(cr4));
+    __asm__("mov %%cr4, %%rax" : "=a"(cr4));
     return cr4;
 }
 
 static inline void write_cr4(unsigned long value) {
-    __asm__ volatile("mov %%eax, %%cr4" ::"a"(value));
+    __asm__ volatile("mov %%rax, %%cr4" ::"a"(value));
 }
 
 static inline void flush_tlb(void) { write_cr3(read_cr3()); }

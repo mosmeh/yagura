@@ -159,7 +159,7 @@ void* pci_map_bar(const struct pci_addr* pci_addr, uint8_t bar) {
         if (bar >= NUM_BARS - 1)
             return ERR_PTR(-EINVAL);
         if (pci_get_bar(pci_addr, bar + 1) != 0) {
-            // This is a 32-bit OS, so we don't support 64-bit base addresses.
+            // TODO: support 64-bit base address
             return ERR_PTR(-EINVAL);
         }
     }
