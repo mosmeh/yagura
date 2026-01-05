@@ -25,7 +25,7 @@ static int dump_file(int fd, bool canonical) {
         if (buf_len == 0)
             break;
 
-        printf("%08x", offset);
+        printf("%08zx", offset);
         offset += 0x10;
 
         if (canonical) {

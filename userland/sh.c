@@ -399,7 +399,7 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
                 dprintf(STDERR_FILENO, "\x1b[J"); // clear from cursor to end
 
             dprintf(STDERR_FILENO,
-                    "\x1b[%uG"   // set cursor position
+                    "\x1b[%zuG"  // set cursor position
                     "\x1b[?25h", // show cursor
                     cursor_x + 1);
             ed->dirty = false;

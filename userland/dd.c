@@ -126,9 +126,9 @@ int main(int argc, char* argv[]) {
     }
 
     dprintf(STDERR_FILENO,
-            "%u+%u records in\n"
-            "%u+%u records out\n"
-            "%u bytes copied\n",
+            "%zu+%zu records in\n"
+            "%zu+%zu records out\n"
+            "%zu bytes copied\n",
             partial_records_in, full_records_in, partial_records_out,
             full_records_out, copied_bytes);
 
