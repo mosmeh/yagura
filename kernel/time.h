@@ -12,7 +12,7 @@
 
 struct timespec;
 
-extern volatile atomic_uint uptime;
+extern volatile atomic_ulong uptime;
 
 void timespec_add(struct timespec*, const struct timespec*);
 void timespec_saturating_sub(struct timespec*, const struct timespec*);

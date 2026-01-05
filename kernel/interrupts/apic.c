@@ -91,7 +91,7 @@ void lapic_init_cpu(void) {
     uint32_t start_tccr;
     {
         SCOPED_ENABLE_INTERRUPTS();
-        uint32_t start_uptime = uptime;
+        unsigned long start_uptime = uptime;
         while (uptime <= start_uptime)
             pause();
         // uptime = start_uptime + 1

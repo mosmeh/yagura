@@ -62,8 +62,8 @@ static bool getdents_callback(const char* name, ino_t ino, unsigned char type,
     return true;
 }
 
-NODISCARD static ssize_t getdents(int fd, void* user_buf, size_t count,
-                                  fill_dir_fn fill_dir) {
+NODISCARD static long getdents(int fd, void* user_buf, size_t count,
+                               fill_dir_fn fill_dir) {
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
@@ -107,8 +107,7 @@ static ssize_t fill_dir_old(void* user_buf, size_t buf_size, const char* name,
     return rec_len;
 }
 
-ssize_t sys_old_readdir(int fd, struct linux_old_dirent* user_dirp,
-                        size_t count) {
+long sys_old_readdir(int fd, struct linux_old_dirent* user_dirp, size_t count) {
     return getdents(fd, user_dirp, count, fill_dir_old);
 }
 
@@ -139,7 +138,7 @@ static ssize_t fill_dir(void* user_buf, size_t buf_size, const char* name,
     return rec_len;
 }
 
-ssize_t sys_getdents(int fd, struct linux_dirent* user_dirp, size_t count) {
+long sys_getdents(int fd, struct linux_dirent* user_dirp, size_t count) {
     return getdents(fd, user_dirp, count, fill_dir);
 }
 
@@ -166,6 +165,6 @@ static ssize_t fill_dir64(void* user_buf, size_t buf_size, const char* name,
     return rec_len;
 }
 
-ssize_t sys_getdents64(int fd, struct linux_dirent* user_dirp, size_t count) {
+long sys_getdents64(int fd, struct linux_dirent* user_dirp, size_t count) {
     return getdents(fd, user_dirp, count, fill_dir64);
 }

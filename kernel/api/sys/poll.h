@@ -7,7 +7,7 @@
 #define POLLHUP (1 << 4)
 #define POLLNVAL (1 << 5)
 
-typedef unsigned nfds_t;
+typedef unsigned long nfds_t;
 
 struct pollfd {
     int fd;

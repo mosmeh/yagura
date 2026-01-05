@@ -1,7 +1,7 @@
 #pragma once
 
 #define PAGE_SHIFT 12
-#define PAGE_SIZE (1 << PAGE_SHIFT)
+#define PAGE_SIZE (1UL << PAGE_SHIFT)
 
 #define KERNEL_VIRT_ADDR 0xc0000000
 #define KERNEL_PDE_IDX (KERNEL_VIRT_ADDR >> 22)

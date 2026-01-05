@@ -25,7 +25,7 @@ static struct syscall syscalls[] = {
 #undef F
 };
 
-NODISCARD static int do_syscall(struct registers* regs, unsigned* out_flags) {
+NODISCARD static long do_syscall(struct registers* regs, unsigned* out_flags) {
     if (regs->eax >= ARRAY_SIZE(syscalls))
         return -ENOSYS;
 
@@ -44,8 +44,9 @@ NODISCARD static int do_syscall(struct registers* regs, unsigned* out_flags) {
                     regs->edi, regs->ebp);
     }
 
-    typedef int (*regs_fn)(struct registers*, int, int, int, int, int, int);
-    typedef int (*no_regs_fn)(int, int, int, int, int, int);
+    typedef long (*regs_fn)(struct registers*, long, long, long, long, long,
+                            long);
+    typedef long (*no_regs_fn)(long, long, long, long, long, long);
 
     if (syscall->flags & SYSCALL_RAW_REGISTERS)
         return ((regs_fn)syscall->handler)(regs, regs->ebx, regs->ecx,
@@ -62,7 +63,7 @@ static void syscall_handler(struct registers* regs) {
     ASSERT(interrupts_enabled());
 
     unsigned flags = 0;
-    int ret = do_syscall(regs, &flags);
+    long ret = do_syscall(regs, &flags);
 
     struct sigaction act;
     int signum = signal_pop(&act);

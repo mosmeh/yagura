@@ -3,7 +3,7 @@
 
 _Thread_local int errno;
 
-uintptr_t __syscall_return(uintptr_t rc) {
+unsigned long __syscall_return(unsigned long rc) {
     if (IS_ERR(rc)) {
         errno = -rc;
         return -1;

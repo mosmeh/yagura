@@ -37,7 +37,7 @@ int timespec_compare(const struct timespec* a, const struct timespec* b) {
     return 0;
 }
 
-volatile atomic_uint uptime;
+volatile atomic_ulong uptime;
 static struct timespec now;
 static struct spinlock now_lock;
 
@@ -62,7 +62,7 @@ int time_now(clockid_t clock_id, struct timespec* tp) {
         break;
     }
     case CLOCK_MONOTONIC: {
-        unsigned t = uptime;
+        unsigned long t = uptime;
         tp->tv_sec = t / CLK_TCK;
         tp->tv_nsec = ((uint64_t)t - (uint64_t)tp->tv_sec * CLK_TCK) *
                       NANOS_PER_SEC / CLK_TCK;

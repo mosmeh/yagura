@@ -36,7 +36,7 @@ void vm_init(void);
 void vm_region_init(void);
 void vm_obj_init(void);
 
-NODISCARD bool vm_handle_page_fault(void* virt_addr, uint32_t error_code);
+NODISCARD bool vm_handle_page_fault(void* virt_addr, unsigned long error_code);
 
 // Finds a gap in the address space that can fit a region of the given size.
 // Returns the start address (in pages) of the gap.

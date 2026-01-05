@@ -170,7 +170,7 @@ NODISCARD static int poll(struct pollfd* user_fds, nfds_t nfds,
     return ret;
 }
 
-int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
+long sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
     struct timespec ts_timeout;
     bool has_timeout = false;
     if (timeout >= 0) { // Negative timeout means infinite.
@@ -183,9 +183,9 @@ int sys_poll(struct pollfd* user_fds, nfds_t nfds, int timeout) {
     return poll(user_fds, nfds, has_timeout ? &ts_timeout : NULL);
 }
 
-int sys_ppoll(struct pollfd* user_fds, nfds_t nfds,
-              struct timespec* user_timeout, const sigset_t* user_sigmask,
-              size_t sigsetsize) {
+long sys_ppoll(struct pollfd* user_fds, nfds_t nfds,
+               struct timespec* user_timeout, const sigset_t* user_sigmask,
+               size_t sigsetsize) {
     if (sigsetsize != sizeof(sigset_t))
         return -EINVAL;
 
@@ -216,9 +216,9 @@ int sys_ppoll(struct pollfd* user_fds, nfds_t nfds,
     return ret;
 }
 
-int sys_ppoll_time32(struct pollfd* user_fds, nfds_t nfds,
-                     struct timespec32* user_timeout,
-                     const sigset_t* user_sigmask, size_t sigsetsize) {
+long sys_ppoll_time32(struct pollfd* user_fds, nfds_t nfds,
+                      struct timespec32* user_timeout,
+                      const sigset_t* user_sigmask, size_t sigsetsize) {
     if (sigsetsize != sizeof(sigset_t))
         return -EINVAL;
 
@@ -252,10 +252,10 @@ int sys_ppoll_time32(struct pollfd* user_fds, nfds_t nfds,
 #define NUM_FD_BITS (8 * sizeof(unsigned long))
 
 #define FD_CLR(fd, set)                                                        \
-    ((set)[(fd) / NUM_FD_BITS] &= ~(1U << ((fd) % NUM_FD_BITS)))
+    ((set)[(fd) / NUM_FD_BITS] &= ~(1UL << ((fd) % NUM_FD_BITS)))
 
 #define FD_ISSET(fd, set)                                                      \
-    ((set)[(fd) / NUM_FD_BITS] & (1U << ((fd) % NUM_FD_BITS)))
+    ((set)[(fd) / NUM_FD_BITS] & (1UL << ((fd) % NUM_FD_BITS)))
 
 #define READ_SET (POLLIN | POLLERR | POLLHUP | POLLNVAL)
 #define WRITE_SET (POLLOUT | POLLERR | POLLNVAL)
@@ -374,9 +374,9 @@ NODISCARD static int select(int nfds, unsigned long* user_readfds,
     return num_ready;
 }
 
-int sys_select(int nfds, unsigned long* user_readfds,
-               unsigned long* user_writefds, unsigned long* user_exceptfds,
-               struct linux_timeval* user_timeout) {
+long sys_select(int nfds, unsigned long* user_readfds,
+                unsigned long* user_writefds, unsigned long* user_exceptfds,
+                struct linux_timeval* user_timeout) {
     struct timespec ts_timeout;
     if (user_timeout) {
         struct linux_timeval tv_timeout;
@@ -403,9 +403,9 @@ int sys_select(int nfds, unsigned long* user_readfds,
     return ret;
 }
 
-int sys_pselect6(int nfds, unsigned long* user_readfds,
-                 unsigned long* user_writefds, unsigned long* user_exceptfds,
-                 struct timespec* user_timeout, const sigset_t* user_sigmask) {
+long sys_pselect6(int nfds, unsigned long* user_readfds,
+                  unsigned long* user_writefds, unsigned long* user_exceptfds,
+                  struct timespec* user_timeout, const sigset_t* user_sigmask) {
     struct timespec timeout;
     if (user_timeout) {
         if (copy_from_user(&timeout, user_timeout, sizeof(struct timespec)))
@@ -434,11 +434,11 @@ int sys_pselect6(int nfds, unsigned long* user_readfds,
     return ret;
 }
 
-int sys_pselect6_time32(int nfds, unsigned long* user_readfds,
-                        unsigned long* user_writefds,
-                        unsigned long* user_exceptfds,
-                        struct timespec32* user_timeout,
-                        const sigset_t* user_sigmask) {
+long sys_pselect6_time32(int nfds, unsigned long* user_readfds,
+                         unsigned long* user_writefds,
+                         unsigned long* user_exceptfds,
+                         struct timespec32* user_timeout,
+                         const sigset_t* user_sigmask) {
     struct timespec timeout;
     if (user_timeout) {
         if (copy_timespec_from_user32(&timeout, user_timeout))
@@ -473,7 +473,7 @@ struct sel_arg_struct {
     struct linux_timeval* tvp;
 };
 
-int sys_old_select(struct sel_arg_struct* user_arg) {
+long sys_old_select(struct sel_arg_struct* user_arg) {
     struct sel_arg_struct arg;
     if (copy_from_user(&arg, user_arg, sizeof(arg)))
         return -EFAULT;

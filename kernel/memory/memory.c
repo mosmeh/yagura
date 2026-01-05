@@ -11,7 +11,7 @@ void memory_init(const multiboot_info_t* mb_info) {
 }
 
 bool memory_handle_page_fault(struct registers* regs, void* virt_addr) {
-    uint32_t error_code = regs->error_code;
+    unsigned long error_code = regs->error_code;
     ASSERT(!(error_code & X86_PF_RSVD));
 
     if (vm_handle_page_fault(virt_addr, error_code))

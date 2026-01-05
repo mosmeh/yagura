@@ -71,7 +71,7 @@ static void dump_registers(const struct registers* regs) {
             "   ds=0x%04x es=0x%04x fs=0x%04x gs=0x%04x\n"
             "  eax=0x%08x ebx=0x%08x ecx=0x%08x edx=0x%08x\n"
             "  ebp=0x%08x esi=0x%08x edi=0x%08x\n"
-            "  cr0=0x%08x cr2=0x%08x cr3=0x%08x cr4=0x%08x\n",
+            "  cr0=0x%08lx cr2=0x%08lx cr3=0x%08lx cr4=0x%08lx\n",
             regs->interrupt_num, regs->error_code, regs->cs, regs->eip,
             regs->eflags, regs->ss, regs->esp, regs->ds, regs->es, regs->fs,
             regs->gs, regs->eax, regs->ebx, regs->ecx, regs->edx, regs->ebp,
@@ -131,7 +131,7 @@ noreturn void panic(const char* file, size_t line, const char* format, ...) {
         int n = atoi(mode);
         if (n > 0) {
             kprintf("Rebooting in %d seconds..\n", n);
-            delay(n * 1000000);
+            delay(n * 1000000UL);
         }
         if (n != 0)
             reboot();

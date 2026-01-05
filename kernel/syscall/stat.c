@@ -54,7 +54,7 @@ NODISCARD static int copy_stat_to_user_old(const struct kstat* stat,
     return 0;
 }
 
-int sys_stat(const char* user_pathname, struct linux_old_stat* user_buf) {
+long sys_stat(const char* user_pathname, struct linux_old_stat* user_buf) {
     struct kstat buf;
     int rc = stat(user_pathname, &buf);
     if (IS_ERR(rc))
@@ -62,7 +62,7 @@ int sys_stat(const char* user_pathname, struct linux_old_stat* user_buf) {
     return copy_stat_to_user_old(&buf, user_buf);
 }
 
-int sys_lstat(const char* user_pathname, struct linux_old_stat* user_buf) {
+long sys_lstat(const char* user_pathname, struct linux_old_stat* user_buf) {
     struct kstat buf;
     int rc = lstat(user_pathname, &buf);
     if (IS_ERR(rc))
@@ -70,7 +70,7 @@ int sys_lstat(const char* user_pathname, struct linux_old_stat* user_buf) {
     return copy_stat_to_user_old(&buf, user_buf);
 }
 
-int sys_fstat(int fd, struct linux_old_stat* user_buf) {
+long sys_fstat(int fd, struct linux_old_stat* user_buf) {
     struct kstat buf;
     int rc = fstat(fd, &buf);
     if (IS_ERR(rc))
@@ -107,7 +107,7 @@ NODISCARD static int copy_stat_to_user(const struct kstat* stat,
     return 0;
 }
 
-int sys_newstat(const char* user_pathname, struct linux_stat* user_buf) {
+long sys_newstat(const char* user_pathname, struct linux_stat* user_buf) {
     struct kstat buf;
     int rc = stat(user_pathname, &buf);
     if (IS_ERR(rc))
@@ -115,7 +115,7 @@ int sys_newstat(const char* user_pathname, struct linux_stat* user_buf) {
     return copy_stat_to_user(&buf, user_buf);
 }
 
-int sys_newlstat(const char* user_pathname, struct linux_stat* user_buf) {
+long sys_newlstat(const char* user_pathname, struct linux_stat* user_buf) {
     struct kstat buf;
     int rc = lstat(user_pathname, &buf);
     if (IS_ERR(rc))
@@ -123,7 +123,7 @@ int sys_newlstat(const char* user_pathname, struct linux_stat* user_buf) {
     return copy_stat_to_user(&buf, user_buf);
 }
 
-int sys_newfstat(int fd, struct linux_stat* user_buf) {
+long sys_newfstat(int fd, struct linux_stat* user_buf) {
     struct kstat buf;
     int rc = fstat(fd, &buf);
     if (IS_ERR(rc))
@@ -157,7 +157,7 @@ NODISCARD static int copy_stat_to_user64(const struct kstat* stat,
     return 0;
 }
 
-int sys_stat64(const char* user_pathname, struct linux_stat64* user_buf) {
+long sys_stat64(const char* user_pathname, struct linux_stat64* user_buf) {
     struct kstat buf;
     int rc = stat(user_pathname, &buf);
     if (IS_ERR(rc))
@@ -165,7 +165,7 @@ int sys_stat64(const char* user_pathname, struct linux_stat64* user_buf) {
     return copy_stat_to_user64(&buf, user_buf);
 }
 
-int sys_lstat64(const char* user_pathname, struct linux_stat64* user_buf) {
+long sys_lstat64(const char* user_pathname, struct linux_stat64* user_buf) {
     struct kstat buf;
     int rc = lstat(user_pathname, &buf);
     if (IS_ERR(rc))
@@ -173,7 +173,7 @@ int sys_lstat64(const char* user_pathname, struct linux_stat64* user_buf) {
     return copy_stat_to_user64(&buf, user_buf);
 }
 
-int sys_fstat64(int fd, struct linux_stat64* user_buf) {
+long sys_fstat64(int fd, struct linux_stat64* user_buf) {
     struct kstat buf;
     int rc = fstat(fd, &buf);
     if (IS_ERR(rc))
@@ -181,8 +181,8 @@ int sys_fstat64(int fd, struct linux_stat64* user_buf) {
     return copy_stat_to_user64(&buf, user_buf);
 }
 
-int sys_fstatat64(int dirfd, const char* user_pathname,
-                  struct linux_stat64* user_buf, int flags) {
+long sys_fstatat64(int dirfd, const char* user_pathname,
+                   struct linux_stat64* user_buf, int flags) {
     if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH))
         return -EINVAL;
 

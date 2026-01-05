@@ -37,7 +37,7 @@ void gdt_init_cpu(void) {
 
     *gdtr = (struct gdtr){
         .limit = sizeof(cpu->gdt) - 1,
-        .base = (uint32_t)gdt,
+        .base = (uintptr_t)gdt,
     };
 
     gdt_set_segment(gdt, 0, 0, 0, 0, 0);

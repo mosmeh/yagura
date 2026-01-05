@@ -125,7 +125,7 @@ static struct inode* alloc_inode(ino_t ino, struct proc_entry* entry) {
         inode->fops = &entry_fops;
         inode->mode = entry->mode;
     } else {
-        ASSERT(ino >= (1 << PROC_PID_INO_SHIFT));
+        ASSERT(ino >= (1UL << PROC_PID_INO_SHIFT));
         inode->iops = &pid_iops;
         inode->fops = &pid_fops;
         inode->mode = S_IFDIR;

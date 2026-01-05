@@ -8,7 +8,7 @@
 #include <kernel/sched.h>
 #include <kernel/time.h>
 
-time32_t sys_time32(time32_t* user_tloc) {
+long sys_time32(time32_t* user_tloc) {
     struct timespec now;
     int rc = time_now(CLOCK_REALTIME, &now);
     if (IS_ERR(rc))
@@ -21,7 +21,7 @@ time32_t sys_time32(time32_t* user_tloc) {
     return sec;
 }
 
-int sys_stime32(const time32_t* user_t) {
+long sys_stime32(const time32_t* user_t) {
     time32_t t;
     if (copy_from_user(&t, user_t, sizeof(time32_t)))
         return -EFAULT;
@@ -29,7 +29,7 @@ int sys_stime32(const time32_t* user_t) {
     return time_set(CLOCK_REALTIME, &tp);
 }
 
-int sys_gettimeofday(struct linux_timeval* user_tv, struct timezone* user_tz) {
+long sys_gettimeofday(struct linux_timeval* user_tv, struct timezone* user_tz) {
     (void)user_tz;
     struct timespec now;
     int rc = time_now(CLOCK_REALTIME, &now);
@@ -44,8 +44,8 @@ int sys_gettimeofday(struct linux_timeval* user_tv, struct timezone* user_tz) {
     return 0;
 }
 
-int sys_settimeofday(const struct linux_timeval* user_tv,
-                     const struct timezone* user_tz) {
+long sys_settimeofday(const struct linux_timeval* user_tv,
+                      const struct timezone* user_tz) {
     (void)user_tz;
     struct linux_timeval tv;
     if (copy_from_user(&tv, user_tv, sizeof(struct linux_timeval)))
@@ -57,7 +57,7 @@ int sys_settimeofday(const struct linux_timeval* user_tv,
     return time_set(CLOCK_REALTIME, &tp);
 }
 
-int sys_clock_gettime(clockid_t clockid, struct timespec* user_tp) {
+long sys_clock_gettime(clockid_t clockid, struct timespec* user_tp) {
     struct timespec tp;
     int rc = time_now(clockid, &tp);
     if (IS_ERR(rc))
@@ -67,14 +67,14 @@ int sys_clock_gettime(clockid_t clockid, struct timespec* user_tp) {
     return 0;
 }
 
-int sys_clock_settime(clockid_t clockid, const struct timespec* user_tp) {
+long sys_clock_settime(clockid_t clockid, const struct timespec* user_tp) {
     struct timespec tp;
     if (copy_from_user(&tp, user_tp, sizeof(struct timespec)))
         return -EFAULT;
     return time_set(clockid, &tp);
 }
 
-int sys_clock_getres(clockid_t clockid, struct timespec* user_res) {
+long sys_clock_getres(clockid_t clockid, struct timespec* user_res) {
     struct timespec res;
     int rc = time_get_resolution(clockid, &res);
     if (IS_ERR(rc))
@@ -84,7 +84,7 @@ int sys_clock_getres(clockid_t clockid, struct timespec* user_res) {
     return 0;
 }
 
-int sys_clock_gettime32(clockid_t clockid, struct timespec32* user_tp) {
+long sys_clock_gettime32(clockid_t clockid, struct timespec32* user_tp) {
     struct timespec tp;
     int rc = time_now(clockid, &tp);
     if (IS_ERR(rc))
@@ -98,7 +98,7 @@ int sys_clock_gettime32(clockid_t clockid, struct timespec32* user_tp) {
     return 0;
 }
 
-int sys_clock_settime32(clockid_t clockid, const struct timespec32* user_tp) {
+long sys_clock_settime32(clockid_t clockid, const struct timespec32* user_tp) {
     struct timespec32 tp32;
     if (copy_from_user(&tp32, user_tp, sizeof(struct timespec32)))
         return -EFAULT;
@@ -109,7 +109,7 @@ int sys_clock_settime32(clockid_t clockid, const struct timespec32* user_tp) {
     return time_set(clockid, &tp);
 }
 
-int sys_clock_getres_time32(clockid_t clockid, struct timespec32* user_res) {
+long sys_clock_getres_time32(clockid_t clockid, struct timespec32* user_res) {
     struct timespec res;
     int rc = time_get_resolution(clockid, &res);
     if (IS_ERR(rc))
@@ -135,9 +135,9 @@ static bool unblock_sleep(void* data) {
     return timespec_compare(&now, &blocker->deadline) >= 0;
 }
 
-static int clock_nanosleep(clockid_t clockid, int flags,
-                           const struct timespec* request,
-                           struct timespec* remain) {
+static long clock_nanosleep(clockid_t clockid, int flags,
+                            const struct timespec* request,
+                            struct timespec* remain) {
     struct timespec deadline = {0};
     // Call time_now regardless of the flags to validate the clockid
     int rc = time_now(clockid, &deadline);
@@ -173,14 +173,14 @@ static int clock_nanosleep(clockid_t clockid, int flags,
     return 0;
 }
 
-int sys_clock_nanosleep(clockid_t clockid, int flags,
-                        const struct timespec* user_request,
-                        struct timespec* user_remain) {
+long sys_clock_nanosleep(clockid_t clockid, int flags,
+                         const struct timespec* user_request,
+                         struct timespec* user_remain) {
     struct timespec request;
     if (copy_from_user(&request, user_request, sizeof(struct timespec)))
         return -EFAULT;
     struct timespec remain = {0};
-    int rc =
+    long rc =
         clock_nanosleep(clockid, flags, &request, user_remain ? &remain : NULL);
     if (IS_ERR(rc))
         return rc;
@@ -191,9 +191,9 @@ int sys_clock_nanosleep(clockid_t clockid, int flags,
     return 0;
 }
 
-int sys_clock_nanosleep_time32(clockid_t clockid, int flags,
-                               const struct timespec32* user_request,
-                               struct timespec32* user_remain) {
+long sys_clock_nanosleep_time32(clockid_t clockid, int flags,
+                                const struct timespec32* user_request,
+                                struct timespec32* user_remain) {
     struct timespec32 request32;
     if (copy_from_user(&request32, user_request, sizeof(struct timespec32)))
         return -EFAULT;
@@ -202,7 +202,7 @@ int sys_clock_nanosleep_time32(clockid_t clockid, int flags,
         .tv_nsec = request32.tv_nsec,
     };
     struct timespec remain = {0};
-    int rc =
+    long rc =
         clock_nanosleep(clockid, flags, &request, user_remain ? &remain : NULL);
     if (IS_ERR(rc))
         return rc;
@@ -217,8 +217,8 @@ int sys_clock_nanosleep_time32(clockid_t clockid, int flags,
     return 0;
 }
 
-int sys_nanosleep_time32(const struct timespec32* user_duration,
-                         struct timespec32* user_rem) {
+long sys_nanosleep_time32(const struct timespec32* user_duration,
+                          struct timespec32* user_rem) {
     return sys_clock_nanosleep_time32(CLOCK_MONOTONIC, 0, user_duration,
                                       user_rem);
 }

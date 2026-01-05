@@ -7,7 +7,7 @@ _start:
     call __start // __start(&argc)
     ud2
 
-// int syscall(int num, int, int, int, int, int, int);
+// long syscall(long num, long, long, long, long, long, long);
     .global syscall
     .hidden syscall
     .type syscall, @function
@@ -71,7 +71,8 @@ child:
     int $SYSCALL_VECTOR   // exit(fn(arg))
     ud2
 
-// int __syscall_return(int rc);
+// long __syscall_return(long rc);
+    .extern __syscall_return
     .hidden __syscall_return
     .type __syscall_return, @function
 
