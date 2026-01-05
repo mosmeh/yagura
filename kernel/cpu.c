@@ -9,11 +9,13 @@
 #include <kernel/system.h>
 
 static void set_feature(struct cpu* cpu, int feature) {
-    cpu->features[feature >> 5] |= 1U << (feature & 31);
+    cpu->features[feature / __LONG_WIDTH__] |=
+        1UL << (feature & (__LONG_WIDTH__ - 1));
 }
 
 bool cpu_has_feature(const struct cpu* cpu, int feature) {
-    return cpu->features[feature >> 5] & (1U << (feature & 31));
+    return cpu->features[feature / __LONG_WIDTH__] &
+           (1UL << (feature & (__LONG_WIDTH__ - 1)));
 }
 
 static void detect_features(struct cpu* cpu) {
@@ -263,7 +265,7 @@ static void init_cpu(struct cpu* cpu) {
     if (cpu_has_feature(cpu, X86_FEATURE_XMM)) {
         ASSERT(cpu_has_feature(cpu, X86_FEATURE_FXSR));
 
-        uint32_t cr0 = read_cr0();
+        unsigned long cr0 = read_cr0();
         cr0 &= ~X86_CR0_EM;
         cr0 |= X86_CR0_MP;
         write_cr0(cr0);
@@ -442,11 +444,11 @@ void cpu_process_messages(void) {
     SCOPED_DISABLE_INTERRUPTS();
     struct cpu* cpu = cpu_get_current();
     for (;;) {
-        int bit = __builtin_ffs(cpu->coalesced_msgs);
+        int bit = __builtin_ffsl(cpu->coalesced_msgs);
         if (bit == 0)
             break;
         unsigned type = 1U << (bit - 1);
-        cpu->coalesced_msgs &= ~type;
+        cpu->coalesced_msgs &= ~(unsigned long)type;
         message_handlers[type](NULL);
     }
     for (;;) {

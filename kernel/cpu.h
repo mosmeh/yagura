@@ -204,7 +204,7 @@ struct cpu {
     uint32_t family;
     uint32_t model;
     uint32_t stepping;
-    uint32_t features[NUM_X86_FEATURES / 32 + 1];
+    unsigned long features[NUM_X86_FEATURES / __LONG_WIDTH__ + 1];
     uint8_t apic_id;
     uint8_t phys_addr_bits;
     uint8_t virt_addr_bits;
@@ -223,7 +223,7 @@ struct cpu {
     struct task* idle_task;
 
     struct mpsc* queued_msgs;
-    atomic_uint coalesced_msgs;
+    atomic_ulong coalesced_msgs;
 };
 
 #define MAX_NUM_CPUS (UINT8_MAX + 1)

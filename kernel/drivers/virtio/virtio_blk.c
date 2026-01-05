@@ -79,14 +79,14 @@ static int submit_request(struct block_dev* block_dev, void* buffer,
     }
 }
 
-static ssize_t virtio_blk_read(struct block_dev* block_dev, void* buffer,
-                               uint64_t index, uint64_t nblocks) {
+static int virtio_blk_read(struct block_dev* block_dev, void* buffer,
+                           uint64_t index, uint64_t nblocks) {
     return submit_request(block_dev, buffer, index, nblocks, VIRTIO_BLK_T_IN,
                           true);
 }
 
-static ssize_t virtio_blk_write(struct block_dev* block_dev, const void* buffer,
-                                uint64_t index, uint64_t nblocks) {
+static int virtio_blk_write(struct block_dev* block_dev, const void* buffer,
+                            uint64_t index, uint64_t nblocks) {
     return submit_request(block_dev, (void*)buffer, index, nblocks,
                           VIRTIO_BLK_T_OUT, false);
 }

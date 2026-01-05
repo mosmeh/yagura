@@ -15,23 +15,23 @@
 // There is no support for users and groups in this kernel.
 // It behaves as if the user is always root.
 
-uid_t sys_getuid(void) { return sys_getuid16(); }
+long sys_getuid(void) { return sys_getuid16(); }
 
-linux_old_uid_t sys_getuid16(void) { return 0; }
+long sys_getuid16(void) { return 0; }
 
-uid_t sys_geteuid(void) { return sys_geteuid16(); }
+long sys_geteuid(void) { return sys_geteuid16(); }
 
-linux_old_uid_t sys_geteuid16(void) { return 0; }
+long sys_geteuid16(void) { return 0; }
 
-gid_t sys_getgid(void) { return sys_getgid16(); }
+long sys_getgid(void) { return sys_getgid16(); }
 
-linux_old_gid_t sys_getgid16(void) { return 0; }
+long sys_getgid16(void) { return 0; }
 
-gid_t sys_getegid(void) { return sys_getegid16(); }
+long sys_getegid(void) { return sys_getegid16(); }
 
-linux_old_gid_t sys_getegid16(void) { return 0; }
+long sys_getegid16(void) { return 0; }
 
-int sys_getresuid(uid_t* user_ruid, uid_t* user_euid, uid_t* user_suid) {
+long sys_getresuid(uid_t* user_ruid, uid_t* user_euid, uid_t* user_suid) {
     uid_t zero = 0;
     if (copy_to_user(user_ruid, &zero, sizeof(uid_t)))
         return -EFAULT;
@@ -42,8 +42,8 @@ int sys_getresuid(uid_t* user_ruid, uid_t* user_euid, uid_t* user_suid) {
     return 0;
 }
 
-int sys_getresuid16(linux_old_uid_t* user_ruid, linux_old_uid_t* user_euid,
-                    linux_old_uid_t* user_suid) {
+long sys_getresuid16(linux_old_uid_t* user_ruid, linux_old_uid_t* user_euid,
+                     linux_old_uid_t* user_suid) {
     linux_old_uid_t zero = 0;
     if (copy_to_user(user_ruid, &zero, sizeof(linux_old_uid_t)))
         return -EFAULT;
@@ -54,7 +54,7 @@ int sys_getresuid16(linux_old_uid_t* user_ruid, linux_old_uid_t* user_euid,
     return 0;
 }
 
-int sys_getresgid(gid_t* user_rgid, gid_t* user_egid, gid_t* user_sgid) {
+long sys_getresgid(gid_t* user_rgid, gid_t* user_egid, gid_t* user_sgid) {
     gid_t zero = 0;
     if (copy_to_user(user_rgid, &zero, sizeof(gid_t)))
         return -EFAULT;
@@ -65,8 +65,8 @@ int sys_getresgid(gid_t* user_rgid, gid_t* user_egid, gid_t* user_sgid) {
     return 0;
 }
 
-int sys_getresgid16(linux_old_gid_t* user_rgid, linux_old_gid_t* user_egid,
-                    linux_old_gid_t* user_sgid) {
+long sys_getresgid16(linux_old_gid_t* user_rgid, linux_old_gid_t* user_egid,
+                     linux_old_gid_t* user_sgid) {
     linux_old_gid_t zero = 0;
     if (copy_to_user(user_rgid, &zero, sizeof(linux_old_gid_t)))
         return -EFAULT;
@@ -78,7 +78,7 @@ int sys_getresgid16(linux_old_gid_t* user_rgid, linux_old_gid_t* user_egid,
 }
 
 // NOLINTNEXTLINE(readability-non-const-parameter)
-int sys_getgroups(int size, gid_t* user_list) {
+long sys_getgroups(int size, gid_t* user_list) {
     (void)user_list;
     if (size < 0)
         return -EINVAL;
@@ -86,14 +86,14 @@ int sys_getgroups(int size, gid_t* user_list) {
 }
 
 // NOLINTNEXTLINE(readability-non-const-parameter)
-int sys_getgroups16(int size, linux_old_gid_t* user_list) {
+long sys_getgroups16(int size, linux_old_gid_t* user_list) {
     (void)user_list;
     if (size < 0)
         return -EINVAL;
     return 0;
 }
 
-int sys_reboot(int magic, int magic2, int op, void* user_arg) {
+long sys_reboot(int magic, int magic2, int op, void* user_arg) {
     if ((unsigned)magic != LINUX_REBOOT_MAGIC1)
         return -EINVAL;
     switch (magic2) {
@@ -130,7 +130,7 @@ int sys_reboot(int magic, int magic2, int op, void* user_arg) {
     }
 }
 
-int sys_sysinfo(struct sysinfo* user_info) {
+long sys_sysinfo(struct sysinfo* user_info) {
     struct memory_stats memory_stats;
     memory_get_stats(&memory_stats);
 
@@ -153,7 +153,7 @@ int sys_sysinfo(struct sysinfo* user_info) {
     return 0;
 }
 
-int sys_olduname(struct linux_oldold_utsname* user_buf) {
+long sys_olduname(struct linux_oldold_utsname* user_buf) {
     struct utsname utsname;
     utsname_get(&utsname);
     struct linux_oldold_utsname buf = {0};
@@ -167,7 +167,7 @@ int sys_olduname(struct linux_oldold_utsname* user_buf) {
     return 0;
 }
 
-int sys_uname(struct linux_old_utsname* user_buf) {
+long sys_uname(struct linux_old_utsname* user_buf) {
     struct utsname utsname;
     utsname_get(&utsname);
     struct linux_old_utsname buf = {0};
@@ -181,7 +181,7 @@ int sys_uname(struct linux_old_utsname* user_buf) {
     return 0;
 }
 
-int sys_newuname(struct utsname* user_buf) {
+long sys_newuname(struct utsname* user_buf) {
     struct utsname buf;
     utsname_get(&buf);
     if (copy_to_user(user_buf, &buf, sizeof(struct utsname)))
@@ -189,7 +189,7 @@ int sys_newuname(struct utsname* user_buf) {
     return 0;
 }
 
-int sys_sethostname(const char* user_name, int len) {
+long sys_sethostname(const char* user_name, int len) {
     if (len < 0 || UTSNAME_LENGTH <= len)
         return -EINVAL;
     char name[UTSNAME_LENGTH];
@@ -199,7 +199,7 @@ int sys_sethostname(const char* user_name, int len) {
     return utsname_set_hostname(name, len);
 }
 
-int sys_setdomainname(const char* user_name, int len) {
+long sys_setdomainname(const char* user_name, int len) {
     if (len < 0 || UTSNAME_LENGTH <= len)
         return -EINVAL;
     char name[UTSNAME_LENGTH];
@@ -209,8 +209,8 @@ int sys_setdomainname(const char* user_name, int len) {
     return utsname_set_domainname(name, len);
 }
 
-int sys_getcpu(unsigned int* user_cpu, unsigned int* user_node,
-               struct getcpu_cache* user_tcache) {
+long sys_getcpu(unsigned int* user_cpu, unsigned int* user_node,
+                struct getcpu_cache* user_tcache) {
     (void)user_tcache;
     if (user_cpu) {
         unsigned id = cpu_get_id();
@@ -225,12 +225,12 @@ int sys_getcpu(unsigned int* user_cpu, unsigned int* user_node,
     return 0;
 }
 
-ssize_t sys_getrandom(void* user_buf, size_t buflen, unsigned int flags) {
+long sys_getrandom(void* user_buf, size_t buflen, unsigned int flags) {
     (void)flags;
     return random_get_user(user_buf, buflen);
 }
 
-int sys_dbgprint(const char* user_str) {
+long sys_dbgprint(const char* user_str) {
     char str[1024];
     ssize_t str_len = strncpy_from_user(str, user_str, sizeof(str));
     if (IS_ERR(str_len))

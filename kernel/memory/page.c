@@ -8,12 +8,12 @@
 #include <kernel/system.h>
 #include <stdbool.h>
 
-#define BITMAP_INDEX(i) ((i) / 32)
-#define BITMAP_MASK(i) (1U << ((i) & 31))
+#define BITMAP_INDEX(i) ((i) / (__LONG_WIDTH__))
+#define BITMAP_MASK(i) (1UL << ((i) & (__LONG_WIDTH__ - 1)))
 #define BITMAP_MAX_LEN BITMAP_INDEX(MAX_NUM_PAGES)
 
 static size_t pfn_end; // Maximum physical frame number + 1
-static atomic_uint bitmap[BITMAP_MAX_LEN];
+static atomic_ulong bitmap[BITMAP_MAX_LEN];
 static atomic_size_t cached_free_index;
 
 static bool bitmap_get(size_t i) {
@@ -24,14 +24,16 @@ static bool bitmap_get(size_t i) {
 // Returns the previous state of the bit.
 static bool bitmap_set(size_t i) {
     ASSERT(i < pfn_end);
-    uint32_t prev = atomic_fetch_or(&bitmap[BITMAP_INDEX(i)], BITMAP_MASK(i));
+    unsigned long prev =
+        atomic_fetch_or(&bitmap[BITMAP_INDEX(i)], BITMAP_MASK(i));
     return prev & BITMAP_MASK(i);
 }
 
 // Returns the previous state of the bit.
 static bool bitmap_clear(size_t i) {
     ASSERT(i < pfn_end);
-    uint32_t prev = atomic_fetch_and(&bitmap[BITMAP_INDEX(i)], ~BITMAP_MASK(i));
+    unsigned long prev =
+        atomic_fetch_and(&bitmap[BITMAP_INDEX(i)], ~BITMAP_MASK(i));
     return prev & BITMAP_MASK(i);
 }
 
@@ -39,14 +41,14 @@ static ssize_t bitmap_get_free(void) {
     size_t i = cached_free_index;
     for (size_t offset = 0; offset < BITMAP_INDEX(pfn_end); ++offset) {
         for (;;) {
-            uint32_t v = bitmap[i];
-            int b = __builtin_ffs(v);
+            unsigned long v = bitmap[i];
+            int b = __builtin_ffsl(v);
             if (b == 0) // v == 0
                 break;
-            uint32_t new_v = v & ~BITMAP_MASK(b - 1);
+            unsigned long new_v = v & ~BITMAP_MASK(b - 1);
             if (atomic_compare_exchange_weak(&bitmap[i], &v, new_v)) {
                 cached_free_index = i;
-                return i * 32 + (b - 1);
+                return i * __LONG_WIDTH__ + (b - 1);
             }
         }
         i = (i + 1) % BITMAP_INDEX(pfn_end);

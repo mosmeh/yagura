@@ -162,7 +162,7 @@ NODISCARD static int map_page(struct vm* vm, void* virt_addr, bool write) {
     return page_table_map(page_addr, page_to_pfn(page), 1, pte_flags);
 }
 
-bool vm_handle_page_fault(void* virt_addr, uint32_t error_code) {
+bool vm_handle_page_fault(void* virt_addr, unsigned long error_code) {
     struct vm* vm = virt_addr_to_vm(virt_addr);
     if (!vm)
         return false;

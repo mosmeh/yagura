@@ -37,7 +37,10 @@ struct idtr {
 #define NUM_IDT_ENTRIES 256
 
 static struct idt_gate idt[NUM_IDT_ENTRIES];
-static struct idtr idtr;
+static struct idtr idtr = {
+    .limit = sizeof(idt) - 1,
+    .base = (uintptr_t)idt,
+};
 static interrupt_handler_fn interrupt_handlers[NUM_IDT_ENTRIES];
 
 void idt_set_interrupt_handler(uint8_t num, interrupt_handler_fn handler) {
@@ -170,11 +173,8 @@ DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(16, "x87 floating-point exception")
 ENUMERATE_ISR_STUBS(DEFINE_ISR_WITHOUT_ERROR_CODE)
 
 void idt_init(void) {
-    idtr.limit = NUM_IDT_ENTRIES * sizeof(struct idt_gate) - 1;
-    idtr.base = (uint32_t)idt;
-
 #define REGISTER_ISR(num)                                                      \
-    set_gate(num, (uint32_t)isr##num, 0x8, INTERRUPT_GATE32, 0);
+    set_gate(num, (uintptr_t)isr##num, 0x8, INTERRUPT_GATE32, 0);
 
 #define REGISTER_EXCEPTION(num)                                                \
     REGISTER_ISR(num);                                                         \
