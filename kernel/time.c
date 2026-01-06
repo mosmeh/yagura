@@ -1,4 +1,3 @@
-#include <common/integer.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/time.h>
 #include <kernel/drivers/rtc.h>
@@ -65,9 +64,8 @@ int time_now(clockid_t clock_id, struct timespec* tp) {
     case CLOCK_MONOTONIC: {
         unsigned t = uptime;
         tp->tv_sec = t / CLK_TCK;
-        tp->tv_nsec = divmodi64(((uint64_t)t - (uint64_t)tp->tv_sec * CLK_TCK) *
-                                    NANOS_PER_SEC,
-                                CLK_TCK, NULL);
+        tp->tv_nsec = ((uint64_t)t - (uint64_t)tp->tv_sec * CLK_TCK) *
+                      NANOS_PER_SEC / CLK_TCK;
         break;
     }
     default:

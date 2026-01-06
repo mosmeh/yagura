@@ -1,5 +1,4 @@
 #include "private.h"
-#include <common/integer.h>
 #include <kernel/api/err.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/sys/time.h>
@@ -38,7 +37,7 @@ int sys_gettimeofday(struct linux_timeval* user_tv, struct timezone* user_tz) {
         return rc;
     struct linux_timeval tv = {
         .tv_sec = now.tv_sec,
-        .tv_usec = divmodi64(now.tv_nsec, 1000, NULL),
+        .tv_usec = now.tv_nsec / 1000,
     };
     if (copy_to_user(user_tv, &tv, sizeof(struct linux_timeval)))
         return -EFAULT;

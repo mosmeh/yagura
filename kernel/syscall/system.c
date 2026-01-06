@@ -1,5 +1,4 @@
 #include "private.h"
-#include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/sys/reboot.h>
@@ -143,7 +142,7 @@ int sys_sysinfo(struct sysinfo* user_info) {
     }
 
     struct sysinfo info = {
-        .uptime = divmodi64(uptime, CLK_TCK, NULL),
+        .uptime = uptime / CLK_TCK,
         .totalram = memory_stats.total_kibibytes,
         .freeram = memory_stats.free_kibibytes,
         .procs = num_procs,

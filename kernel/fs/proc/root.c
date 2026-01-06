@@ -116,11 +116,13 @@ static int print_self(struct file* file, struct vec* vec) {
     return vec_printf(vec, "%d", current->thread_group->tgid);
 }
 
-NODISCARD static int sprintf_ticks(struct vec* vec, int64_t ticks) {
-    int32_t r;
-    int32_t q = divmodi64(ticks, CLK_TCK, &r);
-    r = r * 100 / CLK_TCK; // Map [0, CLK_TCK) to [0, 100)
-    return vec_printf(vec, "%d.%02d", q, r);
+NODISCARD static int sprintf_ticks(struct vec* vec, unsigned long ticks) {
+    unsigned long i = ticks / CLK_TCK;
+
+    // Map [0, CLK_TCK) to [0, 100)
+    unsigned long frac = (ticks % CLK_TCK) * 100 / CLK_TCK;
+
+    return vec_printf(vec, "%lu.%02lu", i, frac);
 }
 
 static int print_uptime(struct file* file, struct vec* vec) {
