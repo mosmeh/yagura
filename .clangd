@@ -1,0 +1,32 @@
+CompileFlags:
+    Add:
+        - -xc
+        - -std=c11
+        - -m32
+        - -Wall
+        - -Wextra
+        - -pedantic
+        - -Wno-empty-translation-unit
+Style:
+    QuotedHeaders: .*/private\.h
+---
+If:
+    PathMatch: .*/*\.h
+CompileFlags:
+    Add: -Wno-unused-function
+---
+If:
+    PathMatch:
+        - common/.*
+        - kernel/.*
+CompileFlags:
+    Add:
+        - -isystem.
+---
+If:
+    PathMatch: userland/.*
+CompileFlags:
+    Add:
+        - -isystemuserland/libc
+        - -isystem.
+        - -isystemkernel/api
