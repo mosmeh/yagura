@@ -66,9 +66,9 @@ static void detect_memory(const multiboot_info_t* mb_info) {
     // Set the maximum possible value so that we can modify the entire bitmap.
     pfn_end = MAX_NUM_PAGES;
 
-    ASSERT(KERNEL_VIRT_ADDR < (uintptr_t)kernel_end &&
+    ASSERT(KERNEL_IMAGE_START < (uintptr_t)kernel_end &&
            (uintptr_t)kernel_end <= KERNEL_IMAGE_END);
-    uintptr_t kernel_phys_end = (uintptr_t)kernel_end - KERNEL_VIRT_ADDR;
+    uintptr_t kernel_phys_end = (uintptr_t)kernel_end - KERNEL_IMAGE_START;
     uintptr_t available_start = kernel_phys_end;
     uintptr_t available_end = available_start;
 
@@ -76,7 +76,7 @@ static void detect_memory(const multiboot_info_t* mb_info) {
         uint32_t num_entries =
             mb_info->mmap_length / sizeof(multiboot_memory_map_t);
         const multiboot_memory_map_t* entry =
-            (const void*)(mb_info->mmap_addr + KERNEL_VIRT_ADDR);
+            (const void*)(mb_info->mmap_addr + KERNEL_IMAGE_START);
 
         for (uint32_t i = 0; i < num_entries; ++i, ++entry) {
             uint64_t entry_start = entry->addr;
@@ -140,7 +140,7 @@ static void detect_memory(const multiboot_info_t* mb_info) {
 
     if (mb_info->flags & MULTIBOOT_INFO_MODS) {
         const multiboot_module_t* mod =
-            (const void*)(mb_info->mods_addr + KERNEL_VIRT_ADDR);
+            (const void*)(mb_info->mods_addr + KERNEL_IMAGE_START);
         for (uint32_t i = 0; i < mb_info->mods_count; ++i) {
             print_range("module", mod->mod_start, mod->mod_end);
             for (size_t i = mod->mod_start >> PAGE_SHIFT;
@@ -165,8 +165,9 @@ void page_init(const multiboot_info_t* mb_info) {
     for (size_t i = 0; i < npages_to_map; ++i) {
         ssize_t pfn = page_alloc_raw();
         ASSERT_OK(pfn);
-        ASSERT_OK(page_table_map_local(PAGES_START + (i << PAGE_SHIFT), pfn,
-                                       PTE_WRITE | PTE_GLOBAL));
+        ASSERT_OK(pagemap_map_local(kernel_pagemap,
+                                    PAGES_START + (i << PAGE_SHIFT), pfn,
+                                    PTE_WRITE | PTE_GLOBAL));
     }
 
     // All the pages in use at this point will be marked as reserved.

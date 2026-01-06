@@ -42,8 +42,8 @@ struct madt {
 #define ACPI_MADT_INTERRUPT_SOURCE_OVERRIDE 2
 
 static const struct rsdp_descriptor* find_rsdp(void) {
-    uint64_t* p = (uint64_t*)(0x80000 + KERNEL_VIRT_ADDR);
-    uint64_t* end = (uint64_t*)(0x100000 + KERNEL_VIRT_ADDR);
+    uint64_t* p = (uint64_t*)(0x80000 + KERNEL_IMAGE_START);
+    uint64_t* end = (uint64_t*)(0x100000 + KERNEL_IMAGE_START);
     for (; p < end; p += 2) {         // Signature is at 16-byte boundary
         if (*p == 0x2052545020445352) // "RSD PTR "
             return (struct rsdp_descriptor*)p;

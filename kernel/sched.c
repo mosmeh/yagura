@@ -194,7 +194,7 @@ noreturn static void switch_context(void) {
     ASSERT(task->state == TASK_RUNNING);
     cpu->current_task = task;
 
-    page_directory_switch(task->vm->page_directory);
+    pagemap_switch(task->vm->pagemap);
 
     gdt_set_cpu_kernel_stack(task->kernel_stack_top);
     memcpy(cpu->gdt + GDT_ENTRY_TLS_MIN, task->tls, sizeof(task->tls));

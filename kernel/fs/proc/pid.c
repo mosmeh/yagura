@@ -15,10 +15,20 @@ static pid_t pid_from_ino(ino_t ino) {
 
 static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
                                size_t size) {
-    struct vm* current_vm = vm_enter(vm);
-    int ret = copy_from_user(dst, user_src, size);
-    vm_enter(current_vm);
-    return ret;
+    SCOPED_LOCK(vm, vm);
+    size_t offset = 0;
+    while (offset < size) {
+        uintptr_t curr_addr = (uintptr_t)user_src + offset;
+        struct page* page = vm_get_page(vm, (void*)curr_addr);
+        if (IS_ERR(ASSERT(page)))
+            return PTR_ERR(page);
+        size_t page_offset = curr_addr % PAGE_SIZE;
+        size_t to_copy = MIN(PAGE_SIZE - page_offset, size - offset);
+        page_copy_to_buffer(page, (unsigned char*)dst + offset, page_offset,
+                            to_copy);
+        offset += to_copy;
+    }
+    return 0;
 }
 
 static int print_cmdline(struct file* file, struct vec* vec) {
