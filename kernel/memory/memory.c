@@ -14,7 +14,7 @@ bool memory_handle_page_fault(struct registers* regs, void* virt_addr) {
     unsigned long error_code = regs->error_code;
     ASSERT(!(error_code & X86_PF_RSVD));
 
-    if (vm_handle_page_fault(virt_addr, error_code))
+    if (vm_handle_page_fault(regs, virt_addr))
         return true;
     if (safe_string_handle_page_fault(regs))
         return true;
