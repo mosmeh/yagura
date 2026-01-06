@@ -84,12 +84,6 @@ struct task* task_clone(const struct task* task,
         return ERR_PTR(-ENOMEM);
     void* stack_top = stack + STACK_SIZE;
 
-    // Without this eager population, page fault occurs when switching to this
-    // task, but page fault handler cannot run without a valid kernel stack.
-    int rc = vm_populate(stack, stack_top, true);
-    if (IS_ERR(rc))
-        return ERR_PTR(rc);
-
     struct task* new_task = (void*)(stack + task_struct_offset);
     *new_task = (struct task){
         .eip = (uintptr_t)do_iret,
