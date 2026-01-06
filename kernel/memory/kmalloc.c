@@ -10,9 +10,17 @@ void* kmalloc(size_t size) {
     if (IS_ERR(ASSERT(anon)))
         return NULL;
 
-    void* addr = vm_obj_map(anon, 0, npages, VM_READ | VM_WRITE | VM_SHARED);
+    unsigned char* addr =
+        vm_obj_map(anon, 0, npages, VM_READ | VM_WRITE | VM_SHARED);
     if (IS_ERR(ASSERT(addr)))
         return NULL;
+
+    int rc = vm_populate(addr, addr + (npages << PAGE_SHIFT), true);
+    if (IS_ERR(rc)) {
+        vm_obj_unmap(addr);
+        return NULL;
+    }
+
     return addr;
 }
 
@@ -39,6 +47,11 @@ void* krealloc(void* ptr, size_t new_size) {
         return ptr;
 
     int rc = vm_region_resize(region, new_npages);
+    if (IS_ERR(rc))
+        return NULL;
+
+    void* end = (unsigned char*)ptr + (new_npages << PAGE_SHIFT);
+    rc = vm_populate(ptr, end, region->flags & VM_WRITE);
     if (IS_ERR(rc))
         return NULL;
 

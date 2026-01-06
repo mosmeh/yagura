@@ -5,7 +5,6 @@
 #include <kernel/interrupts/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
-#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>
@@ -76,7 +75,6 @@ void smp_init(void) {
     unsigned char* ap_stack = kmalloc(ap_stack_size);
     ASSERT(ap_stack);
     ap_stack_top = ap_stack + ap_stack_size;
-    ASSERT_OK(vm_populate(ap_stack, ap_stack_top, true));
 
     STATIC_ASSERT(AP_TRAMPOLINE_ADDR < 0x100000);
     STATIC_ASSERT(AP_TRAMPOLINE_ADDR % 0x1000 == 0);
