@@ -94,6 +94,7 @@ OBJS := \
 	task/signal.o \
 	task/task.o \
 	time.o \
+	../common/integer.o \
 	../common/libgen.o \
 	../common/stdio.o \
 	../common/stdlib.o \

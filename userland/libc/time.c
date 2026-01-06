@@ -1,6 +1,5 @@
 #include "private.h"
 #include <common/calendar.h>
-#include <common/integer.h>
 #include <err.h>
 #include <stdio.h>
 #include <sys/auxv.h>
@@ -11,7 +10,7 @@ clock_t clock(void) {
     struct tms tms;
     times(&tms);
     uint64_t ticks = (uint64_t)tms.tms_utime + tms.tms_stime;
-    return divmodi64(ticks * CLOCKS_PER_SEC, getauxval(AT_CLKTCK), NULL);
+    return ticks * CLOCKS_PER_SEC / getauxval(AT_CLKTCK);
 }
 
 time_t time(time_t* tloc) {
@@ -45,12 +44,13 @@ struct tm* gmtime_r(const time_t* t, struct tm* tm) {
     }
     tm->tm_year = year - 1900;
 
-    int seconds;
-    time_t days = divmodi64(time, seconds_per_day, &seconds);
+    time_t days = time / seconds_per_day;
     tm->tm_yday = days;
+
+    time_t seconds = time % seconds_per_day;
     tm->tm_sec = seconds % 60;
 
-    int minutes = seconds / 60;
+    time_t minutes = seconds / 60;
     tm->tm_hour = minutes / 60;
     tm->tm_min = minutes % 60;
 

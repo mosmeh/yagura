@@ -15,30 +15,6 @@ static inline size_t next_power_of_two(size_t x) {
     return (SIZE_MAX >> __builtin_clz(x - 1)) + 1;
 }
 
-static inline int32_t divmodi64(int64_t a, int32_t b, int32_t* rem) {
-    int32_t q;
-    int32_t r;
-    __asm__("idivl %[b]"
-            : "=a"(q), "=d"(r)
-            : "d"((int32_t)(a >> 32)),
-              "a"((int32_t)(a & 0xffffffff)), [b] "rm"(b));
-    if (rem)
-        *rem = r;
-    return q;
-}
-
-static inline uint32_t divmodu64(uint64_t a, uint32_t b, uint32_t* rem) {
-    uint32_t q;
-    uint32_t r;
-    __asm__("divl %[b]"
-            : "=a"(q), "=d"(r)
-            : "d"((uint32_t)(a >> 32)),
-              "a"((uint32_t)(a & 0xffffffff)), [b] "rm"(b));
-    if (rem)
-        *rem = r;
-    return q;
-}
-
 static inline bool str_is_uint(const char* s) {
     while (*s) {
         if (!isdigit(*s))

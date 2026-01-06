@@ -1,4 +1,3 @@
-#include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/sys/sysmacros.h>
@@ -67,13 +66,10 @@ static ssize_t bdev_pread(struct inode* inode, void* buffer, size_t count,
     struct block_dev* block_dev = block_dev_from_inode(inode);
     ASSERT(block_dev->bops->read);
     size_t block_size = get_block_size(block_dev);
-    uint32_t rem;
-    size_t index = divmodu64(offset, block_size, &rem);
-    if (rem != 0)
+    if (offset % block_size != 0 || count % block_size != 0)
         return -EINVAL;
-    size_t nblocks = divmodu64(count, block_size, &rem);
-    if (rem != 0)
-        return -EINVAL;
+    size_t index = offset / block_size;
+    size_t nblocks = count / block_size;
     int rc = block_dev->bops->read(block_dev, buffer, index, nblocks);
     if (IS_ERR(rc))
         return rc;
@@ -86,13 +82,10 @@ static ssize_t bdev_pwrite(struct inode* inode, const void* buffer,
     if (!block_dev->bops->write)
         return -EPERM;
     size_t block_size = get_block_size(block_dev);
-    uint32_t rem;
-    size_t index = divmodu64(offset, block_size, &rem);
-    if (rem != 0)
+    if (offset % block_size != 0 || count % block_size != 0)
         return -EINVAL;
-    size_t nblocks = divmodu64(count, block_size, &rem);
-    if (rem != 0)
-        return -EINVAL;
+    size_t index = offset / block_size;
+    size_t nblocks = count / block_size;
     int rc = block_dev->bops->write(block_dev, buffer, index, nblocks);
     if (IS_ERR(rc))
         return rc;

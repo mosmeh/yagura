@@ -394,7 +394,7 @@ int sys_select(int nfds, unsigned long* user_readfds,
     if (user_timeout) {
         struct linux_timeval tv_timeout = {
             .tv_sec = ts_timeout.tv_sec,
-            .tv_usec = divmodi64(ts_timeout.tv_nsec, 1000, NULL),
+            .tv_usec = ts_timeout.tv_nsec / 1000,
         };
         if (copy_to_user(user_timeout, &tv_timeout, sizeof(tv_timeout)))
             return -EFAULT;
