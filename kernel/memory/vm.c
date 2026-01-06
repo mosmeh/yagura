@@ -162,22 +162,37 @@ NODISCARD static int map_page(struct vm* vm, void* virt_addr, bool write) {
     return page_table_map(page_addr, page_to_pfn(page), 1, pte_flags);
 }
 
-bool vm_handle_page_fault(void* virt_addr, unsigned long error_code) {
+bool vm_handle_page_fault(struct registers* regs, void* virt_addr) {
     struct vm* vm = virt_addr_to_vm(virt_addr);
     if (!vm)
         return false;
 
+    bool write = regs->error_code & X86_PF_WRITE;
+    bool user = regs->error_code & X86_PF_USER;
+    bool instr = regs->error_code & X86_PF_INSTR;
+
     if (vm == kernel_vm) {
-        if (error_code & X86_PF_USER)
-            return -EFAULT;
-    } else if (error_code & X86_PF_INSTR) {
-        // Kernel mode should not execute user-space code
-        ASSERT(error_code & X86_PF_USER);
+        if (user) {
+            // User mode should not access kernel memory
+            return false;
+        }
+    } else { // User address space
+        if (!user && instr) {
+            // Kernel mode should not execute user-space code
+            return false;
+        }
+    }
+
+    if (!user && !(regs->eflags & X86_EFLAGS_IF)) {
+        // Faulted in atomic context in kernel mode.
+        // To prevent breaking atomicity, we cannot enable interrupts,
+        // so we cannot handle the page fault.
+        return false;
     }
 
     SCOPED_ENABLE_INTERRUPTS();
     SCOPED_LOCK(vm, vm);
-    return IS_OK(map_page(vm, virt_addr, error_code & X86_PF_WRITE));
+    return IS_OK(map_page(vm, virt_addr, write));
 }
 
 int vm_populate(void* virt_start_addr, void* virt_end_addr, bool write) {
