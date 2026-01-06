@@ -4,37 +4,31 @@
 #include <kernel/cpu.h>
 #include <kernel/memory/memory.h>
 
-// In the current setup, kernel image (including 1MiB offset) has to fit in
-// a single page table (< 4MiB).
-#define KERNEL_IMAGE_END (KERNEL_VIRT_ADDR + (1024 << PAGE_SHIFT))
+#define KMAP_SIZE (KMAP_MAX_NUM_PER_CPU * MAX_NUM_CPUS * PAGE_SIZE)
+#define KMAP_END (KMAP_START + KMAP_SIZE)
+STATIC_ASSERT(KMAP_START % PAGE_SIZE == 0);
+STATIC_ASSERT(KMAP_SIZE % PAGE_SIZE == 0);
 
-#define PAGES_START KERNEL_IMAGE_END
+#define MAX_NUM_PAGES 0x100000 // 4 GiB if PAGE_SIZE == 4 KiB
+#define PAGES_START KMAP_END
 #define PAGES_END                                                              \
     (PAGES_START + ROUND_UP(MAX_NUM_PAGES * sizeof(struct page), PAGE_SIZE))
 
-#define KMAP_START PAGES_END
-#define KMAP_END (KMAP_START + MAX_NUM_KMAPS_PER_CPU * MAX_NUM_CPUS * PAGE_SIZE)
-
-#define KERNEL_VM_START KMAP_END
-
-// Last 4MiB is for recursive mapping
-#define KERNEL_VM_END 0xffc00000
+#define KERNEL_VM_START PAGES_END
+#define KERNEL_VM_END 0xfffff000 // Reserve last page as a guard
 
 struct vm;
 struct vm_region;
 struct vm_obj;
 typedef struct multiboot_info multiboot_info_t;
 
-#define MAX_NUM_PAGES (1 << 20)
-
 void page_init(const multiboot_info_t*);
-
-struct page_directory* page_directory_create(void);
-void page_directory_destroy(struct page_directory*);
-
 void vm_init(void);
 void vm_region_init(void);
 void vm_obj_init(void);
+
+struct pagemap* pagemap_create(void);
+void pagemap_destroy(struct pagemap*);
 
 NODISCARD bool vm_handle_page_fault(struct registers*, void* virt_addr);
 

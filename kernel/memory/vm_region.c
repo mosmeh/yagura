@@ -163,9 +163,6 @@ int vm_region_resize(struct vm_region* region, size_t new_npages) {
     struct vm* vm = region->vm;
     ASSERT(vm_is_locked_by_current(vm));
 
-    if (region->obj)
-        ASSERT(vm == kernel_vm || vm == current->vm);
-
     if (new_npages == 0)
         return -EINVAL;
 
@@ -180,7 +177,8 @@ int vm_region_resize(struct vm_region* region, size_t new_npages) {
     // Shrink the region
     if (new_npages < old_npages) {
         if (region->obj)
-            page_table_unmap(new_end << PAGE_SHIFT, old_npages - new_npages);
+            pagemap_unmap(vm->pagemap, new_end << PAGE_SHIFT,
+                          old_npages - new_npages);
         region->end = new_end;
         return 0;
     }
@@ -201,7 +199,7 @@ int vm_region_resize(struct vm_region* region, size_t new_npages) {
 
     // Unmap the old range
     if (region->obj)
-        page_table_unmap(region->start << PAGE_SHIFT, old_npages);
+        pagemap_unmap(vm->pagemap, region->start << PAGE_SHIFT, old_npages);
     vm_remove_region(region);
 
     region->start = new_start;
@@ -217,9 +215,6 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
 
     struct vm* vm = region->vm;
     ASSERT(vm_is_locked_by_current(vm));
-
-    if (region->obj)
-        ASSERT(vm == kernel_vm || vm == current->vm);
 
     if (npages == 0)
         return -EINVAL;
@@ -344,7 +339,7 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
     }
 
     if (region->obj)
-        page_table_unmap(start << PAGE_SHIFT, npages);
+        pagemap_unmap(vm->pagemap, start << PAGE_SHIFT, npages);
 
     return 0;
 }
@@ -352,9 +347,6 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
 int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
     struct vm* vm = region->vm;
     ASSERT(vm_is_locked_by_current(vm));
-
-    if (region->obj)
-        ASSERT(vm == kernel_vm || vm == current->vm);
 
     if (npages == 0)
         return -EINVAL;
@@ -418,7 +410,7 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
     }
 
     if (region->obj)
-        page_table_unmap(start << PAGE_SHIFT, npages);
+        pagemap_unmap(vm->pagemap, start << PAGE_SHIFT, npages);
 
     return 0;
 }
@@ -427,9 +419,6 @@ int vm_region_invalidate(const struct vm_region* region, size_t offset,
                          size_t npages) {
     struct vm* vm = region->vm;
     ASSERT(vm_is_locked_by_current(vm));
-
-    if (region->obj)
-        ASSERT(vm == kernel_vm || vm == current->vm);
 
     if (npages == 0)
         return -EINVAL;
@@ -442,7 +431,7 @@ int vm_region_invalidate(const struct vm_region* region, size_t offset,
         return -EINVAL;
 
     if (region->obj)
-        page_table_unmap(start << PAGE_SHIFT, npages);
+        pagemap_unmap(vm->pagemap, start << PAGE_SHIFT, npages);
 
     return 0;
 }

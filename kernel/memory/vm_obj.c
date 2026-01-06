@@ -43,8 +43,6 @@ void vm_obj_unmap(void* virt_addr) {
 int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
                                size_t npages) {
     ASSERT(vm_obj_is_locked_by_current(obj));
-    int rc = 0;
-    struct vm* original_vm = current->vm;
     for (const struct vm_region* region = obj->shared_regions; region;
          region = region->shared_next) {
         if (region->offset + (region->end - region->start) <= offset)
@@ -52,21 +50,16 @@ int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
         if (region->offset >= offset + npages)
             continue;
 
-        struct vm* vm = region->vm;
-        if (vm != kernel_vm && vm != current->vm)
-            vm_enter(vm);
-
         size_t region_offset = offset - region->offset;
         size_t region_npages =
             MIN(npages, region->end - region->start - region_offset);
 
-        SCOPED_LOCK(vm, vm);
-        rc = vm_region_invalidate(region, region_offset, region_npages);
+        SCOPED_LOCK(vm, region->vm);
+        int rc = vm_region_invalidate(region, region_offset, region_npages);
         if (IS_ERR(rc))
-            break;
+            return rc;
     }
-    vm_enter(original_vm);
-    return rc;
+    return 0;
 }
 
 struct anon {

@@ -118,7 +118,7 @@ void exec_image_unload(struct exec_image* image) {
 }
 
 NODISCARD static int loader_init_vm(struct loader* loader) {
-    struct vm* vm FREE(vm) = vm_create(0, (void*)KERNEL_VIRT_ADDR);
+    struct vm* vm FREE(vm) = vm_create(0, (void*)KERNEL_IMAGE_START);
     if (IS_ERR(ASSERT(vm)))
         return PTR_ERR(vm);
 
@@ -127,7 +127,8 @@ NODISCARD static int loader_init_vm(struct loader* loader) {
     STATIC_ASSERT(STACK_SIZE % PAGE_SIZE == 0);
 
     size_t npages = 2 + (STACK_SIZE >> PAGE_SHIFT);
-    unsigned char* guard_start = (void*)(KERNEL_VIRT_ADDR - npages * PAGE_SIZE);
+    unsigned char* guard_start =
+        (void*)(KERNEL_IMAGE_START - npages * PAGE_SIZE);
     struct vm_region* region = vm_alloc_at(vm, guard_start, npages);
     if (IS_ERR(ASSERT(region)))
         return PTR_ERR(region);

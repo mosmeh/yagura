@@ -32,9 +32,9 @@ _start:
     cli
     cld
 
-    # fill page table
+    # page table mapping first 4 MiB of physical memory
     movl $(PTE_PRESENT | PTE_WRITE | PTE_GLOBAL), %esi
-    movl $kernel_page_table_start, %edi
+    movl $kernel_image_page_table_start, %edi
     movl $1024, %ecx
 1:
     movl %esi, (%edi)
@@ -42,15 +42,18 @@ _start:
     addl $4, %edi
     loop 1b
 
-    movl $kernel_page_table_start, %edx
+    movl $kernel_image_page_table_start, %edx
     orl $(PTE_PRESENT | PTE_WRITE), %edx
-    movl %edx, kernel_page_directory_start # identity mapping
-    movl %edx, kernel_page_directory_start + KERNEL_PDE_IDX * 4
 
-    # recursive
-    movl $kernel_page_directory_start, %edx
+    # identity mapping
+    movl %edx, kernel_page_directory_start
+
+    # higher half mapping
+    movl %edx, kernel_page_directory_start + (KERNEL_IMAGE_START >> PD_SHIFT) * 4
+
+    movl $kmap_page_table_start, %edx
     orl $(PTE_PRESENT | PTE_WRITE), %edx
-    movl %edx, kernel_page_directory_start + 1023 * 4
+    movl %edx, kernel_page_directory_start + (KMAP_START >> PD_SHIFT) * 4
 
     movl $kernel_page_directory_start, %edx
     movl %edx, %cr3
@@ -68,13 +71,16 @@ _start:
 kernel_page_directory_start:
     .skip PAGE_SIZE
     .align PAGE_SIZE
-kernel_page_table_start:
+kernel_image_page_table_start:
+    .skip PAGE_SIZE
+    .globl kmap_page_table_start
+kmap_page_table_start:
     .skip PAGE_SIZE
 
     .text
 paging_enabled:
     # remove identity mapping
-    movl $0, kernel_page_directory_start + KERNEL_VIRT_ADDR
+    movl $0, kernel_page_directory_start + KERNEL_IMAGE_START
     movl $kernel_page_directory_start, %edx
     movl %edx, %cr3
 

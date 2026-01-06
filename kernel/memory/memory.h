@@ -3,8 +3,14 @@
 #define PAGE_SHIFT 12
 #define PAGE_SIZE (1UL << PAGE_SHIFT)
 
-#define KERNEL_VIRT_ADDR 0xc0000000
-#define KERNEL_PDE_IDX (KERNEL_VIRT_ADDR >> 22)
+#define PD_SHIFT 22
+
+#define KERNEL_IMAGE_START 0xc0000000
+// In the current setup, kernel image (including 1MiB offset) has to fit in
+// a single page table (< 4MiB).
+#define KERNEL_IMAGE_END (KERNEL_IMAGE_START + (1024 << PAGE_SHIFT))
+
+#define KMAP_START KERNEL_IMAGE_END
 
 // Page is mapped
 #define PTE_PRESENT 0x1
@@ -41,21 +47,19 @@ struct vec;
 struct registers;
 typedef struct multiboot_info multiboot_info_t;
 
-extern struct page_directory* kernel_page_directory;
-
 static inline bool is_user_address(const void* addr) {
-    return addr && (uintptr_t)addr < KERNEL_VIRT_ADDR;
+    return addr && (uintptr_t)addr < KERNEL_IMAGE_START;
 }
 
 static inline bool is_user_range(const void* addr, size_t size) {
     if (!is_user_address(addr))
         return false;
     uintptr_t end = (uintptr_t)addr + size;
-    return (uintptr_t)addr <= end && end <= KERNEL_VIRT_ADDR;
+    return (uintptr_t)addr <= end && end <= KERNEL_IMAGE_START;
 }
 
 static inline bool is_kernel_address(const void* addr) {
-    return addr && (uintptr_t)addr >= KERNEL_VIRT_ADDR;
+    return addr && (uintptr_t)addr >= KERNEL_IMAGE_START;
 }
 
 static inline bool is_kernel_range(const void* addr, size_t size) {
@@ -141,34 +145,36 @@ char* kstrndup(const char*, size_t n);
 // Panics if the address is not mapped.
 uintptr_t virt_to_phys(void*);
 
+extern struct pagemap* kernel_pagemap;
+
 // Maps the pages to the virtual address.
-NODISCARD int page_table_map(uintptr_t virt_addr, size_t pfn, size_t npages,
-                             uint16_t flags);
+NODISCARD int pagemap_map(struct pagemap*, uintptr_t virt_addr, size_t pfn,
+                          size_t npages, uint16_t flags);
 
 // Maps the page to the virtual address. Only the TLB of the current CPU is
 // flushed.
-NODISCARD int page_table_map_local(uintptr_t virt_addr, size_t pfn,
-                                   uint16_t flags);
+NODISCARD int pagemap_map_local(struct pagemap*, uintptr_t virt_addr,
+                                size_t pfn, uint16_t flags);
 
 // Unmaps the pages at the virtual address.
-void page_table_unmap(uintptr_t virt_addr, size_t npages);
+void pagemap_unmap(struct pagemap*, uintptr_t virt_addr, size_t npages);
 
 // Unmaps the page at the virtual address. Only the TLB of the current CPU is
 // flushed.
-void page_table_unmap_local(uintptr_t virt_addr);
+void pagemap_unmap_local(struct pagemap*, uintptr_t virt_addr);
 
-void page_directory_switch(struct page_directory*);
+void pagemap_switch(struct pagemap*);
 
-#define MAX_NUM_KMAPS_PER_CPU 4
+#define KMAP_MAX_NUM_PER_CPU 4
 
 struct kmap_ctrl {
     size_t num_mapped;
     bool prev_int_flag;
-    uintptr_t phys_addrs[MAX_NUM_KMAPS_PER_CPU];
+    uintptr_t phys_addrs[KMAP_MAX_NUM_PER_CPU];
 };
 
 // Maps a physical page to the kernel virtual address space.
-// MAX_NUM_KMAPS_PER_CPU pages can be mapped at the same time for each CPU.
+// KMAP_MAX_NUM_PER_CPU pages can be mapped at the same time for each CPU.
 NODISCARD void* kmap(uintptr_t phys_addr);
 
 NODISCARD void* kmap_page(struct page*);

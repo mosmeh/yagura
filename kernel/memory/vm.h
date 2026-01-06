@@ -61,7 +61,7 @@ DEFINE_FREE(phys, void*, phys_unmap)
 struct vm {
     size_t start; // Start virtual address in pages (inclusive)
     size_t end;   // End virtual address in pages (exclusive)
-    struct page_directory* page_directory;
+    struct pagemap* pagemap;
     struct tree regions;
     size_t cached_gap_start;
     size_t cached_gap_size;

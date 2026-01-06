@@ -42,7 +42,8 @@ NODISCARD static int ensure_cache(struct slab* slab) {
             return pfn;
 
         start_addr = (uintptr_t)start << PAGE_SHIFT;
-        int ret = page_table_map(start_addr, pfn, 1, PTE_WRITE | PTE_GLOBAL);
+        int ret = pagemap_map(kernel_pagemap, start_addr, pfn, 1,
+                              PTE_WRITE | PTE_GLOBAL);
         if (IS_ERR(ret)) {
             page_free_raw(pfn);
             return ret;

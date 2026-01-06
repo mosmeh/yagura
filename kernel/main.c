@@ -112,12 +112,12 @@ noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
            "version: " YAGURA_VERSION "\n");
 
     ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
-    mb_info = (const void*)(mb_info_phys_addr + KERNEL_VIRT_ADDR);
+    mb_info = (const void*)(mb_info_phys_addr + KERNEL_IMAGE_START);
 
     if (!(mb_info->flags & MULTIBOOT_INFO_MODS) || mb_info->mods_count == 0)
         PANIC("No initrd found. Provide initrd as the first Multiboot module");
     initrd_mod =
-        *(const multiboot_module_t*)(mb_info->mods_addr + KERNEL_VIRT_ADDR);
+        *(const multiboot_module_t*)(mb_info->mods_addr + KERNEL_IMAGE_START);
 
     cmdline_init(mb_info);
     task_init();
