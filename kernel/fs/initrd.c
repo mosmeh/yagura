@@ -58,17 +58,19 @@ void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
 
             file->inode->rdev = rdev;
 
-            ASSERT_OK(file_truncate(file, file_size));
+            if (file_size > 0) {
+                ASSERT_OK(file_truncate(file, file_size));
 
-            struct vm_obj* obj FREE(vm_obj) = file_mmap(file);
-            ASSERT_PTR(obj);
+                struct vm_obj* obj FREE(vm_obj) = file_mmap(file);
+                ASSERT_PTR(obj);
 
-            unsigned char* dest =
-                vm_obj_map(obj, 0, DIV_CEIL(file_size, PAGE_SIZE),
-                           VM_WRITE | VM_READ | VM_SHARED);
-            ASSERT_PTR(dest);
-            memcpy(dest, content, file_size);
-            vm_obj_unmap(dest);
+                unsigned char* dest =
+                    vm_obj_map(obj, 0, DIV_CEIL(file_size, PAGE_SIZE),
+                               VM_WRITE | VM_READ | VM_SHARED);
+                ASSERT_PTR(dest);
+                memcpy(dest, content, file_size);
+                vm_obj_unmap(dest);
+            }
         } else {
             struct inode* inode FREE(inode) = vfs_create(filename, mode);
             ASSERT_PTR(inode);
