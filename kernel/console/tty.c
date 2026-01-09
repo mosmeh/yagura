@@ -84,6 +84,13 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
                          uint64_t offset) {
     (void)offset;
 
+    char* user_dest = user_buf;
+
+    // Ensure no page faults occur while spinlock is held
+    int rc = vm_populate(user_dest, user_dest + count, true);
+    if (IS_ERR(rc))
+        return rc;
+
     struct tty* tty = tty_from_file(file);
     for (;;) {
         int rc = file_block(file, unblock_read, 0);
@@ -95,7 +102,6 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
             continue;
 
         size_t nread = 0;
-        char* user_dest = user_buf;
         while (count) {
             struct attr_char ac;
             ssize_t n = ring_buf_read(tty->input_buf, &ac, sizeof(ac));
@@ -147,11 +153,18 @@ static void processed_echo(struct tty* tty, const char* buf, size_t count) {
 static ssize_t tty_pwrite(struct file* file, const void* user_buf, size_t count,
                           uint64_t offset) {
     (void)offset;
+
+    const unsigned char* user_src = user_buf;
+
+    // Ensure no page faults occur while spinlock is held
+    int rc = vm_populate((void*)user_src, (void*)(user_src + count), false);
+    if (IS_ERR(rc))
+        return rc;
+
     struct tty* tty = tty_from_file(file);
     SCOPED_LOCK(tty, tty);
 
     char buf[256];
-    const unsigned char* user_src = user_buf;
     size_t nwritten = 0;
     while (nwritten < count) {
         size_t to_write = MIN(count - nwritten, sizeof(buf));
@@ -167,32 +180,43 @@ static ssize_t tty_pwrite(struct file* file, const void* user_buf, size_t count,
 
 static int tty_ioctl(struct file* file, unsigned cmd, unsigned long arg) {
     struct tty* tty = tty_from_file(file);
-    struct termios* termios = &tty->termios;
     switch (cmd) {
     case TIOCGPGRP: {
-        SCOPED_LOCK(tty, tty);
-        if (copy_to_user((void*)arg, &tty->pgid, sizeof(pid_t)))
+        pid_t pgid;
+        {
+            SCOPED_LOCK(tty, tty);
+            pgid = tty->pgid;
+        }
+        if (copy_to_user((void*)arg, &pgid, sizeof(pid_t)))
             return -EFAULT;
         break;
     }
     case TIOCSPGRP: {
-        SCOPED_LOCK(tty, tty);
-        if (copy_from_user(&tty->pgid, (const void*)arg, sizeof(pid_t)))
+        pid_t pgid;
+        if (copy_from_user(&pgid, (const void*)arg, sizeof(pid_t)))
             return -EFAULT;
+        SCOPED_LOCK(tty, tty);
+        tty->pgid = pgid;
         break;
     }
     case TCGETS: {
-        SCOPED_LOCK(tty, tty);
-        if (copy_to_user((void*)arg, termios, sizeof(struct termios)))
+        struct termios termios;
+        {
+            SCOPED_LOCK(tty, tty);
+            termios = tty->termios;
+        }
+        if (copy_to_user((void*)arg, &termios, sizeof(struct termios)))
             return -EFAULT;
         break;
     }
     case TCSETS:
     case TCSETSW:
     case TCSETSF: {
-        SCOPED_LOCK(tty, tty);
-        if (copy_from_user(termios, (const void*)arg, sizeof(struct termios)))
+        struct termios termios;
+        if (copy_from_user(&termios, (const void*)arg, sizeof(struct termios)))
             return -EFAULT;
+        SCOPED_LOCK(tty, tty);
+        tty->termios = termios;
         if (cmd == TCSETSF) {
             tty->line_len = 0;
             ring_buf_clear(tty->input_buf);
