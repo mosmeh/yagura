@@ -65,6 +65,14 @@ static bool unblock_read(struct file* file) {
 static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
                                size_t count, uint64_t offset) {
     (void)offset;
+
+    unsigned char* user_out = user_buffer;
+
+    // Ensure no page faults occur while spinlock is held
+    int rc = vm_populate(user_out, user_out + count, true);
+    if (IS_ERR(rc))
+        return rc;
+
     for (;;) {
         int rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
@@ -73,7 +81,6 @@ static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
         SCOPED_LOCK(spinlock, &queue_lock);
 
         size_t nread = 0;
-        unsigned char* user_out = user_buffer;
         while (nread < count) {
             if (read_index == write_index)
                 break;
