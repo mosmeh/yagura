@@ -143,6 +143,16 @@ ssize_t strncpy_from_user(char* dest, const char* user_src, size_t n) {
     return len;
 }
 
+ssize_t copy_pathname_from_user(char dest[static PATH_MAX],
+                                const char* user_src) {
+    ssize_t len = strncpy_from_user(dest, user_src, PATH_MAX);
+    if (IS_ERR(len))
+        return len;
+    if (len >= PATH_MAX)
+        return -ENAMETOOLONG;
+    return len;
+}
+
 extern char safe_memcpy_copy[];
 extern char safe_memcpy_on_fault[];
 

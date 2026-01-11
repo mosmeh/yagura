@@ -11,14 +11,14 @@ long sys_mount(const char* user_source, const char* user_target,
     (void)data;
 
     char source[PATH_MAX];
-    int rc = copy_pathname_from_user(source, user_source);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(source, user_source);
+    if (IS_ERR(len))
+        return len;
 
     char target[PATH_MAX];
-    rc = copy_pathname_from_user(target, user_target);
-    if (IS_ERR(rc))
-        return rc;
+    len = copy_pathname_from_user(target, user_target);
+    if (IS_ERR(len))
+        return len;
 
     char fs_type[SIZEOF_FIELD(struct file_system, name)];
     ssize_t fs_type_len =

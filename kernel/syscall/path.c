@@ -6,15 +6,6 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 
-int copy_pathname_from_user(char dest[static PATH_MAX], const char* user_src) {
-    ssize_t pathname_len = strncpy_from_user(dest, user_src, PATH_MAX);
-    if (IS_ERR(pathname_len))
-        return pathname_len;
-    if (pathname_len >= PATH_MAX)
-        return -ENAMETOOLONG;
-    return 0;
-}
-
 struct path* path_from_dirfd(int dirfd) {
     if (dirfd == AT_FDCWD) {
         SCOPED_LOCK(fs, current->fs);
@@ -31,9 +22,9 @@ struct path* path_from_dirfd(int dirfd) {
 NODISCARD static long open(const struct path* base, const char* user_pathname,
                            int flags, unsigned mode) {
     char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
 
     struct file* file FREE(file) =
         vfs_open_at(base, pathname, flags, (mode & 0777) | S_IFREG);
@@ -75,9 +66,9 @@ NODISCARD static long mknod(const struct path* base, const char* user_pathname,
     }
 
     char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
 
     struct inode* inode FREE(inode) = vfs_create_at(base, pathname, mode);
     if (IS_ERR(ASSERT(inode)))
@@ -101,9 +92,9 @@ long sys_mknodat(int dirfd, const char* user_pathname, mode_t mode, dev_t dev) {
 NODISCARD static long mkdir(const struct path* base, const char* user_pathname,
                             mode_t mode) {
     char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
     struct inode* inode FREE(inode) =
         vfs_create_at(base, pathname, (mode & 0777) | S_IFDIR);
     if (IS_ERR(ASSERT(inode)))
@@ -128,9 +119,9 @@ NODISCARD static long access(const struct path* base, const char* user_pathname,
     (void)mode; // File permissions are not implemented in this system.
 
     char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
     struct path* path FREE(path) = vfs_resolve_path_at(base, pathname, 0);
     if (IS_ERR(ASSERT(path)))
         return PTR_ERR(path);
@@ -155,9 +146,9 @@ NODISCARD static long link(struct inode* old_inode, const struct path* new_base,
         return -EPERM;
 
     char new_pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(new_pathname, user_newpath);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(new_pathname, user_newpath);
+    if (IS_ERR(len))
+        return len;
 
     struct path* new_path FREE(path) =
         vfs_resolve_path_at(new_base, new_pathname, O_ALLOW_NOENT);
@@ -186,9 +177,9 @@ long sys_linkat(int olddirfd, const char* user_oldpath, int newdirfd,
         return -EINVAL;
 
     char oldpath[PATH_MAX];
-    int rc = copy_pathname_from_user(oldpath, user_oldpath);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(oldpath, user_oldpath);
+    if (IS_ERR(len))
+        return len;
 
     struct inode* old_inode FREE(inode) = NULL;
     if (oldpath[0]) {
@@ -226,9 +217,9 @@ long sys_linkat(int olddirfd, const char* user_oldpath, int newdirfd,
 NODISCARD
 static long unlink(const struct path* base, const char* user_pathname) {
     char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
 
     struct path* path FREE(path) = vfs_resolve_path_at(base, pathname, 0);
     if (IS_ERR(ASSERT(path)))
@@ -247,9 +238,9 @@ long sys_unlink(const char* user_pathname) {
 NODISCARD
 static long rmdir(const struct path* base, const char* user_pathname) {
     char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
 
     struct path* path FREE(path) = vfs_resolve_path_at(base, pathname, 0);
     if (IS_ERR(ASSERT(path)))
@@ -258,7 +249,7 @@ static long rmdir(const struct path* base, const char* user_pathname) {
         return -EPERM;
     if (!S_ISDIR(path->inode->mode))
         return -ENOTDIR;
-    rc = ensure_directory_is_empty(path->inode);
+    int rc = ensure_directory_is_empty(path->inode);
     if (IS_ERR(rc))
         return rc;
     return inode_unlink(path->parent->inode, path->basename);
@@ -284,13 +275,13 @@ NODISCARD
 static long rename(const struct path* old_base, const char* user_oldpath,
                    const struct path* new_base, const char* user_newpath) {
     char old_pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(old_pathname, user_oldpath);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(old_pathname, user_oldpath);
+    if (IS_ERR(len))
+        return len;
     char new_pathname[PATH_MAX];
-    rc = copy_pathname_from_user(new_pathname, user_newpath);
-    if (IS_ERR(rc))
-        return rc;
+    len = copy_pathname_from_user(new_pathname, user_newpath);
+    if (IS_ERR(len))
+        return len;
 
     struct path* old_path FREE(path) =
         vfs_resolve_path_at(old_base, old_pathname, 0);
@@ -313,18 +304,18 @@ static long rename(const struct path* old_base, const char* user_oldpath,
         if (S_ISDIR(new_path->inode->mode)) {
             if (!S_ISDIR(old_path->inode->mode))
                 return -EISDIR;
-            rc = ensure_directory_is_empty(new_path->inode);
+            int rc = ensure_directory_is_empty(new_path->inode);
             if (IS_ERR(rc))
                 return rc;
         }
 
-        rc = inode_unlink(new_path->parent->inode, new_path->basename);
+        int rc = inode_unlink(new_path->parent->inode, new_path->basename);
         if (IS_ERR(rc))
             return rc;
     }
 
-    rc = inode_link(new_path->parent->inode, new_path->basename,
-                    old_path->inode);
+    int rc = inode_link(new_path->parent->inode, new_path->basename,
+                        old_path->inode);
     if (IS_ERR(rc))
         return rc;
 
@@ -361,17 +352,17 @@ long sys_renameat2(int olddirfd, const char* user_oldpath, int newdirfd,
 NODISCARD static long symlink(const struct path* base, const char* user_target,
                               const char* user_linkpath) {
     char target[PATH_MAX];
-    int rc = copy_pathname_from_user(target, user_target);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(target, user_target);
+    if (IS_ERR(len))
+        return len;
     size_t target_len = strlen(target);
     if (target_len > SYMLINK_MAX)
         return -ENAMETOOLONG;
 
     char linkpath[PATH_MAX];
-    rc = copy_pathname_from_user(linkpath, user_linkpath);
-    if (IS_ERR(rc))
-        return rc;
+    len = copy_pathname_from_user(linkpath, user_linkpath);
+    if (IS_ERR(len))
+        return len;
 
     struct file* file FREE(file) =
         vfs_open_at(base, linkpath, O_CREAT | O_EXCL | O_WRONLY, S_IFLNK);
@@ -398,9 +389,9 @@ NODISCARD
 static long readlink(const struct path* base, const char* user_pathname,
                      char* user_buf, size_t bufsiz) {
     char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
 
     struct path* path FREE(path) =
         vfs_resolve_path_at(base, pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
@@ -414,7 +405,7 @@ static long readlink(const struct path* base, const char* user_pathname,
         return PTR_ERR(file);
 
     char buf[SYMLINK_MAX];
-    ssize_t len = file_readlink(file, buf, bufsiz);
+    len = file_readlink(file, buf, bufsiz);
     if (IS_ERR(len))
         return len;
     if (copy_to_user(user_buf, buf, len))

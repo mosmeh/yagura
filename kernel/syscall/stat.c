@@ -7,17 +7,17 @@
 
 NODISCARD static int stat(const char* user_pathname, struct kstat* buf) {
     char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
     return vfs_stat(pathname, buf, 0);
 }
 
 NODISCARD static int lstat(const char* user_pathname, struct kstat* buf) {
     char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
     return vfs_stat(pathname, buf, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
 }
 
@@ -200,9 +200,9 @@ long sys_fstatat64(int dirfd, const char* user_pathname,
             return rc;
     } else {
         char pathname[PATH_MAX];
-        int rc = copy_pathname_from_user(pathname, user_pathname);
-        if (IS_ERR(rc))
-            return rc;
+        ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+        if (IS_ERR(len))
+            return len;
 
         if (pathname[0]) {
             struct path* base FREE(path) = path_from_dirfd(dirfd);
@@ -212,7 +212,7 @@ long sys_fstatat64(int dirfd, const char* user_pathname,
             int vfs_flags = 0;
             if (flags & AT_SYMLINK_NOFOLLOW)
                 vfs_flags |= O_NOFOLLOW | O_NOFOLLOW_NOERROR;
-            rc = vfs_stat_at(base, pathname, &buf, vfs_flags);
+            int rc = vfs_stat_at(base, pathname, &buf, vfs_flags);
             if (IS_ERR(rc))
                 return rc;
         } else {

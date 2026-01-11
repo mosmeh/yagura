@@ -653,7 +653,5 @@ long sys_ppoll(struct pollfd* fds, nfds_t nfds, struct timespec* timeout,
                const sigset_t* sigmask, size_t sigsetsize);
 long sys_dbgprint(const char* str);
 
-NODISCARD int copy_pathname_from_user(char dest[static PATH_MAX],
-                                      const char* user_src);
 NODISCARD int ensure_directory_is_empty(struct inode*);
 struct path* path_from_dirfd(int dirfd);

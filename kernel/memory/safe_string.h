@@ -1,11 +1,9 @@
 #pragma once
 
 #include <common/macros.h>
+#include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/types.h>
-#include <stdbool.h>
 #include <stddef.h>
-
-struct registers;
 
 // Safe string functions that can handle untrusted pointers without causing page
 // faults.
@@ -45,3 +43,10 @@ NODISCARD ssize_t strnlen_user(const char* user_str, size_t n);
 // If the string is shorter than n, the rest of the dest buffer is zeroed.
 // Returns the shorter of the string length and n, or -EFAULT on failure.
 NODISCARD ssize_t strncpy_from_user(char* dest, const char* user_src, size_t n);
+
+// Copies a pathname from user space to kernel space.
+// Ensures the pathname is null-terminated and does not exceed PATH_MAX.
+// Returns 0 on success, -ENAMETOOLONG if the pathname is too long,
+// or -EFAULT on failure.
+NODISCARD ssize_t copy_pathname_from_user(char dest[static PATH_MAX],
+                                          const char* user_src);

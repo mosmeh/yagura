@@ -69,9 +69,9 @@ long sys_execve(const char* user_pathname, char* const user_argv[],
         return -EFAULT;
 
     char pathname[PATH_MAX];
-    int rc = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
 
     return execve_user(pathname, (const char* const*)user_argv,
                        (const char* const*)user_envp);
@@ -383,9 +383,9 @@ long sys_times(struct tms* user_buf) {
 
 long sys_chroot(const char* user_path) {
     char path[PATH_MAX];
-    int rc = copy_pathname_from_user(path, user_path);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(path, user_path);
+    if (IS_ERR(len))
+        return len;
 
     struct fs* fs = current->fs;
     SCOPED_LOCK(fs, fs);
@@ -422,9 +422,9 @@ long sys_getcwd(char* user_buf, size_t size) {
 
 long sys_chdir(const char* user_path) {
     char path[PATH_MAX];
-    int rc = copy_pathname_from_user(path, user_path);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(path, user_path);
+    if (IS_ERR(len))
+        return len;
 
     struct fs* fs = current->fs;
     SCOPED_LOCK(fs, fs);

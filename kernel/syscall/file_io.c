@@ -171,9 +171,9 @@ long sys_llseek(unsigned int fd, unsigned long offset_high,
 
 NODISCARD static long truncate(const char* user_path, uint64_t length) {
     char path[PATH_MAX];
-    int rc = copy_pathname_from_user(path, user_path);
-    if (IS_ERR(rc))
-        return rc;
+    ssize_t len = copy_pathname_from_user(path, user_path);
+    if (IS_ERR(len))
+        return len;
     struct file* file FREE(file) = vfs_open(path, O_WRONLY, 0);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
