@@ -1,13 +1,13 @@
-#include "private.h"
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/sys/reboot.h>
 #include <kernel/api/sys/sysinfo.h>
 #include <kernel/cpu.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/system.h>
 #include <kernel/task/task.h>
 #include <kernel/time.h>
@@ -108,22 +108,18 @@ long sys_reboot(int magic, int magic2, int op, void* user_arg) {
 
     switch (op) {
     case LINUX_REBOOT_CMD_RESTART:
-        kprint("Restarting system\n");
-        reboot();
+        reboot(NULL);
     case LINUX_REBOOT_CMD_RESTART2: {
         char arg[256] = {0};
         ssize_t rc = strncpy_from_user(arg, user_arg, sizeof(arg));
         if (IS_ERR(rc))
             return rc;
         arg[sizeof(arg) - 1] = 0;
-        kprintf("Restarting system with command '%s'\n", arg);
-        reboot();
+        reboot(arg);
     }
     case LINUX_REBOOT_CMD_HALT:
-        kprint("System halted\n");
         halt();
     case LINUX_REBOOT_CMD_POWER_OFF:
-        kprint("Power down\n");
         poweroff();
     default:
         return -EINVAL;
@@ -213,7 +209,7 @@ long sys_getcpu(unsigned int* user_cpu, unsigned int* user_node,
                 struct getcpu_cache* user_tcache) {
     (void)user_tcache;
     if (user_cpu) {
-        unsigned id = cpu_get_id();
+        unsigned id = arch_cpu_get_id();
         if (copy_to_user(user_cpu, &id, sizeof(unsigned)))
             return -EFAULT;
     }

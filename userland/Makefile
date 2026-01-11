@@ -1,8 +1,10 @@
+OUT_DIR := $(BUILD_DIR)/userland
+
 CFLAGS += \
-	-isystemlibc \
-	-isystem.. \
-	-isystem../kernel/api
-LDFLAGS += -L.
+	-isystem$(ROOT)/userland/libc \
+	-isystem$(ROOT) \
+	-isystem$(ROOT)/kernel/api
+LDFLAGS += -L$(OUT_DIR)
 
 BIN_TARGET_NAMES := \
 	cal \
@@ -52,79 +54,106 @@ BIN_TARGET_NAMES := \
 	usertests \
 	wc \
 	xv6-usertests
-OUTDIR := ../base/bin
 
-BIN_TARGETS := $(BIN_TARGET_NAMES:%=$(OUTDIR)/%)
-BIN_TARGET_OBJS := $(BIN_TARGET_NAMES:=.o)
-BIN_TARGET_DEPS := $(BIN_TARGET_NAMES:=.d)
+BIN_TARGETS := $(addprefix $(USERLAND_BIN_DIR)/,$(BIN_TARGET_NAMES))
+BIN_OBJS := $(addprefix $(OUT_DIR)/userland/,$(BIN_TARGET_NAMES:=.o))
+BIN_DEPS := $(BIN_OBJS:.o=.d)
 
-LIBC_TARGET := libc.a
+LIBC_TARGET := $(OUT_DIR)/libc.a
 
-LIBC_OBJS := \
-	../common/integer.o \
-	../common/libgen.o \
-	../common/math.o \
-	../common/stdio.o \
-	../common/stdlib.o \
-	../common/string.o \
-	../common/strings.o \
-	../common/tree.o \
-	../common/ubsan.o \
-	libc/asm.o \
-	libc/crt0.o \
-	libc/dirent.o \
-	libc/errno.o \
-	libc/fcntl.o \
-	libc/panic.o \
-	libc/pthread.o \
-	libc/sched.o \
-	libc/signal.o \
-	libc/stdio.o \
-	libc/stdlib.o \
-	libc/string.o \
-	libc/sys/ioctl.o \
-	libc/sys/mman.o \
-	libc/sys/mount.o \
-	libc/sys/poll.o \
-	libc/sys/prctl.o \
-	libc/sys/random.o \
-	libc/sys/select.o \
-	libc/sys/socket.o \
-	libc/sys/stat.o \
-	libc/sys/sysinfo.o \
-	libc/sys/time.o \
-	libc/sys/times.o \
-	libc/sys/uio.o \
-	libc/sys/utsname.o \
-	libc/sys/wait.o \
-	libc/termios.o \
-	libc/time.o \
-	libc/unistd.o
+LIBC_SRCS := \
+	common/libgen.c \
+	common/stdio.c \
+	common/stdlib.c \
+	common/string.c \
+	common/strings.c \
+	common/tree.c \
+	common/ubsan.c \
+	userland/libc/crt0.c \
+	userland/libc/dirent.c \
+	userland/libc/errno.c \
+	userland/libc/fcntl.c \
+	userland/libc/panic.c \
+	userland/libc/pthread.c \
+	userland/libc/sched.c \
+	userland/libc/signal.c \
+	userland/libc/stdio.c \
+	userland/libc/stdlib.c \
+	userland/libc/string.c \
+	userland/libc/sys/ioctl.c \
+	userland/libc/sys/mman.c \
+	userland/libc/sys/mount.c \
+	userland/libc/sys/poll.c \
+	userland/libc/sys/prctl.c \
+	userland/libc/sys/random.c \
+	userland/libc/sys/select.c \
+	userland/libc/sys/socket.c \
+	userland/libc/sys/stat.c \
+	userland/libc/sys/sysinfo.c \
+	userland/libc/sys/time.c \
+	userland/libc/sys/times.c \
+	userland/libc/sys/uio.c \
+	userland/libc/sys/utsname.c \
+	userland/libc/sys/wait.c \
+	userland/libc/termios.c \
+	userland/libc/time.c \
+	userland/libc/unistd.c
 
+LIBC_X86_SRCS := \
+	common/x86/math.c \
+	common/x86/string.c
+
+ifeq ($(ARCH), i386)
+CFLAGS += \
+	-m32 \
+	-isystem$(ROOT)/kernel/api/x86
+
+LIBC_SRCS += \
+	common/i386/integer.c \
+	userland/libc/arch/i386/asm.S \
+	userland/libc/arch/i386/tls.c \
+	$(LIBC_X86_SRCS)
+else
+$(error Unknown ARCH '$(ARCH)')
+endif
+
+LIBC_OBJS := $(addprefix $(OUT_DIR)/,$(LIBC_SRCS:.c=.o))
+LIBC_OBJS := $(LIBC_OBJS:.S=.o)
 LIBC_DEPS := $(LIBC_OBJS:.o=.d)
+
+OBJ_DIRS := $(sort $(dir $(BIN_OBJS) $(LIBC_OBJS)))
 
 .PHONY: all clean
 
 all: $(BIN_TARGETS)
 
-$(BIN_TARGETS): $(OUTDIR)/% : %.o $(LIBC_TARGET)
-	@echo "[LD] $@"
+$(OUT_DIR):
+	@mkdir -p $@
+
+$(USERLAND_BIN_DIR):
+	@mkdir -p $@
+
+$(OBJ_DIRS):
+	@mkdir -p $@
+
+$(BIN_TARGETS): $(USERLAND_BIN_DIR)/% : $(OUT_DIR)/userland/%.o $(LIBC_TARGET) | $(USERLAND_BIN_DIR)
+	@echo "[LD] $(patsubst $(ROOT)/%,%,$@)"
 	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< -lc
 
-$(LIBC_TARGET): $(LIBC_OBJS)
-	@echo "[AR] $@"
+$(LIBC_TARGET): $(LIBC_OBJS) | $(OUT_DIR)
+	@echo "[AR] $(patsubst $(ROOT)/%,%,$@)"
 	@$(AR) rcs $@ $^
 
-.c.o:
-	@echo "[CC] $<"
+$(OUT_DIR)/%.o: $(ROOT)/%.c | $(OBJ_DIRS)
+	@echo "[CC] $(patsubst $(ROOT)/%,%,$<)"
 	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
-.S.o:
-	@echo "[AS] $<"
+$(OUT_DIR)/%.o: $(ROOT)/%.S | $(OBJ_DIRS)
+	@echo "[AS] $(patsubst $(ROOT)/%,%,$<)"
 	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
 clean:
-	$(RM) $(BIN_TARGETS) $(BIN_TARGET_OBJS) $(BIN_TARGET_DEPS) $(LIBC_TARGET) $(LIBC_OBJS) $(LIBC_DEPS)
+	$(RM) -r $(OUT_DIR)
 
--include $(BIN_TARGET_DEPS)
+-include $(BIN_DEPS)
 -include $(LIBC_DEPS)

@@ -3,12 +3,13 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/device/device.h>
 #include <kernel/fs/file.h>
+#include <kernel/memory/phys.h>
 
-void fs_init(const multiboot_module_t* initrd_mod) {
+void fs_init(void) {
     file_init();
     path_init();
     filemap_init();
-    vfs_init(initrd_mod);
+    vfs_init();
     pipe_init();
 }
 

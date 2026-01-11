@@ -1,5 +1,5 @@
 #include "private.h"
-#include <asm/ldt.h>
+#include <arch/tls.h>
 #include <common/integer.h>
 #include <common/macros.h>
 #include <elf.h>
@@ -10,7 +10,10 @@
 #include <sys/auxv.h>
 #include <unistd.h>
 
-static uint32_t auxv[32];
+typedef Elf32_Phdr elf_phdr_t;
+typedef Elf32_auxv_t elf_auxv_t;
+
+static unsigned long auxv[32];
 
 unsigned long getauxval(unsigned long type) {
     if (type >= ARRAY_SIZE(auxv)) {
@@ -20,10 +23,10 @@ unsigned long getauxval(unsigned long type) {
     return auxv[type];
 }
 
-static const Elf32_Phdr* tls_phdr;
+static const elf_phdr_t* tls_phdr;
 
-static const Elf32_Phdr* find_tls_phdr(void) {
-    Elf32_Phdr* phdr = (Elf32_Phdr*)getauxval(AT_PHDR);
+static const elf_phdr_t* find_tls_phdr(void) {
+    elf_phdr_t* phdr = (elf_phdr_t*)getauxval(AT_PHDR);
     size_t n = getauxval(AT_PHNUM);
     for (size_t i = 0; i < n; ++i) {
         if (phdr[i].p_type == PT_TLS)
@@ -47,19 +50,6 @@ struct pthread* __init_tls(void* tls) {
     return pth;
 }
 
-static void set_thread_area(void* addr) {
-    struct user_desc tls_desc = {
-        .entry_number = -1,
-        .base_addr = (unsigned)addr,
-        .limit = 0xfffff,
-        .seg_32bit = 1,
-        .limit_in_pages = 1,
-    };
-    ASSERT_OK(SYSCALL1(set_thread_area, &tls_desc));
-    uint16_t gs = (tls_desc.entry_number * 8) | 3;
-    __asm__ volatile("movw %0, %%gs" ::"r"(gs));
-}
-
 int main(int argc, char* const argv[], char* const envp[]);
 
 void __start(unsigned long* args) {
@@ -71,7 +61,7 @@ void __start(unsigned long* args) {
     char** p = environ;
     while (*p++)
         ;
-    for (Elf32_auxv_t* aux = (Elf32_auxv_t*)p; aux->a_type != AT_NULL; ++aux) {
+    for (elf_auxv_t* aux = (elf_auxv_t*)p; aux->a_type != AT_NULL; ++aux) {
         if (aux->a_type < ARRAY_SIZE(auxv))
             auxv[aux->a_type] = aux->a_un.a_val;
     }
@@ -84,7 +74,7 @@ void __start(unsigned long* args) {
     // Initialize TLS for the main thread
     unsigned char* tls = malloc(__tls_size);
     ASSERT(tls);
-    set_thread_area(__init_tls(tls));
+    __set_thread_area(__init_tls(tls));
 
     exit(main(argc, argv, environ));
 }

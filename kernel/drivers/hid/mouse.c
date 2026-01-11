@@ -4,7 +4,7 @@
 #include <kernel/device/device.h>
 #include <kernel/drivers/hid/ps2.h>
 #include <kernel/fs/file.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
 
@@ -111,7 +111,7 @@ void ps2_mouse_init(void) {
     ps2_write(PS2_COMMAND, PS2_ENABLE_PORT2);
     write_mouse(PS2_MOUSE_SET_DEFAULTS);
     write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
-    idt_set_interrupt_handler(IRQ(12), irq_handler);
+    arch_interrupts_set_handler(IRQ(12), irq_handler);
 
     static const struct file_ops fops = {
         .pread = ps2_mouse_pread,

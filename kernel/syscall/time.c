@@ -1,4 +1,3 @@
-#include "private.h"
 #include <kernel/api/err.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/sys/time.h>
@@ -6,6 +5,7 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/time.h>
 
 long sys_time32(time32_t* user_tloc) {

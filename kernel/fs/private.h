@@ -7,7 +7,7 @@ struct vec;
 void file_init(void);
 void path_init(void);
 void filemap_init(void);
-void vfs_init(const multiboot_module_t* initrd_mod);
+void vfs_init(void);
 void pipe_init(void);
 
 struct file* file_create(struct inode*, int flags);

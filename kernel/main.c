@@ -1,4 +1,5 @@
 #include <kernel/api/fcntl.h>
+#include <kernel/arch/system.h>
 #include <kernel/console/console.h>
 #include <kernel/cpu.h>
 #include <kernel/device/device.h>
@@ -6,10 +7,9 @@
 #include <kernel/drivers/serial.h>
 #include <kernel/exec/exec.h>
 #include <kernel/fs/file.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
-#include <kernel/multiboot.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 #include <kernel/socket.h>
@@ -81,20 +81,16 @@ static noreturn void ksyncd(void) {
     }
 }
 
-static const multiboot_info_t* mb_info;
-static multiboot_module_t initrd_mod;
-
 static noreturn void kernel_init(void) {
     ksyms_init();
-    fs_init(&initrd_mod);
+    fs_init();
     device_init();
-    drivers_init(mb_info);
+    drivers_init();
     console_init();
     random_init();
     socket_init();
     time_init();
-    syscall_init();
-    smp_init();
+    arch_late_init();
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
     ASSERT_OK(task_spawn("ksyncd", ksyncd));
@@ -102,29 +98,14 @@ static noreturn void kernel_init(void) {
     userland_init(); // Become the userland init process
 }
 
-noreturn void start(uint32_t mb_magic, uintptr_t mb_info_phys_addr) {
-    gdt_init_cpu();
-    cpu_init();
-    idt_init();
-    i8259_init();
-    serial_early_init();
-    kprint("\x1b[32mbooted\x1b[m\n"
-           "version: " YAGURA_VERSION "\n");
+noreturn void kernel_main(void) {
+    kprint("version: " YAGURA_VERSION "\n");
 
-    ASSERT(mb_magic == MULTIBOOT_BOOTLOADER_MAGIC);
-    mb_info = (const void*)(mb_info_phys_addr + KERNEL_IMAGE_START);
-
-    if (!(mb_info->flags & MULTIBOOT_INFO_MODS) || mb_info->mods_count == 0)
-        PANIC("No initrd found. Provide initrd as the first Multiboot module");
-    initrd_mod =
-        *(const multiboot_module_t*)(mb_info->mods_addr + KERNEL_IMAGE_START);
-
-    cmdline_init(mb_info);
     task_init();
-    memory_init(mb_info);
+    memory_init();
 
     // Allow memory allocation that expects interrupts to be enabled
-    enable_interrupts();
+    arch_enable_interrupts();
 
     ASSERT_OK(task_spawn("init", kernel_init));
     sched_start();

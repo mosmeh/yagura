@@ -1,10 +1,1 @@
-*.[oad]
-/kernel/kernel
-/kernel/kernel.*
-/base/bin/**
-!/base/**/.gitkeep
-/base/root/src
-/initrd
-/disk/boot/*
-!/disk/boot/grub
-/disk_image
+/build

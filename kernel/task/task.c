@@ -3,11 +3,10 @@
 #include <common/string.h>
 #include <kernel/api/sched.h>
 #include <kernel/cpu.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/task/task.h>
 
-struct fpu_state initial_fpu_state;
 static atomic_int next_tid = 1;
 
 struct task* tasks;
@@ -25,13 +24,6 @@ static struct slab thread_group_slab;
 
 void task_init(void) {
     struct cpu* cpu = cpu_get_bsp();
-
-    __asm__ volatile("fninit");
-    if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
-        __asm__ volatile("fxsave %0" : "=m"(initial_fpu_state));
-    else
-        __asm__ volatile("fnsave %0" : "=m"(initial_fpu_state));
-
     cpu->current_task = cpu->idle_task = task_ref(&init_task);
 
     slab_init(&thread_group_slab, "thread_group", sizeof(struct thread_group));
@@ -48,28 +40,20 @@ struct task* task_get_current(void) {
 }
 
 struct task* task_create(const char* comm, void (*entry_point)(void)) {
-    struct registers regs = {
-        .cs = KERNEL_CS,
-        .ss = KERNEL_DS,
-        .gs = KERNEL_DS,
-        .fs = KERNEL_DS,
-        .es = KERNEL_DS,
-        .ds = KERNEL_DS,
-        .eip = (uintptr_t)entry_point,
-        .eflags = X86_EFLAGS_IF | X86_EFLAGS_FIXED,
-    };
-
-    struct task* task FREE(task) = task_clone(NULL, &regs, 0);
+    struct task* task FREE(task) = task_clone(NULL, 0);
     if (IS_ERR(ASSERT(task)))
         return task;
 
     strlcpy(task->comm, comm, sizeof(task->comm));
 
+    int rc = arch_init_task(task, entry_point);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
+
     return TAKE_PTR(task);
 }
 
-struct task* task_clone(const struct task* task,
-                        const struct registers* new_regs, unsigned flags) {
+struct task* task_clone(const struct task* task, unsigned flags) {
     if (!task && flags)
         return ERR_PTR(-EINVAL);
     if ((flags & CLONE_SIGHAND) && !(flags & CLONE_VM))
@@ -86,9 +70,6 @@ struct task* task_clone(const struct task* task,
 
     struct task* new_task = (void*)(stack + task_struct_offset);
     *new_task = (struct task){
-        .eip = (uintptr_t)do_iret,
-        .esp = (uintptr_t)stack_top,
-        .fpu_state = initial_fpu_state,
         .state = TASK_RUNNING,
         .kernel_stack_base = (uintptr_t)stack,
         .kernel_stack_top = (uintptr_t)stack_top,
@@ -98,32 +79,15 @@ struct task* task_clone(const struct task* task,
     if (task) {
         strlcpy(new_task->comm, task->comm, sizeof(new_task->comm));
 
-        new_task->fpu_state = task->fpu_state;
-
         new_task->arg_start = task->arg_start;
         new_task->arg_end = task->arg_end;
         new_task->env_start = task->env_start;
         new_task->env_end = task->env_end;
 
-        memcpy(new_task->tls, task->tls, sizeof(new_task->tls));
-
         new_task->blocked_signals = task->blocked_signals;
 
         new_task->user_ticks = task->user_ticks;
         new_task->kernel_ticks = task->kernel_ticks;
-    }
-
-    if (new_regs) {
-        if (!new_regs->cs || !new_regs->ss)
-            return ERR_PTR(-EINVAL);
-
-        new_task->esp -= sizeof(struct registers);
-        struct registers* regs = (struct registers*)new_task->esp;
-        *regs = *new_regs;
-        if (!new_regs->esp && (new_regs->ss & 3) == 0) {
-            // Provide a kernel stack if not given.
-            regs->esp = (uintptr_t)stack_top;
-        }
     }
 
     struct vm* vm FREE(vm) = NULL;
@@ -253,7 +217,7 @@ static noreturn void exit(int exit_status) {
 
     current->exit_status = exit_status;
 
-    enable_interrupts();
+    arch_enable_interrupts();
     {
         SCOPED_LOCK(task, current);
 
@@ -266,7 +230,7 @@ static noreturn void exit(int exit_status) {
         fs_unref(fs);
     }
 
-    disable_interrupts();
+    arch_disable_interrupts();
     notify_exit(current);
     current->state = TASK_DEAD;
     sched_yield();

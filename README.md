@@ -40,7 +40,7 @@ You will need additional dependencies:
 sudo apt install grub2 mtools xorriso
 ```
 
-The following command creates a disk image file called `disk_image`. You can simply copy it onto a disk and boot it.
+The following command creates a disk image file at `build/i386/disk_image`. You can simply copy it onto a disk and boot it.
 
 ```sh
 make disk_image

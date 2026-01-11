@@ -2,8 +2,8 @@
 
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/limits.h>
+#include <kernel/arch/context.h>
 #include <kernel/fs/fs.h>
-#include <kernel/gdt.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>
 #include <stdnoreturn.h>
@@ -17,9 +17,6 @@ enum {
 };
 
 struct task {
-    uintptr_t eip, esp;
-    struct fpu_state fpu_state;
-
     pid_t tid;
 
     atomic_uint state;
@@ -30,8 +27,6 @@ struct task {
     _Atomic(struct vm*) vm;
     uintptr_t kernel_stack_base, kernel_stack_top;
     uintptr_t arg_start, arg_end, env_start, env_end;
-
-    struct gdt_segment tls[NUM_GDT_TLS_ENTRIES];
 
     struct fs* fs;
     struct files* files;
@@ -53,13 +48,14 @@ struct task {
     struct task* ready_queue_next;
     struct task* blocked_next;
 
+    struct arch_task arch;
+
     struct mutex lock;
     refcount_t refcount;
 };
 
 extern struct task* tasks;
 extern struct spinlock tasks_lock;
-extern struct fpu_state initial_fpu_state;
 
 void task_init(void);
 
@@ -67,8 +63,7 @@ void task_init(void);
 struct task* task_get_current(void);
 
 struct task* task_create(const char* comm, void (*entry_point)(void));
-struct task* task_clone(const struct task*, const struct registers* new_regs,
-                        unsigned flags);
+struct task* task_clone(const struct task*, unsigned flags);
 pid_t task_spawn(const char* comm, void (*entry_point)(void));
 
 DEFINE_LOCKED(task, struct task*, mutex, lock)
@@ -179,9 +174,3 @@ NODISCARD int signal_pop(struct sigaction* out_action);
 // Handles a signal for the current task.
 void signal_handle(struct registers* regs, int signum,
                    const struct sigaction* action);
-
-struct sigcontext {
-    sigset_t blocked_signals;
-    struct registers regs;
-    unsigned char trampoline[8];
-};

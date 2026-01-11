@@ -1,6 +1,5 @@
 #include <kernel/api/errno.h>
-#include <kernel/api/time.h>
-#include <kernel/drivers/rtc.h>
+#include <kernel/arch/system.h>
 #include <kernel/lock.h>
 #include <kernel/time.h>
 
@@ -41,7 +40,7 @@ volatile atomic_ulong uptime;
 static struct timespec now;
 static struct spinlock now_lock;
 
-void time_init(void) { now.tv_sec = rtc_now(); }
+void time_init(void) { arch_time(&now); }
 
 void time_tick(void) {
     ++uptime;

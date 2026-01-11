@@ -1,6 +1,7 @@
 #include "private.h"
 #include <common/integer.h>
 #include <common/string.h>
+#include <kernel/memory/phys.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 #include <kernel/task/task.h>
@@ -163,7 +164,7 @@ static const struct vm_ops phys_vm_ops = {
     .get_page = phys_get_page,
 };
 
-struct vm_obj* phys_create(uintptr_t phys_addr, size_t npages) {
+struct vm_obj* phys_create(phys_addr_t phys_addr, size_t npages) {
     ASSERT(phys_addr % PAGE_SIZE == 0);
     size_t start = phys_addr >> PAGE_SHIFT;
     size_t end = start + npages;
@@ -185,8 +186,8 @@ struct vm_obj* phys_create(uintptr_t phys_addr, size_t npages) {
     return &phys->vm_obj;
 }
 
-void* phys_map(uintptr_t phys_addr, size_t size, unsigned vm_flags) {
-    uintptr_t aligned_addr = ROUND_DOWN(phys_addr, PAGE_SIZE);
+void* phys_map(phys_addr_t phys_addr, size_t size, unsigned vm_flags) {
+    phys_addr_t aligned_addr = ROUND_DOWN(phys_addr, PAGE_SIZE);
     size_t npages = DIV_CEIL(phys_addr - aligned_addr + size, PAGE_SIZE);
 
     struct vm_obj* phys FREE(vm_obj) = phys_create(aligned_addr, npages);

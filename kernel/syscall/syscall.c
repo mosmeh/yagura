@@ -1,35 +1,26 @@
-#include "private.h"
+#include <kernel/api/errno.h>
 #include <kernel/api/sys/syscall.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/arch/interrupts.h>
 #include <kernel/kmsg.h>
-#include <kernel/panic.h>
 #include <kernel/syscall/syscall.h>
+#include <kernel/system.h>
 #include <kernel/task/task.h>
 
 long sys_ni_syscall(void) { return -ENOSYS; }
 
-struct syscall {
-    const char* name;
-    uintptr_t handler;
-    unsigned flags;
-};
+NODISCARD static long dispatch(const struct syscall_abi* abi,
+                               struct registers* regs, unsigned* out_flags) {
+    if (out_flags)
+        *out_flags = 0;
 
-static struct syscall syscalls[] = {
-#define F(name, handler, flags)                                                \
-    [SYS_##name] = {                                                           \
-        #name,                                                                 \
-        (uintptr_t)(handler),                                                  \
-        (flags),                                                               \
-    },
-    ENUMERATE_SYSCALLS(F)
-#undef F
-};
+    unsigned long number;
+    unsigned long args[6];
+    abi->decode(regs, &number, args);
 
-NODISCARD static long do_syscall(struct registers* regs, unsigned* out_flags) {
-    if (regs->eax >= ARRAY_SIZE(syscalls))
+    if (number >= abi->table_len)
         return -ENOSYS;
 
-    struct syscall* syscall = syscalls + regs->eax;
+    const struct syscall* syscall = abi->table + number;
     if (!syscall->handler)
         return -ENOSYS;
 
@@ -39,50 +30,48 @@ NODISCARD static long do_syscall(struct registers* regs, unsigned* out_flags) {
     if (syscall->handler == (uintptr_t)sys_ni_syscall) {
         if (cmdline_contains("ni_syscall_log"))
             kprintf("syscall: unimplemented syscall %s"
-                    "(%#x, %#x, %#x, %#x, %#x, %#x)\n",
-                    syscall->name, regs->ebx, regs->ecx, regs->edx, regs->esi,
-                    regs->edi, regs->ebp);
+                    "(%#lx, %#lx, %#lx, %#lx, %#lx, %#lx)\n",
+                    syscall->name, args[0], args[1], args[2], args[3], args[4],
+                    args[5]);
     }
 
-    typedef long (*regs_fn)(struct registers*, long, long, long, long, long,
-                            long);
-    typedef long (*no_regs_fn)(long, long, long, long, long, long);
+    typedef long (*regs_fn)(struct registers*, unsigned long, unsigned long,
+                            unsigned long, unsigned long, unsigned long,
+                            unsigned long);
+    typedef long (*no_regs_fn)(unsigned long, unsigned long, unsigned long,
+                               unsigned long, unsigned long, unsigned long);
 
     if (syscall->flags & SYSCALL_RAW_REGISTERS)
-        return ((regs_fn)syscall->handler)(regs, regs->ebx, regs->ecx,
-                                           regs->edx, regs->esi, regs->edi,
-                                           regs->ebp);
+        return ((regs_fn)syscall->handler)(regs, args[0], args[1], args[2],
+                                           args[3], args[4], args[5]);
 
-    return ((no_regs_fn)syscall->handler)(regs->ebx, regs->ecx, regs->edx,
-                                          regs->esi, regs->edi, regs->ebp);
+    return ((no_regs_fn)syscall->handler)(args[0], args[1], args[2], args[3],
+                                          args[4], args[5]);
 }
 
-static void syscall_handler(struct registers* regs) {
-    ASSERT((regs->cs & 3) == 3);
-    ASSERT((regs->ss & 3) == 3);
-    ASSERT(interrupts_enabled());
+void syscall_handle(const struct syscall_abi* abi, struct registers* regs) {
+    ASSERT(arch_interrupts_enabled());
 
     unsigned flags = 0;
-    long ret = do_syscall(regs, &flags);
+    long ret = dispatch(abi, regs, &flags);
 
     struct sigaction act;
     int signum = signal_pop(&act);
     ASSERT_OK(signum);
 
     if (flags & SYSCALL_NO_ERROR) {
-        regs->eax = ret;
+        abi->set_return_value(regs, ret);
     } else {
         switch (ret) {
         case -ERESTARTSYS:
             if (signum && (act.sa_flags & SA_RESTART)) {
                 // If the syscall was interrupted by a signal with a sigaction
-                // that has SA_RESTART set, re-execute int instruction to
-                // restart the syscall.
-                regs->eip -= 2;
+                // that has SA_RESTART set, restart the syscall.
+                abi->restart(regs);
             } else {
                 // Otherwise, tell the userland that the syscall was
                 // interrupted.
-                regs->eax = -EINTR;
+                abi->set_return_value(regs, -EINTR);
             }
             break;
         default:
@@ -90,17 +79,11 @@ static void syscall_handler(struct registers* regs) {
                 // Ensure we don't return kernel internal errors to userland
                 ASSERT(ret >= -EMAXERRNO);
             }
-            regs->eax = ret;
+            abi->set_return_value(regs, ret);
             break;
         }
     }
 
     if (signum)
         signal_handle(regs, signum, &act);
-}
-
-void syscall_init(void) {
-    idt_set_interrupt_handler(SYSCALL_VECTOR, syscall_handler);
-    idt_set_gate_user_callable(SYSCALL_VECTOR);
-    idt_flush();
 }

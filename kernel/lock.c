@@ -1,12 +1,12 @@
 #include <kernel/cpu.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 #include <kernel/lock.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 #include <kernel/task/task.h>
 
 void mutex_lock(struct mutex* m) {
-    ASSERT(interrupts_enabled());
+    ASSERT(arch_interrupts_enabled());
 
     for (;;) {
         bool expected = false;
@@ -26,7 +26,7 @@ void mutex_lock(struct mutex* m) {
 }
 
 void mutex_unlock(struct mutex* m) {
-    ASSERT(interrupts_enabled());
+    ASSERT(arch_interrupts_enabled());
 
     for (;;) {
         bool expected = false;
@@ -57,10 +57,10 @@ bool mutex_is_locked_by_current(const struct mutex* m) {
 
 void spinlock_lock(struct spinlock* s) {
     unsigned desired = SPINLOCK_LOCKED;
-    if (interrupts_enabled())
+    if (arch_interrupts_enabled())
         desired |= SPINLOCK_PREV_INT_FLAG;
-    disable_interrupts();
-    uint8_t cpu_id = cpu_get_id();
+    arch_disable_interrupts();
+    uint8_t cpu_id = arch_cpu_get_id();
     desired |= (unsigned)cpu_id << SPINLOCK_CPU_ID_SHIFT;
     for (;;) {
         unsigned expected = 0;
@@ -72,21 +72,21 @@ void spinlock_lock(struct spinlock* s) {
             ASSERT(expected & SPINLOCK_LOCKED);
             break;
         }
-        cpu_pause();
+        cpu_relax();
     }
     ++s->level;
 }
 
 void spinlock_unlock(struct spinlock* s) {
-    ASSERT(!interrupts_enabled());
+    ASSERT(!arch_interrupts_enabled());
     unsigned v = s->lock;
     ASSERT(v & SPINLOCK_LOCKED);
-    ASSERT((v >> SPINLOCK_CPU_ID_SHIFT) == cpu_get_id());
+    ASSERT((v >> SPINLOCK_CPU_ID_SHIFT) == arch_cpu_get_id());
     ASSERT(s->level > 0);
     if (--s->level == 0) {
         atomic_store_explicit(&s->lock, 0, memory_order_release);
         if (v & SPINLOCK_PREV_INT_FLAG)
-            enable_interrupts();
+            arch_enable_interrupts();
     }
 }
 
@@ -94,7 +94,7 @@ bool spinlock_is_locked_by_current(const struct spinlock* s) {
     unsigned v = s->lock;
     if (!(v & SPINLOCK_LOCKED))
         return false;
-    if ((v >> SPINLOCK_CPU_ID_SHIFT) != cpu_get_id())
+    if ((v >> SPINLOCK_CPU_ID_SHIFT) != arch_cpu_get_id())
         return false;
     ASSERT(s->level > 0);
     return true;

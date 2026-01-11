@@ -1,11 +1,12 @@
 #pragma once
 
+#include <kernel/arch/memory.h>
 #include <stddef.h>
 #include <stdint.h>
 
 struct fb_info {
     char id[16];
-    uintptr_t phys_addr;
+    phys_addr_t phys_addr;
     size_t width;
     size_t height;
     size_t pitch;

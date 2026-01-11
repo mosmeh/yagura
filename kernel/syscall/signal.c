@@ -1,7 +1,3 @@
-#include "private.h"
-#include <kernel/api/asm/processor-flags.h>
-#include <kernel/api/errno.h>
-#include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 #include <limits.h>
@@ -142,38 +138,4 @@ long sys_sigpending(sigset_t* user_set) {
     if (copy_to_user(user_set, &set, sizeof(sigset_t)))
         return -EFAULT;
     return 0;
-}
-
-#define FIX_EFLAGS                                                             \
-    (X86_EFLAGS_AC | X86_EFLAGS_OF | X86_EFLAGS_DF | X86_EFLAGS_TF |           \
-     X86_EFLAGS_SF | X86_EFLAGS_ZF | X86_EFLAGS_AF | X86_EFLAGS_PF |           \
-     X86_EFLAGS_CF | X86_EFLAGS_RF)
-
-long sys_sigreturn(struct registers* regs) {
-    struct sigcontext ctx;
-    if (copy_from_user(&ctx, (void*)regs->esp, sizeof(struct sigcontext)))
-        task_crash(SIGSEGV);
-
-    regs->ss = ctx.regs.ss | 3;
-    regs->cs = ctx.regs.cs | 3;
-    regs->ds = ctx.regs.ds;
-    regs->es = ctx.regs.es;
-    regs->fs = ctx.regs.fs;
-    regs->gs = ctx.regs.gs;
-
-    regs->ebx = ctx.regs.ebx;
-    regs->ecx = ctx.regs.ecx;
-    regs->edx = ctx.regs.edx;
-    regs->esi = ctx.regs.esi;
-    regs->edi = ctx.regs.edi;
-    regs->ebp = ctx.regs.ebp;
-    regs->esp = ctx.regs.esp;
-    regs->eip = ctx.regs.eip;
-
-    regs->eflags =
-        (regs->eflags & ~FIX_EFLAGS) | (ctx.regs.eflags & FIX_EFLAGS);
-
-    task_set_blocked_signals(current, ctx.blocked_signals);
-
-    return ctx.regs.eax;
 }

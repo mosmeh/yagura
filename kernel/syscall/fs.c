@@ -1,7 +1,7 @@
-#include "private.h"
 #include <kernel/fs/file.h>
 #include <kernel/fs/fs.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
 long sys_mount(const char* user_source, const char* user_target,

@@ -4,6 +4,7 @@
 #include <kernel/api/sys/types.h>
 #include <stdarg.h>
 #include <stdatomic.h>
+#include <stddef.h>
 
 struct vec {
     unsigned char* data;

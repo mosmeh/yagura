@@ -4,6 +4,7 @@
 #include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
 struct path* path_from_dirfd(int dirfd) {

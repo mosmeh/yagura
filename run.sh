@@ -2,8 +2,10 @@
 
 set -eo pipefail
 
-KERNEL='kernel/kernel'
-INITRD='initrd'
+ARCH="${ARCH:-i386}"
+BUILD_DIR="build/${ARCH}"
+KERNEL="${BUILD_DIR}/kernel.elf"
+INITRD="${BUILD_DIR}/initrd"
 CMDLINE=()
 NUM_CPUS=1
 QEMU_EXTRA_ARGS=()
@@ -44,7 +46,7 @@ else
     fi
 fi
 
-QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-i386${QEMU_BINARY_SUFFIX}"
+QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-${ARCH}${QEMU_BINARY_SUFFIX}"
 "${QEMU_BIN}" \
     -kernel "${KERNEL}" \
     -initrd "${INITRD}" \

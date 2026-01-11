@@ -3,15 +3,22 @@ SUBDIRS := kernel userland
 
 GIT_HASH := $(shell git describe --always --dirty --exclude '*' 2> /dev/null)
 
+export ARCH ?= i386
+
+export ROOT := $(abspath .)
+BUILD_ROOT := $(abspath build)
+export BUILD_DIR := $(BUILD_ROOT)/$(ARCH)
+
 export CFLAGS := \
 	-std=c11 \
-	-m32 \
 	-static \
 	-nostdlib -ffreestanding \
 	-fno-omit-frame-pointer \
+	-ffile-prefix-map=$(ROOT)/= \
 	-U_FORTIFY_SOURCE \
 	-Wall -Wextra -pedantic -Wno-gnu-statement-expression-from-macro-expansion \
 	-O2 -g \
+	-DARCH_$(shell echo $(ARCH) | tr a-z A-Z) \
 	$(if $(GIT_HASH),-DYAGURA_VERSION=\"$(GIT_HASH)\") \
 	$(EXTRA_CFLAGS)
 
@@ -19,35 +26,44 @@ export LDFLAGS := \
 	-Wl,--build-id=none \
 	-Wl,-z,noexecstack
 
-.PHONY: all run clean $(SUBDIRS) base
+BASE_DIR := $(BUILD_DIR)/base
+INITRD := $(BUILD_DIR)/initrd
 
-all: kernel initrd
+export KERNEL_BIN := $(BUILD_DIR)/kernel.elf
+export USERLAND_BIN_DIR := $(BASE_DIR)/bin
 
-initrd: base
-	find $< -mindepth 1 ! -name '.gitkeep' -printf "%P\n" | sort | cpio -oc -D $< -F $@
+.PHONY: all run clean $(SUBDIRS) $(BASE_DIR) disk_image
 
-base: $@/* userland
-	$(RM) -r $@/root/src
+all: kernel $(INITRD)
+
+$(INITRD): $(BASE_DIR)
+	@echo "[CPIO] $(patsubst $(ROOT)/%,%,$@)"
+	@find $< -mindepth 1 ! -name '.gitkeep' -printf "%P\n" | sort | cpio -oc -D $< -F $@
+
+$(BASE_DIR): base/* userland
+	cp -a base/* $@
+	@$(RM) -r $@/root/src
 	-git -c advice.detachedHead=false clone . $@/root/src
-	$(RM) -r $@/root/src/.git
+	@$(RM) -r $@/root/src/.git
 
 $(SUBDIRS):
 	$(MAKE) -C $@ all
 
-disk_image: kernel initrd
-	cp kernel/kernel initrd disk/boot
-	grub-mkrescue -o '$@' disk -d /usr/lib/grub/i386-pc
+$(BUILD_DIR)/disk_image: kernel $(INITRD)
+	cp -r disk $(BUILD_DIR)/disk
+	cp $(KERNEL_BIN) $(INITRD) $(BUILD_DIR)/disk/boot/
+	grub-mkrescue -o '$@' $(BUILD_DIR)/disk -d /usr/lib/grub/i386-pc
+
+disk_image: $(BUILD_DIR)/disk_image
 
 clean:
-	for dir in $(SUBDIRS); do $(MAKE) -C $$dir $@; done
-	$(RM) -r base/root/src
-	$(RM) initrd disk_image disk/boot/kernel disk/boot/initrd
+	$(RM) -r $(BUILD_ROOT)
 
-run: kernel initrd
+run: kernel $(INITRD)
 	./run.sh
 
-shell: kernel initrd
+shell: kernel $(INITRD)
 	./run.sh shell
 
-test: kernel initrd
+test: kernel $(INITRD)
 	./run_tests.sh

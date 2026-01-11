@@ -1,5 +1,4 @@
 #include "private.h"
-#include <asm/ldt.h>
 #include <err.h>
 #include <panic.h>
 #include <pthread.h>
@@ -65,20 +64,9 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* attrp,
     pth->fn = start_routine;
     pth->arg = arg;
 
-    uint16_t gs;
-    __asm__ volatile("movw %%gs, %0" : "=r"(gs));
-    struct user_desc tls_desc = {
-        .entry_number = gs / 8,
-        .base_addr = (unsigned)pth,
-        .limit = 0xfffff,
-        .seg_32bit = 1,
-        .limit_in_pages = 1,
-    };
-
     int flags = CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND |
                 CLONE_THREAD | CLONE_SETTLS | CLONE_PARENT_SETTID;
-    ret = __clone(thread_start, stack_top, flags, pth, &pth->tid, &tls_desc,
-                  NULL);
+    ret = __clone(thread_start, stack_top, flags, pth, &pth->tid, pth, NULL);
     if (IS_ERR(ret))
         goto fail;
 
@@ -134,12 +122,6 @@ exit:
         *retval = thread->retval;
     free(thread->alloc_base);
     return 0;
-}
-
-pthread_t pthread_self(void) {
-    pthread_t pth;
-    __asm__ volatile("movl %%gs:0, %0" : "=r"(pth));
-    return pth;
 }
 
 int pthread_equal(pthread_t t1, pthread_t t2) { return t1 == t2; }

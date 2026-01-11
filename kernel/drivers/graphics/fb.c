@@ -16,13 +16,19 @@ static struct fb_info fb_info;
 static struct vm_obj* vm_obj;
 
 struct fb* bochs_fb_init(void);
-struct fb* multiboot_fb_init(const multiboot_info_t*);
+struct fb* boot_fb_init(void);
 
-static struct fb* find_fb(const multiboot_info_t* mb_info) {
-    struct fb* fb = bochs_fb_init();
-    if (fb)
-        return fb;
-    return multiboot_fb_init(mb_info);
+static struct fb* find_fb(void) {
+    static struct fb* (*const candidates[])(void) = {
+        bochs_fb_init,
+        boot_fb_init,
+    };
+    for (size_t i = 0; i < ARRAY_SIZE(candidates); ++i) {
+        struct fb* found_fb = candidates[i]();
+        if (found_fb)
+            return found_fb;
+    }
+    return NULL;
 }
 
 struct fb* fb_get(void) { return fb; }
@@ -87,8 +93,8 @@ static struct vm_obj* fb_device_mmap(struct file* file) {
     return fb_mmap();
 }
 
-void fb_init(const multiboot_info_t* mb_info) {
-    struct fb* found_fb = find_fb(mb_info);
+void fb_init(void) {
+    struct fb* found_fb = find_fb();
     if (!found_fb)
         return;
 

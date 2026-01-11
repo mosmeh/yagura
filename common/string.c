@@ -1,65 +1,15 @@
 #include <common/string.h>
-#include <stdalign.h>
-#include <stdbool.h>
 #include <stdint.h>
 
-void* memset(void* s, int c, size_t n) {
-    uintptr_t dest = (uintptr_t)s;
+void* memmove(void* dest, const void* src, size_t n) {
+    if (((uintptr_t)dest - (uintptr_t)src) >= n)
+        return memcpy(dest, src, n);
 
-    bool aligned = !((uintptr_t)s & (alignof(uint32_t) - 1));
-    if (aligned && n >= sizeof(uint32_t)) {
-        uint32_t d =
-            (uint32_t)c << 24 | (uint32_t)c << 16 | (uint32_t)c << 8 | c;
-        size_t nd = n / sizeof(uint32_t);
-        n -= sizeof(uint32_t) * nd;
-        __asm__ volatile("rep stosl"
-                         : "=D"(dest), "=c"(nd)
-                         : "D"(dest), "c"(nd), "a"(d)
-                         : "memory");
-        if (n == 0)
-            return s;
-    }
-
-    __asm__ volatile("rep stosb"
-                     : "=D"(dest), "=c"(n)
-                     : "0"(dest), "1"(n), "a"(c)
-                     : "memory");
-    return s;
-}
-
-void* memcpy(void* dest_ptr, const void* src_ptr, size_t n) {
-    size_t dest = (size_t)dest_ptr;
-    size_t src = (size_t)src_ptr;
-
-    bool aligned = !((uintptr_t)dest_ptr & (alignof(uint32_t) - 1)) &&
-                   !((uintptr_t)src_ptr & (alignof(uint32_t) - 1));
-    if (aligned && n >= sizeof(uint32_t)) {
-        size_t nd = n / sizeof(uint32_t);
-        n -= sizeof(uint32_t) * nd;
-        __asm__ volatile("rep movsl"
-                         : "=S"(src), "=D"(dest), "=c"(nd)
-                         : "S"(src), "D"(dest), "c"(nd)
-                         : "memory");
-        if (n == 0)
-            return dest_ptr;
-    }
-
-    __asm__ volatile("rep movsb"
-                     : "=S"(src), "=D"(dest), "=c"(n)
-                     : "S"(src), "D"(dest), "c"(n)
-                     : "memory");
-    return dest_ptr;
-}
-
-void* memmove(void* dest_ptr, const void* src_ptr, size_t n) {
-    if (((uintptr_t)dest_ptr - (uintptr_t)src_ptr) >= n)
-        return memcpy(dest_ptr, src_ptr, n);
-
-    unsigned char* dest = (unsigned char*)dest_ptr + n;
-    const unsigned char* src = (const unsigned char*)src_ptr + n;
+    unsigned char* d = (unsigned char*)dest + n;
+    const unsigned char* s = (const unsigned char*)src + n;
     for (; n--;)
-        *--dest = *--src;
-    return dest_ptr;
+        *--d = *--s;
+    return dest;
 }
 
 int memcmp(const void* s1, const void* s2, size_t n) {

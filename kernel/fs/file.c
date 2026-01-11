@@ -6,6 +6,7 @@
 #include <kernel/api/sys/poll.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
+#include <kernel/memory/phys.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/sched.h>
 

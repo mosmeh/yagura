@@ -3,6 +3,7 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/fs.h>
+#include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
@@ -32,7 +33,9 @@ static size_t parse_octal(const char* s, size_t len) {
 
 #define PARSE_FIELD(field) parse_octal(field, sizeof(field))
 
-void initrd_populate_root_fs(uintptr_t phys_addr, size_t size) {
+void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
+    kprint("initrd: populating root file system\n");
+
     void* initrd FREE(phys) = phys_map(phys_addr, size, VM_READ);
     ASSERT_PTR(initrd);
 
