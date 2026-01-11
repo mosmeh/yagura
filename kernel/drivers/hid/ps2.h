@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/asm_wrapper.h>
+#include <kernel/arch/io.h>
 
 #define PS2_DATA 0x60
 #define PS2_STATUS 0x64

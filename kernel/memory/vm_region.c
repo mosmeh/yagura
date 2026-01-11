@@ -1,4 +1,5 @@
 #include "private.h"
+#include <kernel/memory/phys.h>
 #include <kernel/memory/vm.h>
 #include <kernel/task/task.h>
 

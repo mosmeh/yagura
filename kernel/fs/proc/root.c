@@ -17,67 +17,6 @@ static int print_cmdline(struct file* file, struct vec* vec) {
     return vec_printf(vec, "%s\n", cmdline_get_raw());
 }
 
-static int print_flag(struct vec* vec, const struct cpu* cpu, int feature,
-                      const char* name) {
-    if (!name[0]) {
-        // Skip empty names
-        return 0;
-    }
-    if (!cpu_has_feature(cpu, feature))
-        return 0;
-    return vec_printf(vec, "%s ", name);
-}
-
-static int print_cpuinfo(struct file* file, struct vec* vec) {
-    (void)file;
-
-    for (size_t i = 0; i < num_cpus; ++i) {
-        struct cpu* cpu = cpus[i];
-        int ret = vec_printf(vec,
-                             "processor       : %zu\n"
-                             "vendor_id       : %s\n"
-                             "cpu family      : %u\n"
-                             "model           : %u\n"
-                             "model name      : %s\n",
-                             i, cpu->vendor_id, cpu->family, cpu->model,
-                             cpu->model_name);
-        if (IS_ERR(ret))
-            return ret;
-
-        if (cpu->stepping) {
-            ret = vec_printf(vec, "stepping        : %u\n", cpu->stepping);
-            if (IS_ERR(ret))
-                return ret;
-        }
-
-        const char* fpu = cpu_has_feature(cpu, X86_FEATURE_FPU) ? "yes" : "no";
-        ret = vec_printf(vec,
-                         "apicid          : %u\n"
-                         "fpu             : %s\n"
-                         "fpu_exception   : %s\n"
-                         "wp              : yes\n"
-                         "flags           : ",
-                         cpu->apic_id, fpu, fpu);
-        if (IS_ERR(ret))
-            return ret;
-
-#define F(variant, name)                                                       \
-    ret = print_flag(vec, cpu, X86_FEATURE_##variant, #name);                  \
-    if (IS_ERR(ret))                                                           \
-        return ret;
-        ENUMERATE_X86_FEATURES(F)
-#undef F
-
-        ret = vec_printf(
-            vec, "\naddress sizes   : %u bits physical, %u bits virtual\n\n",
-            cpu->phys_addr_bits, cpu->virt_addr_bits);
-        if (IS_ERR(ret))
-            return ret;
-    }
-
-    return 0;
-}
-
 static int print_filesystems(struct file* file, struct vec* vec) {
     (void)file;
     for (struct file_system* fs = file_systems; fs; fs = fs->next) {
@@ -158,7 +97,7 @@ static int print_version(struct file* file, struct vec* vec) {
 
 static struct proc_entry entries[] = {
     {"cmdline", S_IFREG, print_cmdline},
-    {"cpuinfo", S_IFREG, print_cpuinfo},
+    {"cpuinfo", S_IFREG, proc_print_cpuinfo},
     {"filesystems", S_IFREG, print_filesystems},
     {"kallsyms", S_IFREG, print_kallsyms},
     {"meminfo", S_IFREG, print_meminfo},

@@ -2,9 +2,14 @@
 
 set -e
 
-! qemu-system-i386 \
-    -kernel kernel/kernel \
-    -initrd initrd \
+ARCH="${ARCH:-i386}"
+BUILD_DIR="${BUILD_DIR:-build/${ARCH}}"
+KERNEL="${KERNEL:-${BUILD_DIR}/kernel.elf}"
+INITRD="${INITRD:-${BUILD_DIR}/initrd}"
+
+! "qemu-system-${ARCH}" \
+    -kernel "${KERNEL}" \
+    -initrd "${INITRD}" \
     -append 'panic=poweroff init=/bin/init-test console=ttyS0' \
     -d guest_errors \
     -no-reboot \

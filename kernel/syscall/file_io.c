@@ -1,8 +1,8 @@
-#include "private.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/uio.h>
 #include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
 long sys_read(int fd, void* user_buf, size_t count) {
@@ -12,20 +12,6 @@ long sys_read(int fd, void* user_buf, size_t count) {
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     int rc = file_read(file, user_buf, count);
-    if (rc == -EINTR)
-        return -ERESTARTSYS;
-    return rc;
-}
-
-long sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
-                      uint32_t pos_hi) {
-    if (!user_buf || !is_user_range(user_buf, count))
-        return -EFAULT;
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
-        return PTR_ERR(file);
-    uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
-    int rc = file_pread(file, user_buf, count, pos);
     if (rc == -EINTR)
         return -ERESTARTSYS;
     return rc;
@@ -83,20 +69,6 @@ long sys_write(int fd, const void* user_buf, size_t count) {
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     int rc = file_write(file, user_buf, count);
-    if (rc == -EINTR)
-        return -ERESTARTSYS;
-    return rc;
-}
-
-long sys_ia32_pwrite64(int fd, const void* user_buf, size_t count,
-                       uint32_t pos_lo, uint32_t pos_hi) {
-    if (!user_buf || !is_user_range(user_buf, count))
-        return -EFAULT;
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
-        return PTR_ERR(file);
-    uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
-    int rc = file_pwrite(file, user_buf, count, pos);
     if (rc == -EINTR)
         return -ERESTARTSYS;
     return rc;
@@ -169,7 +141,7 @@ long sys_llseek(unsigned int fd, unsigned long offset_high,
     return 0;
 }
 
-NODISCARD static long truncate(const char* user_path, uint64_t length) {
+long sys_truncate(const char* user_path, off_t length) {
     char path[PATH_MAX];
     ssize_t len = copy_pathname_from_user(path, user_path);
     if (IS_ERR(len))
@@ -180,27 +152,11 @@ NODISCARD static long truncate(const char* user_path, uint64_t length) {
     return file_truncate(file, length);
 }
 
-NODISCARD static long ftruncate(int fd, uint64_t length) {
+long sys_ftruncate(int fd, off_t length) {
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return file_truncate(file, length);
-}
-
-long sys_truncate(const char* user_path, off_t length) {
-    return truncate(user_path, length);
-}
-
-long sys_ftruncate(int fd, off_t length) { return ftruncate(fd, length); }
-
-long sys_ia32_truncate64(const char* user_path, unsigned long offset_low,
-                         unsigned long offset_high) {
-    return truncate(user_path, ((uint64_t)offset_high << 32) | offset_low);
-}
-
-long sys_ia32_ftruncate64(int fd, unsigned long offset_low,
-                          unsigned long offset_high) {
-    return ftruncate(fd, ((uint64_t)offset_high << 32) | offset_low);
 }
 
 long sys_fsync(int fd) {

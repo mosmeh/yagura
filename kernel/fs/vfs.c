@@ -10,7 +10,6 @@
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
-#include <kernel/multiboot.h>
 #include <kernel/panic.h>
 #include <kernel/task/task.h>
 
@@ -385,9 +384,8 @@ int vfs_sync(void) {
 
 void tmpfs_init(void);
 void proc_init(void);
-void initrd_populate_root_fs(uintptr_t phys_addr, size_t size);
 
-void vfs_init(const multiboot_module_t* initrd_mod) {
+void vfs_init(void) {
     tmpfs_init();
     proc_init();
 
@@ -400,14 +398,7 @@ void vfs_init(const multiboot_module_t* initrd_mod) {
     struct path* root FREE(path) = path_create_root(mount->root);
     ASSERT_PTR(root);
 
-    {
-        SCOPED_LOCK(fs, current->fs);
-        ASSERT_OK(fs_chroot(current->fs, root));
-        ASSERT_OK(fs_chdir(current->fs, root));
-    }
-
-    kprintf("vfs: populating root fs with initrd at P%#x - P%#x\n",
-            initrd_mod->mod_start, initrd_mod->mod_end);
-    initrd_populate_root_fs(initrd_mod->mod_start,
-                            initrd_mod->mod_end - initrd_mod->mod_start);
+    SCOPED_LOCK(fs, current->fs);
+    ASSERT_OK(fs_chroot(current->fs, root));
+    ASSERT_OK(fs_chdir(current->fs, root));
 }

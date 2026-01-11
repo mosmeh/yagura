@@ -17,8 +17,11 @@ void sched_register(struct task*);
 // Starts the scheduler on the current CPU.
 noreturn void sched_start(void);
 
-// Yields the current CPU to other tasks.
+// Yields the CPU to another task.
 void sched_yield(void);
+
+// Requests rescheduling of the given task.
+void sched_reschedule(struct task*);
 
 // Should be called on every timer tick.
 void sched_tick(struct registers*);

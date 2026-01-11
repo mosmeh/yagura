@@ -1,22 +1,21 @@
 #include <common/stdlib.h>
 #include <common/string.h>
+#include <kernel/arch/context.h>
+#include <kernel/arch/io.h>
+#include <kernel/arch/system.h>
 #include <kernel/cpu.h>
-#include <kernel/drivers/hid/ps2.h>
 #include <kernel/fs/fs.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
-#include <kernel/memory/safe_string.h>
-#include <kernel/panic.h>
 #include <kernel/system.h>
-#include <stdarg.h>
 
 static struct utsname utsname = {
     .sysname = "yagura",
     .nodename = "(none)",
     .release = "dev",
     .version = YAGURA_VERSION,
-    .machine = "i686",
+    .machine = ARCH_UTS_MACHINE,
     .domainname = "(none)",
 };
 
@@ -43,86 +42,83 @@ int utsname_set_domainname(const char* domainname, size_t len) {
     return 0;
 }
 
-noreturn void reboot(void) {
-    out8(PS2_COMMAND, 0xfe);
+void reboot(const char* cmd) {
+    arch_disable_interrupts();
+    if (cmd)
+        kprintf("Restarting system with command '%s'\n", cmd);
+    else
+        kprint("Restarting system\n");
+    arch_reboot();
     halt();
 }
 
-noreturn void halt(void) {
-    disable_interrupts();
-    if (smp_active)
+void poweroff(void) {
+    arch_disable_interrupts();
+    kprint("Power down\n");
+    arch_poweroff();
+    halt();
+}
+
+void halt(void) {
+    arch_disable_interrupts();
+    kprint("System halted\n");
+    if (arch_smp_active())
         cpu_broadcast_message_coalesced(IPI_MESSAGE_HALT, true);
-    for (;;)
-        hlt();
+    arch_cpu_halt();
 }
 
-noreturn void poweroff(void) {
-    // this works only on emulators
-    out16(0x604, 0x2000);  // QEMU
-    out16(0x4004, 0x3400); // Virtualbox
-    out16(0xb004, 0x2000); // Bochs and older versions of QEMU
-    halt();
-}
+struct stack_walk {
+    int depth;
+    bool in_userland;
+};
 
-static void dump_registers(const struct registers* regs) {
-    kprintf("interrupt_num=%u error_code=0x%08x\n"
-            "   pc=0x%04x:0x%08x eflags=0x%08x\n"
-            "stack=0x%04x:0x%08x\n"
-            "   ds=0x%04x es=0x%04x fs=0x%04x gs=0x%04x\n"
-            "  eax=0x%08x ebx=0x%08x ecx=0x%08x edx=0x%08x\n"
-            "  ebp=0x%08x esi=0x%08x edi=0x%08x\n"
-            "  cr0=0x%08lx cr2=0x%08lx cr3=0x%08lx cr4=0x%08lx\n",
-            regs->interrupt_num, regs->error_code, regs->cs, regs->eip,
-            regs->eflags, regs->ss, regs->esp, regs->ds, regs->es, regs->fs,
-            regs->gs, regs->eax, regs->ebx, regs->ecx, regs->edx, regs->ebp,
-            regs->esi, regs->edi, read_cr0(), read_cr2(), read_cr3(),
-            read_cr4());
-}
-
-static void dump_stack_trace(uintptr_t eip, uintptr_t ebp) {
-    bool in_userland = eip < KERNEL_IMAGE_START;
-    kprint("stack trace:\n");
-    for (unsigned depth = 0;; ++depth) {
-        if (depth >= 20) {
-            kprint("  ...\n");
-            break;
-        }
-        const struct symbol* symbol = in_userland ? NULL : ksyms_lookup(eip);
-        if (symbol)
-            kprintf("  0x%p %s+0x%x\n", (void*)eip, symbol->name,
-                    eip - symbol->addr);
-        else
-            kprintf("  0x%p\n", (void*)eip);
-
-        if (safe_memcpy(&eip, (uintptr_t*)ebp + 1, sizeof(uintptr_t)))
-            break;
-        if (safe_memcpy(&ebp, (uintptr_t*)ebp, sizeof(uintptr_t)))
-            break;
-
-        if (!eip || !ebp)
-            break;
-
-        if (in_userland && eip >= KERNEL_IMAGE_START) {
-            // somehow stack looks like userland function is called from kernel
-            break;
-        }
-        in_userland |= eip < KERNEL_IMAGE_START;
+static bool print_stack_frame(uintptr_t ip, void* data) {
+    struct stack_walk* walk = data;
+    if (!ip)
+        return false;
+    if (walk->depth >= 20) {
+        kprint("  ...\n");
+        return false;
     }
+    const struct symbol* symbol =
+        is_kernel_address((void*)ip) ? ksyms_lookup(ip) : NULL;
+    if (symbol)
+        kprintf("  0x%p %s+0x%lx\n", (void*)ip, symbol->name,
+                (unsigned long)(ip - symbol->addr));
+    else
+        kprintf("  0x%p\n", (void*)ip);
+    if (walk->in_userland && is_kernel_address((void*)ip)) {
+        // Stack trace says a userland function was called from kernel land,
+        // which should not happen. The stack trace is probably corrupted.
+        return false;
+    }
+    walk->in_userland |= is_user_address((void*)ip);
+    ++walk->depth;
+    return true;
+}
+
+void dump_stack_trace(uintptr_t ip, uintptr_t bp) {
+    kprint("stack trace:\n");
+    struct stack_walk walk = {0};
+    if (!print_stack_frame(ip, &walk))
+        return;
+    arch_walk_stack(bp, print_stack_frame, &walk);
 }
 
 noreturn void panic(const char* file, size_t line, const char* format, ...) {
-    disable_interrupts();
+    arch_disable_interrupts();
 
     kprint("PANIC: ");
     va_list args;
     va_start(args, format);
     kvprintf(format, args);
     va_end(args);
-    kprintf(" at %s:%zu\n", file, line);
-
-    uintptr_t eip = read_eip();
-    uintptr_t ebp = (uintptr_t)__builtin_frame_address(0);
-    dump_stack_trace(eip, ebp);
+    kprintf(" at %s:%zu\n"
+            "stack trace:\n",
+            file, line);
+    struct stack_walk walk = {0};
+    uintptr_t bp = (uintptr_t)__builtin_frame_address(0);
+    arch_walk_stack(bp, print_stack_frame, &walk);
 
     const char* mode = cmdline_lookup("panic");
     if (mode) {
@@ -134,21 +130,16 @@ noreturn void panic(const char* file, size_t line, const char* format, ...) {
             delay(n * 1000000UL);
         }
         if (n != 0)
-            reboot();
+            reboot(NULL);
     }
     halt();
-}
-
-void dump_context(const struct registers* regs) {
-    dump_registers(regs);
-    dump_stack_trace(regs->eip, regs->ebp);
 }
 
 void handle_sysrq(char ch) {
     switch (ch) {
     case 'b':
         kprint("sysrq: Resetting\n");
-        reboot();
+        reboot(NULL);
         break;
     case 'c':
         kprint("sysrq: Trigger a crash\n");

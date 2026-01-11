@@ -1,6 +1,6 @@
-#include "private.h"
 #include <common/integer.h>
 #include <common/string.h>
+#include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/time.h>
 #include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
@@ -195,7 +195,7 @@ long sys_ppoll(struct pollfd* user_fds, nfds_t nfds,
             return -EFAULT;
     }
 
-    sigset_t old_sigmask;
+    sigset_t old_sigmask = 0;
     if (user_sigmask) {
         sigset_t sigmask;
         if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
@@ -228,7 +228,7 @@ long sys_ppoll_time32(struct pollfd* user_fds, nfds_t nfds,
             return -EFAULT;
     }
 
-    sigset_t old_sigmask;
+    sigset_t old_sigmask = 0;
     if (user_sigmask) {
         sigset_t sigmask;
         if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
@@ -412,7 +412,7 @@ long sys_pselect6(int nfds, unsigned long* user_readfds,
             return -EFAULT;
     }
 
-    sigset_t old_sigmask;
+    sigset_t old_sigmask = 0;
     if (user_sigmask) {
         sigset_t sigmask;
         if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
@@ -445,7 +445,7 @@ long sys_pselect6_time32(int nfds, unsigned long* user_readfds,
             return -EFAULT;
     }
 
-    sigset_t old_sigmask;
+    sigset_t old_sigmask = 0;
     if (user_sigmask) {
         sigset_t sigmask;
         if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))

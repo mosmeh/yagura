@@ -1,7 +1,8 @@
+#include <kernel/arch/io.h>
 #include <kernel/console/console.h>
 #include <kernel/drivers/serial.h>
 #include <kernel/fs/fs.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
@@ -84,11 +85,11 @@ static bool enable_port(uint8_t index) {
     switch (index) {
     case 0:
     case 2:
-        idt_set_interrupt_handler(IRQ(4), handle_com1_and_com3);
+        arch_interrupts_set_handler(IRQ(4), handle_com1_and_com3);
         break;
     case 1:
     case 3:
-        idt_set_interrupt_handler(IRQ(3), handle_com2_and_com4);
+        arch_interrupts_set_handler(IRQ(3), handle_com2_and_com4);
         break;
     default:
         UNREACHABLE();

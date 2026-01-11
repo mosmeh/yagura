@@ -1,5 +1,6 @@
 #pragma once
 
+#include <common/tree.h>
 #include <kernel/memory/memory.h>
 #include <kernel/resource.h>
 
@@ -52,8 +53,8 @@ NODISCARD int vm_obj_invalidate_mappings(const struct vm_obj*, size_t offset,
 
 struct vm_obj* anon_create(void);
 
-struct vm_obj* phys_create(uintptr_t phys_addr, size_t npages);
-void* phys_map(uintptr_t phys_addr, size_t size, unsigned vm_flags);
+struct vm_obj* phys_create(phys_addr_t phys_addr, size_t npages);
+void* phys_map(phys_addr_t phys_addr, size_t size, unsigned vm_flags);
 void phys_unmap(void*);
 
 DEFINE_FREE(phys, void*, phys_unmap)
@@ -95,6 +96,27 @@ struct vm* vm_enter(struct vm*);
 
 // Clones the virtual memory space.
 struct vm* vm_clone(struct vm*);
+
+// Access violated page protection. If not set, the page was not present.
+#define PAGE_FAULT_PROT_VIOLATION 0x1
+
+// Fault occurred during a write access.
+// If not set, the fault occurred during a read access.
+#define PAGE_FAULT_WRITE 0x2
+
+// Fault occurred in user mode.
+// If not set, the fault occurred in kernel mode.
+#define PAGE_FAULT_USER 0x4
+
+// Fault occurred during an instruction fetch.
+// If not set, the fault occurred during a data access.
+#define PAGE_FAULT_INSTRUCTION 0x8
+
+// Fault occurred in an interruptible context.
+// If not set, the fault occurred in an atomic context.
+#define PAGE_FAULT_INTERRUPTIBLE 0x10
+
+NODISCARD bool vm_handle_page_fault(void* virt_addr, unsigned flags);
 
 // Populates (prefaults) the page tables for the given virtual address range
 // without the actual memory access.
@@ -156,14 +178,3 @@ NODISCARD int vm_region_free(struct vm_region*, size_t offset, size_t npages);
 // access.
 NODISCARD int vm_region_invalidate(const struct vm_region*, size_t offset,
                                    size_t npages);
-
-static inline uint16_t vm_flags_to_pte_flags(unsigned vm_flags) {
-    uint16_t pte_flags = (vm_flags & VM_USER) ? PTE_USER : PTE_GLOBAL;
-    if (vm_flags & VM_WRITE)
-        pte_flags |= PTE_WRITE;
-    if (vm_flags & VM_USER)
-        pte_flags |= PTE_USER;
-    if (vm_flags & VM_WC)
-        pte_flags |= PTE_PAT;
-    return pte_flags;
-}

@@ -7,6 +7,7 @@ CompileFlags:
         - -Wextra
         - -pedantic
         - -Wno-empty-translation-unit
+        - -DARCH_I386
 Style:
     QuotedHeaders: .*/private\.h
 ---
@@ -24,9 +25,18 @@ CompileFlags:
         - -isystem.
 ---
 If:
+    PathMatch: kernel/.*
+CompileFlags:
+    Add:
+        - -isystemkernel/api/x86
+        - -isystemkernel/arch/i386/include
+        - -isystemkernel/arch/x86/include
+---
+If:
     PathMatch: userland/.*
 CompileFlags:
     Add:
         - -isystemuserland/libc
         - -isystem.
         - -isystemkernel/api
+        - -isystemkernel/api/x86

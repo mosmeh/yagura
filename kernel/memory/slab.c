@@ -1,6 +1,7 @@
 #include "private.h"
 #include <common/integer.h>
 #include <kernel/containers/vec.h>
+#include <kernel/memory/phys.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 
@@ -42,8 +43,7 @@ NODISCARD static int ensure_cache(struct slab* slab) {
             return pfn;
 
         start_addr = (uintptr_t)start << PAGE_SHIFT;
-        int ret = pagemap_map(kernel_pagemap, start_addr, pfn, 1,
-                              PTE_WRITE | PTE_GLOBAL);
+        int ret = pagemap_map(kernel_pagemap, start_addr, pfn, 1, VM_WRITE);
         if (IS_ERR(ret)) {
             page_free_raw(pfn);
             return ret;

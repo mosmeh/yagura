@@ -159,7 +159,7 @@ void acpi_init(void) {
     kprint("acpi: found CPUs ");
     for (const struct local_apic** p = acpi.local_apics; *p; ++p)
         kprintf("%u ", (*p)->apic_id);
-    kprintf("(BSP = %u)\n", cpu_get_bsp()->apic_id);
+    kprintf("(BSP = %u)\n", cpu_get_bsp()->arch.apic_id);
 
     is_parse_successful = true;
 }

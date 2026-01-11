@@ -1,6 +1,6 @@
 #include <kernel/drivers/hid/hid.h>
 #include <kernel/drivers/hid/ps2.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 
 static const struct keyboard_events noop_handlers = {0};
 static _Atomic(const struct keyboard_events*) event_handlers = &noop_handlers;
@@ -63,5 +63,5 @@ static void irq_handler(struct registers* reg) {
 
 void ps2_keyboard_init(void) {
     ps2_write(PS2_COMMAND, PS2_ENABLE_PORT1);
-    idt_set_interrupt_handler(IRQ(1), irq_handler);
+    arch_interrupts_set_handler(IRQ(1), irq_handler);
 }

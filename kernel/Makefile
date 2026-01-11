@@ -1,154 +1,193 @@
-CFLAGS += -isystem..
+OUT_DIR := $(BUILD_DIR)/kernel
 
-LINKER_SCRIPT := linker.ld
+CFLAGS += -isystem$(ROOT)
+
+LINKER_SCRIPT := $(OUT_DIR)/kernel.lds
 LDFLAGS += -Wl,-T$(LINKER_SCRIPT)
 
-TARGET := kernel
+SRCS := \
+	common/libgen.c \
+	common/stdio.c \
+	common/stdlib.c \
+	common/string.c \
+	common/tree.c \
+	common/ubsan.c \
+	kernel/cmdline.c \
+	kernel/console/console.c \
+	kernel/console/font.c \
+	kernel/console/key_map.c \
+	kernel/console/screen/fb.c \
+	kernel/console/screen/screen.c \
+	kernel/console/screen/vga_text.c \
+	kernel/console/serial_console.c \
+	kernel/console/system_console.c \
+	kernel/console/tty.c \
+	kernel/console/virtual_console.c \
+	kernel/console/vt.c \
+	kernel/containers/vec.c \
+	kernel/cpu.c \
+	kernel/device/device.c \
+	kernel/device/pseudo.c \
+	kernel/drivers/ac97.c \
+	kernel/drivers/acpi.c \
+	kernel/drivers/drivers.c \
+	kernel/drivers/graphics/bochs.c \
+	kernel/drivers/graphics/boot.c \
+	kernel/drivers/graphics/fb.c \
+	kernel/drivers/hid/keyboard.c \
+	kernel/drivers/hid/mouse.c \
+	kernel/drivers/hid/ps2.c \
+	kernel/drivers/pci.c \
+	kernel/drivers/serial.c \
+	kernel/drivers/virtio/virtio_blk.c \
+	kernel/drivers/virtio/virtio.c \
+	kernel/exec/elf.c \
+	kernel/exec/exec.c \
+	kernel/exec/shebang.c \
+	kernel/fs/file.c \
+	kernel/fs/filemap.c \
+	kernel/fs/fs.c \
+	kernel/fs/initrd.c \
+	kernel/fs/path.c \
+	kernel/fs/pipe.c \
+	kernel/fs/proc/pid.c \
+	kernel/fs/proc/proc.c \
+	kernel/fs/proc/root.c \
+	kernel/fs/tmpfs.c \
+	kernel/fs/vfs.c \
+	kernel/kmsg.c \
+	kernel/ksyms.c \
+	kernel/lock.c \
+	kernel/main.c \
+	kernel/memory/kmalloc.c \
+	kernel/memory/memory.c \
+	kernel/memory/page_table.c \
+	kernel/memory/phys.c \
+	kernel/memory/safe_string.c \
+	kernel/memory/slab.c \
+	kernel/memory/vm_obj.c \
+	kernel/memory/vm_region.c \
+	kernel/memory/vm.c \
+	kernel/random.c \
+	kernel/sched.c \
+	kernel/socket.c \
+	kernel/syscall/dir.c \
+	kernel/syscall/file_ctrl.c \
+	kernel/syscall/file_io.c \
+	kernel/syscall/fs.c \
+	kernel/syscall/mmap.c \
+	kernel/syscall/path.c \
+	kernel/syscall/select.c \
+	kernel/syscall/signal.c \
+	kernel/syscall/socket.c \
+	kernel/syscall/stat.c \
+	kernel/syscall/syscall.c \
+	kernel/syscall/system.c \
+	kernel/syscall/task.c \
+	kernel/syscall/time.c \
+	kernel/system.c \
+	kernel/task/fs.c \
+	kernel/task/signal.c \
+	kernel/task/task.c \
+	kernel/time.c
 
-OBJS := \
-	boot.o \
-	cmdline.o \
-	console/console.o \
-	console/font.o \
-	console/key_map.o \
-	console/screen/fb.o \
-	console/screen/screen.o \
-	console/screen/vga_text.o \
-	console/serial_console.o \
-	console/system_console.o \
-	console/tty.o \
-	console/virtual_console.o \
-	console/vt.o \
-	containers/vec.o \
-	cpu.o \
-	device/device.o \
-	device/pseudo.o \
-	drivers/ac97.o \
-	drivers/acpi.o \
-	drivers/drivers.o \
-	drivers/graphics/bochs.o \
-	drivers/graphics/fb.o \
-	drivers/graphics/multiboot.o \
-	drivers/hid/keyboard.o \
-	drivers/hid/mouse.o \
-	drivers/hid/ps2.o \
-	drivers/pci.o \
-	drivers/pit.o \
-	drivers/rtc.o \
-	drivers/serial.o \
-	drivers/virtio/virtio_blk.o \
-	drivers/virtio/virtio.o \
-	exec/elf.o \
-	exec/exec.o \
-	exec/shebang.o \
-	fs/file.o \
-	fs/filemap.o \
-	fs/fs.o \
-	fs/initrd.o \
-	fs/path.o \
-	fs/pipe.o \
-	fs/proc/pid.o \
-	fs/proc/proc.o \
-	fs/proc/root.o \
-	fs/tmpfs.o \
-	fs/vfs.o \
-	gdt.o \
-	interrupts/apic.o \
-	interrupts/asm.o \
-	interrupts/i8259.o \
-	interrupts/idt.o \
-	kmsg.o \
-	ksyms.o \
-	lock.o \
-	main.o \
-	memory/kmalloc.o \
-	memory/memory.o \
-	memory/page_table.o \
-	memory/page.o \
-	memory/safe_string.o \
-	memory/slab.o \
-	memory/vm_obj.o \
-	memory/vm_region.o \
-	memory/vm.o \
-	random.o \
-	sched.o \
-	smp.o \
-	socket.o \
-	syscall/dir.o \
-	syscall/file_ctrl.o \
-	syscall/file_io.o \
-	syscall/fs.o \
-	syscall/mmap.o \
-	syscall/path.o \
-	syscall/select.o \
-	syscall/signal.o \
-	syscall/socket.o \
-	syscall/stat.o \
-	syscall/syscall.o \
-	syscall/system.o \
-	syscall/task.o \
-	syscall/time.o \
-	system.o \
-	task/asm.o \
-	task/fs.o \
-	task/signal.o \
-	task/task.o \
-	time.o \
-	../common/integer.o \
-	../common/libgen.o \
-	../common/stdio.o \
-	../common/stdlib.o \
-	../common/string.o \
-	../common/tree.o \
-	../common/ubsan.o
+X86_SRCS := \
+	common/x86/string.c \
+	kernel/arch/x86/boot/multiboot.S \
+	kernel/arch/x86/boot/start.c \
+	kernel/arch/x86/cpu.c \
+	kernel/arch/x86/gdt.c \
+	kernel/arch/x86/interrupts/apic.c \
+	kernel/arch/x86/interrupts/i8259.c \
+	kernel/arch/x86/interrupts/idt.c \
+	kernel/arch/x86/interrupts/pit.c \
+	kernel/arch/x86/memory/page_fault.c \
+	kernel/arch/x86/memory/page_table.c \
+	kernel/arch/x86/memory/safe_string.c \
+	kernel/arch/x86/power.c \
+	kernel/arch/x86/random.c \
+	kernel/arch/x86/rtc.c \
+	kernel/arch/x86/smp.c \
+	kernel/arch/x86/syscall/ia32.c \
+	kernel/arch/x86/syscall/syscall.c \
+	kernel/arch/x86/task/context.c \
+	kernel/arch/x86/task/signal.c \
+	kernel/arch/x86/task/tls.c
 
+ifeq ($(ARCH), i386)
+LINKER_SCRIPT_SRC := $(ROOT)/kernel/arch/x86/kernel.lds.S
+
+CFLAGS += \
+	-m32 \
+	-isystem$(ROOT)/kernel/api/x86 \
+	-isystem$(ROOT)/kernel/arch/i386/include \
+	-isystem$(ROOT)/kernel/arch/x86/include
+
+SRCS += \
+	common/i386/integer.c \
+	kernel/arch/i386/boot.S \
+	kernel/arch/i386/context.c \
+	kernel/arch/i386/interrupts.S \
+	$(X86_SRCS)
+else
+$(error Unknown ARCH '$(ARCH)')
+endif
+
+OBJS := $(addprefix $(OUT_DIR)/,$(SRCS:.c=.o))
+OBJS := $(OBJS:.S=.o)
 DEPS := $(OBJS:.o=.d)
+OBJ_DIRS := $(sort $(dir $(OBJS)))
 
 .PHONY: all clean
 
-all: $(TARGET)
+all: $(KERNEL_BIN)
 
-STAGES := \
-	$(TARGET).stage0 \
-	$(TARGET).stage1 \
-	$(TARGET).stage2
+$(OUT_DIR):
+	@mkdir -p $@
 
-# stage1 is built with an empty symbol table
-$(TARGET).stage1: $(TARGET).stage0.ksyms.o $(OBJS) $(LINKER_SCRIPT)
-	@echo "[LD] $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
-
-# stage2 will have a correct list of symbols, but the addresses will be wrong
-$(TARGET).stage2: $(TARGET).stage1.ksyms.o $(OBJS) $(LINKER_SCRIPT)
-	@echo "[LD] $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
-
-# stage3 will have correct addresses
-$(TARGET): $(TARGET).stage2.ksyms.o $(OBJS) $(LINKER_SCRIPT)
-	@echo "[LD] $@"
-	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
-
-$(TARGET).stage0.ksyms.o: ksyms.S
+$(OUT_DIR)/stage0.ksyms.o: ksyms.S | $(OUT_DIR)
 	@echo "[AS] $<"
 	@$(CC) $(CFLAGS) -c -o $@ $<
 
-%.ksyms.o: ksyms.S %.ksyms
-	@echo "[AS] $<"
-	@$(CC) $(CFLAGS) -DKSYMS=$*.ksyms -c -o $@ $<
+# stage1 is built with an empty symbol table
+$(OUT_DIR)/stage1: $(OUT_DIR)/stage0.ksyms.o $(OBJS) $(LINKER_SCRIPT)
+	@echo "[LD] $(patsubst $(ROOT)/%,%,$@)"
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
 
-%.ksyms: %
-	@echo "[KSYMS] $<"
+# stage2 will have a correct list of symbols, but the addresses will be wrong
+$(OUT_DIR)/stage2: $(OUT_DIR)/stage1.ksyms.o $(OBJS) $(LINKER_SCRIPT)
+	@echo "[LD] $(patsubst $(ROOT)/%,%,$@)"
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
+
+# stage3 will have correct addresses
+$(KERNEL_BIN): $(OUT_DIR)/stage2.ksyms.o $(OBJS) $(LINKER_SCRIPT)
+	@echo "[LD] $(patsubst $(ROOT)/%,%,$@)"
+	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
+
+$(OUT_DIR)/%.ksyms.o: ksyms.S $(OUT_DIR)/%.ksyms
+	@echo "[AS] $<"
+	@$(CC) $(CFLAGS) -DKSYMS='"$(OUT_DIR)/$*.ksyms"' -c -o $@ $<
+
+%.ksyms: % | $(OUT_DIR)
+	@echo "[KSYMS] $(patsubst $(ROOT)/%,%,$<)"
 	@nm -n $< > $@
 
-.c.o:
-	@echo "[CC] $<"
+$(OBJ_DIRS):
+	@mkdir -p $@
+
+$(OUT_DIR)/%.o: $(ROOT)/%.c | $(OBJ_DIRS)
+	@echo "[CC] $(patsubst $(ROOT)/%,%,$<)"
 	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
 
-.S.o:
-	@echo "[AS] $<"
+$(OUT_DIR)/%.o: $(ROOT)/%.S | $(OBJ_DIRS)
+	@echo "[AS] $(patsubst $(ROOT)/%,%,$<)"
 	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+
+$(LINKER_SCRIPT): $(LINKER_SCRIPT_SRC) | $(OUT_DIR)
+	@echo "[CPP] $(patsubst $(ROOT)/%,%,$<)"
+	@$(CC) $(CFLAGS) -E -P -x assembler-with-cpp -o $@ $<
 
 clean:
-	$(RM) $(TARGET) $(OBJS) $(KSYM_OBJS) $(DEPS) $(STAGES) $(STAGES:=.ksyms) $(STAGES:=.ksyms.o)
+	$(RM) -r $(OUT_DIR)
 
 -include $(DEPS)

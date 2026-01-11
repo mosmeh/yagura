@@ -1,4 +1,4 @@
-#include <kernel/asm_wrapper.h>
+#include <kernel/arch/io.h>
 #include <kernel/drivers/pci.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
@@ -159,12 +159,12 @@ void* pci_map_bar(const struct pci_addr* pci_addr, uint8_t bar) {
         if (bar >= NUM_BARS - 1)
             return ERR_PTR(-EINVAL);
         if (pci_get_bar(pci_addr, bar + 1) != 0) {
-            // This is a 32-bit OS, so we don't support 64-bit base addresses.
+            // TODO: Support 64-bit base address
             return ERR_PTR(-EINVAL);
         }
     }
 
-    uintptr_t phys_addr = bar_value & ~0xf;
+    phys_addr_t phys_addr = bar_value & ~0xf;
 
     write_bar(pci_addr, bar, 0xffffffff);
     uint32_t size = pci_get_bar(pci_addr, bar);

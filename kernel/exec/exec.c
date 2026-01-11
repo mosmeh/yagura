@@ -2,13 +2,12 @@
 #include <common/integer.h>
 #include <common/libgen.h>
 #include <common/string.h>
-#include <kernel/api/asm/processor-flags.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/asm_wrapper.h>
 #include <kernel/exec/exec.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
+#include <kernel/memory/phys.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 
@@ -118,7 +117,7 @@ void exec_image_unload(struct exec_image* image) {
 }
 
 NODISCARD static int loader_init_vm(struct loader* loader) {
-    struct vm* vm FREE(vm) = vm_create(0, (void*)KERNEL_IMAGE_START);
+    struct vm* vm FREE(vm) = vm_create(0, (void*)USER_VIRT_END);
     if (IS_ERR(ASSERT(vm)))
         return PTR_ERR(vm);
 
@@ -127,8 +126,7 @@ NODISCARD static int loader_init_vm(struct loader* loader) {
     STATIC_ASSERT(STACK_SIZE % PAGE_SIZE == 0);
 
     size_t npages = 2 + (STACK_SIZE >> PAGE_SHIFT);
-    unsigned char* guard_start =
-        (void*)(KERNEL_IMAGE_START - npages * PAGE_SIZE);
+    unsigned char* guard_start = (void*)(USER_VIRT_END - npages * PAGE_SIZE);
     struct vm_region* region = vm_alloc_at(vm, guard_start, npages);
     if (IS_ERR(ASSERT(region)))
         return PTR_ERR(region);
@@ -276,33 +274,8 @@ noreturn static void loader_commit(struct loader* loader) {
         task->env_end = (uintptr_t)loader->env_end;
     }
 
-    disable_interrupts();
-
-    memset(task->tls, 0, sizeof(task->tls));
-
-    __asm__ volatile("movw %%ax, %%ds\n"
-                     "movw %%ax, %%es\n"
-                     "movw %%ax, %%fs\n"
-                     "movw %%ax, %%gs\n"
-                     "pushl %%eax\n"
-                     "pushl %%ebx\n"
-                     "pushl %[eflags]\n"
-                     "pushl %[user_cs]\n"
-                     "pushl %%ecx\n"
-                     "movl $0, %%eax\n"
-                     "movl $0, %%ebx\n"
-                     "movl $0, %%ecx\n"
-                     "movl $0, %%edx\n"
-                     "movl $0, %%esi\n"
-                     "movl $0, %%edi\n"
-                     "movl $0, %%ebp\n"
-                     "iret"
-                     :
-                     : [user_cs] "i"(USER_CS | 3),
-                       [eflags] "i"(X86_EFLAGS_IF | X86_EFLAGS_FIXED),
-                       "a"(USER_DS | 3), "b"(loader->stack_ptr),
-                       "c"(loader->entry_point));
-    UNREACHABLE();
+    arch_disable_interrupts();
+    arch_enter_user_mode(task, loader->entry_point, loader->stack_ptr);
 }
 
 NODISCARD static int loader_load(struct loader* loader) {

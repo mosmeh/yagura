@@ -1,5 +1,6 @@
 #include "private.h"
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
+#include <kernel/memory/phys.h>
 #include <kernel/memory/vm.h>
 #include <kernel/task/task.h>
 
@@ -25,7 +26,7 @@ void vm_init(void) {
 }
 
 struct vm* vm_create(void* start, void* end) {
-    if (end <= start || KERNEL_VM_END <= (uintptr_t)start)
+    if (end <= start)
         return ERR_PTR(-EINVAL);
     struct vm* vm = slab_alloc(&vm_slab);
     if (IS_ERR(ASSERT(vm)))
@@ -140,14 +141,16 @@ NODISCARD static int map_page(struct vm* vm, void* virt_addr, bool write) {
     struct vm_region* region = vm_find(vm, virt_addr);
     if (!region)
         return -EFAULT;
-    if (write) {
-        if (!(region->flags & VM_WRITE))
-            return -EFAULT;
-    } else if (!(region->flags & VM_READ))
-        return -EFAULT;
 
     struct vm_obj* obj = region->obj;
     if (!obj)
+        return -EFAULT;
+
+    unsigned flags = region->flags | obj->flags;
+    if (write) {
+        if (!(flags & VM_WRITE))
+            return -EFAULT;
+    } else if (!(flags & VM_READ))
         return -EFAULT;
 
     size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
@@ -156,20 +159,20 @@ NODISCARD static int map_page(struct vm* vm, void* virt_addr, bool write) {
         return PTR_ERR(page);
 
     uintptr_t page_addr = ROUND_DOWN((uintptr_t)virt_addr, PAGE_SIZE);
-    uint16_t pte_flags = vm_flags_to_pte_flags(region->flags | obj->flags);
     if (!write)
-        pte_flags &= ~PTE_WRITE; // Trigger a page fault on the next write
-    return pagemap_map(vm->pagemap, page_addr, page_to_pfn(page), 1, pte_flags);
+        flags &= ~VM_WRITE; // Trigger a page fault on the next write
+    return pagemap_map(vm->pagemap, page_addr, page_to_pfn(page), 1, flags);
 }
 
-bool vm_handle_page_fault(struct registers* regs, void* virt_addr) {
+bool vm_handle_page_fault(void* virt_addr, unsigned flags) {
     struct vm* vm = virt_addr_to_vm(virt_addr);
     if (!vm)
         return false;
 
-    bool write = regs->error_code & X86_PF_WRITE;
-    bool user = regs->error_code & X86_PF_USER;
-    bool instr = regs->error_code & X86_PF_INSTR;
+    bool write = flags & PAGE_FAULT_WRITE;
+    bool user = flags & PAGE_FAULT_USER;
+    bool instr = flags & PAGE_FAULT_INSTRUCTION;
+    bool interruptible = flags & PAGE_FAULT_INTERRUPTIBLE;
 
     if (vm == kernel_vm) {
         if (user) {
@@ -183,7 +186,7 @@ bool vm_handle_page_fault(struct registers* regs, void* virt_addr) {
         }
     }
 
-    if (!user && !(regs->eflags & X86_EFLAGS_IF)) {
+    if (!user && !interruptible) {
         // Faulted in atomic context in kernel mode.
         // To prevent breaking atomicity, we cannot enable interrupts,
         // so we cannot handle the page fault.
@@ -477,7 +480,7 @@ struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
             // the new_region, so we don't have to worry about recovering
             // other regions that have been already removed.
             vm_region_destroy(region);
-            return ERR_CAST(rc);
+            return ERR_PTR(rc);
         }
         region = prev;
     }

@@ -9,10 +9,9 @@
 #define PATH_SEPARATOR_STR "/"
 #define ROOT_DIR PATH_SEPARATOR_STR
 
-typedef struct multiboot_mod_list multiboot_module_t;
 struct path;
 
-void fs_init(const multiboot_module_t* initrd_mod);
+void fs_init(void);
 
 extern const struct vm_ops inode_vm_ops;
 
@@ -175,6 +174,8 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
 
 // Writes back all dirty inodes.
 NODISCARD int vfs_sync(void);
+
+void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size);
 
 struct inode* pipe_create(void);
 

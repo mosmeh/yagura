@@ -1,7 +1,7 @@
 #include "private.h"
 #include <common/integer.h>
 #include <common/string.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 #include <limits.h>
@@ -261,53 +261,16 @@ int signal_pop(struct sigaction* out_action) {
     return 0;
 }
 
-extern unsigned char signal_trampoline_start[];
-extern unsigned char signal_trampoline_end[];
-
 void signal_handle(struct registers* regs, int signum,
                    const struct sigaction* action) {
     ASSERT(0 < signum && signum < NSIG);
 
-    struct sigcontext ctx = {
-        .regs = *regs,
-        .blocked_signals = current->blocked_signals,
-    };
-    ASSERT((uintptr_t)signal_trampoline_start + sizeof(ctx.trampoline) ==
-           (uintptr_t)signal_trampoline_end);
-    memcpy(ctx.trampoline, signal_trampoline_start, sizeof(ctx.trampoline));
-
-    uintptr_t esp = ROUND_DOWN(regs->esp, 16);
-
-    // Push the context of the interrupted task
-    esp -= sizeof(struct sigcontext);
-    struct sigcontext* user_ctx = (struct sigcontext*)esp;
-    if (copy_to_user(user_ctx, &ctx, sizeof(struct sigcontext)))
-        goto fail;
-
-    // Push the argument of the signal handler
-    esp -= sizeof(long);
-    if (copy_to_user((void*)esp, &signum, sizeof(long)))
-        goto fail;
-
-    uintptr_t trampoline = (action->sa_flags & SA_RESTORER)
-                               ? (uintptr_t)action->sa_restorer
-                               : (uintptr_t)user_ctx->trampoline;
-
-    // Push the return address of the signal handler
-    esp -= sizeof(uintptr_t);
-    if (copy_to_user((void*)esp, &trampoline, sizeof(uintptr_t)))
-        goto fail;
-
-    regs->esp = esp;
-    regs->eip = (uintptr_t)action->sa_handler;
+    int rc = arch_handle_signal(regs, signum, action);
+    if (IS_ERR(rc))
+        task_crash(SIGSEGV);
 
     sigset_t new_blocked = current->blocked_signals | action->sa_mask;
     if (!(action->sa_flags & SA_NODEFER))
         new_blocked |= sigmask(signum);
     task_set_blocked_signals(current, new_blocked);
-
-    return;
-
-fail:
-    task_crash(SIGSEGV);
 }

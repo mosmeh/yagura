@@ -1,7 +1,7 @@
 #include <common/stdio.h>
 #include <common/string.h>
 #include <kernel/cpu.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>
@@ -11,8 +11,8 @@
 
 static noreturn void do_idle(void) {
     for (;;) {
-        ASSERT(interrupts_enabled());
-        hlt();
+        ASSERT(arch_interrupts_enabled());
+        arch_wait_for_interrupt();
     }
 }
 
@@ -31,7 +31,7 @@ void sched_init_smp(void) {
     }
 }
 
-static struct task* ready_queue;
+static _Atomic(struct task*) ready_queue;
 static struct spinlock ready_queue_lock;
 
 static void enqueue_ready(struct task* task) {
@@ -57,18 +57,13 @@ static void enqueue_ready(struct task* task) {
 }
 
 static struct task* dequeue_ready(void) {
-    {
-        SCOPED_LOCK(spinlock, &ready_queue_lock);
-        if (ready_queue) {
-            struct task* task = ready_queue;
-            ASSERT(task->state == TASK_RUNNING);
-            ready_queue = task->ready_queue_next;
-            task->ready_queue_next = NULL;
-            return task;
-        }
+    SCOPED_LOCK(spinlock, &ready_queue_lock);
+    struct task* task = ready_queue;
+    if (task) {
+        ASSERT(task->state == TASK_RUNNING);
+        ready_queue = task->ready_queue_next;
+        task->ready_queue_next = NULL;
     }
-    struct task* task = task_ref(cpu_get_current()->idle_task);
-    task->state = TASK_RUNNING;
     return task;
 }
 
@@ -159,7 +154,56 @@ static void unblock_tasks(void) {
     }
 }
 
-void __reschedule(struct task* task) {
+void sched_start(void) {
+    arch_disable_interrupts();
+    struct cpu* cpu = cpu_get_current();
+    if (cpu->current_task) {
+        // Turn this task into the idle task for this CPU.
+        cpu->idle_task = cpu->current_task;
+    } else if (cpu->idle_task) {
+        // No current task. Run the idle task.
+        cpu->current_task = task_ref(cpu->idle_task);
+        cpu->current_task->state = TASK_RUNNING;
+    } else {
+        UNREACHABLE();
+    }
+    arch_enable_interrupts();
+    sched_yield();
+    do_idle();
+}
+
+void sched_yield(void) {
+    SCOPED_DISABLE_INTERRUPTS();
+
+    struct cpu* cpu = cpu_get_current();
+    struct task* prev_task = cpu->current_task;
+    ASSERT(prev_task);
+
+    unblock_tasks();
+
+    if (!ready_queue && prev_task->state == TASK_RUNNING) {
+        // No other task is ready to run. Continue running the current task.
+        return;
+    }
+
+    struct task* next_task = dequeue_ready();
+    if (!next_task) {
+        if (prev_task->state == TASK_RUNNING) {
+            // No other task is ready to run. Continue running the current task.
+            return;
+        }
+        // No ready tasks. Run the idle task.
+        next_task = task_ref(cpu->idle_task);
+        next_task->state = TASK_RUNNING;
+    }
+    ASSERT(next_task != prev_task);
+
+    cpu->current_task = next_task;
+    pagemap_switch(next_task->vm->pagemap);
+    arch_switch_context(prev_task, next_task);
+}
+
+void sched_reschedule(struct task* task) {
     if (!task)
         return;
     switch (task->state) {
@@ -180,95 +224,19 @@ void __reschedule(struct task* task) {
     task_unref(task);
 }
 
-noreturn static void switch_context(void) {
-    disable_interrupts();
-
-    struct cpu* cpu = cpu_get_current();
-    struct task* prev_task = cpu->current_task;
-    cpu->current_task = NULL;
-
-    unblock_tasks();
-
-    struct task* task = dequeue_ready();
-    ASSERT(task);
-    ASSERT(task->state == TASK_RUNNING);
-    cpu->current_task = task;
-
-    pagemap_switch(task->vm->pagemap);
-
-    gdt_set_cpu_kernel_stack(task->kernel_stack_top);
-    memcpy(cpu->gdt + GDT_ENTRY_TLS_MIN, task->tls, sizeof(task->tls));
-
-    if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
-        __asm__ volatile("fxrstor %0" ::"m"(task->fpu_state));
-    else
-        __asm__ volatile("frstor %0" ::"m"(task->fpu_state));
-
-    // Call __reschedule(prev_task) after switching to the stack of the next
-    // task to prevent other CPUs from using the stack of prev_task while
-    // we are still using it.
-    __asm__ volatile("movl 0x04(%%ebx), %%esp\n" // esp = task->esp
-                     "pushl %%eax\n"
-                     "call __reschedule\n"
-                     "add $4, %%esp\n"
-                     "movl (%%ebx), %%eax\n" // eax = task->eip
-                     "jmp *%%eax"
-                     :
-                     : "b"(task), "a"(prev_task));
-    UNREACHABLE();
-}
-
-noreturn void __switch_context(void) { switch_context(); }
-
-void sched_start(void) {
-    disable_interrupts();
-    struct cpu* cpu = cpu_get_current();
-    struct task* task = cpu->current_task;
-    if (task) {
-        // Turn this task into the idle task for this CPU.
-        cpu->idle_task = task;
-        enable_interrupts();
-        sched_yield();
-        do_idle();
-    }
-    switch_context();
-}
-
-void sched_yield(void) {
-    SCOPED_DISABLE_INTERRUPTS();
-    struct cpu* cpu = cpu_get_current();
-    struct task* task = cpu->current_task;
-    ASSERT(task);
-
-    if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
-        __asm__ volatile("fxsave %0" : "=m"(task->fpu_state));
-    else
-        __asm__ volatile("fnsave %0" : "=m"(task->fpu_state));
-
-    __asm__ volatile("pushl %%ebp\n"       // ebp cannot be in the clobber list
-                     "movl $1f, (%%eax)\n" // task->eip = $1f
-                     "movl %%esp, 0x04(%%eax)\n" // task->esp = esp
-                     "jmp __switch_context\n"
-                     "1:\n" // switch_context() will jump back here
-                     "popl %%ebp"
-                     :
-                     : "a"(task)
-                     : "ebx", "ecx", "edx", "esi", "edi", "memory");
-}
-
 void sched_tick(struct registers* regs) {
-    ASSERT(!interrupts_enabled());
+    ASSERT(!arch_interrupts_enabled());
     ASSERT(current);
 
-    bool preempted_in_kernel = (regs->cs & 3) == 0;
-    if (preempted_in_kernel)
-        ++current->kernel_ticks;
-    else
+    bool preempted_in_user_mode = arch_is_user_mode(regs);
+    if (preempted_in_user_mode)
         ++current->user_ticks;
+    else
+        ++current->kernel_ticks;
 
     sched_yield();
 
-    if (preempted_in_kernel)
+    if (!preempted_in_user_mode)
         return;
 
     struct sigaction act;

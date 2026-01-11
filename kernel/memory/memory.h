@@ -1,72 +1,46 @@
 #pragma once
 
+#include <kernel/arch/memory.h>
+
 #define PAGE_SHIFT 12
 #define PAGE_SIZE (1UL << PAGE_SHIFT)
 
-#define PD_SHIFT 22
-
-#define KERNEL_IMAGE_START 0xc0000000
-// In the current setup, kernel image (including 1MiB offset) has to fit in
-// a single page table (< 4MiB).
-#define KERNEL_IMAGE_END (KERNEL_IMAGE_START + (1024 << PAGE_SHIFT))
-
-#define KMAP_START KERNEL_IMAGE_END
-
-// Page is mapped
-#define PTE_PRESENT 0x1
-
-// Page may be written
-#define PTE_WRITE 0x2
-
-// Page may be accessed from userland
-#define PTE_USER 0x4
-
-// Page Attribute Table bit
-// Used to enable write-combining caching.
-#define PTE_PAT 0x80
-
-// Page is global (not flushed from TLB on context switch)
-#define PTE_GLOBAL 0x100
-
-#define X86_PF_PROT 0x1
-#define X86_PF_WRITE 0x2
-#define X86_PF_USER 0x4
-#define X86_PF_RSVD 0x8
-#define X86_PF_INSTR 0x10
-
-#ifndef ASM_FILE
+#ifndef __ASSEMBLER__
 
 #include <common/macros.h>
-#include <common/tree.h>
-#include <kernel/api/sys/types.h>
 #include <kernel/lock.h>
 #include <kernel/resource.h>
 
 struct file;
 struct vec;
 struct registers;
-typedef struct multiboot_info multiboot_info_t;
+struct page;
 
 static inline bool is_user_address(const void* addr) {
-    return addr && (uintptr_t)addr < KERNEL_IMAGE_START;
+    return addr && USER_VIRT_START <= (uintptr_t)addr &&
+           (uintptr_t)addr < USER_VIRT_END;
 }
 
 static inline bool is_user_range(const void* addr, size_t size) {
     if (!is_user_address(addr))
         return false;
     uintptr_t end = (uintptr_t)addr + size;
-    return (uintptr_t)addr <= end && end <= KERNEL_IMAGE_START;
+    return (uintptr_t)addr <= end && end <= USER_VIRT_END;
 }
 
 static inline bool is_kernel_address(const void* addr) {
-    return addr && (uintptr_t)addr >= KERNEL_IMAGE_START;
+    return addr && KERNEL_VIRT_START <= (uintptr_t)addr &&
+           (uintptr_t)addr < KERNEL_VIRT_END;
 }
 
 static inline bool is_kernel_range(const void* addr, size_t size) {
-    return is_kernel_address(addr) && (uintptr_t)addr <= (uintptr_t)addr + size;
+    if (!is_kernel_address(addr))
+        return false;
+    uintptr_t end = (uintptr_t)addr + size;
+    return (uintptr_t)addr <= end && end <= KERNEL_VIRT_END;
 }
 
-void memory_init(const multiboot_info_t*);
+void memory_init(void);
 
 struct memory_stats {
     size_t total_kibibytes;
@@ -74,62 +48,6 @@ struct memory_stats {
 };
 
 void memory_get_stats(struct memory_stats* out_stats);
-
-NODISCARD bool memory_handle_page_fault(struct registers*, void* virt_addr);
-
-#define PAGE_RESERVED 0x1  // Page is reserved and cannot be allocated
-#define PAGE_ALLOCATED 0x2 // Page is currently allocated
-#define PAGE_DIRTY 0x4     // Page has been modified since the last writeback
-
-struct page {
-    size_t index;
-    unsigned flags; // PAGE_*
-    struct tree_node tree_node;
-};
-
-struct page* page_get(size_t pfn);
-size_t page_to_pfn(const struct page*);
-
-struct page* page_alloc(void);
-
-// Returns the page frame number of the allocated page.
-ssize_t page_alloc_raw(void);
-
-void page_free(struct page*);
-void page_free_raw(size_t pfn);
-
-void page_fill(struct page*, unsigned char value, size_t offset, size_t nbytes);
-void page_copy(struct page* dest, struct page* src);
-void page_copy_from_buffer(struct page* dest, const void* src, size_t offset,
-                           size_t nbytes);
-void page_copy_to_buffer(struct page* src, void* dest, size_t offset,
-                         size_t nbytes);
-
-// Returns the first page in the tree.
-struct page* pages_first(const struct tree*);
-
-// Returns the next page in the tree.
-struct page* pages_next(const struct page*);
-
-// Returns a page from the tree. Returns NULL if the page is not found.
-struct page* pages_get(const struct tree*, size_t index);
-
-// Allocates a page, inserting it into the tree.
-NODISCARD struct page* pages_alloc_at(struct tree*, size_t index);
-
-// Splits the page tree into two at the given index.
-// Pages >= index are moved from src to dst, but with their indices adjusted
-// to start from 0.
-// If the index is larger than the last page in src, this is a no-op.
-// Panics if there are duplicate page indices in dst.
-void pages_split_off(struct tree* src, struct tree* dst, size_t index);
-
-// Removes and frees all pages with indices >= index.
-// Returns whether any pages were freed.
-bool pages_truncate(struct tree*, size_t index);
-
-// Frees all the pages.
-void pages_clear(struct tree*);
 
 void* kmalloc(size_t);
 void* kaligned_alloc(size_t alignment, size_t);
@@ -143,18 +61,18 @@ char* kstrndup(const char*, size_t n);
 
 // Translates virtual address to physical address.
 // Panics if the address is not mapped.
-uintptr_t virt_to_phys(void*);
+phys_addr_t virt_to_phys(void*);
 
 extern struct pagemap* kernel_pagemap;
 
 // Maps the pages to the virtual address.
 NODISCARD int pagemap_map(struct pagemap*, uintptr_t virt_addr, size_t pfn,
-                          size_t npages, uint16_t flags);
+                          size_t npages, unsigned flags);
 
 // Maps the page to the virtual address. Only the TLB of the current CPU is
 // flushed.
 NODISCARD int pagemap_map_local(struct pagemap*, uintptr_t virt_addr,
-                                size_t pfn, uint16_t flags);
+                                size_t pfn, unsigned flags);
 
 // Unmaps the pages at the virtual address.
 void pagemap_unmap(struct pagemap*, uintptr_t virt_addr, size_t npages);
@@ -170,12 +88,12 @@ void pagemap_switch(struct pagemap*);
 struct kmap_ctrl {
     size_t num_mapped;
     bool prev_int_flag;
-    uintptr_t phys_addrs[KMAP_MAX_NUM_PER_CPU];
+    phys_addr_t phys_addrs[KMAP_MAX_NUM_PER_CPU];
 };
 
 // Maps a physical page to the kernel virtual address space.
 // KMAP_MAX_NUM_PER_CPU pages can be mapped at the same time for each CPU.
-NODISCARD void* kmap(uintptr_t phys_addr);
+NODISCARD void* kmap(phys_addr_t phys_addr);
 
 NODISCARD void* kmap_page(struct page*);
 

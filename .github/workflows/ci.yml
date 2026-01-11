@@ -18,7 +18,7 @@ jobs:
             - run: nm -n kernel/kernel | awk 'NF==3'
             - run: make test
               timeout-minutes: 3
-            - run: grub-file --is-x86-multiboot kernel/kernel
+            - run: grub-file --is-x86-multiboot build/i386/kernel.elf
             - run: make disk_image
     ubsan:
         runs-on: ubuntu-24.04

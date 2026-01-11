@@ -1,6 +1,6 @@
 #include <common/bytes.h>
 #include <common/string.h>
-#include <kernel/asm_wrapper.h>
+#include <kernel/arch/io.h>
 #include <kernel/console/screen/screen.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>

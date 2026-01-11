@@ -4,16 +4,18 @@
 #include <kernel/api/sound.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/arch/io.h>
 #include <kernel/device/device.h>
 #include <kernel/drivers/pci.h>
 #include <kernel/fs/file.h>
-#include <kernel/interrupts/interrupts.h>
+#include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>
+#include <stdalign.h>
 
 #define PCI_CLASS_MULTIMEDIA 4
 #define PCI_SUBCLASS_AUDIO_CONTROLLER 1
@@ -276,7 +278,7 @@ void ac97_init(void) {
         delay(50);
 
     uint8_t irq_num = pci_get_interrupt_line(&device_addr);
-    idt_set_interrupt_handler(IRQ(irq_num), irq_handler);
+    arch_interrupts_set_handler(IRQ(irq_num), irq_handler);
 
     static const struct file_ops fops = {
         .pwrite = ac97_device_pwrite,

@@ -1,6 +1,7 @@
 #include "private.h"
 #include <common/integer.h>
 #include <common/string.h>
+#include <kernel/memory/phys.h>
 
 static struct slab filemap_slab;
 

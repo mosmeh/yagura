@@ -117,11 +117,6 @@ void virtq_desc_chain_push_buf(struct virtq_desc_chain* chain, void* buf,
     ++chain->num_pushed;
 }
 
-static void full_memory_barrier(void) {
-    atomic_signal_fence(memory_order_acq_rel);
-    atomic_thread_fence(memory_order_acq_rel);
-}
-
 static bool unblock_submit(void* data) {
     struct virtq* virtq = data;
     return virtq_is_ready(virtq);
@@ -151,7 +146,7 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
     // 4. The driver performs a suitable memory barrier to ensure the device
     //    sees the updated descriptor table and available ring before the next
     //    step.
-    full_memory_barrier();
+    arch_full_memory_barrier();
 
     // 5. The available idx is increased by the number of descriptor chain
     //    heads added to the available ring.
@@ -159,7 +154,7 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
 
     // 6. The driver performs a suitable memory barrier to ensure that it
     //    updates the idx field before checking for notification suppression.
-    full_memory_barrier();
+    arch_full_memory_barrier();
 
     // 7. The driver sends an available buffer notification to the device if
     //    such notifications are not suppressed.
@@ -167,7 +162,7 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
         *virtq->notify = virtq->index;
 
     int rc = sched_block(unblock_submit, virtq, BLOCK_UNINTERRUPTIBLE);
-    full_memory_barrier();
+    arch_full_memory_barrier();
 
     // Return the descriptors to the free list.
     virtq->desc[chain->tail].next = virtq->free_head;

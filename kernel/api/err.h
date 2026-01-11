@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 // Casts error value to pointer
-#define ERR_PTR(x) ((void*)(x))
+#define ERR_PTR(x) ((void*)(long)(x))
 
 // Casts pointer to error value
 #define PTR_ERR(x) ((long)(x))
