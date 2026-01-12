@@ -33,7 +33,13 @@ int arch_handle_signal(struct registers* regs, int signum,
            (uintptr_t)signal_trampoline_end);
     memcpy(ctx.trampoline, signal_trampoline_start, sizeof(ctx.trampoline));
 
-    uintptr_t sp = ROUND_DOWN(regs->sp, 16);
+    uintptr_t sp = regs->sp;
+
+#ifdef ARCH_X86_64
+    sp -= 128; // Skip red zone
+#endif
+
+    sp = ROUND_DOWN(sp, 16);
 
     // Push the context of the interrupted task
     sp -= sizeof(struct sigcontext);
@@ -84,6 +90,17 @@ long sys_sigreturn(struct registers* regs) {
     regs->si = ctx.regs.si;
     regs->di = ctx.regs.di;
     regs->bp = ctx.regs.bp;
+
+#ifdef ARCH_X86_64
+    regs->r8 = ctx.regs.r8;
+    regs->r9 = ctx.regs.r9;
+    regs->r10 = ctx.regs.r10;
+    regs->r11 = ctx.regs.r11;
+    regs->r12 = ctx.regs.r12;
+    regs->r13 = ctx.regs.r13;
+    regs->r14 = ctx.regs.r14;
+    regs->r15 = ctx.regs.r15;
+#endif
 
     regs->sp = ctx.regs.sp;
     regs->ip = ctx.regs.ip;

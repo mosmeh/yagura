@@ -117,6 +117,8 @@ X86_SRCS := \
 	kernel/arch/x86/task/tls.c
 
 ifeq ($(ARCH), i386)
+KERNEL_BIN_FORMAT := elf32-i386
+
 LINKER_SCRIPT_SRC := $(ROOT)/kernel/arch/x86/kernel.lds.S
 
 CFLAGS += \
@@ -130,6 +132,25 @@ SRCS += \
 	kernel/arch/i386/boot.S \
 	kernel/arch/i386/context.c \
 	kernel/arch/i386/interrupts.S \
+	$(X86_SRCS)
+else ifeq ($(ARCH), x86_64)
+KERNEL_BIN_FORMAT := elf32-i386 # For Multiboot compatibility
+
+LINKER_SCRIPT_SRC := $(ROOT)/kernel/arch/x86/kernel.lds.S
+
+CFLAGS += \
+	-m64 \
+	-mcmodel=kernel -fno-pic \
+	-mno-red-zone \
+	-mno-80387 -mno-mmx -mno-sse -mno-sse2 \
+	-isystem$(ROOT)/kernel/api/x86 \
+	-isystem$(ROOT)/kernel/arch/x86_64/include \
+	-isystem$(ROOT)/kernel/arch/x86/include
+
+SRCS += \
+	kernel/arch/x86_64/boot.S \
+	kernel/arch/x86_64/context.c \
+	kernel/arch/x86_64/interrupts.S \
 	$(X86_SRCS)
 else
 $(error Unknown ARCH '$(ARCH)')
@@ -162,9 +183,13 @@ $(OUT_DIR)/stage2: $(OUT_DIR)/stage1.ksyms.o $(OBJS) $(LINKER_SCRIPT)
 	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
 
 # stage3 will have correct addresses
-$(KERNEL_BIN): $(OUT_DIR)/stage2.ksyms.o $(OBJS) $(LINKER_SCRIPT)
+$(OUT_DIR)/stage3: $(OUT_DIR)/stage2.ksyms.o $(OBJS) $(LINKER_SCRIPT)
 	@echo "[LD] $(patsubst $(ROOT)/%,%,$@)"
 	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
+
+$(KERNEL_BIN): $(OUT_DIR)/stage3
+	@echo "[OBJCOPY] $(patsubst $(ROOT)/%,%,$@)"
+	@objcopy -O $(KERNEL_BIN_FORMAT) $< $@
 
 $(OUT_DIR)/%.ksyms.o: ksyms.S $(OUT_DIR)/%.ksyms
 	@echo "[AS] $<"

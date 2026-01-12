@@ -3,9 +3,17 @@
 #include <common/stdint.h>
 
 typedef uint32_t Elf32_Addr;
+typedef uint64_t Elf64_Addr;
+
 typedef uint32_t Elf32_Off;
+typedef uint64_t Elf64_Off;
+
 typedef uint32_t Elf32_Word;
+typedef uint32_t Elf64_Word;
+typedef uint64_t Elf64_Xword;
+
 typedef uint16_t Elf32_Half;
+typedef uint16_t Elf64_Half;
 
 #define EI_MAG0 0
 #define EI_MAG1 1
@@ -23,7 +31,8 @@ typedef uint16_t Elf32_Half;
 #define ELFMAG2 'L'
 #define ELFMAG3 'F'
 
-#define ELFCLASS32 1
+#define ELFCLASS32 1 // 32-bit objects
+#define ELFCLASS64 2 // 64-bit objects
 #define ELFDATA2LSB 1
 
 #define ELFOSABI_NONE 0             // UNIX System V ABI
@@ -39,52 +48,88 @@ typedef uint16_t Elf32_Half;
 #define ET_EXEC 2
 #define ET_DYN 3
 
-#define EM_386 3
+#define EM_386 3     // Intel 80386
+#define EM_X86_64 62 // AMD x86-64 architecture
 #define EV_CURRENT 1
 
-typedef struct elfhdr {
-    unsigned char e_ident[EI_NIDENT];
-    Elf32_Half e_type;
-    Elf32_Half e_machine;
-    Elf32_Word e_version;
-    Elf32_Addr e_entry;
-    Elf32_Off e_phoff;
-    Elf32_Off e_shoff;
-    Elf32_Word e_flags;
-    Elf32_Half e_ehsize;
-    Elf32_Half e_phentsize;
-    Elf32_Half e_phnum;
-    Elf32_Half e_shentsize;
-    Elf32_Half e_shnum;
-    Elf32_Half e_shstrndx;
+typedef struct {
+    unsigned char e_ident[EI_NIDENT]; // Magic number and other info
+    Elf32_Half e_type;                // Object file type
+    Elf32_Half e_machine;             // Architecture
+    Elf32_Word e_version;             // Object file version
+    Elf32_Addr e_entry;               // Entry point virtual address
+    Elf32_Off e_phoff;                // Program header table file offset
+    Elf32_Off e_shoff;                // Section header table file offset
+    Elf32_Word e_flags;               // Processor-specific flags
+    Elf32_Half e_ehsize;              // ELF header size in bytes
+    Elf32_Half e_phentsize;           // Program header table entry size
+    Elf32_Half e_phnum;               // Program header table entry count
+    Elf32_Half e_shentsize;           // Section header table entry size
+    Elf32_Half e_shnum;               // Section header table entry count
+    Elf32_Half e_shstrndx;            // Section header string table index
 } Elf32_Ehdr;
 
 typedef struct {
-    Elf32_Word p_type;
-    Elf32_Off p_offset;
-    Elf32_Addr p_vaddr;
-    Elf32_Addr p_paddr;
-    Elf32_Word p_filesz;
-    Elf32_Word p_memsz;
-    Elf32_Word p_flags;
-    Elf32_Word p_align;
+    unsigned char e_ident[EI_NIDENT]; // Magic number and other info
+    Elf64_Half e_type;                // Object file type
+    Elf64_Half e_machine;             // Architecture
+    Elf64_Word e_version;             // Object file version
+    Elf64_Addr e_entry;               // Entry point virtual address
+    Elf64_Off e_phoff;                // Program header table file offset
+    Elf64_Off e_shoff;                // Section header table file offset
+    Elf64_Word e_flags;               // Processor-specific flags
+    Elf64_Half e_ehsize;              // ELF header size in bytes
+    Elf64_Half e_phentsize;           // Program header table entry size
+    Elf64_Half e_phnum;               // Program header table entry count
+    Elf64_Half e_shentsize;           // Section header table entry size
+    Elf64_Half e_shnum;               // Section header table entry count
+    Elf64_Half e_shstrndx;            // Section header string table index
+} Elf64_Ehdr;
+
+typedef struct {
+    Elf32_Word p_type;   // Segment type
+    Elf32_Off p_offset;  // Segment file offset
+    Elf32_Addr p_vaddr;  // Segment virtual address
+    Elf32_Addr p_paddr;  // Segment physical address
+    Elf32_Word p_filesz; // Segment size in file
+    Elf32_Word p_memsz;  // Segment size in memory
+    Elf32_Word p_flags;  // Segment flags
+    Elf32_Word p_align;  // Segment alignment
 } Elf32_Phdr;
+
+typedef struct {
+    Elf64_Word p_type;    // Segment type
+    Elf64_Word p_flags;   // Segment flags
+    Elf64_Off p_offset;   // Segment file offset
+    Elf64_Addr p_vaddr;   // Segment virtual address
+    Elf64_Addr p_paddr;   // Segment physical address
+    Elf64_Xword p_filesz; // Segment size in file
+    Elf64_Xword p_memsz;  // Segment size in memory
+    Elf64_Xword p_align;  // Segment alignment
+} Elf64_Phdr;
 
 #define PT_NULL 0   // Program header table entry unused
 #define PT_LOAD 1   // Loadable program segment
 #define PT_INTERP 3 // Program interpreter
 #define PT_TLS 7    // Thread-local storage segment
 
-#define PF_X 0x1
-#define PF_W 0x2
-#define PF_R 0x4
+#define PF_X 0x1 // Segment is executable
+#define PF_W 0x2 // Segment is writable
+#define PF_R 0x4 // Segment is readable
 
 typedef struct {
-    uint32_t a_type;
+    uint32_t a_type; // Entry type
     union {
-        uint32_t a_val;
+        uint32_t a_val; // Integer value
     } a_un;
 } Elf32_auxv_t;
+
+typedef struct {
+    uint64_t a_type; // Entry type
+    union {
+        uint64_t a_val; // Integer value
+    } a_un;
+} Elf64_auxv_t;
 
 #define AT_NULL 0    // End of vector
 #define AT_IGNORE 1  // Entry should be ignored
