@@ -25,6 +25,17 @@ void __ubsan_handle_load_invalid_value(const struct invalid_value_data* data,
     PANIC("ubsan: load invalid value: type=%s", data->type->name);
 }
 
+struct nonnull_arg_data {
+    struct source_location location;
+    struct source_location attribute_location;
+    int argument_index;
+};
+
+void __ubsan_handle_nonnull_arg(const struct nonnull_arg_data* data) {
+    (void)data;
+    PANIC("ubsan: nonnull argument");
+}
+
 struct overflow_data {
     struct source_location location;
     const struct type_descriptor* type;

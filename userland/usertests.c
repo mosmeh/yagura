@@ -52,7 +52,7 @@ static void test_strings(void) {
 
 static void assert_basename(const char* path, const char* expected) {
     char dup_path[256];
-    strncpy(dup_path, path, sizeof(dup_path));
+    strlcpy(dup_path, path, sizeof(dup_path));
     char* result = basename(dup_path);
     ASSERT(strcmp(result, expected) == 0);
 }
