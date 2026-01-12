@@ -9,7 +9,7 @@ struct file {
     struct inode* inode;
     const struct file_ops* fops;
     struct filemap* filemap;
-    atomic_int flags;
+    _Atomic(int) flags;
     struct path* path;
     uint64_t offset;
     void* private_data;

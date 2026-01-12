@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <common/stdint.h>
 
 static inline uint8_t __in8(uint16_t port) {
     uint8_t rv;

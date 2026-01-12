@@ -1,17 +1,16 @@
 #pragma once
 
+#include <common/stdbool.h>
+#include <common/stddef.h>
 #include <kernel/arch/cpu.h>
 #include <kernel/memory/memory.h>
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <stddef.h>
 
 struct cpu {
     _Atomic(struct task*) current_task;
     struct task* idle_task;
 
     struct mpsc* queued_msgs;
-    atomic_ulong coalesced_msgs;
+    _Atomic(unsigned long) coalesced_msgs;
 
     struct kmap_ctrl kmap;
 

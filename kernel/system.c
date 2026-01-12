@@ -105,7 +105,7 @@ void dump_stack_trace(uintptr_t ip, uintptr_t bp) {
     arch_walk_stack(bp, print_stack_frame, &walk);
 }
 
-noreturn void panic(const char* file, size_t line, const char* format, ...) {
+void panic(const char* file, size_t line, const char* format, ...) {
     arch_disable_interrupts();
 
     kprint("PANIC: ");

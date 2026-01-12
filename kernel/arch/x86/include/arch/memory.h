@@ -2,8 +2,8 @@
 
 #ifndef __ASSEMBLER__
 
+#include <common/stdint.h>
 #include <kernel/arch/x86/ctrl_regs.h>
-#include <stdint.h>
 
 static inline void __flush_tlb_all(void) { write_cr3(read_cr3()); }
 

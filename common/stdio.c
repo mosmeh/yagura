@@ -1,9 +1,9 @@
+#include <common/stdarg.h>
+#include <common/stdbool.h>
+#include <common/stddef.h>
+#include <common/stdint.h>
 #include <common/stdio.h>
 #include <common/string.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 
 int sprintf(char* buffer, const char* format, ...) {
     va_list args;

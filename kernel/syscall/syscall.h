@@ -1,10 +1,10 @@
 #pragma once
 
+#include <common/stddef.h>
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/socket.h>
 #include <kernel/api/time.h>
-#include <stddef.h>
 
 struct registers;
 struct getcpu_cache;

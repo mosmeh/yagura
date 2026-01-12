@@ -1,6 +1,6 @@
+#include <common/stdbool.h>
 #include <kernel/drivers/hid/ps2.h>
 #include <kernel/kmsg.h>
-#include <stdbool.h>
 
 void ps2_keyboard_init(void);
 void ps2_mouse_init(void);

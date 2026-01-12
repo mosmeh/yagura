@@ -12,8 +12,8 @@
 struct pipe {
     struct inode vfs_inode;
     struct ring_buf* buf;
-    atomic_size_t num_readers;
-    atomic_size_t num_writers;
+    _Atomic(size_t) num_readers;
+    _Atomic(size_t) num_writers;
 };
 
 DEFINE_LOCKED(pipe, struct pipe*, inode, vfs_inode)

@@ -12,10 +12,9 @@ export BUILD_DIR := $(BUILD_ROOT)/$(ARCH)
 export CFLAGS := \
 	-std=c11 \
 	-static \
-	-nostdlib \
+	-nostdlib -nostdinc \
 	-fno-omit-frame-pointer \
 	-ffile-prefix-map=$(ROOT)/= \
-	-U_FORTIFY_SOURCE \
 	-Wall -Wextra -pedantic \
 	-O2 -g \
 	-DARCH_$(shell echo $(ARCH) | tr a-z A-Z) \

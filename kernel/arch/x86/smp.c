@@ -49,8 +49,8 @@ static bool can_enable_smp(void) {
 extern unsigned char ap_trampoline_start[];
 extern unsigned char ap_trampoline_end[];
 
-static atomic_uint num_ready_cpus = 1;
-static atomic_bool smp_active;
+static _Atomic(unsigned int) num_ready_cpus = 1;
+static _Atomic(bool) smp_active;
 void* ap_stack_top;
 
 bool arch_smp_active(void) { return smp_active; }
@@ -116,7 +116,7 @@ void smp_init(void) {
     kprint("smp: all APs started\n");
 }
 
-noreturn void ap_start(void) {
+_Noreturn void ap_start(void) {
     gdt_init_cpu();
     cpu_init_features();
     idt_flush();

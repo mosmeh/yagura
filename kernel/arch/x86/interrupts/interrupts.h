@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <common/stdint.h>
 
 void idt_init(void);
 void idt_set_gate_user_callable(uint8_t index);

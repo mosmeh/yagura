@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <common/stdint.h>
 
 /* Common configuration */
 #define VIRTIO_PCI_CAP_COMMON_CFG 1

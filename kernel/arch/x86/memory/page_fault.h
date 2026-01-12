@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdbool.h>
+#include <common/stdbool.h>
 
 #define X86_PF_PROT 0x1
 #define X86_PF_WRITE 0x2

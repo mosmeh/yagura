@@ -1,10 +1,10 @@
 #include "private.h"
 #include <common/integer.h>
+#include <common/limits.h>
 #include <common/string.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
-#include <limits.h>
 
 static struct slab sighand_slab;
 

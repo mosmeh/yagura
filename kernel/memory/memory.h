@@ -103,9 +103,9 @@ void kunmap(void* virt_addr);
 
 struct slab {
     const char* name;
-    size_t obj_size;               // Size of each object in bytes
-    atomic_size_t total_objs;      // Total number of allocated objects
-    atomic_size_t num_active_objs; // Number of objects currently in use
+    size_t obj_size;                 // Size of each object in bytes
+    _Atomic(size_t) total_objs;      // Total number of allocated objects
+    _Atomic(size_t) num_active_objs; // Number of objects currently in use
     struct slab_obj* free_list;
     struct mutex lock;
     struct slab* next;

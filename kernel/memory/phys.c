@@ -1,4 +1,5 @@
 #include "private.h"
+#include <common/limits.h>
 #include <common/stdlib.h>
 #include <common/string.h>
 #include <kernel/kmsg.h>
@@ -127,13 +128,13 @@ void phys_range_add_reserved(const char* type, phys_addr_t start, size_t size) {
     };
 }
 
-#define BITMAP_INDEX(i) ((i) / (__LONG_WIDTH__))
-#define BITMAP_MASK(i) (1UL << ((i) & (__LONG_WIDTH__ - 1)))
-#define BITMAP_MAX_LEN DIV_CEIL(MAX_NUM_PAGES, __LONG_WIDTH__)
+#define BITMAP_INDEX(i) ((i) / (LONG_WIDTH))
+#define BITMAP_MASK(i) (1UL << ((i) & (LONG_WIDTH - 1)))
+#define BITMAP_MAX_LEN DIV_CEIL(MAX_NUM_PAGES, LONG_WIDTH)
 
 static size_t pfn_end; // Maximum physical frame number + 1
-static atomic_ulong bitmap[BITMAP_MAX_LEN];
-static atomic_size_t cached_free_index;
+static _Atomic(unsigned long) bitmap[BITMAP_MAX_LEN];
+static _Atomic(size_t) cached_free_index;
 
 static bool bitmap_get(size_t i) {
     ASSERT(i < pfn_end);
@@ -160,7 +161,7 @@ static size_t bitmap_get_free(void) {
             unsigned long new_v = v & ~BITMAP_MASK(b - 1);
             if (atomic_compare_exchange_weak(&bitmap[i], &v, new_v)) {
                 cached_free_index = i;
-                return i * __LONG_WIDTH__ + (b - 1);
+                return i * LONG_WIDTH + (b - 1);
             }
         }
         i = (i + 1) % bitmap_len;
@@ -169,7 +170,7 @@ static size_t bitmap_get_free(void) {
 }
 
 static size_t total_pages;
-static atomic_size_t free_pages;
+static _Atomic(size_t) free_pages;
 
 void phys_init(void) {
     ASSERT(KERNEL_IMAGE_START < (uintptr_t)kernel_end);

@@ -253,7 +253,7 @@ loader_push_strings_from_user(struct loader* loader,
     return 0;
 }
 
-noreturn static void loader_commit(struct loader* loader) {
+_Noreturn static void loader_commit(struct loader* loader) {
     ASSERT(loader->entry_point);
     ASSERT(loader->arg_start);
     ASSERT(loader->arg_end);

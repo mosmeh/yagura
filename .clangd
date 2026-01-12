@@ -2,6 +2,7 @@ CompileFlags:
     Add:
         - -xc
         - -std=c11
+        - -nostdinc
         - -m32
         - -Wall
         - -Wextra

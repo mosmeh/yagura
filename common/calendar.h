@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdbool.h>
+#include <common/stdbool.h>
 
 static inline bool is_leap_year(unsigned year) {
     return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);

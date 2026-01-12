@@ -7,8 +7,8 @@
 
 struct ring_buf {
     size_t capacity;
-    atomic_size_t write_index;
-    atomic_size_t read_index;
+    _Atomic(size_t) write_index;
+    _Atomic(size_t) read_index;
     unsigned char ring[];
 };
 

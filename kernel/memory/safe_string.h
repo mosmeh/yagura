@@ -1,9 +1,9 @@
 #pragma once
 
 #include <common/macros.h>
+#include <common/stddef.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/types.h>
-#include <stddef.h>
 
 // Safe string functions that can handle untrusted pointers without causing page
 // faults.

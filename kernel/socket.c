@@ -19,17 +19,17 @@ struct unix_socket {
     } state;
     int backlog;
 
-    atomic_size_t num_pending;
+    _Atomic(size_t) num_pending;
     struct unix_socket* next; // pending queue
 
-    atomic_bool is_connected;
+    _Atomic(bool) is_connected;
     struct file* connector_file;
 
     struct ring_buf* to_connector_buf;
     struct ring_buf* to_acceptor_buf;
 
-    atomic_bool is_open_for_writing_to_connector;
-    atomic_bool is_open_for_writing_to_acceptor;
+    _Atomic(bool) is_open_for_writing_to_connector;
+    _Atomic(bool) is_open_for_writing_to_acceptor;
 };
 
 DEFINE_LOCKED(unix_socket, struct unix_socket*, inode, vfs_inode)

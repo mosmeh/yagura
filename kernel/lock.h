@@ -1,10 +1,9 @@
 #pragma once
 
 #include <common/macros.h>
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <common/stdbool.h>
+#include <common/stddef.h>
+#include <common/stdint.h>
 
 #define DEFINE_LOCK(name)                                                      \
     void __LOCK(name)(struct name*);                                           \
@@ -17,15 +16,15 @@
 
 struct mutex {
     _Atomic(struct task*) holder;
-    atomic_uint level;
-    atomic_bool lock;
+    _Atomic(unsigned int) level;
+    _Atomic(bool) lock;
 };
 
 DEFINE_LOCK(mutex)
 
 struct spinlock {
-    atomic_uint level;
-    atomic_uint lock;
+    _Atomic(unsigned int) level;
+    _Atomic(unsigned int) lock;
 };
 
 DEFINE_LOCK(spinlock)

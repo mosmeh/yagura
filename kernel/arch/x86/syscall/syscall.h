@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
+#include <common/stddef.h>
+#include <common/stdint.h>
 
 struct user_desc;
 

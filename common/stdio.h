@@ -1,8 +1,8 @@
 #pragma once
 
 #include <common/macros.h>
-#include <stdarg.h>
-#include <stddef.h>
+#include <common/stdarg.h>
+#include <common/stddef.h>
 
 int sprintf(char* buffer, const char* format, ...) PRINTF_LIKE(2, 3);
 int snprintf(char* buffer, size_t bufsz, const char* format, ...)

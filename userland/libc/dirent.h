@@ -1,7 +1,7 @@
 #pragma once
 
+#include <common/stddef.h>
 #include <kernel/api/dirent.h>
-#include <stddef.h>
 #include <sys/types.h>
 
 typedef struct __DIR DIR;

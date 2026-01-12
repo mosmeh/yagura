@@ -7,7 +7,7 @@
 #include <kernel/kmsg.h>
 #include <kernel/task/task.h>
 
-static atomic_int next_tid = 1;
+static _Atomic(pid_t) next_tid = 1;
 
 struct task* tasks;
 struct spinlock tasks_lock;
@@ -61,7 +61,7 @@ struct task* task_clone(const struct task* task, unsigned flags) {
     if ((flags & CLONE_THREAD) && !(flags & CLONE_SIGHAND))
         return ERR_PTR(-EINVAL);
 
-    size_t task_struct_offset = ROUND_UP(STACK_SIZE, alignof(struct task));
+    size_t task_struct_offset = ROUND_UP(STACK_SIZE, _Alignof(struct task));
     unsigned char* stack FREE(kfree) =
         kaligned_alloc(PAGE_SIZE, task_struct_offset + sizeof(struct task));
     if (!stack)
@@ -211,7 +211,7 @@ static void notify_exit(struct task* task) {
         ASSERT_OK(signal_send_to_thread_groups(0, tg->ppid, tg->exit_signal));
 }
 
-static noreturn void exit(int exit_status) {
+static _Noreturn void exit(int exit_status) {
     if (current->tid == 1)
         PANIC("init task exited");
 
@@ -239,7 +239,7 @@ static noreturn void exit(int exit_status) {
 
 void task_exit(int status) { exit((status & 0xff) << 8); }
 
-static noreturn void do_exit_thread_group(int exit_status) {
+static _Noreturn void do_exit_thread_group(int exit_status) {
     // Kill all tasks in the thread group except the current task.
     int rc = signal_send_to_tasks(current->thread_group->tgid, -current->tid,
                                   SIGKILL);

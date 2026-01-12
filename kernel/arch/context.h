@@ -2,8 +2,7 @@
 
 #include <arch/context.h>
 #include <common/macros.h>
-#include <stdbool.h>
-#include <stdnoreturn.h>
+#include <common/stdbool.h>
 
 struct task;
 struct registers;
@@ -25,8 +24,8 @@ void arch_switch_context(struct task* prev, struct task* next);
 
 // Enter user mode for the given task, starting execution at the specified
 // entry point with the given user stack.
-noreturn void arch_enter_user_mode(struct task*, void* entry_point,
-                                   void* user_stack);
+_Noreturn void arch_enter_user_mode(struct task*, void* entry_point,
+                                    void* user_stack);
 
 // Set the Thread-Local Storage (TLS) pointer for the given task.
 NODISCARD int arch_set_tls(struct task*, void* user_tls);

@@ -1,6 +1,6 @@
 #include <common/panic.h>
-#include <stdbool.h>
-#include <stdint.h>
+#include <common/stdbool.h>
+#include <common/stdint.h>
 
 struct source_location {
     const char* filename;

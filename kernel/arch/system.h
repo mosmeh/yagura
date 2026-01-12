@@ -3,7 +3,6 @@
 #include <arch/system.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/drivers/graphics/graphics.h>
-#include <stdnoreturn.h>
 
 struct timespec;
 
@@ -24,7 +23,7 @@ void arch_reboot(void);
 void arch_poweroff(void);
 
 // Halts the CPU indefinitely.
-noreturn void arch_halt(void);
+_Noreturn void arch_halt(void);
 
 bool arch_random_init(void);
 NODISCARD ssize_t arch_random_get(void* buffer, size_t count);

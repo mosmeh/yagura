@@ -184,7 +184,7 @@ static void test_tree(void) {
     free(nodes);
 }
 
-static noreturn void shm_reader(void) {
+static _Noreturn void shm_reader(void) {
     int fd = open("/dev/shm/test-fs", O_RDWR);
     ASSERT_OK(fd);
     size_t size = 50000 * sizeof(int);
@@ -349,7 +349,7 @@ static size_t write_all(int fd, const void* buf, size_t count) {
     return total;
 }
 
-static noreturn void pipe_peer(int send_fd, int recv_fd) {
+static _Noreturn void pipe_peer(int send_fd, int recv_fd) {
     static unsigned buf[1024];
     size_t total = 0;
     for (size_t i = 0; i < 10000; i += 1024) {
@@ -450,7 +450,7 @@ static void test_pipe(void) {
     ASSERT_OK(close(recv_fds[0]));
 }
 
-static noreturn void socket_receiver(bool shut_rd) {
+static _Noreturn void socket_receiver(bool shut_rd) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     ASSERT_OK(sockfd);
     struct sockaddr_un addr = {AF_UNIX, "/tmp/test-socket"};

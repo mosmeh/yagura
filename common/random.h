@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <common/stdint.h>
 
 // https://prng.di.unimi.it/splitmix64.c
 static inline uint64_t splitmix64_next(uint64_t* x) {

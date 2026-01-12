@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
+#include <common/stddef.h>
+#include <common/stdint.h>
 
 static inline void memset16(uint16_t* dest, uint16_t c, size_t n) {
     for (size_t i = 0; i < n; ++i)

@@ -1,22 +1,21 @@
 #include "private.h"
 #include <common/integer.h>
+#include <common/stddef.h>
 #include <errno.h>
 #include <panic.h>
 #include <signal.h>
-#include <stdalign.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/auxv.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
-noreturn void exit(int status) {
+_Noreturn void exit(int status) {
     SYSCALL1(exit_group, status);
     __builtin_unreachable();
 }
 
-noreturn void abort(void) {
+_Noreturn void abort(void) {
     sigset_t set;
     sigemptyset(&set);
     sigaddset(&set, SIGABRT);
@@ -48,7 +47,7 @@ void* aligned_alloc(size_t alignment, size_t size) {
     ASSERT(alignment <= getauxval(AT_PAGESZ));
 
     size_t data_offset =
-        ROUND_UP(offsetof(struct malloc_header, data), alignment);
+        ROUND_UP(__builtin_offsetof(struct malloc_header, data), alignment);
     size_t real_size = data_offset + size;
     void* addr = mmap(NULL, real_size, PROT_READ | PROT_WRITE,
                       MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
@@ -64,7 +63,7 @@ void* aligned_alloc(size_t alignment, size_t size) {
     return (void*)((uintptr_t)addr + data_offset);
 }
 
-void* malloc(size_t size) { return aligned_alloc(alignof(max_align_t), size); }
+void* malloc(size_t size) { return aligned_alloc(_Alignof(max_align_t), size); }
 
 void* calloc(size_t num, size_t size) {
     size_t total_size = num * size;
@@ -104,7 +103,7 @@ void* realloc(void* ptr, size_t new_size) {
 
     struct malloc_header* new_header = header_from_ptr(new_ptr);
     memcpy(new_header->data, old_header->data,
-           old_header->size - offsetof(struct malloc_header, data));
+           old_header->size - __builtin_offsetof(struct malloc_header, data));
 
     free(ptr);
 

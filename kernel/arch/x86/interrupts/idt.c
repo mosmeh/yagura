@@ -90,7 +90,7 @@ static void dump_context(const struct registers* regs) {
     dump_stack_trace(regs->ip, regs->bp);
 }
 
-static noreturn void crash(const struct registers* regs, int signum) {
+static _Noreturn void crash(const struct registers* regs, int signum) {
     dump_context(regs);
 
     if (!arch_is_user_mode(regs))

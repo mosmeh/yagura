@@ -1,8 +1,8 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <common/stdbool.h>
+#include <common/stddef.h>
+#include <common/stdint.h>
 
 #define PCI_BAR_SPACE 0x1
 #define PCI_BAR_SPACE_IO 0x1

@@ -29,7 +29,7 @@ static void open_console(void) {
     (void)rc;
 }
 
-static noreturn void userland_init(void) {
+static _Noreturn void userland_init(void) {
     ASSERT(current->tid == 1);
     ASSERT(current->thread_group->tgid == 1);
     ASSERT(current->thread_group->pgid == 0);
@@ -71,7 +71,7 @@ static noreturn void userland_init(void) {
     PANIC("No working init found");
 }
 
-static noreturn void ksyncd(void) {
+static _Noreturn void ksyncd(void) {
     static const struct timespec interval = {.tv_sec = 5};
     for (;;) {
         int rc = vfs_sync();
@@ -81,7 +81,7 @@ static noreturn void ksyncd(void) {
     }
 }
 
-static noreturn void kernel_init(void) {
+static _Noreturn void kernel_init(void) {
     ksyms_init();
     fs_init();
     device_init();
@@ -98,7 +98,7 @@ static noreturn void kernel_init(void) {
     userland_init(); // Become the userland init process
 }
 
-noreturn void kernel_main(void) {
+_Noreturn void kernel_main(void) {
     kprint("version: " YAGURA_VERSION "\n");
 
     task_init();

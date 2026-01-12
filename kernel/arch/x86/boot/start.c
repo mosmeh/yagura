@@ -18,7 +18,7 @@ static void* low_phys_to_virt(phys_addr_t phys_addr) {
     return (void*)((uintptr_t)phys_addr + KERNEL_IMAGE_START);
 }
 
-noreturn void start(uint32_t mb_magic, phys_addr_t mb_info_phys_addr) {
+_Noreturn void start(uint32_t mb_magic, phys_addr_t mb_info_phys_addr) {
     gdt_init_cpu();
     cpu_init_features();
     idt_init();

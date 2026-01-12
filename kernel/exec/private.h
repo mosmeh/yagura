@@ -1,9 +1,9 @@
 #pragma once
 
 #include <common/macros.h>
+#include <common/stdbool.h>
+#include <common/stddef.h>
 #include <kernel/api/sys/limits.h>
-#include <stdbool.h>
-#include <stddef.h>
 
 struct exec_image {
     struct vm_obj* obj;

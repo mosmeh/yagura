@@ -1,7 +1,7 @@
+#include <common/stddef.h>
 #include <kernel/drivers/virtio/virtio_pci.h>
 #include <kernel/drivers/virtio/virtio_queue.h>
 #include <kernel/resource.h>
-#include <stddef.h>
 
 struct pci_addr;
 

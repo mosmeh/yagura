@@ -5,8 +5,8 @@
 #ifndef __ASSEMBLER__
 
 #include <common/macros.h>
-#include <stdbool.h>
-#include <stddef.h>
+#include <common/stdbool.h>
+#include <common/stddef.h>
 
 struct pagemap;
 struct registers;

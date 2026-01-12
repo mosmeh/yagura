@@ -1,10 +1,9 @@
 #pragma once
 
 #include <common/macros.h>
+#include <common/stdarg.h>
+#include <common/stddef.h>
 #include <kernel/api/sys/types.h>
-#include <stdarg.h>
-#include <stdatomic.h>
-#include <stddef.h>
 
 struct vec {
     unsigned char* data;

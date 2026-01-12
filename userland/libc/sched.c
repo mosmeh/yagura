@@ -1,7 +1,7 @@
 #include "private.h"
+#include <common/stdarg.h>
 #include <errno.h>
 #include <sched.h>
-#include <stdarg.h>
 #include <sys/types.h>
 
 int clone(int (*fn)(void*), void* stack, int flags, void* arg, ...) {

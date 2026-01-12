@@ -1,9 +1,9 @@
 #pragma once
 
+#include <common/stdbool.h>
+#include <common/stddef.h>
+#include <common/stdint.h>
 #include <kernel/console/font.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
 
 #define NUM_COLORS 16
 

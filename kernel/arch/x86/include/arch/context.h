@@ -1,10 +1,9 @@
 #pragma once
 
 #include <kernel/arch/x86/gdt.h>
-#include <stdalign.h>
 
 struct fpu_state {
-    alignas(16) unsigned char buffer[512];
+    _Alignas(16) unsigned char buffer[512];
 };
 
 struct arch_task {

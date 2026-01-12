@@ -2,7 +2,6 @@
 
 #include <common/macros.h>
 #include <kernel/api/time.h>
-#include <stdatomic.h>
 
 #define CLK_TCK 250
 
@@ -12,7 +11,7 @@
 
 struct timespec;
 
-extern volatile atomic_ulong uptime;
+extern volatile _Atomic(unsigned long) uptime;
 
 void timespec_add(struct timespec*, const struct timespec*);
 void timespec_saturating_sub(struct timespec*, const struct timespec*);

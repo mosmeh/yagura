@@ -1,3 +1,4 @@
+#include <common/limits.h>
 #include <kernel/api/x86/asm/processor-flags.h>
 #include <kernel/arch/x86/interrupts/interrupts.h>
 #include <kernel/arch/x86/msr.h>
@@ -16,13 +17,12 @@ static void cpuid(uint32_t function, uint32_t* eax, uint32_t* ebx,
 }
 
 static void set_feature(struct arch_cpu* arch, int feature) {
-    arch->features[feature / __LONG_WIDTH__] |=
-        1UL << (feature & (__LONG_WIDTH__ - 1));
+    arch->features[feature / LONG_WIDTH] |= 1UL << (feature & (LONG_WIDTH - 1));
 }
 
 bool cpu_has_feature(const struct cpu* cpu, int feature) {
-    return cpu->arch.features[feature / __LONG_WIDTH__] &
-           (1UL << (feature & (__LONG_WIDTH__ - 1)));
+    return cpu->arch.features[feature / LONG_WIDTH] &
+           (1UL << (feature & (LONG_WIDTH - 1)));
 }
 
 unsigned long arch_cpu_get_hwcap(void) {

@@ -1,8 +1,7 @@
 #pragma once
 
+#include <common/stddef.h>
 #include <kernel/arch/memory.h>
-#include <stddef.h>
-#include <stdint.h>
 
 struct fb_info {
     char id[16];
