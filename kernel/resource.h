@@ -156,7 +156,7 @@ static inline size_t refcount_dec(refcount_t* refcount) {
 #define FREE(name) CLEANUP(__free_##name)
 
 #define __TAKE_PTR(ptr, nullvalue)                                             \
-    ({                                                                         \
+    __extension__({                                                            \
         __typeof__(ptr)* __ptr = &(ptr);                                       \
         __typeof__(ptr) __val = *__ptr;                                        \
         *__ptr = nullvalue;                                                    \

@@ -16,7 +16,7 @@ export CFLAGS := \
 	-fno-omit-frame-pointer \
 	-ffile-prefix-map=$(ROOT)/= \
 	-U_FORTIFY_SOURCE \
-	-Wall -Wextra -pedantic -Wno-gnu-statement-expression-from-macro-expansion \
+	-Wall -Wextra -pedantic \
 	-O2 -g \
 	-DARCH_$(shell echo $(ARCH) | tr a-z A-Z) \
 	$(if $(GIT_HASH),-DYAGURA_VERSION=\"$(GIT_HASH)\") \
