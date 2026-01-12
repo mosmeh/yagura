@@ -12,7 +12,7 @@ export BUILD_DIR := $(BUILD_ROOT)/$(ARCH)
 export CFLAGS := \
 	-std=c11 \
 	-static \
-	-nostdlib -ffreestanding \
+	-nostdlib \
 	-fno-omit-frame-pointer \
 	-ffile-prefix-map=$(ROOT)/= \
 	-U_FORTIFY_SOURCE \

@@ -8,7 +8,7 @@
 int sprintf(char* buffer, const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int ret = vsnprintf(buffer, SIZE_MAX, format, args);
+    int ret = vsnprintf(buffer, PTRDIFF_MAX, format, args);
     va_end(args);
     return ret;
 }
@@ -22,7 +22,7 @@ int snprintf(char* buffer, size_t bufsz, const char* format, ...) {
 }
 
 int vsprintf(char* buffer, const char* format, va_list args) {
-    return vsnprintf(buffer, SIZE_MAX, format, args);
+    return vsnprintf(buffer, PTRDIFF_MAX, format, args);
 }
 
 static size_t utoa(unsigned long long value, char* str, unsigned radix) {

@@ -1,6 +1,8 @@
 OUT_DIR := $(BUILD_DIR)/kernel
 
-CFLAGS += -isystem$(ROOT)
+CFLAGS += \
+	-ffreestanding \
+	-isystem$(ROOT)
 
 LINKER_SCRIPT := $(OUT_DIR)/kernel.lds
 LDFLAGS += -Wl,-T$(LINKER_SCRIPT)
