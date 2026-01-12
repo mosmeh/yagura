@@ -13,7 +13,7 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 #define CONTAINER_OF(ptr, type, member)                                        \
-    ({                                                                         \
+    __extension__({                                                            \
         const __typeof__(((type*)0)->member)* __mptr = (ptr);                  \
         (type*)((char*)__mptr - offsetof(type, member));                       \
     })
