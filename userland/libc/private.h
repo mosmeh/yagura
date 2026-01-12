@@ -1,7 +1,6 @@
 #pragma once
 
-#include <stdatomic.h>
-#include <stddef.h>
+#include <common/stddef.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 
@@ -10,7 +9,7 @@ struct pthread* __init_tls(void* tls);
 
 struct pthread {
     struct pthread* self;
-    volatile atomic_uint state;
+    volatile _Atomic(unsigned int) state;
     void* alloc_base;
     void* (*fn)(void*);
     void* arg;

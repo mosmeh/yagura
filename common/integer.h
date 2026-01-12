@@ -1,9 +1,9 @@
 #pragma once
 
 #include <common/ctype.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <common/stdbool.h>
+#include <common/stddef.h>
+#include <common/stdint.h>
 
 #define ROUND_UP(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
 #define ROUND_DOWN(x, align) ((x) & ~((align) - 1))

@@ -1,9 +1,8 @@
 #pragma once
 
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <common/stdbool.h>
+#include <common/stddef.h>
+#include <common/stdint.h>
 
 struct virtq_desc {
     /* Address (guest-physical). */
@@ -48,11 +47,11 @@ struct virtq_used {
 };
 
 struct virtq {
-    uint16_t index;               // The index of the queue
-    size_t size;                  // The number of descriptors
-    atomic_size_t num_free_descs; // The number of free descriptors
-    size_t free_head;             // The index of the first free descriptor
-    uint16_t avail_index_shadow;  // The copy of avail->idx
+    uint16_t index;                 // The index of the queue
+    size_t size;                    // The number of descriptors
+    _Atomic(size_t) num_free_descs; // The number of free descriptors
+    size_t free_head;               // The index of the first free descriptor
+    uint16_t avail_index_shadow;    // The copy of avail->idx
 
     // The actual descriptors (16 bytes each)
     struct virtq_desc* desc;

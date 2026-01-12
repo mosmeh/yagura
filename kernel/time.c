@@ -36,7 +36,7 @@ int timespec_compare(const struct timespec* a, const struct timespec* b) {
     return 0;
 }
 
-volatile atomic_ulong uptime;
+volatile _Atomic(unsigned long) uptime;
 static struct timespec now;
 static struct spinlock now_lock;
 

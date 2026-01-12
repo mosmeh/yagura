@@ -1,9 +1,9 @@
+#include <common/limits.h>
 #include <common/string.h>
 #include <kernel/arch/system.h>
 #include <kernel/arch/x86/cpu.h>
 #include <kernel/cpu.h>
 #include <kernel/kmsg.h>
-#include <limits.h>
 
 // based on
 // https://github.com/torvalds/linux/blob/7a934f4bd7d6f9da84c8812da3ba42ee10f5778e/arch/x86/include/asm/archrandom.h#L20

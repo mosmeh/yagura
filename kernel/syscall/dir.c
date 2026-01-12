@@ -88,9 +88,9 @@ static ssize_t fill_dir_old(void* user_buf, size_t buf_size, const char* name,
 
     size_t name_len = strlen(name);
     size_t name_size = name_len + 1;
-    size_t rec_len = offsetof(struct linux_old_dirent, d_name) //
-                     + name_size;                              // d_name
-    rec_len = ROUND_UP(rec_len, alignof(struct linux_old_dirent));
+    size_t rec_len = __builtin_offsetof(struct linux_old_dirent, d_name) +
+                     name_size; // d_name
+    rec_len = ROUND_UP(rec_len, _Alignof(struct linux_old_dirent));
     if (buf_size < rec_len)
         return 0;
 
@@ -100,7 +100,7 @@ static ssize_t fill_dir_old(void* user_buf, size_t buf_size, const char* name,
         .d_namlen = name_len,
     };
     if (copy_to_user(user_dent, &dent,
-                     offsetof(struct linux_old_dirent, d_name)))
+                     __builtin_offsetof(struct linux_old_dirent, d_name)))
         return -EFAULT;
     if (copy_to_user(user_dent->d_name, name, name_size))
         return -EFAULT;
@@ -115,11 +115,11 @@ long sys_old_readdir(int fd, struct linux_old_dirent* user_dirp, size_t count) {
 static ssize_t fill_dir(void* user_buf, size_t buf_size, const char* name,
                         ino_t ino, unsigned char type) {
     size_t name_size = strlen(name) + 1;
-    size_t rec_len = offsetof(struct linux_dirent, d_name) //
-                     + name_size                           // d_name
-                     + sizeof(char)                        // pad
-                     + sizeof(char);                       // d_type
-    rec_len = ROUND_UP(rec_len, alignof(struct linux_dirent));
+    size_t rec_len = __builtin_offsetof(struct linux_dirent, d_name) +
+                     name_size       // d_name
+                     + sizeof(char)  // pad
+                     + sizeof(char); // d_type
+    rec_len = ROUND_UP(rec_len, _Alignof(struct linux_dirent));
     if (buf_size < rec_len)
         return 0;
 
@@ -128,7 +128,8 @@ static ssize_t fill_dir(void* user_buf, size_t buf_size, const char* name,
         .d_ino = ino,
         .d_reclen = rec_len,
     };
-    if (copy_to_user(user_dent, &dent, offsetof(struct linux_dirent, d_name)))
+    if (copy_to_user(user_dent, &dent,
+                     __builtin_offsetof(struct linux_dirent, d_name)))
         return -EFAULT;
     if (copy_to_user(user_dent->d_name, name, name_size))
         return -EFAULT;
@@ -146,9 +147,9 @@ long sys_getdents(int fd, struct linux_dirent* user_dirp, size_t count) {
 static ssize_t fill_dir64(void* user_buf, size_t buf_size, const char* name,
                           ino_t ino, unsigned char type) {
     size_t name_size = strlen(name) + 1;
-    size_t rec_len = offsetof(struct linux_dirent64, d_name) //
-                     + name_size;                            // d_name
-    rec_len = ROUND_UP(rec_len, alignof(struct linux_dirent64));
+    size_t rec_len = __builtin_offsetof(struct linux_dirent64, d_name) //
+                     + name_size;                                      // d_name
+    rec_len = ROUND_UP(rec_len, _Alignof(struct linux_dirent64));
     if (buf_size < rec_len)
         return 0;
 
@@ -158,7 +159,8 @@ static ssize_t fill_dir64(void* user_buf, size_t buf_size, const char* name,
         .d_reclen = rec_len,
         .d_type = type,
     };
-    if (copy_to_user(user_dent, &dent, offsetof(struct linux_dirent64, d_name)))
+    if (copy_to_user(user_dent, &dent,
+                     __builtin_offsetof(struct linux_dirent64, d_name)))
         return -EFAULT;
     if (copy_to_user(user_dent->d_name, name, name_size))
         return -EFAULT;

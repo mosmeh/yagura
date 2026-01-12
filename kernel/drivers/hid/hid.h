@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdbool.h>
+#include <common/stdbool.h>
 
 struct keyboard_events {
     void (*raw)(unsigned char scancode);

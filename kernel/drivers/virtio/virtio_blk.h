@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <common/stdint.h>
 
 struct virtio_blk_config {
     uint64_t capacity;

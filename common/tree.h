@@ -1,9 +1,9 @@
 #pragma once
 
 #include <common/panic.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <common/stdbool.h>
+#include <common/stddef.h>
+#include <common/stdint.h>
 
 #define COLOR_MASK ((uintptr_t)0x1)
 

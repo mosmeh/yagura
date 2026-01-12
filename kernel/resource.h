@@ -1,8 +1,8 @@
 #pragma once
 
 #include <common/macros.h>
+#include <common/stdatomic.h>
 #include <kernel/panic.h>
-#include <stdatomic.h>
 
 // Reference counting rules:
 //
@@ -46,7 +46,7 @@
 #define REFCOUNT_INIT_ONE REFCOUNT_INIT(1)
 
 typedef struct refcount {
-    atomic_size_t count;
+    _Atomic(size_t) count;
 } refcount_t;
 
 static inline size_t refcount_get(const refcount_t* refcount) {

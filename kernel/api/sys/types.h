@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <common/stdint.h>
 
 typedef uint32_t dev_t;
 typedef unsigned int uid_t;

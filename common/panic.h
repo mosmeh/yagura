@@ -1,7 +1,6 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdnoreturn.h>
+#include <common/stddef.h>
 
 #define PANIC(...) panic(__FILE__, __LINE__, __VA_ARGS__)
 #define UNREACHABLE() PANIC("Unreachable")
@@ -14,4 +13,4 @@
         _cond;                                                                 \
     })
 
-noreturn void panic(const char* file, size_t line, const char* message, ...);
+_Noreturn void panic(const char* file, size_t line, const char* message, ...);

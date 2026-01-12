@@ -1,9 +1,9 @@
 #pragma once
 
 #include <common/macros.h>
+#include <common/stdbool.h>
+#include <common/stdint.h>
 #include <kernel/api/errno.h>
-#include <stdbool.h>
-#include <stdint.h>
 
 // Casts error value to pointer
 #define ERR_PTR(x) ((void*)(long)(x))

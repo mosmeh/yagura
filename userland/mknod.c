@@ -5,7 +5,7 @@
 #include <sys/sysmacros.h>
 #include <unistd.h>
 
-static noreturn void usage(void) {
+static _Noreturn void usage(void) {
     dprintf(STDERR_FILENO, "Usage: mknod NAME TYPE [MAJOR MINOR]\n");
     exit(EXIT_FAILURE);
 }

@@ -9,7 +9,7 @@
 #include <kernel/task/task.h>
 #include <kernel/time.h>
 
-static noreturn void do_idle(void) {
+static _Noreturn void do_idle(void) {
     for (;;) {
         ASSERT(arch_interrupts_enabled());
         arch_wait_for_interrupt();

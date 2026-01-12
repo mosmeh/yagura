@@ -1,7 +1,7 @@
+#include <common/stdint.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
-#include <stdint.h>
 
 extern char ksyms_start[];
 extern char ksyms_end[];

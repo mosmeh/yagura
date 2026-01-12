@@ -1,7 +1,6 @@
 #pragma once
 
 #include <arch/cpu.h>
-#include <stdnoreturn.h>
 
 struct file;
 struct cpu;
@@ -19,7 +18,7 @@ unsigned long arch_cpu_get_hwcap(void);
 void arch_cpu_relax(void);
 
 // Halts the CPU indefinitely.
-noreturn void arch_cpu_halt(void);
+_Noreturn void arch_cpu_halt(void);
 
 // Broadcast an Inter-Processor Interrupt to all other CPUs.
 void arch_cpu_broadcast_ipi(void);

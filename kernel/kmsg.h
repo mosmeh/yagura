@@ -1,8 +1,8 @@
 #pragma once
 
 #include <common/macros.h>
-#include <stdarg.h>
-#include <stddef.h>
+#include <common/stdarg.h>
+#include <common/stddef.h>
 
 #define KMSG_BUF_SIZE 16384
 

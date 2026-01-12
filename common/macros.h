@@ -15,7 +15,7 @@
 #define CONTAINER_OF(ptr, type, member)                                        \
     __extension__({                                                            \
         const __typeof__(((type*)0)->member)* __mptr = (ptr);                  \
-        (type*)((char*)__mptr - offsetof(type, member));                       \
+        (type*)((char*)__mptr - __builtin_offsetof(type, member));             \
     })
 
 #define NODISCARD __attribute__((__warn_unused_result__))

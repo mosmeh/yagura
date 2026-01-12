@@ -15,7 +15,6 @@
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>
-#include <stdalign.h>
 
 #define PCI_CLASS_MULTIMEDIA 4
 #define PCI_SUBCLASS_AUDIO_CONTROLLER 1
@@ -69,8 +68,8 @@ static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,
     }
 }
 
-static atomic_bool dma_is_running = false;
-static atomic_bool buffer_descriptor_list_is_full = false;
+static _Atomic(bool) dma_is_running = false;
+static _Atomic(bool) buffer_descriptor_list_is_full = false;
 
 static void irq_handler(struct registers* regs) {
     (void)regs;
@@ -91,8 +90,8 @@ static void irq_handler(struct registers* regs) {
 
 #define OUTPUT_BUF_NUM_PAGES 4
 
-alignas(PAGE_SIZE) static unsigned char output_buf[OUTPUT_BUF_NUM_PAGES *
-                                                   PAGE_SIZE];
+_Alignas(PAGE_SIZE) static unsigned char output_buf[OUTPUT_BUF_NUM_PAGES *
+                                                    PAGE_SIZE];
 static uint8_t output_buf_page_idx = 0;
 
 #define BUFFER_DESCRIPTOR_LIST_MAX_NUM_ENTRIES 32

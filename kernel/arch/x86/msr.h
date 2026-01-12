@@ -7,7 +7,7 @@
 
 #ifndef __ASSEMBLER__
 
-#include <stdint.h>
+#include <common/stdint.h>
 
 static inline uint64_t rdmsr(uint32_t msr) {
     uint32_t lo;

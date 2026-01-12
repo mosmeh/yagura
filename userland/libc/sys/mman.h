@@ -1,7 +1,7 @@
 #pragma once
 
+#include <common/stddef.h>
 #include <kernel/api/sys/mman.h>
-#include <stddef.h>
 #include <sys/types.h>
 
 void* mmap(void* addr, size_t length, int prot, int flags, int fd,

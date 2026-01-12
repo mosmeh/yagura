@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-noreturn void panic(const char* file, size_t line, const char* format, ...) {
+_Noreturn void panic(const char* file, size_t line, const char* format, ...) {
     dprintf(STDERR_FILENO, "PANIC: ");
     va_list args;
     va_start(args, format);

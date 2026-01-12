@@ -275,7 +275,7 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
             }
         }
         if (copy_to_user((unsigned char*)arg +
-                             offsetof(struct kbentry, kb_value),
+                             __builtin_offsetof(struct kbentry, kb_value),
                          &value, sizeof(unsigned short)))
             return -EFAULT;
         break;

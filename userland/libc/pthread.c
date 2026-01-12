@@ -1,4 +1,5 @@
 #include "private.h"
+#include <common/stdatomic.h>
 #include <err.h>
 #include <panic.h>
 #include <pthread.h>
@@ -33,7 +34,7 @@ static struct pthread_attr default_attr(void) {
     };
 }
 
-static noreturn int thread_start(void* arg) {
+static _Noreturn int thread_start(void* arg) {
     struct pthread* pth = arg;
     pthread_exit(pth->fn(pth->arg));
 }

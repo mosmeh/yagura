@@ -19,7 +19,7 @@
 
 #ifndef __ASSEMBLER__
 
-#include <stdint.h>
+#include <common/stdint.h>
 
 struct gdt_segment {
     union {

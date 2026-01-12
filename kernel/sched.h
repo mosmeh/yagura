@@ -1,9 +1,7 @@
 #pragma once
 
 #include <common/macros.h>
-#include <stdatomic.h>
-#include <stdbool.h>
-#include <stdnoreturn.h>
+#include <common/stdbool.h>
 
 struct task;
 struct registers;
@@ -15,7 +13,7 @@ void sched_init_smp(void);
 void sched_register(struct task*);
 
 // Starts the scheduler on the current CPU.
-noreturn void sched_start(void);
+_Noreturn void sched_start(void);
 
 // Yields the CPU to another task.
 void sched_yield(void);

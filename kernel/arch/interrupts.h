@@ -1,7 +1,7 @@
 #pragma once
 
 #include <arch/interrupts.h>
-#include <stdint.h>
+#include <common/stdint.h>
 
 struct registers;
 

@@ -1,6 +1,6 @@
-#include <limits.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <common/limits.h>
+#include <common/stddef.h>
+#include <common/stdint.h>
 
 unsigned long long __udivmoddi4(unsigned long long lhs, unsigned long long rhs,
                                 unsigned long long* rem) {
@@ -18,7 +18,7 @@ unsigned long long __udivmoddi4(unsigned long long lhs, unsigned long long rhs,
 
     unsigned long long q = 0;
     unsigned long long r = 0;
-    for (int i = CHAR_BIT * sizeof(unsigned long long) - 1; i >= 0; --i) {
+    for (int i = ULLONG_WIDTH - 1; i >= 0; --i) {
         r = (r << 1) | ((lhs >> i) & 1);
         if (r >= rhs) {
             r -= rhs;

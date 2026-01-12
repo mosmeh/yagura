@@ -6,7 +6,6 @@
 #include <kernel/fs/fs.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>
-#include <stdnoreturn.h>
 
 enum {
     TASK_RUNNING,
@@ -19,7 +18,7 @@ enum {
 struct task {
     pid_t tid;
 
-    atomic_uint state;
+    _Atomic(unsigned int) state;
     int exit_status;
 
     char comm[16];
@@ -41,8 +40,8 @@ struct task {
 
     struct thread_group* thread_group;
 
-    atomic_size_t user_ticks;
-    atomic_size_t kernel_ticks;
+    _Atomic(size_t) user_ticks;
+    _Atomic(size_t) kernel_ticks;
 
     struct task* tasks_next; // global tasks list
     struct task* ready_queue_next;
@@ -74,9 +73,9 @@ DEFINE_REFCOUNTED_BASE(task, struct task*, refcount, __task_destroy)
 pid_t task_generate_next_tid(void);
 struct task* task_find_by_tid(pid_t);
 
-noreturn void task_exit(int status);
-noreturn void task_exit_thread_group(int status);
-noreturn void task_crash(int signum);
+_Noreturn void task_exit(int status);
+_Noreturn void task_exit_thread_group(int status);
+_Noreturn void task_crash(int signum);
 
 struct fs {
     struct path* root;
@@ -133,7 +132,7 @@ DEFINE_REFCOUNTED_BASE(sighand, struct sighand*, refcount, __sighand_destroy)
 struct thread_group {
     pid_t tgid;
     _Atomic(pid_t) pgid, ppid;
-    atomic_size_t num_running_tasks;
+    _Atomic(size_t) num_running_tasks;
     _Atomic(sigset_t) pending_signals;
     int exit_signal;
     refcount_t refcount;

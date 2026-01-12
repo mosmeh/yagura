@@ -26,8 +26,8 @@
 
 #ifndef __ASSEMBLER__
 
+#include <common/stdint.h>
 #include <kernel/arch/x86/include/arch/memory.h>
-#include <stdint.h>
 
 typedef uint32_t phys_addr_t;
 

@@ -1,5 +1,5 @@
 #include "../private.h"
-#include <stdarg.h>
+#include <common/stdarg.h>
 #include <sys/ioctl.h>
 
 int ioctl(int fd, unsigned cmd, ...) {

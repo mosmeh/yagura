@@ -1,5 +1,5 @@
+#include <common/stdint.h>
 #include <common/string.h>
-#include <stdint.h>
 
 void* memmove(void* dest, const void* src, size_t n) {
     if (((uintptr_t)dest - (uintptr_t)src) >= n)

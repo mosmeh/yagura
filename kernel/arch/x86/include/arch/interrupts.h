@@ -1,7 +1,7 @@
 #pragma once
 
+#include <common/stdbool.h>
 #include <kernel/api/x86/asm/processor-flags.h>
-#include <stdbool.h>
 
 #define IRQ(i) (0x20 + (i))
 

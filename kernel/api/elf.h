@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <common/stdint.h>
 
 typedef uint32_t Elf32_Addr;
 typedef uint32_t Elf32_Off;

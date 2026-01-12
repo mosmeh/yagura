@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdbool.h>
+#include <common/stdbool.h>
 
 struct cpu;
 

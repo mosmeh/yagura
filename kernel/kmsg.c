@@ -1,9 +1,9 @@
+#include <common/stdarg.h>
 #include <common/stdio.h>
 #include <common/string.h>
 #include <kernel/drivers/serial.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>
-#include <stdarg.h>
 
 int kprint(const char* str) {
     size_t len = strlen(str);

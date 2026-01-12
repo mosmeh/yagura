@@ -1,7 +1,7 @@
 #pragma once
 
+#include <common/stddef.h>
 #include <kernel/api/unistd.h>
-#include <stddef.h>
 #include <sys/types.h>
 
 extern char** environ;
