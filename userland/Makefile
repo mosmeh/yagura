@@ -113,6 +113,15 @@ LIBC_SRCS += \
 	userland/libc/arch/i386/asm.S \
 	userland/libc/arch/i386/tls.c \
 	$(LIBC_X86_SRCS)
+else ifeq ($(ARCH), x86_64)
+CFLAGS += \
+	-m64 \
+	-isystem$(ROOT)/kernel/api/x86
+
+LIBC_SRCS += \
+	userland/libc/arch/x86_64/asm.S \
+	userland/libc/arch/x86_64/tls.o \
+	$(LIBC_X86_SRCS)
 else
 $(error Unknown ARCH '$(ARCH)')
 endif

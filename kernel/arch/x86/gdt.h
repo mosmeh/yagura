@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef ARCH_I386
 #define NUM_GDT_ENTRIES 10
 #define GDT_ENTRY_KERNEL_CS 1
 #define GDT_ENTRY_KERNEL_DS 2
@@ -9,12 +10,29 @@
 #define GDT_ENTRY_TLS_MIN 6
 #define NUM_GDT_TLS_ENTRIES 3
 #define GDT_ENTRY_CPU_ID 9
+#endif
+
+#ifdef ARCH_X86_64
+#define NUM_GDT_ENTRIES 11
+#define GDT_ENTRY_KERNEL_CS 1
+#define GDT_ENTRY_KERNEL_DS 2
+#define GDT_ENTRY_USER_DS 3
+#define GDT_ENTRY_USER_CS 4
+#define GDT_ENTRY_TSS 5
+#define GDT_ENTRY_TSS2 6
+#define GDT_ENTRY_TLS_MIN 7
+#define NUM_GDT_TLS_ENTRIES 3
+#define GDT_ENTRY_CPU_ID 10
+#endif
 
 #define KERNEL_CS (GDT_ENTRY_KERNEL_CS * 8)
 #define KERNEL_DS (GDT_ENTRY_KERNEL_DS * 8)
 #define USER_CS (GDT_ENTRY_USER_CS * 8)
 #define USER_DS (GDT_ENTRY_USER_DS * 8)
 #define TSS_SELECTOR (GDT_ENTRY_TSS * 8)
+#ifdef ARCH_X86_64
+#define TSS_SELECTOR2 (GDT_ENTRY_TSS2 * 8)
+#endif
 #define CPU_ID_SELECTOR (GDT_ENTRY_CPU_ID * 8)
 
 #ifndef __ASSEMBLER__
@@ -48,10 +66,16 @@ struct gdt_segment {
 
 struct gdtr {
     uint16_t limit;
+#ifdef ARCH_I386
     uint32_t base;
+#endif
+#ifdef ARCH_X86_64
+    uint64_t base;
+#endif
 } __attribute__((packed));
 
 struct tss {
+#ifdef ARCH_I386
     uint32_t prev_tss;
     uint32_t esp0, ss0, esp1, ss1, esp2, ss2;
     uint32_t cr3;
@@ -59,6 +83,34 @@ struct tss {
     uint32_t es, cs, ss, ds, fs, gs;
     uint32_t ldt;
     uint16_t trap, iomap_base;
+#endif
+#ifdef ARCH_X86_64
+    uint32_t __1;
+    uint32_t rsp0l;
+    uint32_t rsp0h;
+    uint32_t rsp1l;
+    uint32_t rsp1h;
+    uint32_t rsp2l;
+    uint32_t rsp2h;
+    uint64_t __2;
+    uint32_t ist1l;
+    uint32_t ist1h;
+    uint32_t ist2l;
+    uint32_t ist2h;
+    uint32_t ist3l;
+    uint32_t ist3h;
+    uint32_t ist4l;
+    uint32_t ist4h;
+    uint32_t ist5l;
+    uint32_t ist5h;
+    uint32_t ist6l;
+    uint32_t ist6h;
+    uint32_t ist7l;
+    uint32_t ist7h;
+    uint64_t __3;
+    uint16_t __4;
+    uint16_t iomap_base;
+#endif
 } __attribute__((packed));
 
 void gdt_init_cpu(void);

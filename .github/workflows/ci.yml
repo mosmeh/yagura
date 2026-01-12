@@ -9,24 +9,33 @@ jobs:
             fail-fast: false
             matrix:
                 compiler: [gcc, clang]
+                arch: [i386, x86_64]
         env:
             CC: ${{ matrix.compiler }}
+            ARCH: ${{ matrix.arch }}
+            EXTRA_CFLAGS: -Werror
         steps:
             - uses: actions/checkout@v4
             - run: sudo apt-get update && sudo apt-get install -y gcc-multilib cpio qemu-system-x86 grub2 mtools xorriso
-            - run: make EXTRA_CFLAGS="-Werror"
+            - run: make
             - run: nm -n kernel/kernel | awk 'NF==3'
             - run: make test
               timeout-minutes: 3
-            - run: grub-file --is-x86-multiboot build/i386/kernel.elf
+            - run: grub-file --is-x86-multiboot build/${{ matrix.arch }}/kernel.elf
             - run: make disk_image
     ubsan:
         runs-on: ubuntu-24.04
+        strategy:
+            fail-fast: false
+            matrix:
+                arch: [i386, x86_64]
         env:
             CC: gcc
+            ARCH: ${{ matrix.arch }}
+            EXTRA_CFLAGS: -Werror -fsanitize=undefined
         steps:
             - uses: actions/checkout@v4
             - run: sudo apt-get update && sudo apt-get install -y gcc-multilib cpio qemu-system-x86
-            - run: make EXTRA_CFLAGS="-Werror -fsanitize=undefined"
+            - run: make
             - run: make test
-              timeout-minutes: 5
+              timeout-minutes: 3

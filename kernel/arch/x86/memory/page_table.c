@@ -7,11 +7,18 @@
 #include <kernel/memory/phys.h>
 #include <kernel/task/task.h>
 
+#ifdef ARCH_I386
 #define PAGE_TABLE_LEVELS 2
 #define PAGE_TABLE_BITS_PER_LEVEL 10
 #define PAGE_TABLE_FLAGS_MASK 0xfff
-
 typedef uint32_t pte_t;
+#endif
+#ifdef ARCH_X86_64
+#define PAGE_TABLE_LEVELS 4
+#define PAGE_TABLE_BITS_PER_LEVEL 9
+#define PAGE_TABLE_FLAGS_MASK 0xfff0000000000fffUL
+typedef uint64_t pte_t;
+#endif
 
 #define TOP_LEVEL (PAGE_TABLE_LEVELS - 1)
 #define NUM_ENTRIES_PER_LEVEL (1UL << PAGE_TABLE_BITS_PER_LEVEL)

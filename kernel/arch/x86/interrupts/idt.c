@@ -24,11 +24,20 @@ struct idt_gate {
     uint8_t dpl : 2;
     uint8_t present : 1;
     uint16_t base_hi : 16;
+#ifdef ARCH_X86_64
+    uint32_t base_hi2;
+    uint32_t reserved3;
+#endif
 };
 
 struct idtr {
     uint16_t limit;
+#ifdef ARCH_I386
     uint32_t base;
+#endif
+#ifdef ARCH_X86_64
+    uint64_t base;
+#endif
 } __attribute__((packed));
 
 #define NUM_IDT_ENTRIES 256
@@ -74,6 +83,9 @@ static void set_gate(uint8_t index, uintptr_t base, uint16_t selector,
         .gate_type = gate_type & 0xf,
         .dpl = dpl & 0x3,
         .present = 1,
+#ifdef ARCH_X86_64
+        .base_hi2 = (base >> 32) & 0xffffffff,
+#endif
     };
 }
 

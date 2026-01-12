@@ -44,10 +44,18 @@ void gdt_init_cpu(void) {
 
     set_segment(gdt, 0, 0, 0);
 
+#ifdef ARCH_I386
     set_segment(gdt, GDT_ENTRY_KERNEL_CS, 0x0000ffff, 0x00cf9a00);
     set_segment(gdt, GDT_ENTRY_KERNEL_DS, 0x0000ffff, 0x00cf9200);
     set_segment(gdt, GDT_ENTRY_USER_CS, 0x0000ffff, 0x00cffa00);
     set_segment(gdt, GDT_ENTRY_USER_DS, 0x0000ffff, 0x00cff200);
+#endif
+#ifdef ARCH_X86_64
+    set_segment(gdt, GDT_ENTRY_KERNEL_CS, 0x0000ffff, 0x00af9a00);
+    set_segment(gdt, GDT_ENTRY_KERNEL_DS, 0x0000ffff, 0x008f9200);
+    set_segment(gdt, GDT_ENTRY_USER_DS, 0x0000ffff, 0x008ff200);
+    set_segment(gdt, GDT_ENTRY_USER_CS, 0x0000ffff, 0x00affa00);
+#endif
 
     gdt[GDT_ENTRY_TSS] = (struct gdt_segment){
         .dpl = 0,
@@ -60,6 +68,9 @@ void gdt_init_cpu(void) {
     };
     set_base_limit(gdt, GDT_ENTRY_TSS, (uintptr_t)tss & 0xffffffff,
                    sizeof(*tss) - 1);
+#ifdef ARCH_X86_64
+    set_segment(gdt, GDT_ENTRY_TSS2, (uintptr_t)tss >> 32, 0);
+#endif
 
     for (size_t i = 0; i < NUM_GDT_TLS_ENTRIES; ++i)
         set_segment(gdt, GDT_ENTRY_TLS_MIN + i, 0, 0);
@@ -76,7 +87,9 @@ void gdt_init_cpu(void) {
     set_base_limit(gdt, GDT_ENTRY_CPU_ID, 0, cpu_id);
 
     *tss = (struct tss){
+#ifdef ARCH_I386
         .ss0 = KERNEL_DS,
+#endif
         .iomap_base = sizeof(struct tss),
     };
 
@@ -86,12 +99,17 @@ void gdt_init_cpu(void) {
                      "movw %%ax, %%fs\n"
                      "movw %%ax, %%gs\n"
                      "movw %%ax, %%ss\n"
-                     "ljmpl %[kernel_cs], $1f\n"
+                     :
+                     : [gdtr] "m"(*gdtr), "a"(KERNEL_DS)
+                     : "memory");
+
+#ifdef ARCH_I386
+    __asm__ volatile("ljmpl %[kernel_cs], $1f\n"
                      "1:\n"
                      :
-                     : [gdtr] "m"(*gdtr),
-                       "a"(KERNEL_DS), [kernel_cs] "i"(KERNEL_CS)
+                     : [kernel_cs] "i"(KERNEL_CS)
                      : "memory");
+#endif
 
     __asm__ volatile("ltr %%ax" : : "a"(TSS_SELECTOR) : "memory");
 }

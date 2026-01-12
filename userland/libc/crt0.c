@@ -10,8 +10,13 @@
 #include <sys/auxv.h>
 #include <unistd.h>
 
+#if UINTPTR_MAX == UINT64_MAX
+typedef Elf64_Phdr elf_phdr_t;
+typedef Elf64_auxv_t elf_auxv_t;
+#else
 typedef Elf32_Phdr elf_phdr_t;
 typedef Elf32_auxv_t elf_auxv_t;
+#endif
 
 static unsigned long auxv[32];
 

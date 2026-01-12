@@ -5,6 +5,7 @@ ENTRY (_start)
 PHDRS {
     multiboot PT_LOAD;
     init_text PT_LOAD;
+    init_rodata PT_LOAD;
     init_bss PT_LOAD;
     text PT_LOAD;
     data PT_LOAD;
@@ -21,6 +22,10 @@ SECTIONS {
     .init_text : AT(ADDR(.init_text)) {
         *(.init_text)
     } :init_text
+
+    .init_rodata : AT(ADDR(.init_rodata)) {
+        *(.init_rodata)
+    } :init_rodata
 
     .init_bss : AT(ADDR(.init_bss)) {
         *(.init_bss)
