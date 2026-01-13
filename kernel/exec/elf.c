@@ -223,17 +223,14 @@ static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
         {AT_NULL, {0}},
     };
     loader->stack_ptr -= sizeof(auxv);
-    if (loader->stack_ptr < loader->stack_base)
-        return -E2BIG;
-    if (copy_to_user(loader->stack_ptr, auxv, sizeof(auxv)))
-        return -EFAULT;
 
     uintptr_t* cursor = (void*)loader->stack_ptr;
     cursor -= loader->envc + 1; // envp + NULL
     cursor -= loader->argc + 1; // argv + NULL
     --cursor;                   // argc
-
+    cursor = (uintptr_t*)ROUND_DOWN((uintptr_t)cursor, 16);
     loader->stack_ptr = (void*)cursor;
+
     if (loader->stack_ptr < loader->stack_base)
         return -E2BIG;
 
@@ -268,6 +265,9 @@ static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
         env_ptr += len + 1;
     }
     if (copy_to_user(cursor++, &null_ptr, sizeof(char*)))
+        return -EFAULT;
+
+    if (copy_to_user(cursor, auxv, sizeof(auxv)))
         return -EFAULT;
 
     return 0;
