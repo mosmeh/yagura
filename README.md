@@ -1,6 +1,6 @@
 # yagura
 
-[![build](https://github.com/mosmeh/yagura/workflows/build/badge.svg)](https://github.com/mosmeh/yagura/actions)
+[![build](https://github.com/mosmeh/yagura/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/mosmeh/yagura/actions/workflows/ci.yml)
 
 A Unix-like operating system for x86
 
