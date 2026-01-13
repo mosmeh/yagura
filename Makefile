@@ -61,8 +61,11 @@ clean:
 run: kernel $(INITRD)
 	./run.sh
 
-shell: kernel $(INITRD)
-	./run.sh shell
+serial: kernel $(INITRD)
+	./run.sh serial
+
+text: kernel $(INITRD)
+	./run.sh text
 
 test: kernel $(INITRD)
 	./run_tests.sh

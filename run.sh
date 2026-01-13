@@ -9,11 +9,11 @@ INITRD="${INITRD:-${BUILD_DIR}/initrd}"
 NUM_CPUS="${NUM_CPUS:-1}"
 
 case "$1" in
-    shell) # Serial console
+    serial) # Serial console
         QEMU_EXTRA_ARGS+=(-display none -vga none)
         CMDLINE+=(console=ttyS0)
         ;;
-    text) # Text console
+    text) # VGA text mode
         QEMU_EXTRA_ARGS+=(-display "sdl,gl=off" -vga cirrus)
         CMDLINE+=(console=tty1)
         ;;
