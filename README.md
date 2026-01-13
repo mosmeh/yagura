@@ -26,8 +26,8 @@ make run
 The following commands start the system with different options:
 
 ```sh
-make shell # run in text mode
-
+make serial # run with a serial console
+make text # run in VGA text mode
 make test # run self-test
 ```
 
