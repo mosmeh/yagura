@@ -225,6 +225,17 @@ ap_trampoline_start32:
     movl $pml4t, %eax
     movl %eax, %cr3
 
+    # Enable NX if supported
+    movl $0x80000001, %eax
+    cpuid
+    testl $0x100000, %edx
+    jz 1f - ap_trampoline_start + AP_TRAMPOLINE_ADDR
+    movl $MSR_EFER, %ecx
+    rdmsr
+    orl $EFER_NX, %eax
+    wrmsr
+1:
+
     movl %cr4, %eax
     orl $(X86_CR4_PAE | X86_CR4_PSE), %eax
     movl %eax, %cr4

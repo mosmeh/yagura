@@ -10,14 +10,17 @@
 // Region may be written
 #define VM_WRITE 0x2
 
+// Code can be executed in this region
+#define VM_EXEC 0x4
+
 // Region may be accessed from userland
-#define VM_USER 0x4
+#define VM_USER 0x8
 
 // vm_obj is shared with other regions
-#define VM_SHARED 0x8
+#define VM_SHARED 0x10
 
 // Write-combining is enabled for the region
-#define VM_WC 0x10
+#define VM_WC 0x20
 
 struct vm_obj;
 

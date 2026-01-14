@@ -15,3 +15,6 @@
 
 // Page is global (not flushed from TLB on context switch)
 #define PTE_GLOBAL 0x100
+
+// Disable execution of code on this page
+#define PTE_NX 0x8000000000000000

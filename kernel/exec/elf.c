@@ -110,6 +110,8 @@ static int load_segments(struct vm* vm, const struct exec_image* image,
                 vm_flags |= VM_READ;
             if (phdr->p_flags & PF_W)
                 vm_flags |= VM_WRITE;
+            if (phdr->p_flags & PF_X)
+                vm_flags |= VM_EXEC;
             int rc = vm_region_set_flags(region, 0, npages, vm_flags, ~0);
             if (IS_ERR(rc))
                 return rc;
@@ -146,8 +148,8 @@ static int load_segments(struct vm* vm, const struct exec_image* image,
                 return PTR_ERR(region);
 
             // Linux sets READ | WRITE | EXEC for anonymous tail pages
-            int rc = vm_region_set_flags(region, 0, npages,
-                                         VM_READ | VM_WRITE | VM_USER, ~0);
+            int rc = vm_region_set_flags(
+                region, 0, npages, VM_READ | VM_WRITE | VM_EXEC | VM_USER, ~0);
             if (IS_ERR(rc))
                 return rc;
 

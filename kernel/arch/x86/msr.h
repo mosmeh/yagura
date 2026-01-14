@@ -4,6 +4,7 @@
 #define MSR_IA32_CR_PAT 0x00000277
 
 #define EFER_LME 0x100
+#define EFER_NX 0x800
 
 #ifndef __ASSEMBLER__
 

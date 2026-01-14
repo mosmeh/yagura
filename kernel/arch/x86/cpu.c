@@ -309,6 +309,9 @@ static void enable_features(struct cpu* cpu) {
         wrmsr(MSR_IA32_CR_PAT, pat);
     }
 
+    if (cpu_has_feature(cpu, X86_FEATURE_NX))
+        wrmsr(MSR_EFER, rdmsr(MSR_EFER) | EFER_NX);
+
     if (cpu_has_feature(cpu, X86_FEATURE_SMEP))
         write_cr4(read_cr4() | X86_CR4_SMEP);
     if (cpu_has_feature(cpu, X86_FEATURE_SMAP))

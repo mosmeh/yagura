@@ -134,7 +134,7 @@ NODISCARD static int loader_init_vm(struct loader* loader) {
     // Split the region into three:
     // guard (PAGE_SIZE), stack (STACK_SIZE), and guard (PAGE_SIZE)
     int rc = vm_region_set_flags(region, 1, STACK_SIZE >> PAGE_SHIFT,
-                                 VM_READ | VM_WRITE | VM_USER, ~0);
+                                 VM_READ | VM_WRITE | VM_EXEC | VM_USER, ~0);
     if (IS_ERR(rc))
         return rc;
 
