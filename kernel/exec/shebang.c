@@ -72,8 +72,10 @@ int shebang_load(struct loader* loader) {
     // argv[2] = "b"
 
     // Replace the existing argv[0] with the pathname of the script
-    loader_pop_string(loader);
-    int rc = loader_push_string_from_kernel(loader, loader->pathname);
+    int rc = loader_pop_string(loader);
+    if (IS_ERR(rc))
+        return rc;
+    rc = loader_push_string_from_kernel(loader, loader->pathname);
     if (IS_ERR(rc))
         return rc;
 
