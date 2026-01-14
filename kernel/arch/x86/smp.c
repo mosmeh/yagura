@@ -7,6 +7,7 @@
 #include <kernel/arch/x86/smp.h>
 #include <kernel/cpu.h>
 #include <kernel/drivers/acpi.h>
+#include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/vm.h>
 #include <kernel/sched.h>
@@ -39,7 +40,7 @@ static bool can_enable_smp(void) {
         kprint("smp: no local APIC detected\n");
         return false;
     }
-    if (!acpi->io_apics) {
+    if (!acpi->io_apics || !*acpi->io_apics) {
         kprint("smp: no I/O APIC detected\n");
         return false;
     }
@@ -62,8 +63,8 @@ void smp_init(void) {
     cpu_init_smp();
     sched_init_smp();
     i8259_disable();
-    io_apic_init();
     lapic_init();
+    io_apic_init();
     lapic_init_cpu();
 
     ASSERT((uintptr_t)ap_trampoline_start % PAGE_SIZE == 0);
@@ -109,11 +110,14 @@ void smp_init(void) {
         arch_cpu_relax();
     ASSERT(num_ready_cpus == num_cpus);
 
+    kprint("smp: all APs started\n");
+
     // Remove the identity mapping
     pagemap_unmap(kernel_pagemap, 0, init_npages);
 
     smp_active = true;
-    kprint("smp: all APs started\n");
+
+    arch_interrupts_set_handler(LAPIC_TIMER_VECTOR, sched_tick);
 }
 
 _Noreturn void ap_start(void) {
