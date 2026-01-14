@@ -46,8 +46,6 @@ void lapic_init(void) {
     ASSERT_PTR(addr);
     ASSERT_OK(vm_populate(addr, addr + PAGE_SIZE, VM_READ | VM_WRITE));
     lapic = addr;
-
-    arch_interrupts_set_handler(LAPIC_TIMER_VECTOR, sched_tick);
 }
 
 static uint32_t lapic_read(uint32_t reg) {
