@@ -224,11 +224,15 @@ int loader_push_string_from_user(struct loader* loader, const char* user_str) {
     return copy_from_user_to_remote_vm(vm, new_sp, user_str, size);
 }
 
-void loader_pop_string(struct loader* loader) {
-    char* p = (char*)loader->stack_ptr;
-    while (*p++)
-        ;
-    loader->stack_ptr = (void*)p;
+int loader_pop_string(struct loader* loader) {
+    ssize_t len = strnlen_user((const char*)loader->stack_ptr, ARG_MAX);
+    if (IS_ERR(len))
+        return len;
+    if (len >= ARG_MAX)
+        return -E2BIG;
+    ++len; // Include null terminator
+    loader->stack_ptr += len;
+    return 0;
 }
 
 NODISCARD static int loader_push_strings_from_kernel(struct loader* loader,
@@ -246,7 +250,10 @@ NODISCARD static int
 loader_push_strings_from_user(struct loader* loader,
                               const char* const* user_strings, size_t count) {
     for (ssize_t i = count - 1; i >= 0; --i) {
-        int rc = loader_push_string_from_user(loader, user_strings[i]);
+        const char* user_str = NULL;
+        if (copy_from_user(&user_str, &user_strings[i], sizeof(const char*)))
+            return -EFAULT;
+        int rc = loader_push_string_from_user(loader, user_str);
         if (IS_ERR(rc))
             return rc;
     }
