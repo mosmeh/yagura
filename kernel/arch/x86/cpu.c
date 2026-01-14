@@ -311,6 +311,8 @@ static void enable_features(struct cpu* cpu) {
 
     if (cpu_has_feature(cpu, X86_FEATURE_SMEP))
         write_cr4(read_cr4() | X86_CR4_SMEP);
+    if (cpu_has_feature(cpu, X86_FEATURE_SMAP))
+        write_cr4(read_cr4() | X86_CR4_SMAP);
     if (cpu_has_feature(cpu, X86_FEATURE_UMIP))
         write_cr4(read_cr4() | X86_CR4_UMIP);
 }
