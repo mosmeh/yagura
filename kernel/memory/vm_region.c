@@ -106,17 +106,18 @@ void vm_region_unset_obj(struct vm_region* region) {
 }
 
 struct page* vm_region_get_page(struct vm_region* region, size_t index,
-                                bool write) {
-    if (write && !(region->flags & VM_WRITE))
-        return ERR_PTR(-EFAULT);
-
+                                unsigned request) {
     struct vm_obj* obj = region->obj;
     if (!obj)
         return ERR_PTR(-EFAULT);
 
+    unsigned flags = region->flags | obj->flags;
+    if (request & ~flags)
+        return ERR_PTR(-EFAULT);
+
     struct tree_node** new_node = &region->private_pages.root;
     struct tree_node* parent = NULL;
-    if (!(region->flags & VM_SHARED)) {
+    if (!(flags & VM_SHARED)) {
         while (*new_node) {
             parent = *new_node;
             struct page* page = CONTAINER_OF(parent, struct page, tree_node);
@@ -136,11 +137,11 @@ struct page* vm_region_get_page(struct vm_region* region, size_t index,
 
     ASSERT(vm_ops->get_page);
     struct page* shared_page =
-        vm_ops->get_page(obj, region->offset + index, write);
+        vm_ops->get_page(obj, region->offset + index, request & VM_WRITE);
     if (IS_ERR(ASSERT(shared_page)))
         return shared_page;
 
-    if (!write || (region->flags & VM_SHARED))
+    if (!(request & VM_WRITE) || (flags & VM_SHARED))
         return shared_page;
 
     // Copy on write
@@ -219,10 +220,6 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
 
     if (npages == 0)
         return -EINVAL;
-    if ((flags & VM_WRITE) && !(flags & VM_READ)) {
-        // Write-only mapping is not possible with x86 paging
-        return -EINVAL;
-    }
 
     size_t start = region->start + offset;
     size_t end = start + npages;

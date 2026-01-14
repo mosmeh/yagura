@@ -151,14 +151,13 @@ static struct screen screen = {
 };
 
 struct screen* vga_text_screen_init(void) {
-    cells = phys_map(0xb8000, NUM_COLUMNS * NUM_ROWS * 2,
-                     VM_READ | VM_WRITE | VM_WC);
+    cells = phys_map(0xb8000, NUM_COLUMNS * NUM_ROWS * 2, VM_WRITE | VM_WC);
     if (IS_ERR(ASSERT(cells)))
         return ERR_CAST(cells);
 
     font_data = phys_map(
         0xa0000, VGA_FONT_WIDTH / 8 * VGA_FONT_VPITCH * VGA_MAX_FONT_GLYPHS,
-        VM_READ | VM_WRITE);
+        VM_WRITE);
     if (IS_ERR(ASSERT(font_data))) {
         phys_unmap(cells);
         return ERR_CAST(font_data);
