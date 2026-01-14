@@ -36,5 +36,7 @@ struct vm_region* vm_region_clone(struct vm* new_vm, const struct vm_region*);
 
 void vm_region_unset_obj(struct vm_region*);
 
+// Returns the page at the given index in the region.
+// `request` is a combination of VM_* flags that the page should satisfy.
 NODISCARD struct page* vm_region_get_page(struct vm_region*, size_t index,
-                                          bool write);
+                                          unsigned request);

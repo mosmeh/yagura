@@ -69,7 +69,7 @@ static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
     unsigned char* user_out = user_buffer;
 
     // Ensure no page faults occur while spinlock is held
-    int rc = vm_populate(user_out, user_out + count, true);
+    int rc = vm_populate(user_out, user_out + count, VM_WRITE);
     if (IS_ERR(rc))
         return rc;
 

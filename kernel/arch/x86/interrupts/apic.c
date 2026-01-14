@@ -44,7 +44,7 @@ void lapic_init(void) {
     unsigned char* addr =
         phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE);
     ASSERT_PTR(addr);
-    ASSERT_OK(vm_populate(addr, addr + PAGE_SIZE, true));
+    ASSERT_OK(vm_populate(addr, addr + PAGE_SIZE, VM_READ | VM_WRITE));
     lapic = addr;
 
     arch_interrupts_set_handler(LAPIC_TIMER_VECTOR, sched_tick);

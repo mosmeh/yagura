@@ -87,7 +87,7 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
     char* user_dest = user_buf;
 
     // Ensure no page faults occur while spinlock is held
-    int rc = vm_populate(user_dest, user_dest + count, true);
+    int rc = vm_populate(user_dest, user_dest + count, VM_WRITE);
     if (IS_ERR(rc))
         return rc;
 
@@ -157,7 +157,7 @@ static ssize_t tty_pwrite(struct file* file, const void* user_buf, size_t count,
     const unsigned char* user_src = user_buf;
 
     // Ensure no page faults occur while spinlock is held
-    int rc = vm_populate((void*)user_src, (void*)(user_src + count), false);
+    int rc = vm_populate((void*)user_src, (void*)(user_src + count), VM_READ);
     if (IS_ERR(rc))
         return rc;
 

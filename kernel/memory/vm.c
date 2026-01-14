@@ -135,7 +135,8 @@ static struct vm* virt_addr_to_vm(void* virt_addr) {
     return NULL;
 }
 
-NODISCARD static int map_page(struct vm* vm, void* virt_addr, bool write) {
+NODISCARD static int map_page(struct vm* vm, void* virt_addr,
+                              unsigned request) {
     ASSERT(vm_is_locked_by_current(vm));
 
     struct vm_region* region = vm_find(vm, virt_addr);
@@ -146,20 +147,14 @@ NODISCARD static int map_page(struct vm* vm, void* virt_addr, bool write) {
     if (!obj)
         return -EFAULT;
 
-    unsigned flags = region->flags | obj->flags;
-    if (write) {
-        if (!(flags & VM_WRITE))
-            return -EFAULT;
-    } else if (!(flags & VM_READ))
-        return -EFAULT;
-
     size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
-    struct page* page = vm_region_get_page(region, index, write);
+    struct page* page = vm_region_get_page(region, index, request);
     if (IS_ERR(page))
         return PTR_ERR(page);
 
     uintptr_t page_addr = ROUND_DOWN((uintptr_t)virt_addr, PAGE_SIZE);
-    if (!write)
+    unsigned flags = region->flags | obj->flags;
+    if (!(request & VM_WRITE))
         flags &= ~VM_WRITE; // Trigger a page fault on the next write
     return pagemap_map(vm->pagemap, page_addr, page_to_pfn(page), 1, flags);
 }
@@ -193,12 +188,20 @@ bool vm_handle_page_fault(void* virt_addr, unsigned flags) {
         return false;
     }
 
+    unsigned request = 0;
+    if (write)
+        request |= VM_WRITE;
+    else if (!instr)
+        request |= VM_READ;
+    if (user)
+        request |= VM_USER;
+
     SCOPED_ENABLE_INTERRUPTS();
     SCOPED_LOCK(vm, vm);
-    return IS_OK(map_page(vm, virt_addr, write));
+    return IS_OK(map_page(vm, virt_addr, request));
 }
 
-int vm_populate(void* virt_start_addr, void* virt_end_addr, bool write) {
+int vm_populate(void* virt_start_addr, void* virt_end_addr, unsigned request) {
     uintptr_t start = ROUND_DOWN((uintptr_t)virt_start_addr, PAGE_SIZE);
     uintptr_t end = ROUND_UP((uintptr_t)virt_end_addr, PAGE_SIZE);
     if (start >= end)
@@ -218,7 +221,7 @@ int vm_populate(void* virt_start_addr, void* virt_end_addr, bool write) {
             mutex_lock(&vm->lock);
             prev_vm = vm;
         }
-        rc = map_page(vm, (void*)addr, write);
+        rc = map_page(vm, (void*)addr, request);
         if (IS_ERR(rc))
             break;
     }
@@ -237,7 +240,7 @@ struct page* vm_get_page(struct vm* vm, void* virt_addr) {
         return NULL;
 
     size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
-    return vm_region_get_page(region, index, region->flags & VM_WRITE);
+    return vm_region_get_page(region, index, region->flags);
 }
 
 struct vm_region* vm_first_region(const struct vm* vm) {

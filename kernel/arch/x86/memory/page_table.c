@@ -238,6 +238,8 @@ void pagemap_destroy(struct pagemap* pagemap) {
 void pagemap_switch(struct pagemap* to) { write_cr3(virt_to_phys(to)); }
 
 static pte_t vm_flags_to_pte_flags(unsigned vm_flags) {
+    if (!(vm_flags & (VM_READ | VM_WRITE)))
+        return 0;
     pte_t pte_flags = PTE_PRESENT;
     if (vm_flags & VM_WRITE)
         pte_flags |= PTE_WRITE;

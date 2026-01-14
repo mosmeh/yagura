@@ -69,7 +69,7 @@ void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
 
                 unsigned char* dest =
                     vm_obj_map(obj, 0, DIV_CEIL(file_size, PAGE_SIZE),
-                               VM_WRITE | VM_READ | VM_SHARED);
+                               VM_WRITE | VM_SHARED);
                 ASSERT_PTR(dest);
                 memcpy(dest, content, file_size);
                 vm_obj_unmap(dest);
