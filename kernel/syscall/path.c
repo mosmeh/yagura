@@ -164,11 +164,18 @@ NODISCARD static long link(struct inode* old_inode, const struct path* new_base,
 }
 
 long sys_link(const char* user_oldpath, const char* user_newpath) {
+    char old_pathname[PATH_MAX];
+    ssize_t len = copy_pathname_from_user(old_pathname, user_oldpath);
+    if (IS_ERR(len))
+        return len;
+
     SCOPED_LOCK(fs, current->fs);
+
     struct path* old_path FREE(path) = vfs_resolve_path_at(
-        current->fs->cwd, user_oldpath, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
+        current->fs->cwd, old_pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
     if (IS_ERR(ASSERT(old_path)))
         return PTR_ERR(old_path);
+
     return link(old_path->inode, current->fs->cwd, user_newpath);
 }
 
