@@ -32,8 +32,6 @@ NODISCARD static int ensure_cache(struct slab* slab) {
     uintptr_t start_addr;
     uintptr_t body_addr;
     {
-        SCOPED_LOCK(vm, kernel_vm);
-
         ssize_t start = vm_find_gap(kernel_vm, 1);
         if (IS_ERR(start))
             return start;
@@ -75,14 +73,22 @@ NODISCARD static int ensure_cache(struct slab* slab) {
 }
 
 void* slab_alloc(struct slab* slab) {
-    SCOPED_LOCK(slab, slab);
-    int rc = ensure_cache(slab);
-    if (IS_ERR(rc))
-        return ERR_PTR(rc);
-    struct slab_obj* obj = slab->free_list;
-    slab->free_list = obj->next;
-    ++slab->num_active_objs;
-    return obj;
+    for (;;) {
+        {
+            SCOPED_LOCK(slab, slab);
+            if (slab->free_list) {
+                struct slab_obj* obj = slab->free_list;
+                slab->free_list = obj->next;
+                ++slab->num_active_objs;
+                return obj;
+            }
+        }
+        SCOPED_LOCK(vm, kernel_vm);
+        SCOPED_LOCK(slab, slab);
+        int rc = ensure_cache(slab);
+        if (IS_ERR(rc))
+            return ERR_PTR(rc);
+    }
 }
 
 void slab_free(struct slab* slab, void* obj) {
