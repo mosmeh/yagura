@@ -1,6 +1,7 @@
 #include <kernel/api/x86/asm/processor-flags.h>
 #include <kernel/arch/x86/memory/page_fault.h>
 #include <kernel/arch/x86/task/context.h>
+#include <kernel/cpu.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/vm.h>
@@ -9,6 +10,13 @@ bool x86_handle_page_fault(struct registers* regs, void* addr) {
     unsigned long error_code = regs->error_code;
     if (error_code & X86_PF_RSVD) {
         kprintf("Reserved bit violation at 0x%p\n", addr);
+        return false;
+    }
+
+    if (is_user_address(addr) && !(error_code & X86_PF_USER) &&
+        cpu_has_feature(cpu_get_current(), X86_FEATURE_SMAP) &&
+        !(regs->flags & X86_EFLAGS_AC)) {
+        kprintf("SMAP violation at 0x%p\n", addr);
         return false;
     }
 
