@@ -191,8 +191,8 @@ bool vm_handle_page_fault(void* virt_addr, unsigned flags) {
     unsigned request = 0;
     if (write)
         request |= VM_WRITE;
-    else if (!instr)
-        request |= VM_READ;
+    else
+        request |= instr ? VM_EXEC : VM_READ;
     if (user)
         request |= VM_USER;
 

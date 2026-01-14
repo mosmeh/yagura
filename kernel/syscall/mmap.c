@@ -38,6 +38,8 @@ static unsigned prot_to_vm_flags(int prot) {
         flags |= VM_READ;
     if (prot & PROT_WRITE)
         flags |= VM_WRITE;
+    if (prot & PROT_EXEC)
+        flags |= VM_EXEC;
     return flags;
 }
 
@@ -144,7 +146,7 @@ static int protect(struct vm_region* region, size_t offset, size_t npages,
                    void* ctx) {
     unsigned vm_flags = *(unsigned*)ctx;
     return vm_region_set_flags(region, offset, npages, vm_flags,
-                               VM_READ | VM_WRITE);
+                               VM_READ | VM_WRITE | VM_EXEC);
 }
 
 long sys_mprotect(void* addr, size_t len, int prot) {
