@@ -64,8 +64,8 @@ static time_t rtc_now(void) {
 
         year += 2000;
 
-        kprintf("rtc: year=%u month=%u day=%u hour=%u minute=%u second=%u\n",
-                year, month, day, hour, minute, second);
+        kprintf("rtc: current time is %04u-%02u-%02u %02u:%02u:%02u\n", year,
+                month, day, hour, minute, second);
     } else {
         kprint("rtc: update did not finish within timeout. Falling back to "
                "UNIX epoch\n");
