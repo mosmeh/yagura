@@ -25,10 +25,12 @@ int clear_user(void* user_to, size_t n) {
 ssize_t strnlen_user(const char* user_str, size_t n) {
     if (!is_user_address(user_str))
         return -EFAULT;
-    ssize_t len = safe_strnlen(user_str, n);
+    ASSERT(user_str < (const char*)USER_VIRT_END);
+    size_t limit = (const char*)USER_VIRT_END - user_str;
+    ssize_t len = safe_strnlen(user_str, MIN(n, limit));
     if (IS_ERR(len))
         return len;
-    if (!is_user_range(user_str, len))
+    if ((size_t)len == limit && n > limit)
         return -EFAULT;
     return len;
 }
@@ -37,10 +39,12 @@ ssize_t strncpy_from_user(char* dest, const char* user_src, size_t n) {
     ASSERT(is_kernel_address(dest));
     if (!is_kernel_range(dest, n) || !is_user_address(user_src))
         return -EFAULT;
-    ssize_t len = safe_strncpy(dest, user_src, n);
+    ASSERT(user_src < (const char*)USER_VIRT_END);
+    size_t limit = (const char*)USER_VIRT_END - user_src;
+    ssize_t len = safe_strncpy(dest, user_src, MIN(n, limit));
     if (IS_ERR(len))
         return len;
-    if (!is_user_range(user_src, len))
+    if ((size_t)len == limit && n > limit)
         return -EFAULT;
     return len;
 }
