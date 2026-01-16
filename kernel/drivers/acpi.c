@@ -63,6 +63,8 @@ static struct madt* find_madt(const struct rsdt* rsdt) {
         memcpy(&signature, header->signature, sizeof(signature));
         uint32_t length = header->length;
         phys_unmap(header);
+        if (length < sizeof(struct madt))
+            continue;
         if (signature == 0x43495041) // "APIC"
             return phys_map(rsdt->entries[i], length, VM_READ);
     }
@@ -74,7 +76,7 @@ static struct acpi acpi;
 
 void acpi_init(void) {
     const struct rsdp_descriptor* rsdp = find_rsdp();
-    if (!rsdp)
+    if (!rsdp || !rsdp->rsdt_address)
         return;
 
     struct rsdt* rsdt_header =
@@ -82,6 +84,8 @@ void acpi_init(void) {
     ASSERT_PTR(rsdt_header);
     uint32_t rsdt_size = rsdt_header->header.length;
     phys_unmap(rsdt_header);
+    if (rsdt_size < sizeof(struct rsdt))
+        return;
 
     struct rsdt* rsdt = phys_map(rsdp->rsdt_address, rsdt_size, VM_READ);
     ASSERT_PTR(rsdt);

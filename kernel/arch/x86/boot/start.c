@@ -31,12 +31,10 @@ _Noreturn void start(uint32_t mb_magic, phys_addr_t mb_info_phys_addr) {
     if (mb->flags & MULTIBOOT_INFO_CMDLINE)
         cmdline_init(low_phys_to_virt(mb->cmdline));
 
-    if (!(mb->flags & MULTIBOOT_INFO_MODS) || mb->mods_count == 0)
-        PANIC("No initrd found. Provide initrd as the first Multiboot module");
-    initrd_mod = *(const multiboot_module_t*)low_phys_to_virt(mb->mods_addr);
-
     if (mb->flags & MULTIBOOT_INFO_MODS) {
         const multiboot_module_t* mod = low_phys_to_virt(mb->mods_addr);
+        if (mb->mods_count > 0)
+            initrd_mod = *mod;
         for (uint32_t i = 0; i < mb->mods_count; ++i, ++mod)
             phys_range_add_reserved("module", mod->mod_start,
                                     mod->mod_end - mod->mod_start);
@@ -92,8 +90,9 @@ _Noreturn void start(uint32_t mb_magic, phys_addr_t mb_info_phys_addr) {
 }
 
 void arch_late_init(void) {
-    initrd_populate_root_fs(initrd_mod.mod_start,
-                            initrd_mod.mod_end - initrd_mod.mod_start);
+    if (initrd_mod.mod_start < initrd_mod.mod_end)
+        initrd_populate_root_fs(initrd_mod.mod_start,
+                                initrd_mod.mod_end - initrd_mod.mod_start);
 
     syscall_init();
     smp_init();
