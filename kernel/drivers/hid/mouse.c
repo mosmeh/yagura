@@ -5,13 +5,16 @@
 #include <kernel/drivers/hid/ps2.h>
 #include <kernel/fs/file.h>
 #include <kernel/interrupts.h>
+#include <kernel/kmsg.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
 
 static void write_mouse(uint8_t data) {
     ps2_write(PS2_COMMAND, 0xd4);
     ps2_write(PS2_DATA, data);
-    ASSERT(ps2_read(PS2_DATA) == PS2_ACK);
+    uint8_t response = ps2_read(PS2_DATA);
+    if (response != PS2_ACK)
+        kprintf("ps2_mouse: expected ACK, got %#x\n", response);
 }
 
 static unsigned char buf[3];
@@ -31,7 +34,10 @@ static void irq_handler(struct registers* reg) {
     buf[state] = data;
     switch (state) {
     case 0:
-        ASSERT(data & 8);
+        if (!(data & 8)) {
+            kprintf("ps2_mouse: invalid packet %#x\n", data);
+            return;
+        }
         ++state;
         return;
     case 1:
