@@ -5,7 +5,7 @@ set -e
 ARCH="${ARCH:-i386}"
 BUILD_DIR="${BUILD_DIR:-build/${ARCH}}"
 KERNEL="${KERNEL:-${BUILD_DIR}/kernel.elf}"
-INITRD="${INITRD:-${BUILD_DIR}/initrd}"
+INITRD="${INITRD:-${BUILD_DIR}/initrd.img}"
 
 ! "qemu-system-${ARCH}" \
     -kernel "${KERNEL}" \

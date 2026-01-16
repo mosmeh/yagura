@@ -5,7 +5,7 @@ set -eo pipefail
 ARCH="${ARCH:-i386}"
 BUILD_DIR="${BUILD_DIR:-build/${ARCH}}"
 KERNEL="${KERNEL:-${BUILD_DIR}/kernel.elf}"
-INITRD="${INITRD:-${BUILD_DIR}/initrd}"
+INITRD="${INITRD:-${BUILD_DIR}/initrd.img}"
 NUM_CPUS="${NUM_CPUS:-1}"
 
 case "$1" in
