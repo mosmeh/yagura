@@ -5,7 +5,7 @@ set -eo pipefail
 ARCH="${ARCH:-i386}"
 BUILD_DIR="build/${ARCH}"
 KERNEL="${BUILD_DIR}/kernel.elf"
-INITRD="${BUILD_DIR}/initrd"
+INITRD="${BUILD_DIR}/initrd.img"
 CMDLINE=()
 NUM_CPUS=1
 QEMU_EXTRA_ARGS=()

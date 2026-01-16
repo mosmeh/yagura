@@ -26,7 +26,7 @@ export LDFLAGS := \
 	-Wl,-z,noexecstack
 
 BASE_DIR := $(BUILD_DIR)/base
-INITRD := $(BUILD_DIR)/initrd
+INITRD := $(BUILD_DIR)/initrd.img
 
 export KERNEL_BIN := $(BUILD_DIR)/kernel.elf
 export USERLAND_BIN_DIR := $(BASE_DIR)/bin
@@ -37,7 +37,7 @@ all: kernel $(INITRD)
 
 $(INITRD): $(BASE_DIR)
 	@echo "[CPIO] $(patsubst $(ROOT)/%,%,$@)"
-	@find $< -mindepth 1 ! -name '.gitkeep' -printf "%P\n" | sort | cpio -oc -D $< -F $@
+	@cd $(BASE_DIR) && find . ! -name '.gitkeep' | cpio -o -H newc > $@
 
 $(BASE_DIR): base/* userland
 	cp -a base/* $@
