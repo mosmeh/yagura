@@ -4,6 +4,7 @@
 
 void idt_init(void);
 void idt_set_gate_user_callable(uint8_t index);
+void idt_invalidate(void);
 void idt_flush(void);
 
 #define NUM_IRQS 16
