@@ -101,6 +101,7 @@ void arch_late_init(void) {
         initrd_populate_root_fs(initrd_mod.mod_start,
                                 initrd_mod.mod_end - initrd_mod.mod_start);
 
+    apic_init();
     syscall_init();
     smp_init();
 }

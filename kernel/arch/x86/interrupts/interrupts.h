@@ -14,8 +14,10 @@ void i8259_eoi(uint8_t irq);
 
 void pit_init(void);
 
-void lapic_init(void);
+void apic_init(void);
+
 void lapic_init_cpu(void);
+void lapic_enable_timer(void);
 
 #define LAPIC_TIMER_VECTOR 0x82
 #define IPI_VECTOR 0x83
@@ -40,5 +42,3 @@ void lapic_eoi(void);
 void lapic_write_icr(uint32_t hi, uint32_t lo);
 void lapic_broadcast_ipi(void);
 void lapic_unicast_ipi(uint8_t apic_id);
-
-void io_apic_init(void);

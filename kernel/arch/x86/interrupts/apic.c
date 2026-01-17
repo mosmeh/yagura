@@ -2,6 +2,7 @@
 #include <kernel/cpu.h>
 #include <kernel/drivers/acpi.h>
 #include <kernel/interrupts.h>
+#include <kernel/kmsg.h>
 #include <kernel/memory/vm.h>
 #include <kernel/sched.h>
 #include <kernel/time.h>
@@ -36,7 +37,7 @@
 
 static volatile void* lapic;
 
-void lapic_init(void) {
+static void lapic_init(void) {
     const struct acpi* acpi = acpi_get();
     ASSERT(acpi);
     ASSERT(acpi->lapic_addr);
@@ -59,6 +60,24 @@ static void lapic_write(uint32_t reg, uint32_t value) {
 }
 
 #define CALIBRATION_TICKS 10
+
+// Returns the rate at which TCCR decreases per tick of uptime.
+static uint32_t measure_tccr_rate(void) {
+    unsigned long start_uptime = uptime;
+    while (uptime <= start_uptime)
+        arch_cpu_relax();
+    // uptime = start_uptime + 1
+    uint32_t start_tccr = lapic_read(LAPIC_TCCR);
+    while (uptime <= start_uptime + CALIBRATION_TICKS)
+        arch_cpu_relax();
+    // uptime = start_uptime + CALIBRATION_TICKS + 1
+    uint32_t end_tccr = lapic_read(LAPIC_TCCR);
+
+    if (start_tccr < end_tccr)
+        return 0;
+
+    return (start_tccr - end_tccr) / CALIBRATION_TICKS;
+}
 
 void lapic_init_cpu(void) {
     SCOPED_DISABLE_INTERRUPTS();
@@ -86,23 +105,17 @@ void lapic_init_cpu(void) {
     // Set ICR to a large value so that we can read TCCR before the timer ticks.
     lapic_write(LAPIC_TICR, UINT32_MAX);
 
-    uint32_t start_tccr;
-    {
+    uint32_t tccr_rate;
+    if (cpu_get_current() == cpu_get_bsp()) {
+        // When calibrating BSP, PIT updates the uptime, so enable interrupts.
         SCOPED_ENABLE_INTERRUPTS();
-        unsigned long start_uptime = uptime;
-        while (uptime <= start_uptime)
-            arch_cpu_relax();
-        // uptime = start_uptime + 1
-        start_tccr = lapic_read(LAPIC_TCCR);
-        while (uptime <= start_uptime + CALIBRATION_TICKS)
-            arch_cpu_relax();
+        tccr_rate = measure_tccr_rate();
+    } else {
+        // When calibrating APs, local APIC timer on BSP updates the uptime,
+        // so keep interrupts disabled.
+        tccr_rate = measure_tccr_rate();
     }
-    // uptime = start_uptime + CALIBRATION_TICKS + 1
-    uint32_t end_tccr = lapic_read(LAPIC_TCCR);
-
-    ASSERT(start_tccr >= end_tccr);
-    uint32_t period = (start_tccr - end_tccr) / CALIBRATION_TICKS;
-    lapic_write(LAPIC_TICR, MAX(1, period));
+    lapic_write(LAPIC_TICR, MAX(1, tccr_rate));
 }
 
 uint8_t lapic_get_id(void) { return lapic ? (lapic_read(LAPIC_ID) >> 24) : 0; }
@@ -161,7 +174,7 @@ static void io_apic_write_redirection(volatile void* io_apic, uint8_t index,
                   (uint32_t)dest << 24);
 }
 
-void io_apic_init(void) {
+static void io_apic_init(void) {
     const struct acpi* acpi = acpi_get();
     ASSERT(acpi);
 
@@ -210,4 +223,28 @@ void io_apic_init(void) {
 
         kunmap((void*)io_apic);
     }
+}
+
+static void lapic_timer_tick(struct registers* regs) {
+    if (cpu_get_current() == cpu_get_bsp())
+        time_tick();
+    sched_tick(regs);
+}
+
+void apic_init(void) {
+    if (!cpu_has_feature(cpu_get_bsp(), X86_FEATURE_APIC))
+        return;
+
+    const struct acpi* acpi = acpi_get();
+    if (!acpi || !acpi->lapic_addr || !acpi->local_apics ||
+        !*acpi->local_apics || !acpi->io_apics || !*acpi->io_apics)
+        return;
+
+    i8259_disable();
+    lapic_init();
+    io_apic_init();
+    lapic_init_cpu();
+
+    arch_interrupts_set_handler(IRQ(0), NULL); // Disable PIT
+    arch_interrupts_set_handler(LAPIC_TIMER_VECTOR, lapic_timer_tick);
 }
