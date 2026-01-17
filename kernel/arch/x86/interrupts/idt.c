@@ -43,10 +43,6 @@ struct idtr {
 #define NUM_IDT_ENTRIES 256
 
 static struct idt_gate idt[NUM_IDT_ENTRIES];
-static struct idtr idtr = {
-    .limit = sizeof(idt) - 1,
-    .base = (uintptr_t)idt,
-};
 static interrupt_handler_fn interrupt_handlers[NUM_IDT_ENTRIES];
 
 void arch_interrupts_set_handler(uint8_t num, interrupt_handler_fn handler) {
@@ -95,7 +91,22 @@ void idt_set_gate_user_callable(uint8_t index) {
     entry->dpl = 3;
 }
 
-void idt_flush(void) { __asm__ volatile("lidt %0" ::"m"(idtr) : "memory"); }
+static void load_idt(struct idtr* idtr) {
+    __asm__ volatile("lidt %0" ::"m"(*idtr) : "memory");
+}
+
+void idt_invalidate(void) {
+    static struct idtr idtr = {0};
+    load_idt(&idtr);
+}
+
+void idt_flush(void) {
+    static struct idtr idtr = {
+        .limit = sizeof(idt) - 1,
+        .base = (uintptr_t)idt,
+    };
+    load_idt(&idtr);
+}
 
 static void dump_context(const struct registers* regs) {
     arch_dump_registers(regs);

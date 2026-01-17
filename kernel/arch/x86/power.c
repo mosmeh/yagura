@@ -1,7 +1,14 @@
 #include <kernel/arch/system.h>
+#include <kernel/arch/x86/interrupts/interrupts.h>
 #include <kernel/drivers/hid/ps2.h>
 
-void arch_reboot(void) { out8(PS2_COMMAND, 0xfe); }
+void arch_reboot(void) {
+    out8(PS2_COMMAND, 0xfe);
+
+    // If keyboard controller didn't work, cause a triple fault
+    idt_invalidate();
+    __asm__ volatile("int3");
+}
 
 void arch_poweroff(void) {
     // this works only on emulators
