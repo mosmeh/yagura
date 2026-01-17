@@ -12,6 +12,7 @@ struct phys_range {
     size_t pfn_end;
     const char* type;
     bool is_available;
+    size_t num_bump_allocated_pages;
 };
 
 static int phys_range_cmp(const void* a, const void* b) {
@@ -130,27 +131,21 @@ void phys_range_add_reserved(const char* type, phys_addr_t start, size_t size) {
 
 #define BITMAP_INDEX(i) ((i) / (LONG_WIDTH))
 #define BITMAP_MASK(i) (1UL << ((i) & (LONG_WIDTH - 1)))
-#define BITMAP_MAX_LEN DIV_CEIL(MAX_NUM_PAGES, LONG_WIDTH)
 
-static size_t pfn_end; // Maximum physical frame number + 1
-static _Atomic(unsigned long) bitmap[BITMAP_MAX_LEN];
+static size_t available_pfn_end;       // One past the last allocatable pfn
+static _Atomic(unsigned long)* bitmap; // bit unset = allocated, set = free
 static _Atomic(size_t) cached_free_index;
-
-static bool bitmap_get(size_t i) {
-    ASSERT(i < pfn_end);
-    return bitmap[BITMAP_INDEX(i)] & BITMAP_MASK(i);
-}
 
 // Returns the previous state of the bit.
 static bool bitmap_set(size_t i) {
-    ASSERT(i < pfn_end);
+    ASSERT(i < available_pfn_end);
     unsigned long prev =
         atomic_fetch_or(&bitmap[BITMAP_INDEX(i)], BITMAP_MASK(i));
     return prev & BITMAP_MASK(i);
 }
 
 static size_t bitmap_get_free(void) {
-    size_t bitmap_len = DIV_CEIL(pfn_end, __LONG_WIDTH__);
+    size_t bitmap_len = DIV_CEIL(available_pfn_end, LONG_WIDTH);
     size_t i = cached_free_index;
     for (size_t offset = 0; offset < bitmap_len; ++offset) {
         for (;;) {
@@ -169,8 +164,11 @@ static size_t bitmap_get_free(void) {
     UNREACHABLE();
 }
 
+static struct page* pages;
 static size_t total_pages;
 static _Atomic(size_t) free_pages;
+
+struct page* zero_page;
 
 void phys_init(void) {
     ASSERT(KERNEL_IMAGE_START < (uintptr_t)kernel_end);
@@ -191,47 +189,118 @@ void phys_init(void) {
                 r->pfn_start << PAGE_SHIFT, r->pfn_end << PAGE_SHIFT,
                 ((r->pfn_end - r->pfn_start) << PAGE_SHIFT) / 0x100000,
                 r->type);
-        pfn_end = MAX(pfn_end, r->pfn_end);
 
         if (!r->is_available)
             continue;
 
-        for (size_t pfn = r->pfn_start; pfn < r->pfn_end; ++pfn)
-            ASSERT(!bitmap_set(pfn));
+        available_pfn_end = MAX(available_pfn_end, r->pfn_end);
         free_pages += r->pfn_end - r->pfn_start;
     }
 
-    ASSERT(pfn_end > 0);
-    ASSERT(pfn_end <= MAX_NUM_PAGES);
+    ssize_t zero_page_pfn = page_alloc_raw();
+    ASSERT_OK(zero_page_pfn);
+    void* kaddr = kmap(zero_page_pfn << PAGE_SHIFT);
+    memset(kaddr, 0, PAGE_SIZE);
+    kunmap(kaddr);
 
-    size_t npages_to_map = DIV_CEIL(pfn_end * sizeof(struct page), PAGE_SIZE);
-    for (size_t i = 0; i < npages_to_map; ++i) {
-        uintptr_t virt_addr = PAGE_ARRAY_START + (i << PAGE_SHIFT);
-        ssize_t pfn = page_alloc_raw();
-        ASSERT_OK(pfn);
-        ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, pfn, VM_WRITE));
+    size_t bitmap_npages = DIV_CEIL(available_pfn_end, CHAR_BIT * PAGE_SIZE);
+    uintptr_t bitmap_end = PAGE_ATLAS_START + (bitmap_npages << PAGE_SHIFT);
+    ASSERT(bitmap_end < PAGE_ATLAS_END);
+
+    // Initialize the bitmap to all zero (reserved).
+    for (size_t i = 0; i < bitmap_npages; ++i) {
+        uintptr_t virt_addr = PAGE_ATLAS_START + (i << PAGE_SHIFT);
+        ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, zero_page_pfn,
+                                    VM_READ));
     }
 
-    for (size_t i = 0; i < pfn_end; ++i) {
-        *page_get(i) = (struct page){
-            .flags = bitmap_get(i) ? 0 : PAGE_RESERVED,
-        };
+    // Allocate the bitmap pages for available pages.
+    for (size_t i = 0; i < num_phys_ranges; ++i) {
+        struct phys_range* r = &phys_ranges[i];
+        if (r->pfn_start >= r->pfn_end || !r->is_available)
+            continue;
+
+        size_t start_offset = ROUND_DOWN(r->pfn_start / CHAR_BIT, PAGE_SIZE);
+        size_t end_offset = ROUND_UP(DIV_CEIL(r->pfn_end, CHAR_BIT), PAGE_SIZE);
+
+        uintptr_t start_addr = PAGE_ATLAS_START + start_offset;
+        uintptr_t end_addr = PAGE_ATLAS_START + end_offset;
+
+        for (uintptr_t virt_addr = start_addr; virt_addr < end_addr;
+             virt_addr += PAGE_SIZE) {
+            ssize_t pfn = page_alloc_raw();
+            ASSERT_OK(pfn);
+            ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, pfn,
+                                        VM_READ | VM_WRITE));
+        }
+
+        memset((void*)start_addr, 0, end_addr - start_addr);
+    }
+
+    bitmap = (void*)PAGE_ATLAS_START;
+
+    for (size_t i = 0; i < num_phys_ranges; ++i) {
+        struct phys_range* r = &phys_ranges[i];
+        if (r->pfn_start >= r->pfn_end || !r->is_available)
+            continue;
+
+        // Bump-allocated pages are kept marked as allocated in the bitmap.
+        size_t pfn_start = r->pfn_start + r->num_bump_allocated_pages;
+        for (size_t pfn = pfn_start; pfn < r->pfn_end; ++pfn)
+            ASSERT(!bitmap_set(pfn));
+    }
+
+    // We can now use the bitmap for page allocation.
+
+    pages = (void*)bitmap_end;
+    ASSERT(pages + available_pfn_end <= (const struct page*)PAGE_ATLAS_END);
+
+    // Map pages for the struct page array.
+    // Pages corresponding to reserved ranges are left unmapped.
+    for (size_t i = 0; i < num_phys_ranges; ++i) {
+        struct phys_range* r = &phys_ranges[i];
+        if (r->pfn_start >= r->pfn_end || !r->is_available)
+            continue;
+
+        size_t pfn_start = r->pfn_start + r->num_bump_allocated_pages;
+
+        size_t start_offset =
+            ROUND_DOWN(pfn_start * sizeof(struct page), PAGE_SIZE);
+        size_t end_offset =
+            ROUND_UP(r->pfn_end * sizeof(struct page), PAGE_SIZE);
+
+        uintptr_t start_addr = (uintptr_t)pages + start_offset;
+        uintptr_t end_addr = (uintptr_t)pages + end_offset;
+
+        for (uintptr_t virt_addr = start_addr; virt_addr < end_addr;
+             virt_addr += PAGE_SIZE) {
+            ssize_t pfn = page_alloc_raw();
+            ASSERT_OK(pfn);
+            ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, pfn,
+                                        VM_READ | VM_WRITE));
+        }
+
+        for (size_t pfn = pfn_start; pfn < r->pfn_end; ++pfn)
+            *page_get(pfn) = (struct page){0};
     }
 
     total_pages = free_pages;
     kprintf("phys: %zu pages (%zu MiB) available\n", total_pages,
             (total_pages << PAGE_SHIFT) / 0x100000);
+
+    zero_page = page_get(zero_page_pfn);
 }
 
 struct page* page_get(size_t pfn) {
-    ASSERT(pfn < MAX_NUM_PAGES);
-    return (struct page*)PAGE_ARRAY_START + pfn;
+    struct page* page = pages + pfn;
+    ASSERT(page < (const struct page*)PAGE_ATLAS_END);
+    return page;
 }
 
 size_t page_to_pfn(const struct page* page) {
     ASSERT(page);
-    struct page* pages = (struct page*)PAGE_ARRAY_START;
-    ASSERT(pages <= page && page < pages + MAX_NUM_PAGES);
+    ASSERT(page >= pages);
+    ASSERT(page < (const struct page*)PAGE_ATLAS_END);
     return page - pages;
 }
 
@@ -255,7 +324,23 @@ ssize_t page_alloc_raw(void) {
         if (atomic_compare_exchange_weak(&free_pages, &n, n - 1))
             break;
     }
-    return bitmap_get_free();
+
+    if (bitmap)
+        return bitmap_get_free();
+
+    // Before the bitmap is initialized, use simple bump allocation.
+    for (size_t i = 0; i < num_phys_ranges; ++i) {
+        struct phys_range* r = &phys_ranges[i];
+        if (r->pfn_start >= r->pfn_end || !r->is_available)
+            continue;
+
+        size_t pfn = r->pfn_start + r->num_bump_allocated_pages;
+        if (pfn < r->pfn_end) {
+            r->num_bump_allocated_pages++;
+            return pfn;
+        }
+    }
+    UNREACHABLE();
 }
 
 void page_free(struct page* page) {

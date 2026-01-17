@@ -44,27 +44,34 @@ _Noreturn void start(uint32_t mb_magic, phys_addr_t mb_info_phys_addr) {
         uint32_t num_entries = mb->mmap_length / sizeof(multiboot_memory_map_t);
         const multiboot_memory_map_t* entry = low_phys_to_virt(mb->mmap_addr);
         for (uint32_t i = 0; i < num_entries; ++i, ++entry) {
-            // PAE is not supported
-            if (entry->addr > UINT32_MAX ||
-                entry->addr + entry->len > UINT32_MAX)
+            if (entry->len == 0)
                 continue;
+
+            phys_addr_t start = entry->addr;
+            if (start != entry->addr)
+                continue; // Address does not fit in phys_addr_t
+
+            uint64_t end = entry->addr + entry->len;
+            if (end < entry->addr) // Overflow
+                end = UINT64_MAX;
+
+            size_t size = MIN(end, SIZE_MAX) - entry->addr;
 
             switch (entry->type) {
             case MULTIBOOT_MEMORY_AVAILABLE:
-                phys_range_add_available(entry->addr, entry->len);
+                phys_range_add_available(start, size);
                 break;
             case MULTIBOOT_MEMORY_RESERVED:
-                phys_range_add_reserved("reserved", entry->addr, entry->len);
+                phys_range_add_reserved("reserved", start, size);
                 break;
             case MULTIBOOT_MEMORY_ACPI_RECLAIMABLE:
-                phys_range_add_reserved("ACPI reclaimable", entry->addr,
-                                        entry->len);
+                phys_range_add_reserved("ACPI reclaimable", start, size);
                 break;
             case MULTIBOOT_MEMORY_NVS:
-                phys_range_add_reserved("NVS", entry->addr, entry->len);
+                phys_range_add_reserved("NVS", start, size);
                 break;
             case MULTIBOOT_MEMORY_BADRAM:
-                phys_range_add_reserved("bad RAM", entry->addr, entry->len);
+                phys_range_add_reserved("bad RAM", start, size);
                 break;
             }
         }

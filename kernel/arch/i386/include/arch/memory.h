@@ -13,13 +13,14 @@
 #define KMAP_START KERNEL_IMAGE_END
 #define KMAP_END (KMAP_START + KMAP_SIZE)
 
-#define MAX_NUM_PAGES 0x100000 // 4 GiB if PAGE_SIZE == 4 KiB
-#define PAGE_ARRAY_START KMAP_END
-#define PAGE_ARRAY_END                                                         \
-    (PAGE_ARRAY_START +                                                        \
-     ROUND_UP(MAX_NUM_PAGES * sizeof(struct page), PAGE_SIZE))
+#define MAX_NUM_PAGES (1UL << (32 - PAGE_SHIFT)) // 4 GiB physical address space
+#define PAGE_BITMAP_SIZE DIV_CEIL(MAX_NUM_PAGES, CHAR_BIT)
+#define PAGE_ARRAY_SIZE ROUND_UP(MAX_NUM_PAGES * sizeof(struct page), PAGE_SIZE)
+#define PAGE_ATLAS_SIZE (PAGE_BITMAP_SIZE + PAGE_ARRAY_SIZE)
+#define PAGE_ATLAS_START KMAP_END
+#define PAGE_ATLAS_END (PAGE_ATLAS_START + PAGE_ATLAS_SIZE)
 
-#define KERNEL_VM_START PAGE_ARRAY_END
+#define KERNEL_VM_START PAGE_ATLAS_END
 #define KERNEL_VM_END 0xfffff000 // Reserve last page as a guard
 
 #define KERNEL_VIRT_END KERNEL_VM_END
