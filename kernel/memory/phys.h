@@ -7,15 +7,17 @@
 void phys_range_add_available(phys_addr_t start, size_t size);
 void phys_range_add_reserved(const char* type, phys_addr_t start, size_t size);
 
-#define PAGE_RESERVED 0x1  // Page is reserved and cannot be allocated
-#define PAGE_ALLOCATED 0x2 // Page is currently allocated
-#define PAGE_DIRTY 0x4     // Page has been modified since the last writeback
+#define PAGE_ALLOCATED 0x1 // Page is currently allocated
+#define PAGE_DIRTY 0x2     // Page has been modified since the last writeback
 
 struct page {
     size_t index;
     unsigned flags; // PAGE_*
     struct tree_node tree_node;
 };
+
+// The page filled with zeros.
+extern struct page* zero_page;
 
 struct page* page_get(size_t pfn);
 size_t page_to_pfn(const struct page*);

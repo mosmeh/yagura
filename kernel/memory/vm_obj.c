@@ -76,8 +76,6 @@ static void anon_destroy(struct vm_obj* obj) {
     slab_free(&anon_slab, obj);
 }
 
-static struct page* zero_page;
-
 static struct page* anon_get_page(struct vm_obj* obj, size_t index,
                                   bool write) {
     ASSERT(vm_obj_is_locked_by_current(obj));
@@ -205,8 +203,4 @@ void phys_unmap(void* virt_addr) { vm_obj_unmap(virt_addr); }
 void vm_obj_init(void) {
     slab_init(&anon_slab, "anon", sizeof(struct anon));
     slab_init(&phys_slab, "phys", sizeof(struct phys));
-
-    zero_page = page_alloc();
-    ASSERT_PTR(zero_page);
-    page_fill(zero_page, 0, 0, PAGE_SIZE);
 }
