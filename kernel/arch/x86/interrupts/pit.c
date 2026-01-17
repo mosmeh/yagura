@@ -1,5 +1,4 @@
 #include <kernel/arch/io.h>
-#include <kernel/arch/system.h>
 #include <kernel/interrupts.h>
 #include <kernel/sched.h>
 #include <kernel/time.h>
@@ -13,11 +12,7 @@
 
 static void tick(struct registers* regs) {
     time_tick();
-
-    // When SMP is active, the sched_tick is called from the per-CPU
-    // local APIC timer interrupt handler.
-    if (!arch_smp_active())
-        sched_tick(regs);
+    sched_tick(regs);
 }
 
 void pit_init(void) {

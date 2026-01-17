@@ -75,6 +75,9 @@ static bool is_parse_successful = false;
 static struct acpi acpi;
 
 void acpi_init(void) {
+    if (!cpu_has_feature(cpu_get_bsp(), X86_FEATURE_APIC))
+        return;
+
     const struct rsdp_descriptor* rsdp = find_rsdp();
     if (!rsdp || !rsdp->rsdt_address)
         return;

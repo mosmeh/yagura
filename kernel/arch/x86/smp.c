@@ -13,40 +13,6 @@
 #include <kernel/sched.h>
 #include <kernel/system.h>
 
-static bool can_enable_smp(void) {
-    if (cmdline_contains("nosmp")) {
-        kprint("smp: SMP disabled by kernel command line\n");
-        return false;
-    }
-    if (!cpu_has_feature(cpu_get_bsp(), X86_FEATURE_APIC)) {
-        kprint("smp: APIC not supported\n");
-        return false;
-    }
-    const struct acpi* acpi = acpi_get();
-    if (!acpi) {
-        kprint("smp: failed to get ACPI tables\n");
-        return false;
-    }
-    size_t num_enabled_cpus = 0;
-    for (const struct local_apic** p = acpi->local_apics; *p; ++p) {
-        if ((*p)->flags & ACPI_LOCAL_APIC_ENABLED)
-            ++num_enabled_cpus;
-    }
-    if (num_enabled_cpus <= 1) {
-        kprint("smp: only one CPU detected\n");
-        return false;
-    }
-    if (!acpi->lapic_addr) {
-        kprint("smp: no local APIC detected\n");
-        return false;
-    }
-    if (!acpi->io_apics || !*acpi->io_apics) {
-        kprint("smp: no I/O APIC detected\n");
-        return false;
-    }
-    return true;
-}
-
 extern unsigned char ap_trampoline_start[];
 extern unsigned char ap_trampoline_end[];
 
@@ -57,15 +23,24 @@ void* ap_stack_top;
 bool arch_smp_active(void) { return smp_active; }
 
 void smp_init(void) {
-    if (!can_enable_smp())
+    if (cmdline_contains("nosmp")) {
+        kprint("smp: SMP disabled by kernel command line\n");
+        return;
+    }
+
+    const struct acpi* acpi = acpi_get();
+    if (!acpi || !acpi->lapic_addr || !acpi->local_apics ||
+        !*acpi->local_apics || !acpi->io_apics || !*acpi->io_apics)
         return;
 
     cpu_init_smp();
+
+    if (num_cpus < 2) {
+        kprint("smp: only one CPU detected\n");
+        return;
+    }
+
     sched_init_smp();
-    i8259_disable();
-    lapic_init();
-    io_apic_init();
-    lapic_init_cpu();
 
     ASSERT((uintptr_t)ap_trampoline_start % PAGE_SIZE == 0);
     size_t trampoline_size = ap_trampoline_end - ap_trampoline_start;
@@ -74,9 +49,6 @@ void smp_init(void) {
         memcpy(kaddr, ap_trampoline_start + offset, PAGE_SIZE);
         kunmap(kaddr);
     }
-
-    const struct acpi* acpi = acpi_get();
-    ASSERT(acpi);
 
     size_t ap_stack_size = STACK_SIZE * (num_cpus - 1);
     unsigned char* ap_stack = kmalloc(ap_stack_size);
@@ -117,8 +89,6 @@ void smp_init(void) {
     pagemap_unmap(kernel_pagemap, 0, init_npages);
 
     smp_active = true;
-
-    arch_interrupts_set_handler(LAPIC_TIMER_VECTOR, sched_tick);
 }
 
 _Noreturn void ap_start(void) {
