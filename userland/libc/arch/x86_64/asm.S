@@ -7,11 +7,11 @@ _start:
     call __start // __start(&argc)
     ud2
 
-// long syscall(long num, long, long, long, long, long, long);
-    .global syscall
-    .hidden syscall
-    .type syscall, @function
-syscall:
+// long __syscall(long num, long, long, long, long, long, long);
+    .global __syscall
+    .hidden __syscall
+    .type __syscall, @function
+__syscall:
     pushq %rbx
     pushq %rbp
     movq %rdi, %rax

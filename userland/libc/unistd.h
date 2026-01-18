@@ -92,3 +92,5 @@ enum {
 };
 
 long sysconf(int name);
+
+long syscall(long num, ...);

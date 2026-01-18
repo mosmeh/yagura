@@ -17,7 +17,7 @@ struct pthread {
     void* retval;
 };
 
-long syscall(long num, long, long, long, long, long, long);
+long __syscall(long num, long, long, long, long, long, long);
 
 #define SYSCALL0(name) SYSCALL1(name, 0)
 #define SYSCALL1(name, arg1) SYSCALL2(name, arg1, 0)
@@ -28,8 +28,8 @@ long syscall(long num, long, long, long, long, long, long);
 #define SYSCALL5(name, arg1, arg2, arg3, arg4, arg5)                           \
     SYSCALL6(name, arg1, arg2, arg3, arg4, arg5, 0)
 #define SYSCALL6(name, arg1, arg2, arg3, arg4, arg5, arg6)                     \
-    syscall(SYS_##name, (long)(arg1), (long)(arg2), (long)(arg3),              \
-            (long)(arg4), (long)(arg5), (long)(arg6))
+    __syscall(SYS_##name, (long)(arg1), (long)(arg2), (long)(arg3),            \
+              (long)(arg4), (long)(arg5), (long)(arg6))
 
 unsigned long __syscall_return(unsigned long rc);
 

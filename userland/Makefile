@@ -17,6 +17,7 @@ BIN_TARGET_NAMES := \
 	env \
 	eyes \
 	fib \
+	fuzz \
 	getty \
 	grep \
 	halt \
