@@ -48,6 +48,13 @@ long sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
     if (length == 0 || !((flags & MAP_PRIVATE) ^ (flags & MAP_SHARED)))
         return -EINVAL;
 
+    if (flags & MAP_FIXED) {
+        if ((uintptr_t)addr % PAGE_SIZE != 0)
+            return -EINVAL;
+    } else if (addr) {
+        addr = (void*)ROUND_DOWN((uintptr_t)addr, PAGE_SIZE);
+    }
+
     struct vm_obj* obj FREE(vm_obj) = NULL;
     if (flags & MAP_ANONYMOUS) {
         obj = anon_create();
@@ -115,11 +122,15 @@ NODISCARD static int for_each_overlapping_region(
 
     size_t start = (uintptr_t)addr >> PAGE_SHIFT;
     size_t end = DIV_CEIL((uintptr_t)addr + length, PAGE_SIZE);
+    if (end < start) // Overflow
+        return -ENOMEM;
 
     struct vm* vm = current->vm;
     SCOPED_LOCK(vm, vm);
     struct vm_region* region =
         vm_find_intersection(vm, addr, (void*)(end << PAGE_SHIFT));
+    if (IS_ERR(region))
+        return PTR_ERR(region);
     while (region && start < region->end) {
         struct vm_region* prev = vm_prev_region(region);
         size_t offset = MAX(start, region->start) - region->start;
