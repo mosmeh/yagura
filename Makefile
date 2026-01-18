@@ -15,6 +15,7 @@ export CFLAGS := \
 	-nostdlib -nostdinc \
 	-fno-omit-frame-pointer \
 	-ffile-prefix-map=$(ROOT)/= \
+	-ftrivial-auto-var-init=pattern \
 	-Wall -Wextra -pedantic \
 	-O2 -g \
 	-DARCH_$(shell echo $(ARCH) | tr a-z A-Z) \
