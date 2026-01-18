@@ -1,7 +1,9 @@
 #include <err.h>
 #include <errno.h>
 
-_Thread_local int errno;
+static _Thread_local int errno_value;
+
+int* __errno_location(void) { return &errno_value; }
 
 unsigned long __syscall_return(unsigned long rc) {
     if (IS_ERR(rc)) {
