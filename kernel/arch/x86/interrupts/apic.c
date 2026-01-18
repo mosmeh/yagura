@@ -236,8 +236,7 @@ void apic_init(void) {
         return;
 
     const struct acpi* acpi = acpi_get();
-    if (!acpi || !acpi->lapic_addr || !acpi->local_apics ||
-        !*acpi->local_apics || !acpi->io_apics || !*acpi->io_apics)
+    if (!acpi || !acpi->lapic_addr || !*acpi->local_apics || !*acpi->io_apics)
         return;
 
     i8259_disable();
