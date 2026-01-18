@@ -67,6 +67,30 @@ int arch_handle_signal(struct registers* regs, int signum,
     return 0;
 }
 
+static bool is_valid_segment(unsigned long seg) {
+    unsigned long last_seg = (NUM_GDT_ENTRIES - 1) * 8UL;
+    return seg <= (last_seg | 3);
+}
+
+NODISCARD
+static int copy_sigcontext_from_user(struct sigcontext* dest,
+                                     const struct sigcontext* user_src) {
+    if (copy_from_user(dest, user_src, sizeof(struct sigcontext)))
+        return -EFAULT;
+    if (!is_valid_segment(dest->regs.ss) || !is_valid_segment(dest->regs.cs) ||
+        !is_valid_segment(dest->regs.ds) || !is_valid_segment(dest->regs.es) ||
+        !is_valid_segment(dest->regs.fs) || !is_valid_segment(dest->regs.gs))
+        return -EFAULT;
+    return 0;
+}
+
+static unsigned long fix_segment(unsigned long seg) {
+    // Ensure the RPL is 3 for non-null segments
+    if (seg & ~3)
+        seg |= 3;
+    return seg;
+}
+
 #define FIX_EFLAGS                                                             \
     (X86_EFLAGS_AC | X86_EFLAGS_OF | X86_EFLAGS_DF | X86_EFLAGS_TF |           \
      X86_EFLAGS_SF | X86_EFLAGS_ZF | X86_EFLAGS_AF | X86_EFLAGS_PF |           \
@@ -74,15 +98,15 @@ int arch_handle_signal(struct registers* regs, int signum,
 
 long sys_sigreturn(struct registers* regs) {
     struct sigcontext ctx;
-    if (copy_from_user(&ctx, (void*)regs->sp, sizeof(struct sigcontext)))
+    if (copy_sigcontext_from_user(&ctx, (const void*)regs->sp))
         task_crash(SIGSEGV);
 
     regs->ss = ctx.regs.ss | 3;
     regs->cs = ctx.regs.cs | 3;
-    regs->ds = ctx.regs.ds;
-    regs->es = ctx.regs.es;
-    regs->fs = ctx.regs.fs;
-    regs->gs = ctx.regs.gs;
+    regs->ds = fix_segment(ctx.regs.ds);
+    regs->es = fix_segment(ctx.regs.es);
+    regs->fs = fix_segment(ctx.regs.fs);
+    regs->gs = fix_segment(ctx.regs.gs);
 
     regs->bx = ctx.regs.bx;
     regs->cx = ctx.regs.cx;
