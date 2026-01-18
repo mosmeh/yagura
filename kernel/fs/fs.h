@@ -157,6 +157,8 @@ NODISCARD int vfs_mount_at(const struct file_system*, const struct path* base,
 // of the path is a symbolic link, and return the symlink itself.
 #define O_NOFOLLOW_NOERROR 0x40000000
 
+#define O_KERNEL_INTERNAL_MASK (O_ALLOW_NOENT | O_NOFOLLOW_NOERROR)
+
 NODISCARD struct file* vfs_open(const char* pathname, int flags, mode_t mode);
 NODISCARD struct file* vfs_open_at(const struct path* base,
                                    const char* pathname, int flags,
