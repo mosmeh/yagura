@@ -3,6 +3,7 @@
 #include <common/stddef.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 extern size_t __tls_size;
 struct pthread* __init_tls(void* tls);
@@ -16,8 +17,6 @@ struct pthread {
     pid_t tid;
     void* retval;
 };
-
-long syscall(long num, long, long, long, long, long, long);
 
 #define SYSCALL0(name) SYSCALL1(name, 0)
 #define SYSCALL1(name, arg1) SYSCALL2(name, arg1, 0)
