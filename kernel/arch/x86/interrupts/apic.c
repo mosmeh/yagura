@@ -233,8 +233,7 @@ static void lapic_timer_tick(struct registers* regs) {
 
 void apic_init(void) {
     const struct acpi* acpi = acpi_get();
-    if (!acpi || !acpi->lapic_addr || !acpi->local_apics ||
-        !*acpi->local_apics || !acpi->io_apics || !*acpi->io_apics)
+    if (!acpi || !acpi->lapic_addr || !*acpi->local_apics || !*acpi->io_apics)
         return;
 
     i8259_disable();

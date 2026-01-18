@@ -29,8 +29,7 @@ void smp_init(void) {
     }
 
     const struct acpi* acpi = acpi_get();
-    if (!acpi || !acpi->lapic_addr || !acpi->local_apics ||
-        !*acpi->local_apics || !acpi->io_apics || !*acpi->io_apics)
+    if (!acpi || !acpi->lapic_addr || !*acpi->local_apics || !*acpi->io_apics)
         return;
 
     cpu_init_smp();
