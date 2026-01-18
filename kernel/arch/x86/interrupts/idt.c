@@ -108,13 +108,9 @@ void idt_flush(void) {
     load_idt(&idtr);
 }
 
-static void dump_context(const struct registers* regs) {
+static _Noreturn void crash(const struct registers* regs, int signum) {
     arch_dump_registers(regs);
     dump_stack_trace(regs->ip, regs->bp);
-}
-
-static _Noreturn void crash(const struct registers* regs, int signum) {
-    dump_context(regs);
 
     if (!arch_is_user_mode(regs))
         PANIC("Kernel crashed");
@@ -135,53 +131,42 @@ static _Noreturn void crash(const struct registers* regs, int signum) {
             "push $" #num "\n"                                                 \
             "jmp isr_entry\n");
 
-#define DEFINE_EXCEPTION(num, msg)                                             \
+#define DEFINE_EXCEPTION(num, msg, signum)                                     \
     static void handle_exception##num(struct registers* regs) {                \
         kprint("Exception: " msg "\n");                                        \
-        dump_context(regs);                                                    \
-        PANIC("Unrecoverable exception");                                      \
+        crash(regs, signum);                                                   \
     }
 
-#define DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(num, msg)                          \
+#define DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(num, msg, signum)                  \
     DEFINE_ISR_WITHOUT_ERROR_CODE(num)                                         \
-    DEFINE_EXCEPTION(num, msg)
+    DEFINE_EXCEPTION(num, msg, signum)
 
-#define DEFINE_EXCEPTION_WITH_ERROR_CODE(num, msg)                             \
+#define DEFINE_EXCEPTION_WITH_ERROR_CODE(num, msg, signum)                     \
     DEFINE_ISR_WITH_ERROR_CODE(num)                                            \
-    DEFINE_EXCEPTION(num, msg)
+    DEFINE_EXCEPTION(num, msg, signum)
 
-DEFINE_ISR_WITHOUT_ERROR_CODE(0)
-static void handle_exception0(struct registers* regs) {
-    kprint("Divide-by-zero error\n");
-    crash(regs, SIGFPE);
-}
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(0, "Divide-by-zero error", SIGFPE)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(1, "Debug", SIGTRAP)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(2, "Non-maskable interrupt", SIGSEGV)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(3, "Breakpoint", SIGSEGV)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(4, "Overflow", SIGSEGV)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(5, "Bound range exceeded", SIGSEGV)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(6, "Invalid opcode", SIGILL)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(7, "Device not available", SIGSEGV)
+DEFINE_EXCEPTION_WITH_ERROR_CODE(8, "Double fault", SIGSEGV)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(9, "Coprocessor segment overrun", SIGFPE)
+DEFINE_EXCEPTION_WITH_ERROR_CODE(10, "Invalid TSS", SIGSEGV)
+DEFINE_EXCEPTION_WITH_ERROR_CODE(11, "Segment not present", SIGBUS)
+DEFINE_EXCEPTION_WITH_ERROR_CODE(12, "Stack-segment fault", SIGBUS)
+DEFINE_EXCEPTION_WITH_ERROR_CODE(13, "General protection fault", SIGSEGV)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(16, "x87 floating-point exception", SIGFPE)
+DEFINE_EXCEPTION_WITH_ERROR_CODE(17, "Alignment check", SIGBUS)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(18, "Machine check", SIGBUS)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(19, "SIMD floating-point exception", SIGFPE)
+DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(20, "Virtualization exception", SIGSEGV)
+DEFINE_EXCEPTION_WITH_ERROR_CODE(21, "Control protection exception", SIGSEGV)
 
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(1, "Debug")
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(2, "Non-maskable interrupt")
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(3, "Breakpoint")
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(4, "Overflow")
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(5, "Bound range exceeded")
-
-DEFINE_ISR_WITHOUT_ERROR_CODE(6)
-static void handle_exception6(struct registers* regs) {
-    kprint("Invalid opcode\n");
-    crash(regs, SIGILL);
-}
-
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(7, "Device not available")
-DEFINE_EXCEPTION_WITH_ERROR_CODE(8, "Double fault")
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(9, "Coprocessor segment overrun")
-DEFINE_EXCEPTION_WITH_ERROR_CODE(10, "Invalid TSS")
-DEFINE_EXCEPTION_WITH_ERROR_CODE(11, "Segment not present")
-DEFINE_EXCEPTION_WITH_ERROR_CODE(12, "Stack-segment fault")
-
-DEFINE_ISR_WITH_ERROR_CODE(13)
-static void handle_exception13(struct registers* regs) {
-    kprint("General protection fault\n");
-    crash(regs, SIGSEGV);
-}
-
-DEFINE_ISR_WITH_ERROR_CODE(14)
+DEFINE_ISR_WITH_ERROR_CODE(14) // Page fault
 static void handle_exception14(struct registers* regs) {
     void* addr = (void*)read_cr2();
     if (x86_handle_page_fault(regs, addr))
@@ -189,8 +174,7 @@ static void handle_exception14(struct registers* regs) {
     crash(regs, SIGSEGV);
 }
 
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(15, "Unknown")
-DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(16, "x87 floating-point exception")
+DEFINE_ISR_WITHOUT_ERROR_CODE(15) // Spurious interrupt
 
 ENUMERATE_ISR_STUBS(DEFINE_ISR_WITHOUT_ERROR_CODE)
 
@@ -217,8 +201,13 @@ void idt_init(void) {
     REGISTER_EXCEPTION(12);
     REGISTER_EXCEPTION(13);
     REGISTER_EXCEPTION(14);
-    REGISTER_EXCEPTION(15);
+    REGISTER_ISR(15);
     REGISTER_EXCEPTION(16);
+    REGISTER_EXCEPTION(17);
+    REGISTER_EXCEPTION(18);
+    REGISTER_EXCEPTION(19);
+    REGISTER_EXCEPTION(20);
+    REGISTER_EXCEPTION(21);
 
     ENUMERATE_ISR_STUBS(REGISTER_ISR)
 
