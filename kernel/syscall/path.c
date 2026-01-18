@@ -28,7 +28,8 @@ NODISCARD static long open(const struct path* base, const char* user_pathname,
         return len;
 
     struct file* file FREE(file) =
-        vfs_open_at(base, pathname, flags, (mode & 0777) | S_IFREG);
+        vfs_open_at(base, pathname, flags & ~O_KERNEL_INTERNAL_MASK,
+                    (mode & 0777) | S_IFREG);
     if (PTR_ERR(file) == -EINTR)
         return -ERESTARTSYS;
     if (IS_ERR(ASSERT(file)))
