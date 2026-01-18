@@ -2,4 +2,6 @@
 
 #include <kernel/api/errno.h>
 
-extern _Thread_local int errno;
+__attribute__((const)) int* __errno_location(void);
+
+#define errno (*__errno_location())
