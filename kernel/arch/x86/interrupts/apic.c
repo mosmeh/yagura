@@ -169,9 +169,11 @@ static uint32_t io_apic_read(volatile void* io_apic, uint32_t reg) {
 
 static void io_apic_write_redirection(volatile void* io_apic, uint8_t index,
                                       uint8_t dest, uint32_t value) {
-    io_apic_write(io_apic, IO_APIC_REDIRECTION_TABLE + 2 * index, value);
-    io_apic_write(io_apic, IO_APIC_REDIRECTION_TABLE + 2 * index + 1,
-                  (uint32_t)dest << 24);
+    uint32_t reg_base = IO_APIC_REDIRECTION_TABLE + 2 * index;
+    io_apic_write(io_apic, reg_base + 1, (uint32_t)dest << 24);
+    // Mask first to prevent partial updates
+    io_apic_write(io_apic, reg_base, value | IO_APIC_INT_DISABLED);
+    io_apic_write(io_apic, reg_base, value);
 }
 
 static void io_apic_init(void) {
