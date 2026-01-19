@@ -50,24 +50,23 @@ void arch_interrupts_set_handler(uint8_t num, interrupt_handler_fn handler) {
 }
 
 void isr_handler(struct registers* regs) {
-    ASSERT(regs->interrupt_num < NUM_IDT_ENTRIES);
+    unsigned long interrupt_num = regs->interrupt_num;
+    ASSERT(interrupt_num < NUM_IDT_ENTRIES);
 
-    if (regs->interrupt_num != SPURIOUS_VECTOR) {
-        if (regs->interrupt_num != SYSCALL_VECTOR)
-            lapic_eoi();
-
-        uint32_t irq = regs->interrupt_num - IRQ(0);
+    if (interrupt_num >= IRQ(0) && interrupt_num != SYSCALL_VECTOR) {
+        unsigned long irq = interrupt_num - IRQ(0);
         if (irq < NUM_IRQS)
             i8259_eoi(irq);
+
+        if (interrupt_num != SPURIOUS_VECTOR)
+            lapic_eoi();
     }
 
     cpu_process_messages();
 
-    if (regs->interrupt_num != SPURIOUS_VECTOR) {
-        interrupt_handler_fn handler = interrupt_handlers[regs->interrupt_num];
-        if (handler)
-            handler(regs);
-    }
+    interrupt_handler_fn handler = interrupt_handlers[interrupt_num];
+    if (handler)
+        handler(regs);
 }
 
 static void set_gate(uint8_t index, uintptr_t base, uint16_t selector,
