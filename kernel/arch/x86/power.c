@@ -1,8 +1,14 @@
 #include <kernel/arch/system.h>
 #include <kernel/arch/x86/interrupts/interrupts.h>
+#include <kernel/drivers/acpi.h>
 #include <kernel/drivers/hid/ps2.h>
 
 void arch_reboot(void) {
+    const struct acpi* acpi = acpi_get();
+    if (acpi && acpi->reset_port)
+        out8(acpi->reset_port, acpi->reset_value);
+
+    // If ACPI reset didn't work, try keyboard controller reset
     out8(PS2_COMMAND, 0xfe);
 
     // If keyboard controller didn't work, cause a triple fault

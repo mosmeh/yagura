@@ -53,6 +53,75 @@ struct madt {
 #define ACPI_MADT_IO_APIC 1
 #define ACPI_MADT_INTERRUPT_SOURCE_OVERRIDE 2
 
+struct generic_address_structure {
+    uint8_t address_space;
+    uint8_t bit_width;
+    uint8_t bit_offset;
+    uint8_t access_size;
+    uint64_t address;
+} __attribute__((packed));
+
+#define GENERIC_ADDRESS_SPACE_SYSTEM_IO 1
+
+struct fadt {
+    struct sdt_header header;
+    uint32_t firmware_ctrl;
+    uint32_t dsdt_ptr;
+    uint8_t reserved;
+    uint8_t preferred_pm_profile;
+    uint16_t sci_int;
+    uint32_t smi_cmd;
+    uint8_t acpi_enable_value;
+    uint8_t acpi_disable_value;
+    uint8_t s4bios_req;
+    uint8_t pstate_cnt;
+    uint32_t pm1a_evt_blk;
+    uint32_t pm1b_evt_blk;
+    uint32_t pm1a_cnt_blk;
+    uint32_t pm1b_cnt_blk;
+    uint32_t pm2_cnt_blk;
+    uint32_t pm_tmr_blk;
+    uint32_t gpe0_blk;
+    uint32_t gpe1_blk;
+    uint8_t pm1_evt_len;
+    uint8_t pm1_cnt_len;
+    uint8_t pm2_cnt_len;
+    uint8_t pm_tmr_len;
+    uint8_t gpe0_blk_len;
+    uint8_t gpe1_blk_len;
+    uint8_t gpe1_base;
+    uint8_t cst_cnt;
+    uint16_t p_lvl2_lat;
+    uint16_t p_lvl3_lat;
+    uint16_t flush_size;
+    uint16_t flush_stride;
+    uint8_t duty_offset;
+    uint8_t duty_width;
+    uint8_t day_alrm;
+    uint8_t mon_alrm;
+    uint8_t century;
+    uint16_t ia_pc_boot_arch_flags;
+    uint8_t reserved2;
+    uint32_t flags;
+    struct generic_address_structure reset_reg;
+    uint8_t reset_value;
+    uint16_t arm_boot_arch;
+    uint8_t fadt_minor_version;
+    uint64_t x_firmware_ctrl;
+    uint64_t x_dsdt;
+    struct generic_address_structure x_pm1a_evt_blk;
+    struct generic_address_structure x_pm1b_evt_blk;
+    struct generic_address_structure x_pm1a_cnt_blk;
+    struct generic_address_structure x_pm1b_cnt_blk;
+    struct generic_address_structure x_pm2_cnt_blk;
+    struct generic_address_structure x_pm_tmr_blk;
+    struct generic_address_structure x_gpe0_blk;
+    struct generic_address_structure x_gpe1_blk;
+    struct generic_address_structure sleep_control;
+    struct generic_address_structure sleep_status;
+    uint64_t hypervisor_vendor_identity;
+} __attribute__((packed));
+
 static const struct rsdp_descriptor* find_rsdp(void) {
     const uint64_t* p = (const uint64_t*)(0x80000 + KERNEL_IMAGE_START);
     const uint64_t* end = (const uint64_t*)(0x100000 + KERNEL_IMAGE_START);
@@ -265,6 +334,18 @@ static void parse_madt(const struct rsdp_descriptor* rsdp) {
     }
 }
 
+static void parse_fadt(const struct rsdp_descriptor* rsdp) {
+    struct fadt* fadt = map_table(rsdp, "FACP");
+    ASSERT_OK(fadt);
+    if (fadt) {
+        if (fadt->reset_reg.address_space == GENERIC_ADDRESS_SPACE_SYSTEM_IO) {
+            acpi.reset_port = fadt->reset_reg.address;
+            acpi.reset_value = fadt->reset_value;
+        }
+        phys_unmap(fadt);
+    }
+}
+
 static bool is_parse_successful = false;
 
 void acpi_init(void) {
@@ -273,6 +354,7 @@ void acpi_init(void) {
         return;
 
     parse_madt(rsdp);
+    parse_fadt(rsdp);
 
     is_parse_successful = true;
 }

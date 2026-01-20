@@ -37,6 +37,9 @@ struct interrupt_source_override {
 struct acpi {
     uintptr_t lapic_addr;
 
+    uint16_t reset_port;
+    uint8_t reset_value;
+
     // Null-terminated arrays of pointers to the respective structures
     const struct local_apic** local_apics;
     const struct io_apic** io_apics;
