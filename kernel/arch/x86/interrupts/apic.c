@@ -83,7 +83,7 @@ void lapic_init_cpu(void) {
     SCOPED_DISABLE_INTERRUPTS();
 
     // Set logical APIC ID to be the same as the local APIC ID
-    lapic_write(LAPIC_LDR, lapic_get_id() << 24);
+    lapic_write(LAPIC_LDR, (uint32_t)cpu_get_current()->arch.apic_id << 24);
     lapic_write(LAPIC_DFR, 0xffffffff);
 
     lapic_write(LAPIC_ERROR, LAPIC_ERROR_VECTOR);
@@ -118,7 +118,7 @@ void lapic_init_cpu(void) {
     lapic_write(LAPIC_TICR, MAX(1, tccr_rate));
 }
 
-uint8_t lapic_get_id(void) { return lapic ? (lapic_read(LAPIC_ID) >> 24) : 0; }
+uint8_t lapic_get_id(void) { return lapic_read(LAPIC_ID) >> 24; }
 
 void lapic_eoi(void) {
     if (lapic)

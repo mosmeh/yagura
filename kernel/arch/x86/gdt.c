@@ -24,11 +24,15 @@ void gdt_init_cpu(void) {
     // Avoid using cpu_get_current() here, as it relies on GDT_ENTRY_CPU_ID
     struct cpu* cpu = NULL;
     size_t cpu_id = 0;
-    uint8_t apic_id = lapic_get_id();
-    for (; cpu_id < num_cpus; ++cpu_id) {
-        if (cpus[cpu_id]->arch.apic_id == apic_id) {
-            cpu = cpus[cpu_id];
-            break;
+    if (num_cpus <= 1) {
+        cpu = cpu_get_bsp();
+    } else {
+        uint8_t apic_id = lapic_get_id();
+        for (; cpu_id < num_cpus; ++cpu_id) {
+            if (cpus[cpu_id]->arch.apic_id == apic_id) {
+                cpu = cpus[cpu_id];
+                break;
+            }
         }
     }
     ASSERT(cpu);
