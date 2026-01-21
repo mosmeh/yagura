@@ -253,17 +253,17 @@ ssize_t file_readlink(struct file* file, char* buffer, size_t bufsiz) {
     return default_file_readlink(file, buffer, bufsiz);
 }
 
-int file_symlink(struct file* file, const char* target) {
+int file_symlink(struct file* file, const char* target, size_t target_len) {
     if (!S_ISLNK(file->inode->mode))
         return -EINVAL;
+    if (target_len == 0)
+        return -ENOENT;
 
     STATIC_ASSERT(SYMLINK_MAX <= PAGE_SIZE);
-
-    size_t len = strnlen(target, SYMLINK_MAX + 1);
-    if (len > SYMLINK_MAX)
+    if (target_len > SYMLINK_MAX)
         return -ENAMETOOLONG;
 
-    int rc = file_truncate(file, len);
+    int rc = file_truncate(file, target_len);
     if (IS_ERR(rc))
         return rc;
 
@@ -272,16 +272,16 @@ int file_symlink(struct file* file, const char* target) {
 
     SCOPED_LOCK(inode, inode);
 
-    struct page* page = filemap_ensure_page(filemap, 0, true);
+    struct page* page = filemap_ensure_page(filemap, 0, false);
     if (IS_ERR(ASSERT(page)))
         return PTR_ERR(page);
 
     unsigned char* mapped_page = kmap_page(page);
-    memcpy(mapped_page, target, len);
-    memset(mapped_page + len, 0, PAGE_SIZE - len);
+    memcpy(mapped_page, target, target_len);
+    memset(mapped_page + target_len, 0, PAGE_SIZE - target_len);
     kunmap(mapped_page);
 
-    page->flags = ~0;
+    page->flags |= PAGE_DIRTY;
     inode->flags |= INODE_DIRTY;
 
     return 0;

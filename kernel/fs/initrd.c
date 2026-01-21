@@ -82,11 +82,24 @@ void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
         cursor = (const void*)ROUND_UP((uintptr_t)(content + file_size),
                                        CPIO_ALIGNMENT);
 
-        if (!S_ISREG(mode) && !S_ISLNK(mode)) {
+        switch (mode & S_IFMT) {
+        case S_IFREG:
+            break;
+        case S_IFLNK: {
+            struct file* file FREE(file) =
+                vfs_open(filename, O_CREAT | O_WRONLY, mode);
+            if (IS_OK(ASSERT(file))) {
+                int rc = file_symlink(file, (const char*)content, file_size);
+                (void)rc;
+            }
+            continue;
+        }
+        default: {
             struct inode* inode FREE(inode) = vfs_create(filename, mode);
             if (IS_OK(ASSERT(inode)))
                 inode->rdev = rdev;
             continue;
+        }
         }
 
         struct file* file FREE(file) =

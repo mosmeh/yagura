@@ -53,7 +53,7 @@ NODISCARD int file_sync(struct file*, uint64_t offset, uint64_t nbytes);
 NODISCARD loff_t file_seek(struct file*, loff_t offset, int whence);
 
 NODISCARD ssize_t file_readlink(struct file*, char* buffer, size_t bufsiz);
-NODISCARD int file_symlink(struct file*, const char* target);
+NODISCARD int file_symlink(struct file*, const char* target, size_t target_len);
 
 NODISCARD int file_ioctl(struct file*, unsigned cmd, unsigned long arg);
 NODISCARD int file_getdents(struct file*, getdents_callback_fn, void* ctx);

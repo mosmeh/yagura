@@ -28,7 +28,7 @@ void filemap_destroy(struct filemap* filemap) {
 
 NODISCARD static int populate_page(struct filemap* filemap, struct page* page) {
     struct inode* inode = filemap->inode;
-    ASSERT(mutex_is_locked_by_current(&inode->vm_obj.lock));
+    ASSERT(inode_is_locked_by_current(inode));
     ASSERT(inode->iops->pread);
 
     uint64_t byte_offset = (uint64_t)page->index << PAGE_SHIFT;
@@ -54,7 +54,7 @@ NODISCARD static int populate_page(struct filemap* filemap, struct page* page) {
 }
 
 struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
-                                 bool write) {
+                                 bool extend) {
     struct inode* inode = filemap->inode;
     ASSERT(inode_is_locked_by_current(inode));
 
@@ -73,7 +73,7 @@ struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
 
     uint64_t byte_offset = (uint64_t)index << PAGE_SHIFT;
     if (byte_offset >= inode->size) {
-        if (write) {
+        if (extend) {
             struct page* page = page_alloc();
             if (IS_ERR(ASSERT(page)))
                 return page;
