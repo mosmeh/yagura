@@ -23,9 +23,9 @@ struct filemap* filemap_create(struct inode*);
 void filemap_destroy(struct filemap*);
 
 // Ensures that the page at the given index exists in the filemap.
-// If `write` is true, the page is created even if it's outside the current size
-// of the file.
-struct page* filemap_ensure_page(struct filemap*, size_t index, bool write);
+// If `extend` is true, the page is created even if it's outside the current
+// size of the file.
+struct page* filemap_ensure_page(struct filemap*, size_t index, bool extend);
 
 // Writes back all dirty pages in the given range of indices.
 NODISCARD int filemap_sync(struct filemap*, size_t start, size_t end);

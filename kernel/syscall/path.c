@@ -362,25 +362,25 @@ long sys_renameat2(int olddirfd, const char* user_oldpath, int newdirfd,
 
 NODISCARD static long symlink(const struct path* base, const char* user_target,
                               const char* user_linkpath) {
-    char target[PATH_MAX];
-    ssize_t len = copy_pathname_from_user(target, user_target);
-    if (IS_ERR(len))
-        return len;
-    size_t target_len = strlen(target);
+    char target[SYMLINK_MAX + 1];
+    ssize_t target_len =
+        strncpy_from_user(target, user_target, SYMLINK_MAX + 1);
+    if (IS_ERR(target_len))
+        return target_len;
     if (target_len > SYMLINK_MAX)
         return -ENAMETOOLONG;
 
     char linkpath[PATH_MAX];
-    len = copy_pathname_from_user(linkpath, user_linkpath);
-    if (IS_ERR(len))
-        return len;
+    ssize_t linkpath_len = copy_pathname_from_user(linkpath, user_linkpath);
+    if (IS_ERR(linkpath_len))
+        return linkpath_len;
 
     struct file* file FREE(file) =
         vfs_open_at(base, linkpath, O_CREAT | O_EXCL | O_WRONLY, S_IFLNK);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
-    return file_symlink(file, target);
+    return file_symlink(file, target, target_len);
 }
 
 long sys_symlink(const char* user_target, const char* user_linkpath) {
