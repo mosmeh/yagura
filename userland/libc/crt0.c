@@ -18,14 +18,15 @@ typedef Elf32_Phdr elf_phdr_t;
 typedef Elf32_auxv_t elf_auxv_t;
 #endif
 
-static unsigned long auxv[32];
+static elf_auxv_t* auxv;
 
 unsigned long getauxval(unsigned long type) {
-    if (type >= ARRAY_SIZE(auxv)) {
-        errno = ENOENT;
-        return 0;
+    for (elf_auxv_t* aux = auxv; aux != AT_NULL; ++aux) {
+        if (aux->a_type == type)
+            return aux->a_un.a_val;
     }
-    return auxv[type];
+    errno = ENOENT;
+    return 0;
 }
 
 static const elf_phdr_t* tls_phdr;
@@ -62,14 +63,10 @@ void __start(unsigned long* args) {
     char** argv = (char**)(args + 1);
     environ = argv + argc + 1;
 
-    // Initialize auxv
     char** p = environ;
     while (*p++)
         ;
-    for (elf_auxv_t* aux = (elf_auxv_t*)p; aux->a_type != AT_NULL; ++aux) {
-        if (aux->a_type < ARRAY_SIZE(auxv))
-            auxv[aux->a_type] = aux->a_un.a_val;
-    }
+    auxv = (elf_auxv_t*)p;
 
     // Initialize TLS
     tls_phdr = find_tls_phdr();
