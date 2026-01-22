@@ -5,6 +5,18 @@
 #include <kernel/memory/memory.h>
 #include <kernel/memory/safe_string.h>
 
+static bool is_canonical_addr(const void* addr) {
+#ifdef ARCH_I386
+    (void)addr;
+    return true;
+#endif
+#ifdef ARCH_X86_64
+    uint8_t msb = cpu_get_bsp()->arch.virt_addr_bits - 1;
+    uintptr_t upper_bits = (uintptr_t)addr >> msb;
+    return upper_bits == 0 || upper_bits == ((uintptr_t)-1 >> msb);
+#endif
+}
+
 static void begin_user_access(void) {
     if (cpu_has_feature(cpu_get_bsp(), X86_FEATURE_SMAP))
         __asm__ volatile("stac" ::: "memory");
@@ -16,7 +28,7 @@ static void end_user_access(void) {
 }
 
 NOINLINE int safe_memcpy(void* dest, const void* src, size_t n) {
-    if (!dest || !src)
+    if (!dest || !src || !is_canonical_addr(dest) || !is_canonical_addr(src))
         return -EFAULT;
 
     size_t remainder;
@@ -36,7 +48,7 @@ NOINLINE int safe_memcpy(void* dest, const void* src, size_t n) {
 }
 
 NOINLINE int safe_memset(void* s, unsigned char c, size_t n) {
-    if (!s)
+    if (!s || !is_canonical_addr(s))
         return -EFAULT;
 
     size_t remainder;
@@ -56,7 +68,7 @@ NOINLINE int safe_memset(void* s, unsigned char c, size_t n) {
 }
 
 NOINLINE ssize_t safe_strnlen(const char* str, size_t n) {
-    if (!str)
+    if (!str || !is_canonical_addr(str))
         return -EFAULT;
 
     ssize_t count = 0;
@@ -87,7 +99,7 @@ NOINLINE ssize_t safe_strnlen(const char* str, size_t n) {
 }
 
 NOINLINE ssize_t safe_strncpy(char* dest, const char* src, size_t n) {
-    if (!dest || !src)
+    if (!dest || !src || !is_canonical_addr(dest) || !is_canonical_addr(src))
         return -EFAULT;
     if (n == 0)
         return 0;

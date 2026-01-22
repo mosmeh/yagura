@@ -269,9 +269,16 @@ static void detect_features(struct cpu* cpu) {
         cpuid(0x80000008, &eax, &ebx, &ecx, &edx);
         arch->phys_addr_bits = eax & 0xff;
         arch->virt_addr_bits = (eax >> 8) & 0xff;
-    } else {
+    }
+    if (arch->phys_addr_bits == 0)
         arch->phys_addr_bits = cpu_has_feature(cpu, X86_FEATURE_PAE) ? 36 : 32;
+    if (arch->virt_addr_bits == 0) {
+#ifdef ARCH_I386
         arch->virt_addr_bits = 32;
+#endif
+#ifdef ARCH_X86_64
+        arch->virt_addr_bits = cpu_has_feature(cpu, X86_FEATURE_LA57) ? 57 : 48;
+#endif
     }
 }
 
