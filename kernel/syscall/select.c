@@ -403,9 +403,26 @@ long sys_select(int nfds, unsigned long* user_readfds,
     return ret;
 }
 
+struct sigset_argpack {
+    sigset_t* p;
+    size_t size;
+};
+
+NODISCARD
+static int copy_sigset_from_user(sigset_t* sigset, const void* user_sigset) {
+    struct sigset_argpack args;
+    if (copy_from_user(&args, user_sigset, sizeof(args)))
+        return -EFAULT;
+    if (args.size != sizeof(sigset_t))
+        return -EINVAL;
+    if (copy_from_user(sigset, args.p, sizeof(sigset_t)))
+        return -EFAULT;
+    return 0;
+}
+
 long sys_pselect6(int nfds, unsigned long* user_readfds,
                   unsigned long* user_writefds, unsigned long* user_exceptfds,
-                  struct timespec* user_timeout, const sigset_t* user_sigmask) {
+                  struct timespec* user_timeout, const void* user_sigmask) {
     struct timespec timeout;
     if (user_timeout) {
         if (copy_from_user(&timeout, user_timeout, sizeof(struct timespec)))
@@ -415,8 +432,9 @@ long sys_pselect6(int nfds, unsigned long* user_readfds,
     sigset_t old_sigmask = 0;
     if (user_sigmask) {
         sigset_t sigmask;
-        if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
-            return -EFAULT;
+        int rc = copy_sigset_from_user(&sigmask, user_sigmask);
+        if (IS_ERR(rc))
+            return rc;
         old_sigmask = task_set_blocked_signals(current, sigmask);
     }
 
@@ -438,7 +456,7 @@ long sys_pselect6_time32(int nfds, unsigned long* user_readfds,
                          unsigned long* user_writefds,
                          unsigned long* user_exceptfds,
                          struct timespec32* user_timeout,
-                         const sigset_t* user_sigmask) {
+                         const void* user_sigmask) {
     struct timespec timeout;
     if (user_timeout) {
         if (copy_timespec_from_user32(&timeout, user_timeout))
@@ -448,8 +466,9 @@ long sys_pselect6_time32(int nfds, unsigned long* user_readfds,
     sigset_t old_sigmask = 0;
     if (user_sigmask) {
         sigset_t sigmask;
-        if (copy_from_user(&sigmask, user_sigmask, sizeof(sigset_t)))
-            return -EFAULT;
+        int rc = copy_sigset_from_user(&sigmask, user_sigmask);
+        if (IS_ERR(rc))
+            return rc;
         old_sigmask = task_set_blocked_signals(current, sigmask);
     }
 
