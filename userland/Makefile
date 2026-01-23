@@ -61,6 +61,7 @@ BIN_TARGET_NAMES := \
 	tests/random \
 	tests/read-write \
 	tests/string \
+	tests/time \
 	tests/tree \
 	tests/unix-socket \
 	tests/wait \

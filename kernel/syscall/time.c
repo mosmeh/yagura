@@ -30,39 +30,52 @@ long sys_stime32(const time32_t* user_t) {
 }
 
 long sys_gettimeofday(struct linux_timeval* user_tv, struct timezone* user_tz) {
-    (void)user_tz;
-    if (!user_tv)
-        return 0;
-
-    struct timespec now;
-    int rc = time_now(CLOCK_REALTIME, &now);
-    if (IS_ERR(rc))
-        return rc;
-    struct linux_timeval tv = {
-        .tv_sec = now.tv_sec,
-        .tv_usec = now.tv_nsec / 1000,
-    };
-    if (copy_to_user(user_tv, &tv, sizeof(struct linux_timeval)))
-        return -EFAULT;
+    if (user_tv) {
+        struct timespec now;
+        int rc = time_now(CLOCK_REALTIME, &now);
+        if (IS_ERR(rc))
+            return rc;
+        struct linux_timeval tv = {
+            .tv_sec = now.tv_sec,
+            .tv_usec = now.tv_nsec / 1000,
+        };
+        if (copy_to_user(user_tv, &tv, sizeof(struct linux_timeval)))
+            return -EFAULT;
+    }
+    if (user_tz) {
+        struct timezone tz;
+        time_get_timezone(&tz);
+        if (copy_to_user(user_tz, &tz, sizeof(struct timezone)))
+            return -EFAULT;
+    }
     return 0;
 }
 
 long sys_settimeofday(const struct linux_timeval* user_tv,
                       const struct timezone* user_tz) {
-    (void)user_tz;
-    if (!user_tv)
-        return 0;
-
-    struct linux_timeval tv;
-    if (copy_from_user(&tv, user_tv, sizeof(struct linux_timeval)))
-        return -EFAULT;
-    if (tv.tv_usec > MICROS_PER_SEC)
-        return -EINVAL;
-    struct timespec tp = {
-        .tv_sec = tv.tv_sec,
-        .tv_nsec = (long long)tv.tv_usec * 1000,
-    };
-    return time_set(CLOCK_REALTIME, &tp);
+    struct timespec tp;
+    if (user_tv) {
+        struct linux_timeval tv;
+        if (copy_from_user(&tv, user_tv, sizeof(struct linux_timeval)))
+            return -EFAULT;
+        if (tv.tv_usec < 0 || MICROS_PER_SEC < tv.tv_usec)
+            return -EINVAL;
+        tp = (struct timespec){
+            .tv_sec = tv.tv_sec,
+            .tv_nsec = (long long)tv.tv_usec * 1000,
+        };
+    }
+    if (user_tz) {
+        struct timezone tz;
+        if (copy_from_user(&tz, user_tz, sizeof(struct timezone)))
+            return -EFAULT;
+        int rc = time_set_timezone(&tz);
+        if (IS_ERR(rc))
+            return rc;
+    }
+    if (user_tv)
+        return time_set(CLOCK_REALTIME, &tp);
+    return 0;
 }
 
 long sys_clock_gettime(clockid_t clockid, struct timespec* user_tp) {
