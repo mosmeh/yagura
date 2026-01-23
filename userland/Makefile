@@ -69,6 +69,7 @@ BIN_TARGET_NAMES := \
 	tests/tree \
 	tests/uname \
 	tests/unix-socket \
+	tests/wait \
 	tests/xv6-usertests \
 	touch \
 	true \

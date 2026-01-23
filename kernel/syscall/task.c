@@ -167,11 +167,8 @@ static bool unblock_waitpid(void* data) {
         it = it->tasks_next;
     }
     if (!it) {
-        if (!any_target_exists) {
-            blocker->waited_task = NULL;
-            return true;
-        }
-        return false;
+        // Unblock if no more target children exist.
+        return !any_target_exists;
     }
 
     if (prev)
@@ -195,13 +192,8 @@ long sys_wait4(pid_t pid, int* user_wstatus, int options,
         .waited_task = NULL,
     };
     if (options & WNOHANG) {
-        if (!unblock_waitpid(&blocker)) {
-            if (blocker.waited_task) {
-                task_unref(blocker.waited_task);
-                return 0;
-            }
-            return -ECHILD;
-        }
+        if (!unblock_waitpid(&blocker))
+            return 0;
     } else {
         int rc = sched_block(unblock_waitpid, &blocker, 0);
         if (rc == -EINTR)
