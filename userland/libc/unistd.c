@@ -162,7 +162,7 @@ int rmdir(const char* pathname) {
     return __syscall_return(SYSCALL1(rmdir, pathname));
 }
 
-int dup(int oldfd) { return fcntl(oldfd, F_DUPFD); }
+int dup(int oldfd) { return __syscall_return(SYSCALL1(dup, oldfd)); }
 
 int dup2(int oldfd, int newfd) {
     return __syscall_return(SYSCALL2(dup2, oldfd, newfd));
