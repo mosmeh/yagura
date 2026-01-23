@@ -107,10 +107,13 @@ DEFINE_LOCKED(files, struct files*, mutex, lock)
 void __files_destroy(struct files*);
 DEFINE_REFCOUNTED_BASE(files, struct files*, refcount, __files_destroy)
 
-// If fd >= 0, allocates given file descriptor. If it is already used,
-// replacing and freeing the old file.
-// If fd < 0, allocates lowest-numbered file descriptor that was unused.
-NODISCARD int files_alloc_fd(struct files*, int fd, struct file*);
+// Allocates lowest-numbered file descriptor >= min_fd
+// that is not already used, and sets it to the given file.
+NODISCARD int files_alloc_fd(struct files*, int min_fd, struct file*);
+
+// Sets the file at given fd to the given file.
+// If the fd is already used, replaces and frees the old file.
+NODISCARD int files_set_file(struct files*, int fd, struct file*);
 
 int files_free_fd(struct files*, int fd);
 

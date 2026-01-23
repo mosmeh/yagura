@@ -107,28 +107,30 @@ void __files_destroy(struct files* files) {
     kfree(files);
 }
 
-int files_alloc_fd(struct files* files, int fd, struct file* file) {
-    if (fd >= OPEN_MAX)
+int files_alloc_fd(struct files* files, int min_fd, struct file* file) {
+    if (min_fd >= OPEN_MAX)
+        return -EMFILE;
+    min_fd = MAX(min_fd, 0);
+
+    SCOPED_LOCK(files, files);
+    for (int i = min_fd; i < OPEN_MAX; ++i) {
+        if (files->entries[i])
+            continue;
+        files->entries[i] = file_ref(file);
+        return i;
+    }
+    return -EMFILE;
+}
+
+int files_set_file(struct files* files, int fd, struct file* file) {
+    if (fd < 0 || OPEN_MAX <= fd)
         return -EBADF;
 
     SCOPED_LOCK(files, files);
-
-    if (fd >= 0) {
-        struct file** entry = files->entries + fd;
-        file_unref(*entry);
-        *entry = file_ref(file);
-        return fd;
-    }
-
-    struct file** it = files->entries;
-    for (int i = 0; i < OPEN_MAX; ++i, ++it) {
-        if (*it)
-            continue;
-        *it = file_ref(file);
-        return i;
-    }
-
-    return -EMFILE;
+    struct file** entry = files->entries + fd;
+    file_unref(*entry);
+    *entry = file_ref(file);
+    return 0;
 }
 
 int files_free_fd(struct files* files, int fd) {

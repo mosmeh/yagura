@@ -35,7 +35,7 @@ NODISCARD static long open(const struct path* base, const char* user_pathname,
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
-    return files_alloc_fd(current->files, -1, file);
+    return files_alloc_fd(current->files, 0, file);
 }
 
 long sys_open(const char* user_pathname, int flags, unsigned mode) {
