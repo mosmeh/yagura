@@ -20,7 +20,7 @@ static void write_mouse(uint8_t data) {
 static unsigned char buf[3];
 static size_t state = 0;
 
-#define QUEUE_SIZE (sizeof(buf) * 16)
+#define QUEUE_SIZE (sizeof(buf) * 16 + 1) // +1 to distinguish full vs empty
 
 static unsigned char queue[QUEUE_SIZE];
 static size_t read_index = 0;
