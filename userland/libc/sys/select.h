@@ -23,8 +23,8 @@ typedef struct {
 #define FD_ZERO(set)                                                           \
     do {                                                                       \
         fd_set* __set = (set);                                                 \
-        for (int __i = 0; __i < sizeof(__set) / sizeof(__set->fds_bits[0]);    \
-             ++__i)                                                            \
+        for (unsigned int __i = 0;                                             \
+             __i < sizeof(__set) / sizeof(__set->fds_bits[0]); ++__i)          \
             __set->fds_bits[__i] = 0;                                          \
     } while (0)
 

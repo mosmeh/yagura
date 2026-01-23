@@ -201,7 +201,7 @@ long sys_readlinkat(int dirfd, const char* pathname, char* buf, size_t bufsiz);
 long sys_faccessat(int dirfd, const char* pathname, int mode);
 long sys_pselect6_time32(int nfds, unsigned long* readfds,
                          unsigned long* writefds, unsigned long* exceptfds,
-                         struct timespec32* timeout, const sigset_t* sigmask);
+                         struct timespec32* timeout, const void* sigmask);
 long sys_ppoll_time32(struct pollfd* fds, nfds_t nfds,
                       struct timespec32* timeout, const sigset_t* sigmask,
                       size_t sigsetsize);
@@ -228,7 +228,7 @@ long sys_clock_nanosleep(clockid_t clockid, int flags,
                          struct timespec* remain);
 long sys_pselect6(int nfds, unsigned long* readfds, unsigned long* writefds,
                   unsigned long* exceptfds, struct timespec* timeout,
-                  const sigset_t* sigmask);
+                  const void* sigmask);
 long sys_ppoll(struct pollfd* fds, nfds_t nfds, struct timespec* timeout,
                const sigset_t* sigmask, size_t sigsetsize);
 long sys_dbgprint(const char* str);

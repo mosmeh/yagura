@@ -64,6 +64,7 @@ BIN_TARGET_NAMES := \
 	tests/random \
 	tests/read-write \
 	tests/run \
+	tests/select \
 	tests/string \
 	tests/tree \
 	tests/uname \
