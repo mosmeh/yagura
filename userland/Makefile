@@ -51,6 +51,7 @@ BIN_TARGET_NAMES := \
 	stat \
 	stty \
 	tests/cwd \
+	tests/dup \
 	tests/execve \
 	tests/framebuffer \
 	tests/libgen \

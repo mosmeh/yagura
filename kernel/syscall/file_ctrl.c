@@ -15,7 +15,9 @@ long sys_fcntl(int fd, int cmd, unsigned long arg) {
         return PTR_ERR(file);
     switch (cmd) {
     case F_DUPFD:
-        return files_alloc_fd(files, -1, file);
+        if (arg >= OPEN_MAX)
+            return -EINVAL;
+        return files_alloc_fd(files, arg, file);
     case F_GETFL:
         return file->flags;
     case F_SETFL:
@@ -35,7 +37,7 @@ long sys_dup(int oldfd) {
     struct file* file FREE(file) = files_ref_file(files, oldfd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
-    return files_alloc_fd(files, -1, file);
+    return files_alloc_fd(files, 0, file);
 }
 
 long sys_dup2(int oldfd, int newfd) {
@@ -47,7 +49,10 @@ long sys_dup2(int oldfd, int newfd) {
         return PTR_ERR(oldfd_file);
     if (oldfd == newfd)
         return oldfd;
-    return files_alloc_fd(files, newfd, oldfd_file);
+    int rc = files_set_file(files, newfd, oldfd_file);
+    if (IS_ERR(rc))
+        return rc;
+    return newfd;
 }
 
 long sys_dup3(int oldfd, int newfd, int flags) {
@@ -60,7 +65,10 @@ long sys_dup3(int oldfd, int newfd, int flags) {
     struct file* oldfd_file FREE(file) = files_ref_file(files, oldfd);
     if (IS_ERR(ASSERT(oldfd_file)))
         return PTR_ERR(oldfd_file);
-    return files_alloc_fd(files, newfd, oldfd_file);
+    int rc = files_set_file(files, newfd, oldfd_file);
+    if (IS_ERR(rc))
+        return rc;
+    return newfd;
 }
 
 long sys_ioctl(int fd, unsigned cmd, unsigned long arg) {
@@ -94,11 +102,11 @@ long sys_pipe2(int user_pipefd[2], int flags) {
 
     struct files* files = current->files;
 
-    int reader_fd = files_alloc_fd(files, -1, reader_file);
+    int reader_fd = files_alloc_fd(files, 0, reader_file);
     if (IS_ERR(reader_fd))
         return reader_fd;
 
-    int writer_fd = files_alloc_fd(files, -1, writer_file);
+    int writer_fd = files_alloc_fd(files, 0, writer_file);
     if (IS_ERR(writer_fd)) {
         files_free_fd(files, reader_fd);
         return writer_fd;
