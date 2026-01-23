@@ -66,6 +66,7 @@ BIN_TARGET_NAMES := \
 	tests/run \
 	tests/select \
 	tests/string \
+	tests/time \
 	tests/tree \
 	tests/uname \
 	tests/unix-socket \
