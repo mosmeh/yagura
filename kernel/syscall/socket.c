@@ -20,7 +20,7 @@ long sys_socket(int domain, int type, int protocol) {
     struct file* file FREE(file) = inode_open(socket, O_RDWR);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
-    return files_alloc_fd(current->files, -1, file);
+    return files_alloc_fd(current->files, 0, file);
 }
 
 long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
@@ -99,7 +99,7 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
     if (IS_ERR(ASSERT(connector_file)))
         return PTR_ERR(connector_file);
 
-    return files_alloc_fd(current->files, -1, connector_file);
+    return files_alloc_fd(current->files, 0, connector_file);
 }
 
 long sys_connect(int sockfd, const struct sockaddr* user_addr,
