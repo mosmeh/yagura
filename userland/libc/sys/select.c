@@ -24,7 +24,8 @@ int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     struct timespec copied_timeout;
     if (timeout)
         copied_timeout = *timeout;
+    unsigned long sigset[] = {(uintptr_t)sigmask, sizeof(sigset_t)};
     return __syscall_return(
         SYSCALL6(pselect6, nfds, readfds, writefds, exceptfds,
-                 timeout ? &copied_timeout : NULL, sigmask));
+                 timeout ? &copied_timeout : NULL, &sigset));
 }
