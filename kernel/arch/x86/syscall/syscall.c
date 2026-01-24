@@ -26,7 +26,7 @@
     F(time, sys_time32, 0)                                                     \
     F(mknod, sys_mknod, 0)                                                     \
     F(chmod, sys_chmod, 0)                                                     \
-    F(lchown, sys_ni_syscall, 0)                                               \
+    F(lchown, sys_lchown16, 0)                                                 \
     F(break, sys_ni_syscall, 0)                                                \
     F(oldstat, sys_stat, 0)                                                    \
     F(lseek, sys_lseek, 0)                                                     \
@@ -105,7 +105,7 @@
     F(truncate, sys_truncate, 0)                                               \
     F(ftruncate, sys_ftruncate, 0)                                             \
     F(fchmod, sys_fchmod, 0)                                                   \
-    F(fchown, sys_ni_syscall, 0)                                               \
+    F(fchown, sys_fchown16, 0)                                                 \
     F(getpriority, sys_ni_syscall, 0)                                          \
     F(setpriority, sys_ni_syscall, 0)                                          \
     F(profil, sys_ni_syscall, 0)                                               \
@@ -192,7 +192,7 @@
     F(rt_sigsuspend, sys_ni_syscall, 0)                                        \
     F(pread64, sys_ia32_pread64, 0)                                            \
     F(pwrite64, sys_ia32_pwrite64, 0)                                          \
-    F(chown, sys_ni_syscall, 0)                                                \
+    F(chown, sys_chown16, 0)                                                   \
     F(getcwd, sys_getcwd, 0)                                                   \
     F(capget, sys_ni_syscall, 0)                                               \
     F(capset, sys_ni_syscall, 0)                                               \
@@ -208,7 +208,7 @@
     F(stat64, sys_stat64, 0)                                                   \
     F(lstat64, sys_lstat64, 0)                                                 \
     F(fstat64, sys_fstat64, 0)                                                 \
-    F(lchown32, sys_ni_syscall, 0)                                             \
+    F(lchown32, sys_lchown, 0)                                                 \
     F(getuid32, sys_getuid, 0)                                                 \
     F(getgid32, sys_getgid, 0)                                                 \
     F(geteuid32, sys_geteuid, 0)                                               \
@@ -217,12 +217,12 @@
     F(setregid32, sys_ni_syscall, 0)                                           \
     F(getgroups32, sys_getgroups, 0)                                           \
     F(setgroups32, sys_ni_syscall, 0)                                          \
-    F(fchown32, sys_ni_syscall, 0)                                             \
+    F(fchown32, sys_fchown, 0)                                                 \
     F(setresuid32, sys_ni_syscall, 0)                                          \
     F(getresuid32, sys_getresuid, 0)                                           \
     F(setresgid32, sys_ni_syscall, 0)                                          \
     F(getresgid32, sys_getresgid, 0)                                           \
-    F(chown32, sys_ni_syscall, 0)                                              \
+    F(chown32, sys_chown, 0)                                                   \
     F(setuid32, sys_ni_syscall, 0)                                             \
     F(setgid32, sys_ni_syscall, 0)                                             \
     F(setfsuid32, sys_ni_syscall, 0)                                           \
@@ -304,7 +304,7 @@
     F(openat, sys_openat, 0)                                                   \
     F(mkdirat, sys_mkdirat, 0)                                                 \
     F(mknodat, sys_mknodat, 0)                                                 \
-    F(fchownat, sys_ni_syscall, 0)                                             \
+    F(fchownat, sys_fchownat, 0)                                               \
     F(futimesat, sys_ni_syscall, 0)                                            \
     F(fstatat64, sys_fstatat64, 0)                                             \
     F(unlinkat, sys_unlinkat, 0)                                               \

@@ -50,6 +50,12 @@ ssize_t readlinkat(int dirfd, const char* restrict pathname, char* restrict buf,
                    size_t bufsiz);
 int rmdir(const char* pathname);
 
+int chown(const char* pathname, uid_t owner, gid_t group);
+int fchown(int fd, uid_t owner, gid_t group);
+int lchown(const char* pathname, uid_t owner, gid_t group);
+int fchownat(int dirfd, const char* pathname, uid_t owner, gid_t group,
+             int flags);
+
 int dup(int oldfd);
 int dup2(int oldfd, int newfd);
 int dup3(int oldfd, int newfd, int flags);

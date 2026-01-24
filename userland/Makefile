@@ -51,6 +51,7 @@ BIN_TARGET_NAMES := \
 	stat \
 	stty \
 	tests/chmod \
+	tests/chown \
 	tests/cwd \
 	tests/dup \
 	tests/execve \

@@ -72,9 +72,6 @@ void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
         if (!strncmp(filename, CPIO_FOOTER_MAGIC, sizeof(CPIO_FOOTER_MAGIC)))
             return;
 
-        mode_t mode = PARSE_FIELD(header->c_mode);
-        dev_t rdev = makedev(PARSE_FIELD(header->c_rdevmajor),
-                             PARSE_FIELD(header->c_rdevminor));
         size_t file_size = PARSE_FIELD(header->c_filesize);
 
         const unsigned char* content = (const void*)ROUND_UP(
@@ -82,46 +79,54 @@ void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
         cursor = (const void*)ROUND_UP((uintptr_t)(content + file_size),
                                        CPIO_ALIGNMENT);
 
+        struct inode* inode FREE(inode) = NULL;
+
+        mode_t mode = PARSE_FIELD(header->c_mode);
         switch (mode & S_IFMT) {
-        case S_IFREG:
+        case S_IFREG: {
+            struct file* file FREE(file) =
+                vfs_open(filename, O_CREAT | O_WRONLY, mode);
+            if (IS_ERR(ASSERT(file)))
+                continue;
+
+            if (file_size > 0) {
+                ASSERT_OK(file_truncate(file, file_size));
+
+                struct vm_obj* obj FREE(vm_obj) = file_mmap(file);
+                ASSERT_PTR(obj);
+
+                unsigned char* dest =
+                    vm_obj_map(obj, 0, DIV_CEIL(file_size, PAGE_SIZE),
+                               VM_WRITE | VM_SHARED);
+                ASSERT_PTR(dest);
+                memcpy(dest, content, file_size);
+                vm_obj_unmap(dest);
+            }
+
+            inode = inode_ref(file->inode);
             break;
+        }
         case S_IFLNK: {
             struct file* file FREE(file) =
                 vfs_open(filename, O_CREAT | O_WRONLY, mode);
-            if (IS_OK(ASSERT(file))) {
-                int rc = file_symlink(file, (const char*)content, file_size);
-                (void)rc;
-            }
-            continue;
+            if (IS_ERR(ASSERT(file)))
+                continue;
+            int rc = file_symlink(file, (const char*)content, file_size);
+            (void)rc;
+            inode = inode_ref(file->inode);
+            break;
         }
-        default: {
-            struct inode* inode FREE(inode) = vfs_create(filename, mode);
-            if (IS_OK(ASSERT(inode)))
-                inode->rdev = rdev;
-            continue;
+        default:
+            inode = vfs_create(filename, mode);
+            if (IS_ERR(ASSERT(inode)))
+                continue;
+            break;
         }
-        }
 
-        struct file* file FREE(file) =
-            vfs_open(filename, O_CREAT | O_WRONLY, mode);
-        if (IS_ERR(ASSERT(file)))
-            continue;
-
-        file->inode->rdev = rdev;
-
-        if (file_size == 0)
-            continue;
-
-        ASSERT_OK(file_truncate(file, file_size));
-
-        struct vm_obj* obj FREE(vm_obj) = file_mmap(file);
-        ASSERT_PTR(obj);
-
-        unsigned char* dest = vm_obj_map(obj, 0, DIV_CEIL(file_size, PAGE_SIZE),
-                                         VM_WRITE | VM_SHARED);
-        ASSERT_PTR(dest);
-        memcpy(dest, content, file_size);
-        vm_obj_unmap(dest);
+        inode->uid = PARSE_FIELD(header->c_uid);
+        inode->gid = PARSE_FIELD(header->c_gid);
+        inode->rdev = makedev(PARSE_FIELD(header->c_rdevmajor),
+                              PARSE_FIELD(header->c_rdevminor));
     }
 
     kprint("initrd: premature end of archive\n");
