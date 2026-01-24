@@ -67,6 +67,7 @@ BIN_TARGET_NAMES := \
 	tests/string \
 	tests/time \
 	tests/tree \
+	tests/umask \
 	tests/unix-socket \
 	tests/wait \
 	tests/xv6-usertests \

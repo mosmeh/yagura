@@ -70,7 +70,7 @@
     F(setpgid, sys_setpgid, 0)                                                 \
     F(ulimit, sys_ni_syscall, 0)                                               \
     F(oldolduname, sys_olduname, 0)                                            \
-    F(umask, sys_ni_syscall, 0)                                                \
+    F(umask, sys_umask, 0)                                                     \
     F(chroot, sys_chroot, 0)                                                   \
     F(ustat, sys_ni_syscall, 0)                                                \
     F(dup2, sys_dup2, 0)                                                       \

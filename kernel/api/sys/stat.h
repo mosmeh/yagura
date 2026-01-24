@@ -38,7 +38,8 @@
 #define S_IXOTH (S_IXGRP >> 3)
 #define S_IRWXO (S_IRWXG >> 3)
 
-#define ALLPERMS (S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO)
+#define ACCESSPERMS (S_IRWXU | S_IRWXG | S_IRWXO)
+#define ALLPERMS (ACCESSPERMS | S_ISUID | S_ISGID | S_ISVTX)
 
 struct linux_stat {
     unsigned long st_dev;
