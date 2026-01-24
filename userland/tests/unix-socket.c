@@ -2,6 +2,7 @@
 #include <common/stdbool.h>
 #include <common/string.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <panic.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -84,8 +85,9 @@ int main(void) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     ASSERT_OK(sockfd);
 
-    int sockfd2 = socket(AF_UNIX, SOCK_STREAM, 0);
+    int sockfd2 = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
     ASSERT_OK(sockfd2);
+    ASSERT(fcntl(sockfd2, F_GETFL) & O_NONBLOCK);
     ASSERT_OK(bind(sockfd2, (const struct sockaddr*)&addr2,
                    sizeof(struct sockaddr_un)));
     ASSERT_OK(listen(sockfd2, 1));

@@ -9,17 +9,26 @@
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
+#define SOCK_TYPE_MASK 0xf
+
 long sys_socket(int domain, int type, int protocol) {
     (void)protocol;
-    if (domain != AF_UNIX || type != SOCK_STREAM)
+    if (domain != AF_UNIX)
         return -EAFNOSUPPORT;
+    if ((type & SOCK_TYPE_MASK) != SOCK_STREAM)
+        return -ESOCKTNOSUPPORT;
 
     struct inode* socket FREE(inode) = unix_socket_create();
     if (IS_ERR(ASSERT(socket)))
         return PTR_ERR(socket);
-    struct file* file FREE(file) = inode_open(socket, O_RDWR);
+
+    int flags = O_RDWR;
+    if (type & SOCK_NONBLOCK)
+        flags |= O_NONBLOCK;
+    struct file* file FREE(file) = inode_open(socket, flags);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
+
     return files_alloc_fd(current->files, 0, file);
 }
 
@@ -65,7 +74,8 @@ long sys_listen(int sockfd, int backlog) {
 
 long sys_accept4(int sockfd, struct sockaddr* user_addr,
                  socklen_t* user_addrlen, int flags) {
-    (void)flags;
+    if (flags & ~SOCK_NONBLOCK)
+        return -EINVAL;
 
     struct file* file FREE(file) = files_ref_file(current->files, sockfd);
     if (IS_ERR(ASSERT(file)))
@@ -95,7 +105,11 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
         return -ERESTARTSYS;
     if (IS_ERR(ASSERT(connector)))
         return PTR_ERR(connector);
-    struct file* connector_file FREE(file) = inode_open(connector, O_RDWR);
+
+    int file_flags = O_RDWR;
+    if (flags & SOCK_NONBLOCK)
+        file_flags |= O_NONBLOCK;
+    struct file* connector_file FREE(file) = inode_open(connector, file_flags);
     if (IS_ERR(ASSERT(connector_file)))
         return PTR_ERR(connector_file);
 
