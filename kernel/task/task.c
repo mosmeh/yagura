@@ -207,7 +207,7 @@ static void notify_exit(struct task* task) {
         }
     }
 
-    if (tg->ppid && tg->exit_signal)
+    if (tg->ppid && tg->exit_signal && tg->exit_signal < NSIG)
         ASSERT_OK(signal_send_to_thread_groups(0, tg->ppid, tg->exit_signal));
 }
 

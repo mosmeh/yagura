@@ -1,4 +1,3 @@
-#include "private.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
@@ -6,6 +5,8 @@
 #include <kernel/task/task.h>
 
 long sys_close(int fd) { return files_free_fd(current->files, fd); }
+
+#define SETFL_MASK O_NONBLOCK
 
 long sys_fcntl(int fd, int cmd, unsigned long arg) {
     struct files* files = current->files;
@@ -18,7 +19,7 @@ long sys_fcntl(int fd, int cmd, unsigned long arg) {
     case F_GETFL:
         return file->flags;
     case F_SETFL:
-        file->flags = arg;
+        file->flags = (file->flags & ~SETFL_MASK) | (arg & SETFL_MASK);
         return 0;
     default:
         return -EINVAL;

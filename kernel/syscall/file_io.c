@@ -6,11 +6,13 @@
 #include <kernel/task/task.h>
 
 long sys_read(int fd, void* user_buf, size_t count) {
-    if (!user_buf || !is_user_range(user_buf, count))
-        return -EFAULT;
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
+    if (count == 0)
+        return 0;
+    if (!is_user_range(user_buf, count))
+        return -EFAULT;
     int rc = file_read(file, user_buf, count);
     if (rc == -EINTR)
         return -ERESTARTSYS;
@@ -37,12 +39,16 @@ NODISCARD static ssize_t read_all(struct file* file, void* user_buffer,
 }
 
 long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
-    if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
-        return -EFAULT;
-
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
+
+    if (iovcnt < 0)
+        return -EINVAL;
+    if (iovcnt == 0)
+        return 0;
+    if (!is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
+        return -EFAULT;
 
     SCOPED_LOCK(file, file);
     size_t nread = 0;
@@ -50,6 +56,8 @@ long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
         struct iovec iov;
         if (copy_from_user(&iov, user_iov + i, sizeof(struct iovec)))
             return -EFAULT;
+        if (iov.iov_len == 0)
+            continue;
         if (!is_user_range(iov.iov_base, iov.iov_len))
             return -EFAULT;
         ssize_t n = read_all(file, iov.iov_base, iov.iov_len);
@@ -63,11 +71,13 @@ long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
 }
 
 long sys_write(int fd, const void* user_buf, size_t count) {
-    if (!user_buf || !is_user_range(user_buf, count))
-        return -EFAULT;
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
+    if (count == 0)
+        return 0;
+    if (!is_user_range(user_buf, count))
+        return -EFAULT;
     int rc = file_write(file, user_buf, count);
     if (rc == -EINTR)
         return -ERESTARTSYS;
@@ -94,12 +104,16 @@ NODISCARD static ssize_t write_all(struct file* file, const void* user_buffer,
 }
 
 long sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
-    if (!user_iov || !is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
-        return -EFAULT;
-
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
+
+    if (iovcnt < 0)
+        return -EINVAL;
+    if (iovcnt == 0)
+        return 0;
+    if (!is_user_range(user_iov, iovcnt * sizeof(struct iovec)))
+        return -EFAULT;
 
     SCOPED_LOCK(file, file);
     size_t nwritten = 0;
@@ -107,6 +121,8 @@ long sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
         struct iovec iov;
         if (copy_from_user(&iov, user_iov + i, sizeof(struct iovec)))
             return -EFAULT;
+        if (iov.iov_len == 0)
+            continue;
         if (!is_user_range(iov.iov_base, iov.iov_len))
             return -EFAULT;
         ssize_t n = write_all(file, iov.iov_base, iov.iov_len);
@@ -142,6 +158,8 @@ long sys_llseek(unsigned int fd, unsigned long offset_high,
 }
 
 long sys_truncate(const char* user_path, off_t length) {
+    if (length < 0)
+        return -EINVAL;
     char path[PATH_MAX];
     ssize_t len = copy_pathname_from_user(path, user_path);
     if (IS_ERR(len))
@@ -153,6 +171,8 @@ long sys_truncate(const char* user_path, off_t length) {
 }
 
 long sys_ftruncate(int fd, off_t length) {
+    if (length < 0)
+        return -EINVAL;
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);

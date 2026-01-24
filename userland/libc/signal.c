@@ -28,10 +28,14 @@ void __sa_restorer(void);
 
 int sigaction(int signum, const struct sigaction* act,
               struct sigaction* oldact) {
-    struct sigaction sa = *act;
-    sa.sa_flags |= SA_RESTORER;
-    sa.sa_restorer = __sa_restorer;
-    return __syscall_return(SYSCALL3(sigaction, signum, &sa, oldact));
+    struct sigaction sa;
+    if (act) {
+        sa = *act;
+        sa.sa_flags |= SA_RESTORER;
+        sa.sa_restorer = __sa_restorer;
+    }
+    return __syscall_return(
+        SYSCALL3(sigaction, signum, act ? &sa : NULL, oldact));
 }
 
 int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {

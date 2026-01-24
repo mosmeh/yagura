@@ -72,19 +72,21 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
         return PTR_ERR(file);
 
     if (user_addr) {
-        if (!user_addrlen)
-            return -EINVAL;
-
         socklen_t requested_addrlen;
         if (copy_from_user(&requested_addrlen, user_addrlen, sizeof(socklen_t)))
             return -EFAULT;
 
-        struct sockaddr_un addr_un = {.sun_family = AF_UNIX, .sun_path = {0}};
-        if (copy_to_user(user_addr, &addr_un, requested_addrlen))
+        sa_family_t family = AF_UNIX;
+        if (copy_to_user(user_addr, &family,
+                         MIN(requested_addrlen, sizeof(sa_family_t))))
             return -EFAULT;
 
-        socklen_t actual_addrlen = sizeof(struct sockaddr_un);
+        socklen_t actual_addrlen = sizeof(sa_family_t);
         if (copy_to_user(user_addrlen, &actual_addrlen, sizeof(socklen_t)))
+            return -EFAULT;
+    } else if (user_addrlen) {
+        socklen_t zero = 0;
+        if (copy_to_user(user_addrlen, &zero, sizeof(socklen_t)))
             return -EFAULT;
     }
 
