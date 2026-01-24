@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <panic.h>
 #include <stdlib.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -33,6 +34,22 @@ int main(void) {
     errno = 0;
     ASSERT_ERR(waitpid(-1, NULL, 0));
     ASSERT(errno == ECHILD);
+
+    pid = fork();
+    ASSERT_OK(pid);
+    if (pid == 0)
+        exit(55);
+    struct rusage rusage = {
+        .ru_utime = {.tv_sec = -1, .tv_usec = -1},
+        .ru_stime = {.tv_sec = -1, .tv_usec = -1},
+    };
+    ASSERT_OK(wait4(pid, &status, 0, &rusage));
+    ASSERT(WIFEXITED(status));
+    ASSERT(WEXITSTATUS(status) == 55);
+    ASSERT(rusage.ru_utime.tv_sec >= 0);
+    ASSERT(rusage.ru_utime.tv_usec >= 0);
+    ASSERT(rusage.ru_stime.tv_sec >= 0);
+    ASSERT(rusage.ru_stime.tv_usec >= 0);
 
     return EXIT_SUCCESS;
 }
