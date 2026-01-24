@@ -191,6 +191,10 @@ int chroot(const char* path) {
 }
 
 char* getcwd(char* buf, size_t size) {
+    if (size == 0) {
+        errno = EINVAL;
+        return NULL;
+    }
     int rc = SYSCALL2(getcwd, buf, size);
     if (IS_ERR(rc)) {
         errno = -rc;
@@ -201,7 +205,12 @@ char* getcwd(char* buf, size_t size) {
 
 int chdir(const char* path) { return __syscall_return(SYSCALL1(chdir, path)); }
 
-pid_t tcgetpgrp(int fd) { return ioctl(fd, TIOCGPGRP, NULL); }
+pid_t tcgetpgrp(int fd) {
+    pid_t pgrp;
+    if (ioctl(fd, TIOCGPGRP, &pgrp) < 0)
+        return -1;
+    return pgrp;
+}
 
 int tcsetpgrp(int fd, pid_t pgrp) { return ioctl(fd, TIOCSPGRP, &pgrp); }
 
@@ -267,7 +276,8 @@ long sysconf(int name) {
     case _SC_SYMLOOP_MAX:
         return SYMLOOP_MAX;
     default:
-        return -EINVAL;
+        errno = EINVAL;
+        return -1;
     }
 }
 

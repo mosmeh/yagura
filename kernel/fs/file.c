@@ -38,8 +38,6 @@ void __file_destroy(struct file* file) {
 }
 
 ssize_t file_read(struct file* file, void* user_buffer, size_t count) {
-    if (!user_buffer || !is_user_range(user_buffer, count))
-        return -EFAULT;
     SCOPED_LOCK(file, file);
     ssize_t nread = file_pread(file, user_buffer, count, file->offset);
     if (IS_OK(nread))
@@ -90,12 +88,14 @@ static ssize_t default_file_pread(struct file* file, void* user_buffer,
 
 ssize_t file_pread(struct file* file, void* user_buffer, size_t count,
                    uint64_t offset) {
-    if (!user_buffer || !is_user_range(user_buffer, count))
-        return -EFAULT;
     if (S_ISDIR(file->inode->mode))
         return -EISDIR;
     if ((file->flags & O_ACCMODE) == O_WRONLY)
         return -EBADF;
+    if (count == 0)
+        return 0;
+    if (!is_user_range(user_buffer, count))
+        return -EFAULT;
     if (offset + count < offset)
         return -EOVERFLOW;
     if (file->fops->pread)
@@ -104,8 +104,6 @@ ssize_t file_pread(struct file* file, void* user_buffer, size_t count,
 }
 
 ssize_t file_write(struct file* file, const void* user_buffer, size_t count) {
-    if (!user_buffer || !is_user_range(user_buffer, count))
-        return -EFAULT;
     SCOPED_LOCK(file, file);
     ssize_t nwritten = file_pwrite(file, user_buffer, count, file->offset);
     if (IS_OK(nwritten))
@@ -151,12 +149,14 @@ static ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
 
 ssize_t file_pwrite(struct file* file, const void* user_buffer, size_t count,
                     uint64_t offset) {
-    if (!user_buffer || !is_user_range(user_buffer, count))
-        return -EFAULT;
     if (S_ISDIR(file->inode->mode))
         return -EISDIR;
     if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EBADF;
+    if (count == 0)
+        return 0;
+    if (!is_user_range(user_buffer, count))
+        return -EFAULT;
     if (offset + count < offset)
         return -EOVERFLOW;
     if (file->fops->pwrite)

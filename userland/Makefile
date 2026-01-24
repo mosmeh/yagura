@@ -50,12 +50,15 @@ BIN_TARGET_NAMES := \
 	stat \
 	stty \
 	tests/basename \
+	tests/cwd \
 	tests/framebuffer \
 	tests/init \
 	tests/malloc \
 	tests/mmap \
+	tests/mount \
 	tests/open \
 	tests/pipe \
+	tests/random \
 	tests/read-write \
 	tests/string \
 	tests/tree \

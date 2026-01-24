@@ -1,4 +1,5 @@
 #include <common/ctype.h>
+#include <common/string.h>
 #include <common/strings.h>
 
 int strcasecmp(const char* s1, const char* s2) {
@@ -23,3 +24,5 @@ int strncasecmp(const char* s1, const char* s2, size_t n) {
     } while (--n);
     return 0;
 }
+
+int bcmp(const void* s1, const void* s2, size_t n) { return memcmp(s1, s2, n); }

@@ -1,6 +1,8 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <panic.h>
 #include <stdlib.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 int main(void) {
@@ -64,6 +66,92 @@ int main(void) {
             ASSERT(buf[i] == i);
         ASSERT(read(fd, buf, 50000 * sizeof(int)) == 0);
         ASSERT_OK(close(fd));
+    }
+    {
+        int fd = open("/tmp/test-read-write", O_RDWR);
+        ASSERT_OK(fd);
+
+        errno = 0;
+        ASSERT_ERR(read(fd, NULL, 100));
+        ASSERT(errno == EFAULT);
+
+        ASSERT_OK(read(fd, NULL, 0));
+        ASSERT_OK(read(fd, (void*)1, 0));
+
+        errno = 0;
+        ASSERT_ERR(write(fd, NULL, 100));
+        ASSERT(errno == EFAULT);
+
+        errno = 0;
+        ASSERT_ERR(write(fd, (void*)1, 100));
+        ASSERT(errno == EFAULT);
+
+        ASSERT_OK(write(fd, NULL, 0));
+        ASSERT_OK(write(fd, (void*)1, 0));
+
+        errno = 0;
+        ASSERT_ERR(readv(fd, NULL, 1));
+        ASSERT(errno == EFAULT);
+
+        errno = 0;
+        ASSERT_ERR(readv(fd, (struct iovec*)1, 1));
+        ASSERT(errno == EFAULT);
+
+        ASSERT_OK(readv(fd, NULL, 0));
+        ASSERT_OK(readv(fd, (struct iovec*)1, 0));
+
+        struct iovec iov;
+
+        iov.iov_base = NULL;
+        iov.iov_len = 100;
+        errno = 0;
+        ASSERT_ERR(readv(fd, &iov, 1));
+        ASSERT(errno == EFAULT);
+
+        iov.iov_base = (void*)1;
+        iov.iov_len = 100;
+        errno = 0;
+        ASSERT_ERR(readv(fd, &iov, 1));
+        ASSERT(errno == EFAULT);
+
+        iov.iov_base = NULL;
+        iov.iov_len = 0;
+        ASSERT_OK(readv(fd, &iov, 1));
+
+        iov.iov_base = (void*)1;
+        iov.iov_len = 0;
+        ASSERT_OK(readv(fd, &iov, 1));
+
+        errno = 0;
+        ASSERT_ERR(writev(fd, NULL, 1));
+        ASSERT(errno == EFAULT);
+
+        errno = 0;
+        ASSERT_ERR(writev(fd, (struct iovec*)1, 1));
+        ASSERT(errno == EFAULT);
+
+        ASSERT_OK(writev(fd, NULL, 0));
+        ASSERT_OK(writev(fd, (struct iovec*)1, 0));
+
+        iov.iov_base = NULL;
+        iov.iov_len = 100;
+        errno = 0;
+        ASSERT_ERR(writev(fd, &iov, 1));
+        ASSERT(errno == EFAULT);
+
+        iov.iov_base = (void*)1;
+        iov.iov_len = 100;
+        errno = 0;
+        ASSERT_ERR(writev(fd, &iov, 1));
+        ASSERT(errno == EFAULT);
+
+        iov.iov_base = NULL;
+        iov.iov_len = 0;
+        ASSERT_OK(writev(fd, &iov, 1));
+
+        iov.iov_base = (void*)1;
+        iov.iov_len = 0;
+        ASSERT_OK(writev(fd, &iov, 1));
     }
 
     return EXIT_SUCCESS;

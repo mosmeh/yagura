@@ -82,7 +82,7 @@ ssize_t arch_random_get(void* buffer, size_t count) {
             unsigned char bytes[sizeof(unsigned long)];
         } u = {.val = v};
 
-        size_t to_copy = MIN(count, sizeof(unsigned long));
+        size_t to_copy = MIN(count - n, sizeof(u.bytes));
         memcpy(dest, u.bytes, to_copy);
         dest += to_copy;
         n += to_copy;
