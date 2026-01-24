@@ -12,9 +12,10 @@
 #define SOCK_TYPE_MASK 0xf
 
 long sys_socket(int domain, int type, int protocol) {
-    (void)protocol;
     if (domain != AF_UNIX)
         return -EAFNOSUPPORT;
+    if (protocol && protocol != PF_UNIX)
+        return -EPROTONOSUPPORT;
     if ((type & SOCK_TYPE_MASK) != SOCK_STREAM)
         return -ESOCKTNOSUPPORT;
 
