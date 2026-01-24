@@ -5,6 +5,9 @@
 
 int gettimeofday(struct timeval* tv, struct timezone* tz) {
     (void)tz;
+    if (!tv)
+        return __syscall_return(0);
+
     struct linux_timeval linux_tv;
     int rc = SYSCALL2(gettimeofday, &linux_tv, NULL);
     if (IS_ERR(rc)) {
@@ -18,6 +21,9 @@ int gettimeofday(struct timeval* tv, struct timezone* tz) {
 
 int settimeofday(const struct timeval* tv, const struct timezone* tz) {
     (void)tz;
+    if (!tv)
+        return __syscall_return(0);
+
     struct linux_timeval linux_tv = {
         .tv_sec = tv->tv_sec,
         .tv_usec = tv->tv_usec,

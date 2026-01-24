@@ -6,11 +6,13 @@
 
 long sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
                       uint32_t pos_hi) {
-    if (!user_buf || !is_user_range(user_buf, count))
-        return -EFAULT;
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
+    if (count == 0)
+        return 0;
+    if (!is_user_range(user_buf, count))
+        return -EFAULT;
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
     int rc = file_pread(file, user_buf, count, pos);
     if (rc == -EINTR)
@@ -20,11 +22,13 @@ long sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
 
 long sys_ia32_pwrite64(int fd, const void* user_buf, size_t count,
                        uint32_t pos_lo, uint32_t pos_hi) {
-    if (!user_buf || !is_user_range(user_buf, count))
-        return -EFAULT;
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
+    if (count == 0)
+        return 0;
+    if (!is_user_range(user_buf, count))
+        return -EFAULT;
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
     int rc = file_pwrite(file, user_buf, count, pos);
     if (rc == -EINTR)

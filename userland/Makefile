@@ -16,6 +16,7 @@ BIN_TARGET_NAMES := \
 	echo \
 	env \
 	eyes \
+	false \
 	fib \
 	fuzz \
 	getty \
@@ -49,19 +50,26 @@ BIN_TARGET_NAMES := \
 	sleep \
 	stat \
 	stty \
+	tests/cwd \
+	tests/execve \
 	tests/framebuffer \
 	tests/libgen \
+	tests/link \
 	tests/malloc \
 	tests/mmap \
+	tests/mount \
 	tests/open \
 	tests/pipe \
+	tests/random \
 	tests/read-write \
 	tests/run \
 	tests/string \
 	tests/tree \
+	tests/uname \
 	tests/unix-socket \
 	tests/xv6-usertests \
 	touch \
+	true \
 	uname \
 	wc
 

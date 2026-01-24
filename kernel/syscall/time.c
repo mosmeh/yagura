@@ -31,6 +31,9 @@ long sys_stime32(const time32_t* user_t) {
 
 long sys_gettimeofday(struct linux_timeval* user_tv, struct timezone* user_tz) {
     (void)user_tz;
+    if (!user_tv)
+        return 0;
+
     struct timespec now;
     int rc = time_now(CLOCK_REALTIME, &now);
     if (IS_ERR(rc))
@@ -47,9 +50,14 @@ long sys_gettimeofday(struct linux_timeval* user_tv, struct timezone* user_tz) {
 long sys_settimeofday(const struct linux_timeval* user_tv,
                       const struct timezone* user_tz) {
     (void)user_tz;
+    if (!user_tv)
+        return 0;
+
     struct linux_timeval tv;
     if (copy_from_user(&tv, user_tv, sizeof(struct linux_timeval)))
         return -EFAULT;
+    if (tv.tv_usec > MICROS_PER_SEC)
+        return -EINVAL;
     struct timespec tp = {
         .tv_sec = tv.tv_sec,
         .tv_nsec = (long long)tv.tv_usec * 1000,
@@ -63,7 +71,7 @@ long sys_clock_gettime(clockid_t clockid, struct timespec* user_tp) {
     if (IS_ERR(rc))
         return rc;
     if (copy_to_user(user_tp, &tp, sizeof(struct timespec)))
-        return -EINVAL;
+        return -EFAULT;
     return 0;
 }
 
@@ -79,8 +87,10 @@ long sys_clock_getres(clockid_t clockid, struct timespec* user_res) {
     int rc = time_get_resolution(clockid, &res);
     if (IS_ERR(rc))
         return rc;
+    if (!user_res)
+        return 0;
     if (copy_to_user(user_res, &res, sizeof(struct timespec)))
-        return -EINVAL;
+        return -EFAULT;
     return 0;
 }
 
@@ -94,7 +104,7 @@ long sys_clock_gettime32(clockid_t clockid, struct timespec32* user_tp) {
         .tv_nsec = tp.tv_nsec,
     };
     if (copy_to_user(user_tp, &tp32, sizeof(struct timespec32)))
-        return -EINVAL;
+        return -EFAULT;
     return 0;
 }
 
@@ -114,12 +124,14 @@ long sys_clock_getres_time32(clockid_t clockid, struct timespec32* user_res) {
     int rc = time_get_resolution(clockid, &res);
     if (IS_ERR(rc))
         return rc;
+    if (!user_res)
+        return 0;
     struct timespec32 res32 = {
         .tv_sec = res.tv_sec,
         .tv_nsec = res.tv_nsec,
     };
     if (copy_to_user(user_res, &res32, sizeof(struct timespec32)))
-        return -EINVAL;
+        return -EFAULT;
     return 0;
 }
 
@@ -143,6 +155,10 @@ static long clock_nanosleep(clockid_t clockid, int flags,
     int rc = time_now(clockid, &deadline);
     if (IS_ERR(rc))
         return rc;
+
+    if (request->tv_sec < 0 || request->tv_nsec < 0 ||
+        request->tv_nsec >= NANOS_PER_SEC)
+        return -EINVAL;
 
     switch (flags) {
     case 0:

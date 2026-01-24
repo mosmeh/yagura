@@ -233,8 +233,10 @@ static long unlink(const struct path* base, const char* user_pathname) {
     struct path* path FREE(path) = vfs_resolve_path_at(base, pathname, 0);
     if (IS_ERR(ASSERT(path)))
         return PTR_ERR(path);
-    if (!path->parent || S_ISDIR(path->inode->mode))
+    if (!path->parent)
         return -EPERM;
+    if (S_ISDIR(path->inode->mode))
+        return -EISDIR;
 
     return inode_unlink(path->parent->inode, path->basename);
 }
@@ -365,6 +367,8 @@ NODISCARD static long symlink(const struct path* base, const char* user_target,
     if (IS_ERR(len))
         return len;
     size_t target_len = strlen(target);
+    if (target_len == 0)
+        return -ENOENT;
     if (target_len > SYMLINK_MAX)
         return -ENAMETOOLONG;
 
@@ -423,12 +427,16 @@ static long readlink(const struct path* base, const char* user_pathname,
 }
 
 long sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
+    if (bufsiz == 0)
+        return -EINVAL;
     SCOPED_LOCK(fs, current->fs);
     return readlink(current->fs->cwd, user_pathname, user_buf, bufsiz);
 }
 
 long sys_readlinkat(int dirfd, const char* user_pathname, char* user_buf,
                     size_t bufsiz) {
+    if (bufsiz == 0)
+        return -EINVAL;
     struct path* base FREE(path) = path_from_dirfd(dirfd);
     if (IS_ERR(ASSERT(base)))
         return PTR_ERR(base);

@@ -30,7 +30,8 @@ int utsname_set_hostname(const char* hostname, size_t len) {
     if (len >= sizeof(utsname.nodename))
         return -EINVAL;
     SCOPED_LOCK(mutex, &utsname_lock);
-    strlcpy(utsname.nodename, hostname, len + 1);
+    memcpy(utsname.nodename, hostname, len);
+    memset(utsname.nodename + len, 0, sizeof(utsname.nodename) - len);
     return 0;
 }
 
@@ -38,7 +39,8 @@ int utsname_set_domainname(const char* domainname, size_t len) {
     if (len >= sizeof(utsname.domainname))
         return -EINVAL;
     SCOPED_LOCK(mutex, &utsname_lock);
-    strlcpy(utsname.domainname, domainname, len + 1);
+    memcpy(utsname.domainname, domainname, len);
+    memset(utsname.domainname + len, 0, sizeof(utsname.domainname) - len);
     return 0;
 }
 

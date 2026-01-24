@@ -41,7 +41,7 @@ long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
         return -EINVAL;
 
     char path[UNIX_PATH_MAX + 1];
-    strncpy(path, addr_un.sun_path, sizeof(path));
+    strlcpy(path, addr_un.sun_path, sizeof(path));
 
     struct file* addr_file FREE(file) =
         vfs_open(path, O_CREAT | O_EXCL, S_IFSOCK);
@@ -72,19 +72,21 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
         return PTR_ERR(file);
 
     if (user_addr) {
-        if (!user_addrlen)
-            return -EINVAL;
-
         socklen_t requested_addrlen;
         if (copy_from_user(&requested_addrlen, user_addrlen, sizeof(socklen_t)))
             return -EFAULT;
 
-        struct sockaddr_un addr_un = {.sun_family = AF_UNIX, .sun_path = {0}};
-        if (copy_to_user(user_addr, &addr_un, requested_addrlen))
+        sa_family_t family = AF_UNIX;
+        if (copy_to_user(user_addr, &family,
+                         MIN(requested_addrlen, sizeof(sa_family_t))))
             return -EFAULT;
 
-        socklen_t actual_addrlen = sizeof(struct sockaddr_un);
+        socklen_t actual_addrlen = sizeof(sa_family_t);
         if (copy_to_user(user_addrlen, &actual_addrlen, sizeof(socklen_t)))
+            return -EFAULT;
+    } else if (user_addrlen) {
+        socklen_t zero = 0;
+        if (copy_to_user(user_addrlen, &zero, sizeof(socklen_t)))
             return -EFAULT;
     }
 
@@ -117,7 +119,7 @@ long sys_connect(int sockfd, const struct sockaddr* user_addr,
         return -EINVAL;
 
     char path[UNIX_PATH_MAX + 1];
-    strncpy(path, addr_un.sun_path, sizeof(path));
+    strlcpy(path, addr_un.sun_path, sizeof(path));
 
     struct file* addr_file FREE(file) = vfs_open(path, 0, 0);
     if (IS_ERR(ASSERT(addr_file)))

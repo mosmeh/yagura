@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <fcntl.h>
 #include <panic.h>
 #include <stdlib.h>
@@ -70,6 +71,10 @@ static _Noreturn void reader2(void) {
 }
 
 static void test_shared(void) {
+    errno = 0;
+    ASSERT(mmap(NULL, 4096, PROT_READ, MAP_SHARED, -1, 0) == MAP_FAILED);
+    ASSERT(errno == EBADF);
+
     size_t size = 5000;
     shared_addr = mmap(NULL, size, PROT_READ | PROT_WRITE,
 
@@ -132,7 +137,28 @@ static void test_shared(void) {
 }
 
 int main(void) {
+    errno = 0;
+    ASSERT(mmap(NULL, 0, PROT_READ, MAP_ANONYMOUS, -1, 0) == MAP_FAILED);
+    ASSERT(errno == EINVAL);
+
+    errno = 0;
+    ASSERT(mmap(NULL, 4096, PROT_READ, MAP_ANONYMOUS, -1, 0) == MAP_FAILED);
+    ASSERT(errno == EINVAL);
+
+    errno = 0;
+    ASSERT(mmap(NULL, 4096, PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE | MAP_SHARED,
+                -1, 0) == MAP_FAILED);
+    ASSERT(errno == EINVAL);
+
+    int fd = open("/tmp/test-mmap", O_CREAT | O_RDWR, 0644);
+    ASSERT_OK(fd);
+    errno = 0;
+    ASSERT(mmap(NULL, 4096, PROT_READ, 0, fd, 0) == MAP_FAILED);
+    ASSERT(errno == EINVAL);
+    ASSERT_OK(close(fd));
+
     test_private();
     test_shared();
+
     return EXIT_SUCCESS;
 }

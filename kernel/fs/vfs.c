@@ -179,6 +179,9 @@ static struct path* follow_symlink(const struct path* parent,
 static struct path* resolve_path_at(const struct path* base,
                                     const char* pathname, int flags,
                                     unsigned symlink_depth) {
+    if (pathname[0] == 0)
+        return ERR_PTR(-ENOENT);
+
     struct path* path FREE(path) = NULL;
     if (is_absolute_path(pathname)) {
         struct fs* fs = current->fs;

@@ -45,7 +45,12 @@ static unsigned prot_to_vm_flags(int prot) {
 
 long sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
                     unsigned long pgoff) {
-    if (length == 0 || !((flags & MAP_PRIVATE) ^ (flags & MAP_SHARED)))
+    if (length == 0)
+        return -EINVAL;
+    if (!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
+        return -EINVAL;
+    if ((flags & MAP_ANONYMOUS) && (flags & MAP_PRIVATE) &&
+        (flags & MAP_SHARED))
         return -EINVAL;
 
     if (flags & MAP_FIXED) {

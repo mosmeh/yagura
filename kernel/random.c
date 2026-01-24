@@ -43,7 +43,7 @@ ssize_t random_get(void* buffer, size_t count) {
         } u = {
             .val = xoshiro128plusplus_next(s),
         };
-        size_t to_copy = MIN(count, sizeof(uint32_t));
+        size_t to_copy = MIN(count - n, sizeof(u.bytes));
         memcpy(dest, u.bytes, to_copy);
         dest += to_copy;
         n += to_copy;
@@ -52,6 +52,8 @@ ssize_t random_get(void* buffer, size_t count) {
 }
 
 ssize_t random_get_user(void* user_buffer, size_t count) {
+    if (count == 0)
+        return 0;
     if (!is_user_range(user_buffer, count))
         return -EFAULT;
 

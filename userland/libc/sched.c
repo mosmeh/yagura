@@ -6,7 +6,7 @@
 
 int clone(int (*fn)(void*), void* stack, int flags, void* arg, ...) {
     if (!fn || !stack)
-        return -EINVAL;
+        return __syscall_return(-EINVAL);
 
     pid_t* parent_tid = NULL;
     void* tls = NULL;

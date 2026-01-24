@@ -188,37 +188,40 @@ long sys_newuname(struct utsname* user_buf) {
 long sys_sethostname(const char* user_name, int len) {
     if (len < 0 || UTSNAME_LENGTH <= len)
         return -EINVAL;
-    char name[UTSNAME_LENGTH];
-    ssize_t rc = strncpy_from_user(name, user_name, len);
-    if (IS_ERR(rc))
-        return rc;
+    char name[UTSNAME_LENGTH] = {0};
+    if (len > 0) {
+        ssize_t rc = strncpy_from_user(name, user_name, len);
+        if (IS_ERR(rc))
+            return rc;
+    }
     return utsname_set_hostname(name, len);
 }
 
 long sys_setdomainname(const char* user_name, int len) {
     if (len < 0 || UTSNAME_LENGTH <= len)
         return -EINVAL;
-    char name[UTSNAME_LENGTH];
-    ssize_t rc = strncpy_from_user(name, user_name, len);
-    if (IS_ERR(rc))
-        return rc;
+    char name[UTSNAME_LENGTH] = {0};
+    if (len > 0) {
+        ssize_t rc = strncpy_from_user(name, user_name, len);
+        if (IS_ERR(rc))
+            return rc;
+    }
     return utsname_set_domainname(name, len);
 }
 
 long sys_getcpu(unsigned int* user_cpu, unsigned int* user_node,
                 struct getcpu_cache* user_tcache) {
     (void)user_tcache;
+    int rc = 0;
     if (user_cpu) {
         unsigned id = arch_cpu_get_id();
-        if (copy_to_user(user_cpu, &id, sizeof(unsigned)))
-            return -EFAULT;
+        rc |= copy_to_user(user_cpu, &id, sizeof(unsigned));
     }
     if (user_node) {
         unsigned node = 0;
-        if (copy_to_user(user_node, &node, sizeof(unsigned)))
-            return -EFAULT;
+        rc |= copy_to_user(user_node, &node, sizeof(unsigned));
     }
-    return 0;
+    return rc ? -EFAULT : 0;
 }
 
 long sys_getrandom(void* user_buf, size_t buflen, unsigned int flags) {

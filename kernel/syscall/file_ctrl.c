@@ -1,4 +1,3 @@
-#include "private.h"
 #include <kernel/api/fcntl.h>
 #include <kernel/fs/file.h>
 #include <kernel/memory/safe_string.h>
@@ -6,6 +5,8 @@
 #include <kernel/task/task.h>
 
 long sys_close(int fd) { return files_free_fd(current->files, fd); }
+
+#define SETFL_MASK O_NONBLOCK
 
 long sys_fcntl(int fd, int cmd, unsigned long arg) {
     struct files* files = current->files;
@@ -18,7 +19,7 @@ long sys_fcntl(int fd, int cmd, unsigned long arg) {
     case F_GETFL:
         return file->flags;
     case F_SETFL:
-        file->flags = arg;
+        file->flags = (file->flags & ~SETFL_MASK) | (arg & SETFL_MASK);
         return 0;
     default:
         return -EINVAL;
@@ -51,14 +52,14 @@ long sys_dup2(int oldfd, int newfd) {
 
 long sys_dup3(int oldfd, int newfd, int flags) {
     (void)flags;
+    if (oldfd == newfd)
+        return -EINVAL;
     if (newfd < 0)
         return -EBADF;
     struct files* files = current->files;
     struct file* oldfd_file FREE(file) = files_ref_file(files, oldfd);
     if (IS_ERR(ASSERT(oldfd_file)))
         return PTR_ERR(oldfd_file);
-    if (oldfd == newfd)
-        return -EINVAL;
     return files_alloc_fd(files, newfd, oldfd_file);
 }
 
@@ -77,6 +78,7 @@ long sys_pipe(int user_pipefd[2]) { return sys_pipe2(user_pipefd, 0); }
 long sys_pipe2(int user_pipefd[2], int flags) {
     if (flags & O_ACCMODE)
         return -EINVAL;
+    flags &= ~O_KERNEL_INTERNAL_MASK;
 
     struct inode* pipe FREE(inode) = pipe_create();
     if (IS_ERR(ASSERT(pipe)))

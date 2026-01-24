@@ -1,5 +1,6 @@
 #include <common/macros.h>
 #include <common/stdbool.h>
+#include <common/string.h>
 #include <errno.h>
 #include <panic.h>
 #include <stdlib.h>
@@ -30,10 +31,11 @@ static size_t write_all(int fd, const void* buf, size_t count) {
     return total;
 }
 
+static struct sockaddr_un addr = {AF_UNIX, ""};
+
 static _Noreturn void receiver(bool shut_rd) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     ASSERT_OK(sockfd);
-    struct sockaddr_un addr = {AF_UNIX, "/tmp/test-socket"};
     ASSERT_OK(connect(sockfd, (const struct sockaddr*)&addr,
                       sizeof(struct sockaddr_un)));
 
@@ -65,10 +67,17 @@ static _Noreturn void receiver(bool shut_rd) {
 }
 
 int main(void) {
-    unlink("/tmp/test-socket");
+    const char* prefix = "/tmp/test-socket";
+    char path[UNIX_PATH_MAX + 1];
+    memset(path, 'x', sizeof(path));
+    memcpy(path, prefix, strlen(prefix));
+    path[UNIX_PATH_MAX] = '\0';
+    ASSERT(strlen(path) == UNIX_PATH_MAX);
+    memcpy(addr.sun_path, path, UNIX_PATH_MAX);
+
+    unlink(path);
     unlink("/tmp/test-socket2");
     unlink("/tmp/test-socket3");
-    struct sockaddr_un addr = {AF_UNIX, "/tmp/test-socket"};
     struct sockaddr_un addr2 = {AF_UNIX, "/tmp/test-socket2"};
     struct sockaddr_un addr3 = {AF_UNIX, "/tmp/test-socket3"};
 

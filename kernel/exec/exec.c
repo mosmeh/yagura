@@ -367,8 +367,9 @@ fail:
 int execve_user(const char* pathname, const char* const* user_argv,
                 const char* const* user_envp) {
     ASSERT_PTR(pathname);
-    if (!user_argv || !user_envp || !is_user_address(user_argv) ||
-        !is_user_address(user_envp))
+    if (user_argv && !is_user_address(user_argv))
+        return -EFAULT;
+    if (user_envp && !is_user_address(user_envp))
         return -EFAULT;
 
     struct loader loader;
@@ -381,27 +382,36 @@ int execve_user(const char* pathname, const char* const* user_argv,
         goto fail;
     loader.execfn = (void*)loader.stack_ptr;
 
-    loader.envc = count_strings_user(user_envp);
-    if (IS_ERR(loader.envc)) {
-        rc = loader.envc;
-        goto fail;
-    }
     loader.env_end = loader.stack_ptr;
-    rc = loader_push_strings_from_user(&loader, user_envp, loader.envc);
-    if (IS_ERR(rc))
-        goto fail;
+    if (user_envp) {
+        loader.envc = count_strings_user(user_envp);
+        if (IS_ERR(loader.envc)) {
+            rc = loader.envc;
+            goto fail;
+        }
+        rc = loader_push_strings_from_user(&loader, user_envp, loader.envc);
+        if (IS_ERR(rc))
+            goto fail;
+    } else {
+        loader.envc = 0;
+    }
     loader.env_start = loader.stack_ptr;
 
-    loader.argc = count_strings_user(user_argv);
-    if (IS_ERR(loader.argc)) {
-        rc = loader.argc;
-        goto fail;
-    }
     loader.arg_end = loader.stack_ptr;
+    if (user_argv) {
+        loader.argc = count_strings_user(user_argv);
+        if (IS_ERR(loader.argc)) {
+            rc = loader.argc;
+            goto fail;
+        }
+    } else {
+        loader.argc = 0;
+    }
     if (loader.argc > 0) {
         rc = loader_push_strings_from_user(&loader, user_argv, loader.argc);
     } else {
         // Linux provides an empty string as argv[0] if argv is empty
+        loader.argc = 1;
         static const char* const empty_argv[] = {"", NULL};
         rc = loader_push_strings_from_kernel(&loader, empty_argv, 1);
     }
