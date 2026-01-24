@@ -20,7 +20,7 @@ int main(int argc, char* const argv[]) {
         usage();
 
     char type = type_str[0];
-    mode_t mode;
+    mode_t mode = 0644;
     dev_t dev = 0;
 
     switch (type) {
@@ -31,7 +31,7 @@ int main(int argc, char* const argv[]) {
             usage();
         if (!str_is_uint(argv[3]) || !str_is_uint(argv[4]))
             usage();
-        mode = type == 'b' ? S_IFBLK : S_IFCHR;
+        mode |= type == 'b' ? S_IFBLK : S_IFCHR;
         int major = atoi(argv[3]);
         int minor = atoi(argv[4]);
         dev = makedev(major, minor);
@@ -40,7 +40,7 @@ int main(int argc, char* const argv[]) {
     case 'p':
         if (argc != 3)
             usage();
-        mode = S_IFIFO;
+        mode |= S_IFIFO;
         break;
     default:
         usage();
