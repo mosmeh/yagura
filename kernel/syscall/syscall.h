@@ -102,6 +102,7 @@ long sys_ioctl(int fd, unsigned cmd, unsigned long arg);
 long sys_fcntl(int fd, int cmd, unsigned long arg);
 long sys_setpgid(pid_t pid, pid_t pgid);
 long sys_olduname(struct linux_oldold_utsname* buf);
+long sys_umask(mode_t mask);
 long sys_chroot(const char* path);
 long sys_dup2(int oldfd, int newfd);
 long sys_getppid(void);
