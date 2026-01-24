@@ -53,7 +53,7 @@ char* echoargv[] = {"echo", "ALL", "TESTS", "PASSED", 0};
 void iputtest(void) {
     printf("iput test\n");
 
-    ASSERT_OK(mkdir("iputdir", 0));
+    ASSERT_OK(mkdir("iputdir", 0755));
     ASSERT_OK(chdir("iputdir"));
     ASSERT_OK(rmdir("../iputdir"));
     ASSERT_OK(chdir("/"));
@@ -69,7 +69,7 @@ void exitiputtest(void) {
     pid = fork();
     ASSERT_OK(pid);
     if (pid == 0) {
-        ASSERT_OK(mkdir("iputdir", 0));
+        ASSERT_OK(mkdir("iputdir", 0755));
         ASSERT_OK(chdir("iputdir"));
         ASSERT_OK(rmdir("../iputdir"));
         exit(0);
@@ -93,7 +93,7 @@ void openiputtest(void) {
     int pid;
 
     printf("openiput test\n");
-    ASSERT_OK(mkdir("oidir", 0));
+    ASSERT_OK(mkdir("oidir", 0755));
     pid = fork();
     ASSERT_OK(pid);
     if (pid == 0) {
@@ -125,7 +125,7 @@ void writetest(void) {
     int i;
 
     printf("small file test\n");
-    fd = open("small", O_CREAT | O_RDWR);
+    fd = open("small", O_CREAT | O_RDWR, 0644);
     ASSERT_OK(fd);
     for (i = 0; i < 100; i++) {
         ASSERT(write(fd, "aaaaaaaaaa", 10) == 10);
@@ -150,7 +150,7 @@ void writetest1(void) {
 
     printf("big files test\n");
 
-    fd = open("big", O_CREAT | O_RDWR);
+    fd = open("big", O_CREAT | O_RDWR, 0644);
     ASSERT_OK(fd);
 
     for (i = 0; i < MAXFILE; i++) {
@@ -189,7 +189,7 @@ void createtest(void) {
     name[2] = '\0';
     for (i = 0; i < 52; i++) {
         name[1] = '0' + i;
-        fd = open(name, O_CREAT | O_RDWR);
+        fd = open(name, O_CREAT | O_RDWR, 0644);
         close(fd);
     }
     name[0] = 'a';
@@ -204,7 +204,7 @@ void createtest(void) {
 void dirtest(void) {
     printf("mkdir test\n");
 
-    ASSERT_OK(mkdir("dir0", 0));
+    ASSERT_OK(mkdir("dir0", 0755));
 
     ASSERT_OK(chdir("dir0"));
 
@@ -380,7 +380,7 @@ void sharedfd(void) {
     printf("sharedfd test\n");
 
     unlink("sharedfd");
-    fd = open("sharedfd", O_CREAT | O_RDWR);
+    fd = open("sharedfd", O_CREAT | O_RDWR, 0644);
     ASSERT_OK(fd);
     pid = fork();
     memset(buf, pid == 0 ? 'c' : 'p', sizeof(buf));
@@ -430,7 +430,7 @@ void fourfiles(void) {
         ASSERT_OK(pid);
 
         if (pid == 0) {
-            fd = open(fname, O_CREAT | O_RDWR);
+            fd = open(fname, O_CREAT | O_RDWR, 0644);
             ASSERT_OK(fd);
 
             memset(buf, '0' + pi, 512);
@@ -480,7 +480,7 @@ void createdelete(void) {
             name[2] = '\0';
             for (i = 0; i < N; i++) {
                 name[1] = '0' + i;
-                fd = open(name, O_CREAT | O_RDWR);
+                fd = open(name, O_CREAT | O_RDWR, 0644);
                 ASSERT_OK(fd);
                 close(fd);
                 if (i > 0 && (i % 2) == 0) {
@@ -527,7 +527,7 @@ void unlinkread(void) {
     int fd1;
 
     printf("unlinkread test\n");
-    fd = open("unlinkread", O_CREAT | O_RDWR);
+    fd = open("unlinkread", O_CREAT | O_RDWR, 0644);
     ASSERT_OK(fd);
     write(fd, "hello", 5);
     close(fd);
@@ -536,7 +536,7 @@ void unlinkread(void) {
     ASSERT_OK(fd);
     ASSERT_OK(unlink("unlinkread"));
 
-    fd1 = open("unlinkread", O_CREAT | O_RDWR);
+    fd1 = open("unlinkread", O_CREAT | O_RDWR, 0644);
     write(fd1, "yyy", 3);
     close(fd1);
 
@@ -556,7 +556,7 @@ void linktest(void) {
     unlink("lf1");
     unlink("lf2");
 
-    fd = open("lf1", O_CREAT | O_RDWR);
+    fd = open("lf1", O_CREAT | O_RDWR, 0644);
     ASSERT_OK(fd);
     ASSERT(write(fd, "hello", 5) == 5);
     close(fd);
@@ -600,7 +600,7 @@ void concreate(void) {
         if ((pid && (i % 3) == 1) || (pid == 0 && (i % 5) == 1)) {
             link("C0", file);
         } else {
-            fd = open(file, O_CREAT | O_RDWR);
+            fd = open(file, O_CREAT | O_RDWR, 0644);
             ASSERT_OK(fd);
             close(fd);
         }
@@ -668,7 +668,7 @@ void linkunlink(void) {
     for (i = 0; i < 100; i++) {
         x = x * 1103515245 + 12345;
         if ((x % 3) == 0) {
-            close(open("x", O_RDWR | O_CREAT));
+            close(open("x", O_RDWR | O_CREAT, 0644));
         } else if ((x % 3) == 1) {
             link("/bin/cat", "x");
         } else {
@@ -693,7 +693,7 @@ void bigdir(void) {
     printf("bigdir test\n");
     unlink("bd");
 
-    fd = open("bd", O_CREAT);
+    fd = open("bd", O_CREAT, 0644);
     ASSERT_OK(fd);
     close(fd);
 
@@ -724,18 +724,18 @@ void subdir(void) {
     printf("subdir test\n");
 
     unlink("ff");
-    ASSERT_OK(mkdir("dd", 0));
+    ASSERT_OK(mkdir("dd", 0755));
 
-    fd = open("dd/ff", O_CREAT | O_RDWR);
+    fd = open("dd/ff", O_CREAT | O_RDWR, 0644);
     ASSERT_OK(fd);
     write(fd, "ff", 2);
     close(fd);
 
     ASSERT_ERR(unlink("dd"));
 
-    ASSERT_OK(mkdir("/dd/dd", 0));
+    ASSERT_OK(mkdir("/dd/dd", 0755));
 
-    fd = open("dd/dd/ff", O_CREAT | O_RDWR);
+    fd = open("dd/dd/ff", O_CREAT | O_RDWR, 0644);
     ASSERT_OK(fd);
     write(fd, "FF", 2);
     close(fd);
@@ -763,17 +763,17 @@ void subdir(void) {
 
     ASSERT_ERR(open("dd/dd/ff", O_RDONLY));
 
-    ASSERT_ERR(open("dd/ff/ff", O_CREAT | O_RDWR));
-    ASSERT_ERR(open("dd/xx/ff", O_CREAT | O_RDWR));
-    ASSERT_ERR(open("dd", O_CREAT | O_EXCL));
+    ASSERT_ERR(open("dd/ff/ff", O_CREAT | O_RDWR, 0644));
+    ASSERT_ERR(open("dd/xx/ff", O_CREAT | O_RDWR, 0644));
+    ASSERT_ERR(open("dd", O_CREAT | O_EXCL, 0644));
     ASSERT_ERR(open("dd", O_RDWR));
     ASSERT_ERR(open("dd", O_WRONLY));
     ASSERT_ERR(link("dd/ff/ff", "dd/dd/xx"));
     ASSERT_ERR(link("dd/xx/ff", "dd/dd/xx"));
     ASSERT_ERR(link("dd/ff", "dd/dd/ffff"));
-    ASSERT_ERR(mkdir("dd/ff/ff", 0));
-    ASSERT_ERR(mkdir("dd/xx/ff", 0));
-    ASSERT_ERR(mkdir("dd/dd/ffff", 0));
+    ASSERT_ERR(mkdir("dd/ff/ff", 0755));
+    ASSERT_ERR(mkdir("dd/xx/ff", 0755));
+    ASSERT_ERR(mkdir("dd/dd/ffff", 0755));
     ASSERT_ERR(unlink("dd/xx/ff"));
     ASSERT_ERR(unlink("dd/ff/ff"));
     ASSERT_ERR(chdir("dd/ff"));
@@ -797,7 +797,7 @@ void bigwrite(void) {
 
     unlink("bigwrite");
     for (sz = 499; sz < 12 * 512; sz += 471) {
-        fd = open("bigwrite", O_CREAT | O_RDWR);
+        fd = open("bigwrite", O_CREAT | O_RDWR, 0644);
         ASSERT_OK(fd);
         int i;
         for (i = 0; i < 2; i++) {
@@ -820,7 +820,7 @@ void bigfile(void) {
     printf("bigfile test\n");
 
     unlink("bigfile");
-    fd = open("bigfile", O_CREAT | O_RDWR);
+    fd = open("bigfile", O_CREAT | O_RDWR, 0644);
     ASSERT_OK(fd);
     for (i = 0; i < 20; i++) {
         memset(buf, i, 600);
@@ -853,24 +853,24 @@ void fourteen(void) {
     // DIRSIZ is 14.
     printf("fourteen test\n");
 
-    ASSERT_OK(mkdir("12345678901234", 0));
-    ASSERT_OK(mkdir("12345678901234/123456789012345", 0));
-    fd = open("12345678901234/123456789012345/123456789012345", O_CREAT);
+    ASSERT_OK(mkdir("12345678901234", 0755));
+    ASSERT_OK(mkdir("12345678901234/123456789012345", 0755));
+    fd = open("12345678901234/123456789012345/123456789012345", O_CREAT, 0644);
     ASSERT_OK(fd);
     close(fd);
     fd = open("12345678901234/123456789012345/123456789012345", O_RDONLY);
     ASSERT_OK(fd);
     close(fd);
 
-    ASSERT_ERR(mkdir("12345678901234/123456789012345", 0));
-    ASSERT_ERR(mkdir("123456789012345/12345678901234", 0));
+    ASSERT_ERR(mkdir("12345678901234/123456789012345", 0755));
+    ASSERT_ERR(mkdir("123456789012345/12345678901234", 0755));
 
     printf("fourteen ok\n");
 }
 
 void rmdot(void) {
     printf("rmdot test\n");
-    ASSERT_OK(mkdir("dots", 0));
+    ASSERT_OK(mkdir("dots", 0755));
     ASSERT_OK(chdir("dots"));
     // TODO: ASSERT_ERR(rmdir("."));
     // TODO: ASSERT_ERR(rmdir(".."));
@@ -886,15 +886,15 @@ void dirfile(void) {
 
     printf("dir vs file\n");
 
-    fd = open("dirfile", O_CREAT);
+    fd = open("dirfile", O_CREAT, 0644);
     ASSERT_OK(fd);
     close(fd);
     ASSERT_ERR(chdir("dirfile"));
     fd = open("dirfile/xx", O_RDONLY);
     ASSERT_ERR(fd);
-    fd = open("dirfile/xx", O_CREAT);
+    fd = open("dirfile/xx", O_CREAT, 0644);
     ASSERT_ERR(fd);
-    ASSERT_ERR(mkdir("dirfile/xx", 0));
+    ASSERT_ERR(mkdir("dirfile/xx", 0755));
     ASSERT_ERR(unlink("dirfile/xx"));
     ASSERT_ERR(link("README", "dirfile/xx"));
     ASSERT_OK(unlink("dirfile"));
@@ -917,15 +917,15 @@ void iref(void) {
 
     // the 50 is NINODE
     for (i = 0; i < 50 + 1; i++) {
-        ASSERT_OK(mkdir("irefd", 0));
+        ASSERT_OK(mkdir("irefd", 0755));
         ASSERT_OK(chdir("irefd"));
 
-        mkdir("", 0);
+        mkdir("", 0755);
         link("README", "");
-        fd = open("", O_CREAT);
+        fd = open("", O_CREAT, 0644);
         if (fd >= 0)
             close(fd);
-        fd = open("xx", O_CREAT);
+        fd = open("xx", O_CREAT, 0644);
         if (fd >= 0)
             close(fd);
         unlink("xx");
@@ -993,7 +993,7 @@ void bigargtest(void) {
         printf("bigarg test\n");
         exec("/bin/echo", args);
         printf("bigarg test ok\n");
-        fd = open("bigarg-ok", O_CREAT);
+        fd = open("bigarg-ok", O_CREAT, 0644);
         close(fd);
         exit(0);
     }
@@ -1020,7 +1020,7 @@ void fsfull(void) {
         name[4] = '0' + (nfiles % 10);
         name[5] = '\0';
         printf("writing %s\n", name);
-        int fd = open(name, O_CREAT | O_RDWR);
+        int fd = open(name, O_CREAT | O_RDWR, 0644);
         ASSERT_OK(fd);
         int total = 0;
         while (1) {
@@ -1059,7 +1059,7 @@ int main(void) {
         printf("already ran user tests -- please reboot\n");
         exit(0);
     }
-    close(open("usertests.ran", O_CREAT));
+    close(open("usertests.ran", O_CREAT, 0644));
 
     createdelete();
     linkunlink();

@@ -10,7 +10,7 @@ int main(int argc, char* const argv[]) {
     }
 
     for (int i = 1; i < argc; ++i) {
-        int fd = open(argv[i], O_CREAT, 0);
+        int fd = open(argv[i], O_CREAT, 0644);
         if (fd < 0) {
             perror("open");
             return EXIT_FAILURE;

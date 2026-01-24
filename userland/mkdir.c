@@ -9,7 +9,7 @@ int main(int argc, char* const argv[]) {
         return EXIT_FAILURE;
     }
     for (int i = 1; i < argc; ++i) {
-        if (mkdir(argv[i], 0) < 0) {
+        if (mkdir(argv[i], 0755) < 0) {
             perror("mkdir");
             return EXIT_FAILURE;
         }

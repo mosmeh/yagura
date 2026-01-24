@@ -16,7 +16,7 @@ int main(int argc, char* argv[]) {
         perror("open");
         return EXIT_FAILURE;
     }
-    int dest_fd = open(argv[2], O_CREAT | O_TRUNC | O_WRONLY);
+    int dest_fd = open(argv[2], O_CREAT | O_TRUNC | O_WRONLY, 0644);
     if (dest_fd < 0) {
         perror("open");
         return EXIT_FAILURE;
