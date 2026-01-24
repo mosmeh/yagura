@@ -839,7 +839,7 @@ static int run_juxtaposition(const struct juxtaposition_node* node,
 
 static int run_pipe(const struct pipe_node* node, struct run_context ctx) {
     int pipefd[2];
-    if (pipe(pipefd) < 0) {
+    if (pipe2(pipefd, O_CLOEXEC) < 0) {
         perror("pipe");
         return RUN_ERROR;
     }
@@ -887,6 +887,7 @@ static int run_pipe(const struct pipe_node* node, struct run_context ctx) {
 static int run_redirect(const struct redirect_node* node,
                         struct run_context ctx) {
     int flags = node->is_write ? (O_WRONLY | O_CREAT | O_TRUNC) : O_RDONLY;
+    flags |= O_CLOEXEC;
     int redirected_fd = node->fd;
     if (redirected_fd < 0)
         redirected_fd = node->is_write ? STDOUT_FILENO : STDIN_FILENO;
@@ -982,7 +983,7 @@ static int parse_and_run(char* line) {
 }
 
 static int script_main(const char* path) {
-    int fd = open(path, O_RDONLY);
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
     if (fd < 0) {
         perror("open");
         return EXIT_FAILURE;
