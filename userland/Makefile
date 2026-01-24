@@ -16,6 +16,7 @@ BIN_TARGET_NAMES := \
 	echo \
 	env \
 	eyes \
+	false \
 	fib \
 	fuzz \
 	getty \
@@ -53,6 +54,7 @@ BIN_TARGET_NAMES := \
 	tests/chmod \
 	tests/chown \
 	tests/cwd \
+	tests/execve \
 	tests/framebuffer \
 	tests/init \
 	tests/malloc \
@@ -69,6 +71,7 @@ BIN_TARGET_NAMES := \
 	tests/wait \
 	tests/xv6-usertests \
 	touch \
+	true \
 	uname \
 	wc
 

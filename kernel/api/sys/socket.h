@@ -10,8 +10,14 @@
 #define PF_UNIX AF_UNIX
 #define PF_LOCAL AF_LOCAL
 
-#define SOCK_STREAM 1 // Sequenced, reliable, connection-based byte streams.
-#define SOCK_NONBLOCK 00004000 // Atomically mark descriptor(s) as non-blocking.
+// Sequenced, reliable, connection-based byte streams.
+#define SOCK_STREAM 1
+
+// Atomically mark descriptor(s) as non-blocking.
+#define SOCK_NONBLOCK 00004000
+
+// Atomically set close-on-exec flag for the new descriptor(s)
+#define SOCK_CLOEXEC 02000000
 
 enum { SHUT_RD, SHUT_WR, SHUT_RDWR };
 

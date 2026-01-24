@@ -1,5 +1,6 @@
 #include "private.h"
 #include <common/string.h>
+#include <kernel/api/fcntl.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
 #include <kernel/task/task.h>
@@ -94,6 +95,8 @@ struct files* files_clone(struct files* files) {
         if (files->entries[i])
             file_ref(files->entries[i]);
     }
+    memcpy(new_files->closed_on_exec, files->closed_on_exec,
+           sizeof(files->closed_on_exec));
     return new_files;
 }
 
@@ -107,7 +110,8 @@ void __files_destroy(struct files* files) {
     kfree(files);
 }
 
-int files_alloc_fd(struct files* files, int min_fd, struct file* file) {
+int files_alloc_fd(struct files* files, int min_fd, struct file* file,
+                   int flags) {
     if (min_fd >= OPEN_MAX)
         return -EMFILE;
     min_fd = MAX(min_fd, 0);
@@ -117,12 +121,13 @@ int files_alloc_fd(struct files* files, int min_fd, struct file* file) {
         if (files->entries[i])
             continue;
         files->entries[i] = file_ref(file);
+        ASSERT_OK(files_set_flags(files, i, flags));
         return i;
     }
     return -EMFILE;
 }
 
-int files_set_file(struct files* files, int fd, struct file* file) {
+int files_set_file(struct files* files, int fd, struct file* file, int flags) {
     if (fd < 0 || OPEN_MAX <= fd)
         return -EBADF;
 
@@ -130,6 +135,7 @@ int files_set_file(struct files* files, int fd, struct file* file) {
     struct file** entry = files->entries + fd;
     file_unref(*entry);
     *entry = file_ref(file);
+    ASSERT_OK(files_set_flags(files, fd, flags));
     return 0;
 }
 
@@ -141,6 +147,7 @@ int files_free_fd(struct files* files, int fd) {
     struct file** file = files->entries + fd;
     if (!*file)
         return -EBADF;
+    ASSERT_OK(files_set_flags(files, fd, 0));
     file_unref(*file);
     *file = NULL;
     return 0;
@@ -155,4 +162,64 @@ struct file* files_ref_file(struct files* files, int fd) {
     if (file)
         return file_ref(file);
     return ERR_PTR(-EBADF);
+}
+
+#define CLOSED_ON_EXEC_BIT(fd) (1UL << ((fd) & (ULONG_WIDTH - 1)))
+
+static unsigned long* closed_on_exec_entry(struct files* files, int fd) {
+    return &files->closed_on_exec[fd / ULONG_WIDTH];
+}
+
+int files_get_flags(struct files* files, int fd) {
+    if (fd < 0 || OPEN_MAX <= fd)
+        return -EBADF;
+
+    SCOPED_LOCK(files, files);
+
+    struct file* file = files->entries[fd];
+    if (!file)
+        return -EBADF;
+
+    int flags = 0;
+    if (*closed_on_exec_entry(files, fd) & CLOSED_ON_EXEC_BIT(fd))
+        flags |= FD_CLOEXEC;
+
+    return flags;
+}
+
+int files_set_flags(struct files* files, int fd, int flags) {
+    if (fd < 0 || OPEN_MAX <= fd)
+        return -EBADF;
+
+    SCOPED_LOCK(files, files);
+
+    struct file* file = files->entries[fd];
+    if (!file)
+        return -EBADF;
+
+    unsigned long* entry = closed_on_exec_entry(files, fd);
+    if (flags & FD_CLOEXEC)
+        *entry |= CLOSED_ON_EXEC_BIT(fd);
+    else
+        *entry &= ~CLOSED_ON_EXEC_BIT(fd);
+
+    return 0;
+}
+
+int files_close_on_exec(struct files* files) {
+    SCOPED_LOCK(files, files);
+    for (size_t i = 0; i < ARRAY_SIZE(files->closed_on_exec); ++i) {
+        for (;;) {
+            int bit = __builtin_ffsl(files->closed_on_exec[i]);
+            if (bit == 0)
+                break;
+            files->closed_on_exec[i] &= ~(1UL << (bit - 1));
+            int fd = i * ULONG_WIDTH + (bit - 1);
+            struct file** file = files->entries + fd;
+            ASSERT(*file);
+            file_unref(*file);
+            *file = NULL;
+        }
+    }
+    return 0;
 }
