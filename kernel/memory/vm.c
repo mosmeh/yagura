@@ -482,7 +482,7 @@ struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
             // In this case, it is the only region that overlaps with
             // the new_region, so we don't have to worry about recovering
             // other regions that have been already removed.
-            vm_region_destroy(region);
+            vm_region_destroy(new_region);
             return ERR_PTR(rc);
         }
         region = prev;
