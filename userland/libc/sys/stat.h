@@ -36,3 +36,5 @@ int mkfifo(const char* pathname, mode_t mode);
 int chmod(const char* pathname, mode_t mode);
 int fchmod(int fd, mode_t mode);
 int fchmodat(int dirfd, const char* pathname, mode_t mode, int flags);
+
+mode_t umask(mode_t mask);

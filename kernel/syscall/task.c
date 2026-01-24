@@ -249,6 +249,10 @@ long sys_times(struct tms* user_buf) {
     return uptime;
 }
 
+long sys_umask(mode_t mask) {
+    return atomic_exchange(&current->fs->umask, mask & ACCESSPERMS);
+}
+
 long sys_chroot(const char* user_path) {
     char path[PATH_MAX];
     ssize_t len = copy_pathname_from_user(path, user_path);

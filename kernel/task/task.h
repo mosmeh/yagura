@@ -82,6 +82,7 @@ _Noreturn void task_crash(int signum);
 struct fs {
     struct path* root;
     struct path* cwd;
+    _Atomic(mode_t) umask;
     struct mutex lock;
     refcount_t refcount;
 };
