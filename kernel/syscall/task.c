@@ -64,7 +64,7 @@ long sys_sched_yield(void) {
 
 long sys_execve(const char* user_pathname, char* const user_argv[],
                 char* const user_envp[]) {
-    if (!user_pathname || !user_argv || !user_envp)
+    if (!user_pathname)
         return -EFAULT;
 
     char pathname[PATH_MAX];
@@ -186,7 +186,7 @@ static bool unblock_waitpid(void* data) {
 long sys_wait4(pid_t pid, int* user_wstatus, int options,
                struct rusage* user_rusage) {
     if ((options & ~WNOHANG) || user_rusage)
-        return -ENOTSUP;
+        return -EINVAL;
 
     struct waitpid_blocker blocker = {
         .param_pid = pid,
@@ -259,8 +259,6 @@ long sys_chroot(const char* user_path) {
 }
 
 long sys_getcwd(char* user_buf, size_t size) {
-    if (!user_buf)
-        return -EINVAL;
     if (size <= 1)
         return -ERANGE;
 
