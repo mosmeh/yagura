@@ -1,5 +1,6 @@
 #include <common/string.h>
 #include <kernel/api/err.h>
+#include <kernel/api/linux/random.h>
 #include <kernel/api/sys/reboot.h>
 #include <kernel/api/sys/sysinfo.h>
 #include <kernel/cpu.h>
@@ -225,7 +226,10 @@ long sys_getcpu(unsigned int* user_cpu, unsigned int* user_node,
 }
 
 long sys_getrandom(void* user_buf, size_t buflen, unsigned int flags) {
-    (void)flags;
+    if (flags & ~(GRND_NONBLOCK | GRND_RANDOM))
+        return -EINVAL;
+    // Our RNG never blocks, so GRND_NONBLOCK has no effect.
+    // GRND_RANDOM has no effect in Linux.
     return random_get_user(user_buf, buflen);
 }
 
