@@ -5,7 +5,8 @@
 #define AF_UNIX 1
 #define AF_LOCAL AF_UNIX
 
-#define SOCK_STREAM 1
+#define SOCK_STREAM 1 // Sequenced, reliable, connection-based byte streams.
+#define SOCK_NONBLOCK 00004000 // Atomically mark descriptor(s) as non-blocking.
 
 enum { SHUT_RD, SHUT_WR, SHUT_RDWR };
 
