@@ -23,6 +23,27 @@ struct vm_region* vm_region_create(struct vm* vm, size_t start, size_t end) {
     return region;
 }
 
+static void vm_region_unset_obj(struct vm_region* region) {
+    struct vm_obj* obj = region->obj;
+    SCOPED_LOCK(vm_obj, obj);
+    struct vm_region* prev = NULL;
+    struct vm_region* it = obj->shared_regions;
+    for (; it; it = it->shared_next) {
+        ASSERT(it->obj == obj);
+        if (it == region)
+            break;
+        prev = it;
+    }
+    ASSERT(it);
+    if (prev) {
+        prev->shared_next = region->shared_next;
+    } else {
+        ASSERT(obj->shared_regions == region);
+        obj->shared_regions = region->shared_next;
+    }
+    region->shared_next = NULL;
+}
+
 void vm_region_destroy(struct vm_region* region) {
     struct vm_obj* obj = region->obj;
     if (obj) {
@@ -82,27 +103,6 @@ void vm_region_set_obj(struct vm_region* region, struct vm_obj* obj,
         region->shared_next = obj->shared_regions;
         obj->shared_regions = region;
     }
-}
-
-void vm_region_unset_obj(struct vm_region* region) {
-    struct vm_obj* obj = region->obj;
-    SCOPED_LOCK(vm_obj, obj);
-    struct vm_region* prev = NULL;
-    struct vm_region* it = obj->shared_regions;
-    for (; it; it = it->shared_next) {
-        ASSERT(it->obj == obj);
-        if (it == region)
-            break;
-        prev = it;
-    }
-    ASSERT(it);
-    if (prev) {
-        prev->shared_next = region->shared_next;
-    } else {
-        ASSERT(obj->shared_regions == region);
-        obj->shared_regions = region->shared_next;
-    }
-    region->shared_next = NULL;
 }
 
 struct page* vm_region_get_page(struct vm_region* region, size_t index,
