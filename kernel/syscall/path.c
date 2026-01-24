@@ -29,7 +29,7 @@ NODISCARD static long open(const struct path* base, const char* user_pathname,
 
     struct file* file FREE(file) =
         vfs_open_at(base, pathname, flags & ~O_KERNEL_INTERNAL_MASK,
-                    (mode & 0777) | S_IFREG);
+                    (mode & ALLPERMS) | S_IFREG);
     if (PTR_ERR(file) == -EINTR)
         return -ERESTARTSYS;
     if (IS_ERR(ASSERT(file)))
@@ -98,7 +98,7 @@ NODISCARD static long mkdir(const struct path* base, const char* user_pathname,
     if (IS_ERR(len))
         return len;
     struct inode* inode FREE(inode) =
-        vfs_create_at(base, pathname, (mode & 0777) | S_IFDIR);
+        vfs_create_at(base, pathname, (mode & ALLPERMS) | S_IFDIR);
     if (IS_ERR(ASSERT(inode)))
         return PTR_ERR(inode);
     return 0;
@@ -441,4 +441,51 @@ long sys_readlinkat(int dirfd, const char* user_pathname, char* user_buf,
     if (IS_ERR(ASSERT(base)))
         return PTR_ERR(base);
     return readlink(base, user_pathname, user_buf, bufsiz);
+}
+
+static void chmod(struct inode* inode, mode_t mode) {
+    SCOPED_LOCK(inode, inode);
+    inode->mode = (inode->mode & ~ALLPERMS) | (mode & ALLPERMS);
+}
+
+long sys_chmod(const char* user_pathname, mode_t mode) {
+    char pathname[PATH_MAX];
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
+
+    SCOPED_LOCK(fs, current->fs);
+    struct path* path FREE(path) =
+        vfs_resolve_path_at(current->fs->cwd, pathname, 0);
+    if (IS_ERR(ASSERT(path)))
+        return PTR_ERR(path);
+
+    chmod(path->inode, mode);
+    return 0;
+}
+
+long sys_fchmod(int fd, mode_t mode) {
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+    chmod(file->inode, mode);
+    return 0;
+}
+
+long sys_fchmodat(int dirfd, const char* user_pathname, mode_t mode) {
+    char pathname[PATH_MAX];
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
+
+    struct path* base FREE(path) = path_from_dirfd(dirfd);
+    if (IS_ERR(ASSERT(base)))
+        return PTR_ERR(base);
+
+    struct path* path FREE(path) = vfs_resolve_path_at(base, pathname, 0);
+    if (IS_ERR(ASSERT(path)))
+        return PTR_ERR(path);
+
+    chmod(path->inode, mode);
+    return 0;
 }

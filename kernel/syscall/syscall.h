@@ -72,6 +72,7 @@ long sys_execve(const char* pathname, char* const argv[], char* const envp[]);
 long sys_chdir(const char* path);
 long sys_time32(time32_t* tloc);
 long sys_mknod(const char* pathname, mode_t mode, dev_t dev);
+long sys_chmod(const char* pathname, mode_t mode);
 long sys_stat(const char* pathname, struct linux_old_stat* buf);
 long sys_lseek(int fd, off_t offset, int whence);
 long sys_getpid(void);
@@ -124,6 +125,7 @@ long sys_old_mmap(struct mmap_arg_struct*);
 long sys_munmap(void* addr, size_t length);
 long sys_truncate(const char* path, off_t length);
 long sys_ftruncate(int fd, off_t length);
+long sys_fchmod(int fd, mode_t mode);
 long sys_newstat(const char* pathname, struct linux_stat* buf);
 long sys_newlstat(const char* pathname, struct linux_stat* buf);
 long sys_newfstat(int fd, struct linux_stat* buf);
@@ -198,6 +200,7 @@ long sys_linkat(int olddirfd, const char* oldpath, int newdirfd,
                 const char* newpath, int flags);
 long sys_symlinkat(const char* target, int newdirfd, const char* linkpath);
 long sys_readlinkat(int dirfd, const char* pathname, char* buf, size_t bufsiz);
+long sys_fchmodat(int dirfd, const char* pathname, mode_t mode);
 long sys_faccessat(int dirfd, const char* pathname, int mode);
 long sys_pselect6_time32(int nfds, unsigned long* readfds,
                          unsigned long* writefds, unsigned long* exceptfds,

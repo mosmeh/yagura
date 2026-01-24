@@ -57,6 +57,8 @@ static bool try_mknod(const struct device_file* file) {
 
     int fd = open(file->pathname, 0);
     if (fd >= 0) {
+        if (fchmod(fd, file->mode) < 0)
+            perror("fchmod");
         close(fd);
         return true;
     }
