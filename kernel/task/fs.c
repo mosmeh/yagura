@@ -13,7 +13,10 @@ struct fs* fs_create(void) {
     struct fs* fs = slab_alloc(&fs_slab);
     if (IS_ERR(fs))
         return fs;
-    *fs = (struct fs){.refcount = REFCOUNT_INIT_ONE};
+    *fs = (struct fs){
+        .umask = 022,
+        .refcount = REFCOUNT_INIT_ONE,
+    };
     return fs;
 }
 
@@ -34,6 +37,7 @@ struct fs* fs_clone(struct fs* fs) {
 
     new_fs->root = TAKE_PTR(root);
     new_fs->cwd = TAKE_PTR(cwd);
+    new_fs->umask = fs->umask;
 
     return TAKE_PTR(new_fs);
 }

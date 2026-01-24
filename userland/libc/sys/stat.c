@@ -100,3 +100,5 @@ int fchmodat(int dirfd, const char* pathname, mode_t mode, int flags) {
         return __syscall_return(-EINVAL);
     return __syscall_return(SYSCALL3(fchmodat, dirfd, pathname, mode));
 }
+
+mode_t umask(mode_t mask) { return __syscall_return(SYSCALL1(umask, mask)); }

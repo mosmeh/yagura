@@ -58,6 +58,8 @@ static struct inode* resolve_inode_at(int dirfd, const char* user_pathname,
     return inode_ref(file->inode);
 }
 
+static mode_t apply_umask(mode_t mode) { return mode & ~current->fs->umask; }
+
 NODISCARD static long open(const struct path* base, const char* user_pathname,
                            int flags, unsigned mode) {
     flags &= ~O_KERNEL_INTERNAL_MASK;
@@ -73,8 +75,8 @@ NODISCARD static long open(const struct path* base, const char* user_pathname,
     if (IS_ERR(len))
         return len;
 
-    struct file* file FREE(file) =
-        vfs_open_at(base, pathname, flags, (mode & ALLPERMS) | S_IFREG);
+    struct file* file FREE(file) = vfs_open_at(
+        base, pathname, flags, apply_umask(mode & ALLPERMS) | S_IFREG);
     if (PTR_ERR(file) == -EINTR)
         return -ERESTARTSYS;
     if (IS_ERR(ASSERT(file)))
@@ -117,7 +119,8 @@ NODISCARD static long mknod(const struct path* base, const char* user_pathname,
     if (IS_ERR(len))
         return len;
 
-    struct inode* inode FREE(inode) = vfs_create_at(base, pathname, mode);
+    struct inode* inode FREE(inode) =
+        vfs_create_at(base, pathname, apply_umask(mode));
     if (IS_ERR(ASSERT(inode)))
         return PTR_ERR(inode);
     inode->rdev = dev;
@@ -143,7 +146,7 @@ NODISCARD static long mkdir(const struct path* base, const char* user_pathname,
     if (IS_ERR(len))
         return len;
     struct inode* inode FREE(inode) =
-        vfs_create_at(base, pathname, (mode & ALLPERMS) | S_IFDIR);
+        vfs_create_at(base, pathname, apply_umask(mode & ALLPERMS) | S_IFDIR);
     if (IS_ERR(ASSERT(inode)))
         return PTR_ERR(inode);
     return 0;
