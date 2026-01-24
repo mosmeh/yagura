@@ -24,18 +24,6 @@ static bool get_fb_info(struct fb_var_screeninfo* out_fb_var) {
     return true;
 }
 
-static int set_non_blocking(int fd) {
-    int flags = fcntl(fd, F_GETFL);
-    if (flags < 0) {
-        perror("fcntl");
-        return flags;
-    }
-    flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-    if (flags < 0)
-        perror("fcntl");
-    return flags;
-}
-
 #define MAX_NUM_CONNECTIONS 8
 
 static int sockfd = -1;
@@ -47,15 +35,11 @@ static int32_t cursor_y = 0;
 static struct pollfd pollfds[MAX_NUM_CONNECTIONS + 2];
 
 static int handle_new_connection(void) {
-    int fd = accept(sockfd, NULL, NULL);
+    int fd = accept4(sockfd, NULL, NULL, SOCK_NONBLOCK);
     if (fd < 0) {
         if (errno == EAGAIN)
             return 0;
         perror("accept");
-        return -1;
-    }
-    if (set_non_blocking(fd) < 0) {
-        close(fd);
         return -1;
     }
     for (size_t i = 0; i < MAX_NUM_CONNECTIONS; ++i) {
@@ -116,7 +100,7 @@ static int broadcast_event(void) {
 }
 
 int main(void) {
-    mouse_fd = open("/dev/psaux", O_RDONLY);
+    mouse_fd = open("/dev/psaux", O_RDONLY | O_NONBLOCK);
     if (mouse_fd < 0) {
         if (errno == ENOENT) {
             // PS/2 mouse is disabled
@@ -125,8 +109,6 @@ int main(void) {
         perror("open");
         goto fail;
     }
-    if (set_non_blocking(mouse_fd) < 0)
-        goto fail;
 
     struct fb_var_screeninfo fb_var;
     if (get_fb_info(&fb_var)) {
@@ -136,13 +118,11 @@ int main(void) {
         cursor_y = height / 2;
     }
 
-    sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+    sockfd = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
     if (sockfd < 0) {
         perror("socket");
         goto fail;
     }
-    if (set_non_blocking(sockfd) < 0)
-        goto fail;
     struct sockaddr_un addr = {AF_UNIX, "/tmp/moused-socket"};
     if (bind(sockfd, (const struct sockaddr*)&addr,
              sizeof(struct sockaddr_un)) < 0) {
