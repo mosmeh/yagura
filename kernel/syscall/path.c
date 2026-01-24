@@ -20,6 +20,43 @@ struct path* path_from_dirfd(int dirfd) {
     return path_dup(file->path);
 }
 
+NODISCARD
+static struct inode* resolve_inode_at(int dirfd, const char* user_pathname,
+                                      int flags) {
+    if (flags & ~(AT_SYMLINK_FOLLOW | AT_EMPTY_PATH))
+        return ERR_PTR(-EINVAL);
+
+    char pathname[PATH_MAX];
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return ERR_PTR(len);
+
+    if (pathname[0]) {
+        struct path* base FREE(path) = path_from_dirfd(dirfd);
+        if (IS_ERR(ASSERT(base)))
+            return ERR_PTR(PTR_ERR(base));
+
+        int vfs_flags = 0;
+        if (!(flags & AT_SYMLINK_FOLLOW))
+            vfs_flags |= O_NOFOLLOW | O_NOFOLLOW_NOERROR;
+        struct path* path FREE(path) =
+            vfs_resolve_path_at(base, pathname, vfs_flags);
+        if (IS_ERR(ASSERT(path)))
+            return ERR_PTR(PTR_ERR(path));
+
+        return inode_ref(path->inode);
+    }
+
+    if (!(flags & AT_EMPTY_PATH))
+        return ERR_PTR(-ENOENT);
+
+    struct file* file FREE(file) = files_ref_file(current->files, dirfd);
+    if (IS_ERR(ASSERT(file)))
+        return ERR_PTR(PTR_ERR(file));
+
+    return inode_ref(file->inode);
+}
+
 NODISCARD static long open(const struct path* base, const char* user_pathname,
                            int flags, unsigned mode) {
     char pathname[PATH_MAX];
@@ -182,39 +219,10 @@ long sys_link(const char* user_oldpath, const char* user_newpath) {
 
 long sys_linkat(int olddirfd, const char* user_oldpath, int newdirfd,
                 const char* user_newpath, int flags) {
-    if (flags & ~(AT_SYMLINK_FOLLOW | AT_EMPTY_PATH))
-        return -EINVAL;
-
-    char oldpath[PATH_MAX];
-    ssize_t len = copy_pathname_from_user(oldpath, user_oldpath);
-    if (IS_ERR(len))
-        return len;
-
-    struct inode* old_inode FREE(inode) = NULL;
-    if (oldpath[0]) {
-        struct path* old_base FREE(path) = path_from_dirfd(olddirfd);
-        if (IS_ERR(ASSERT(old_base)))
-            return PTR_ERR(old_base);
-
-        int vfs_flags = 0;
-        if (!(flags & AT_SYMLINK_FOLLOW))
-            vfs_flags |= O_NOFOLLOW | O_NOFOLLOW_NOERROR;
-        struct path* path FREE(path) =
-            vfs_resolve_path_at(old_base, oldpath, vfs_flags);
-        if (IS_ERR(ASSERT(path)))
-            return PTR_ERR(path);
-
-        old_inode = inode_ref(path->inode);
-    } else {
-        if (!(flags & AT_EMPTY_PATH))
-            return -ENOENT;
-
-        struct file* file FREE(file) = files_ref_file(current->files, olddirfd);
-        if (IS_ERR(ASSERT(file)))
-            return PTR_ERR(file);
-
-        old_inode = inode_ref(file->inode);
-    }
+    struct inode* old_inode FREE(inode) =
+        resolve_inode_at(olddirfd, user_oldpath, flags);
+    if (IS_ERR(ASSERT(old_inode)))
+        return PTR_ERR(old_inode);
 
     struct path* new_base FREE(path) = path_from_dirfd(newdirfd);
     if (IS_ERR(ASSERT(new_base)))
@@ -485,5 +493,86 @@ long sys_fchmodat(int dirfd, const char* user_pathname, mode_t mode) {
         return PTR_ERR(path);
 
     chmod(path->inode, mode);
+    return 0;
+}
+
+static void chown(struct inode* inode, uid_t owner, gid_t group) {
+    SCOPED_LOCK(inode, inode);
+
+    if (owner != (uid_t)-1)
+        inode->uid = owner;
+    if (group != (gid_t)-1)
+        inode->gid = group;
+
+    if (S_ISDIR(inode->mode))
+        return;
+    // S_ISUID and S_ISGID are cleared on chown, regardless of whether
+    // the owner/group actually change.
+    inode->mode &= ~S_ISUID;
+    if (inode->mode & S_IXGRP) {
+        inode->mode &= ~S_ISGID;
+    } else {
+        // When S_IXGRP is not set, S_ISGID indicates mandatory locking.
+    }
+}
+
+long sys_chown(const char* user_pathname, uid_t owner, gid_t group) {
+    char pathname[PATH_MAX];
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
+
+    struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
+    if (IS_ERR(ASSERT(path)))
+        return PTR_ERR(path);
+
+    chown(path->inode, owner, group);
+    return 0;
+}
+
+long sys_chown16(const char* user_pathname, linux_old_uid_t owner,
+                 linux_old_gid_t group) {
+    return sys_chown(user_pathname, owner, group);
+}
+
+long sys_lchown(const char* user_pathname, uid_t owner, gid_t group) {
+    char pathname[PATH_MAX];
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
+
+    struct path* path FREE(path) =
+        vfs_resolve_path(pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
+    if (IS_ERR(ASSERT(path)))
+        return PTR_ERR(path);
+
+    chown(path->inode, owner, group);
+    return 0;
+}
+
+long sys_lchown16(const char* user_pathname, linux_old_uid_t owner,
+                  linux_old_gid_t group) {
+    return sys_lchown(user_pathname, owner, group);
+}
+
+long sys_fchown(int fd, uid_t owner, gid_t group) {
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+    chown(file->inode, owner, group);
+    return 0;
+}
+
+long sys_fchown16(int fd, linux_old_uid_t owner, linux_old_gid_t group) {
+    return sys_fchown(fd, owner, group);
+}
+
+long sys_fchownat(int dirfd, const char* user_pathname, uid_t owner,
+                  gid_t group, int flags) {
+    struct inode* inode FREE(inode) =
+        resolve_inode_at(dirfd, user_pathname, flags);
+    if (IS_ERR(ASSERT(inode)))
+        return PTR_ERR(inode);
+    chown(inode, owner, group);
     return 0;
 }

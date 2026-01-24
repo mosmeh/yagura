@@ -35,6 +35,8 @@ struct inode {
 
     ino_t ino;
     mode_t mode;
+    uid_t uid;
+    gid_t gid;
     dev_t rdev;         // Device number (if this inode is a special file)
     uint64_t size;      // Size in bytes
     uint8_t block_bits; // Block size as 2^block_bits

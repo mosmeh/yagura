@@ -162,6 +162,24 @@ int rmdir(const char* pathname) {
     return __syscall_return(SYSCALL1(rmdir, pathname));
 }
 
+int chown(const char* pathname, uid_t owner, gid_t group) {
+    return __syscall_return(SYSCALL3(chown, pathname, owner, group));
+}
+
+int fchown(int fd, uid_t owner, gid_t group) {
+    return __syscall_return(SYSCALL3(fchown, fd, owner, group));
+}
+
+int lchown(const char* pathname, uid_t owner, gid_t group) {
+    return __syscall_return(SYSCALL3(lchown, pathname, owner, group));
+}
+
+int fchownat(int dirfd, const char* pathname, uid_t owner, gid_t group,
+             int flags) {
+    return __syscall_return(
+        SYSCALL5(fchownat, dirfd, pathname, owner, group, flags));
+}
+
 int dup(int oldfd) { return __syscall_return(SYSCALL1(dup, oldfd)); }
 
 int dup2(int oldfd, int newfd) {

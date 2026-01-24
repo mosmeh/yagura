@@ -160,6 +160,8 @@ int inode_stat(struct inode* inode, struct kstat* buf) {
         .st_ino = inode->ino,
         .st_dev = inode->mount->dev,
         .st_mode = inode->mode,
+        .st_uid = inode->uid,
+        .st_gid = inode->gid,
         .st_rdev = inode->rdev,
         .st_size = inode->size,
         .st_blksize = 1 << inode->block_bits,
