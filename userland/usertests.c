@@ -208,22 +208,22 @@ static void test_fs(void) {
     unlink("/tmp/test-fs/qux");
     rmdir("/tmp/test-fs");
 
-    ASSERT_OK(mkdir("/tmp/test-fs", 0));
+    ASSERT_OK(mkdir("/tmp/test-fs", 0755));
 
     ASSERT_ERR(open("/tmp/test-fs/bar", 0));
     ASSERT(errno == ENOENT);
 
-    ASSERT_OK(open("/tmp/test-fs/bar", O_CREAT | O_EXCL, 0));
-    ASSERT_OK(open("/tmp/test-fs/bar", O_CREAT, 0));
+    ASSERT_OK(open("/tmp/test-fs/bar", O_CREAT | O_EXCL, 0644));
+    ASSERT_OK(open("/tmp/test-fs/bar", O_CREAT, 0644));
 
-    ASSERT_ERR(open("/tmp/test-fs/bar", O_CREAT | O_EXCL, 0));
+    ASSERT_ERR(open("/tmp/test-fs/bar", O_CREAT | O_EXCL, 0644));
     ASSERT(errno == EEXIST);
 
     ASSERT_ERR(open("/tmp/test-fs/bar/baz", 0));
     ASSERT(errno == ENOTDIR);
 
     {
-        int fd = open("/tmp/test-fs/qux", O_WRONLY | O_CREAT | O_EXCL);
+        int fd = open("/tmp/test-fs/qux", O_WRONLY | O_CREAT | O_EXCL, 0644);
         ASSERT_OK(fd);
         int* buf = malloc(50000 * sizeof(int));
         ASSERT(buf);
@@ -282,7 +282,7 @@ static void test_fs(void) {
     }
     unlink("/dev/shm/test-fs");
     {
-        int fd = open("/dev/shm/test-fs", O_RDWR | O_CREAT | O_EXCL);
+        int fd = open("/dev/shm/test-fs", O_RDWR | O_CREAT | O_EXCL, 0644);
         ASSERT_OK(fd);
         size_t size = 30000 * sizeof(int);
         ASSERT_OK(ftruncate(fd, size));
@@ -586,8 +586,8 @@ static void test_socket(void) {
 
 static void test_mmap_private(void) {
     puts("mmap(MAP_PRIVATE)");
-    mkdir("/tmp/test-mmap-private", 0);
-    int fd = open("/tmp/test-mmap-private/foo", O_CREAT | O_RDWR);
+    mkdir("/tmp/test-mmap-private", 0755);
+    int fd = open("/tmp/test-mmap-private/foo", O_CREAT | O_RDWR, 0644);
     ASSERT_OK(fd);
 
     size_t size = 30000 * sizeof(int);

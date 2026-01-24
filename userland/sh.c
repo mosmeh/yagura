@@ -892,7 +892,7 @@ static int run_redirect(const struct redirect_node* node,
     if (redirected_fd < 0)
         redirected_fd = node->is_write ? STDOUT_FILENO : STDIN_FILENO;
 
-    int fd = open(node->pathname, flags, 0);
+    int fd = open(node->pathname, flags, 0644);
     if (fd < 0) {
         perror("open");
         return RUN_ERROR;
