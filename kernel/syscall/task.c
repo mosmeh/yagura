@@ -1,4 +1,5 @@
 #include <common/string.h>
+#include <kernel/api/linux/resource.h>
 #include <kernel/api/sched.h>
 #include <kernel/api/sys/prctl.h>
 #include <kernel/api/sys/times.h>
@@ -180,9 +181,14 @@ static bool unblock_waitpid(void* data) {
     return true;
 }
 
+static void ticks_to_timeval(size_t ticks, struct linux_timeval* out_tv) {
+    out_tv->tv_sec = ticks / CLK_TCK;
+    out_tv->tv_usec = (ticks % CLK_TCK) * MICROS_PER_SEC / CLK_TCK;
+}
+
 long sys_wait4(pid_t pid, int* user_wstatus, int options,
                struct rusage* user_rusage) {
-    if ((options & ~WNOHANG) || user_rusage)
+    if (options & ~WNOHANG)
         return -EINVAL;
 
     struct waitpid_blocker blocker = {
@@ -208,10 +214,19 @@ long sys_wait4(pid_t pid, int* user_wstatus, int options,
 
     pid_t result = waited_task->tid;
     int wstatus = waited_task->exit_status;
+
+    struct rusage rusage = {0};
+    ticks_to_timeval(waited_task->user_ticks, &rusage.ru_utime);
+    ticks_to_timeval(waited_task->kernel_ticks, &rusage.ru_stime);
+
     task_unref(waited_task);
 
     if (user_wstatus) {
         if (copy_to_user(user_wstatus, &wstatus, sizeof(int)))
+            return -EFAULT;
+    }
+    if (user_rusage) {
+        if (copy_to_user(user_rusage, &rusage, sizeof(struct rusage)))
             return -EFAULT;
     }
 
