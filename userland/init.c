@@ -50,7 +50,7 @@ struct device_file {
 };
 
 static bool try_mknod(const struct device_file* file) {
-    if (mknod(file->pathname, file->mode, file->dev) < 0) {
+    if (mknod(file->pathname, file->mode | 0777, file->dev) < 0) {
         perror("mknod");
         return false;
     }
@@ -84,7 +84,7 @@ int main(void) {
 
     ASSERT_OK(mount("tmpfs", "/dev", "tmpfs", 0, NULL));
 
-    ASSERT_OK(mknod("/dev/console", S_IFCHR, makedev(TTYAUX_MAJOR, 1)));
+    ASSERT_OK(mknod("/dev/console", S_IFCHR | 0600, makedev(TTYAUX_MAJOR, 1)));
     int fd = open("/dev/console", O_RDWR);
     ASSERT(fd == STDIN_FILENO);
     ASSERT_OK(dup2(fd, STDOUT_FILENO));
@@ -96,15 +96,15 @@ int main(void) {
         perror("chdir");
 
     static const struct device_file device_files[] = {
-        {"/dev/null", S_IFCHR, makedev(MEM_MAJOR, 3)},
-        {"/dev/zero", S_IFCHR, makedev(MEM_MAJOR, 5)},
-        {"/dev/full", S_IFCHR, makedev(MEM_MAJOR, 7)},
-        {"/dev/random", S_IFCHR, makedev(MEM_MAJOR, 8)},
-        {"/dev/urandom", S_IFCHR, makedev(MEM_MAJOR, 9)},
-        {"/dev/kmsg", S_IFCHR, makedev(MEM_MAJOR, 11)},
-        {"/dev/psaux", S_IFCHR, makedev(MISC_MAJOR, 1)},
-        {"/dev/dsp", S_IFCHR, makedev(SOUND_MAJOR, 3)},
-        {"/dev/fb0", S_IFCHR, makedev(FB_MAJOR, 0)},
+        {"/dev/null", S_IFCHR | 0666, makedev(MEM_MAJOR, 3)},
+        {"/dev/zero", S_IFCHR | 0666, makedev(MEM_MAJOR, 5)},
+        {"/dev/full", S_IFCHR | 0666, makedev(MEM_MAJOR, 7)},
+        {"/dev/random", S_IFCHR | 0666, makedev(MEM_MAJOR, 8)},
+        {"/dev/urandom", S_IFCHR | 0666, makedev(MEM_MAJOR, 9)},
+        {"/dev/kmsg", S_IFCHR | 0644, makedev(MEM_MAJOR, 11)},
+        {"/dev/psaux", S_IFCHR | 0660, makedev(MISC_MAJOR, 1)},
+        {"/dev/dsp", S_IFCHR | 0660, makedev(SOUND_MAJOR, 3)},
+        {"/dev/fb0", S_IFCHR | 0660, makedev(FB_MAJOR, 0)},
     };
     for (size_t i = 0; i < ARRAY_SIZE(device_files); ++i)
         try_mknod(&device_files[i]);
@@ -114,7 +114,7 @@ int main(void) {
         (void)sprintf(pathname, "/dev/tty%zu", i);
         struct device_file file = {
             .pathname = pathname,
-            .mode = S_IFCHR,
+            .mode = S_IFCHR | 0620,
             .dev = makedev(TTY_MAJOR, i),
         };
         if (try_mknod(&file))
@@ -126,7 +126,7 @@ int main(void) {
         pathname[9] = '0' + i;
         struct device_file file = {
             .pathname = pathname,
-            .mode = S_IFCHR,
+            .mode = S_IFCHR | 0660,
             .dev = makedev(TTY_MAJOR, 64 + i),
         };
         if (try_mknod(&file))
@@ -143,7 +143,7 @@ int main(void) {
         }
         struct device_file file = {
             .pathname = pathname,
-            .mode = S_IFBLK,
+            .mode = S_IFBLK | 0660,
             .dev = makedev(254, i),
         };
         try_mknod(&file);
@@ -152,7 +152,7 @@ int main(void) {
     if (mount("tmpfs", "/tmp", "tmpfs", 0, NULL) < 0)
         perror("mount");
 
-    if (mkdir("/dev/shm", 0) < 0)
+    if (mkdir("/dev/shm", 0755) < 0)
         perror("mkdir");
     else if (mount("tmpfs", "/dev/shm", "tmpfs", 0, NULL) < 0)
         perror("mount");

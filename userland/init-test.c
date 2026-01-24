@@ -32,13 +32,13 @@ int main(void) {
 
     ASSERT_OK(mount("tmpfs", "/dev", "tmpfs", 0, NULL));
 
-    ASSERT_OK(mknod("/dev/console", S_IFCHR, makedev(TTYAUX_MAJOR, 1)));
+    ASSERT_OK(mknod("/dev/console", S_IFCHR | 0600, makedev(TTYAUX_MAJOR, 1)));
     int fd = open("/dev/console", O_RDWR);
     ASSERT(fd == STDIN_FILENO);
     ASSERT_OK(dup2(fd, STDOUT_FILENO));
     ASSERT_OK(dup2(fd, STDERR_FILENO));
 
-    ASSERT_OK(mkdir("/dev/shm", 0));
+    ASSERT_OK(mkdir("/dev/shm", 0755));
     ASSERT_OK(mount("tmpfs", "/dev/shm", "tmpfs", 0, NULL));
 
     ASSERT_OK(spawn("/bin/usertests"));
