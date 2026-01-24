@@ -23,5 +23,12 @@ int main(void) {
     ASSERT_ERR(open("/tmp/test-open/foo/bar", 0));
     ASSERT(errno == ENOTDIR);
 
+    int fd = open("/tmp/test-open/foo", O_RDONLY | O_CLOEXEC);
+    ASSERT_OK(fd);
+    int flags = fcntl(fd, F_GETFL);
+    ASSERT_OK(flags);
+    ASSERT((flags & O_ACCMODE) == O_RDONLY);
+    ASSERT(!(flags & O_CLOEXEC));
+
     return EXIT_SUCCESS;
 }

@@ -85,9 +85,11 @@ int main(void) {
     int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
     ASSERT_OK(sockfd);
 
-    int sockfd2 = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK, 0);
+    int sockfd2 =
+        socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     ASSERT_OK(sockfd2);
     ASSERT(fcntl(sockfd2, F_GETFL) & O_NONBLOCK);
+    ASSERT(fcntl(sockfd2, F_GETFD) & FD_CLOEXEC);
     ASSERT_OK(bind(sockfd2, (const struct sockaddr*)&addr2,
                    sizeof(struct sockaddr_un)));
     ASSERT_OK(listen(sockfd2, 1));

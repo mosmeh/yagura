@@ -260,7 +260,10 @@ loader_push_strings_from_user(struct loader* loader,
     return 0;
 }
 
-NODISCARD static int unshare(struct task* task) {
+NODISCARD static int finalize_exec(struct loader* loader) {
+    struct task* task = current;
+    SCOPED_LOCK(task, task);
+
     if (refcount_get(&task->files->refcount) > 1) {
         struct files* new_files = files_clone(task->files);
         if (IS_ERR(ASSERT(new_files)))
@@ -277,6 +280,18 @@ NODISCARD static int unshare(struct task* task) {
         task->sighand = new_sighand;
     }
 
+    int rc = files_close_on_exec(task->files);
+    if (IS_ERR(rc))
+        return rc;
+
+    const char* comm = basename(loader->pathname);
+    strlcpy(task->comm, comm, sizeof(task->comm));
+
+    task->arg_start = (uintptr_t)loader->arg_start;
+    task->arg_end = (uintptr_t)loader->arg_end;
+    task->env_start = (uintptr_t)loader->env_start;
+    task->env_end = (uintptr_t)loader->env_end;
+
     return 0;
 }
 
@@ -289,27 +304,14 @@ _Noreturn static void loader_commit(struct loader* loader) {
 
     exec_image_unload(&loader->image);
 
-    const char* comm = basename(loader->pathname);
-
     // Point of no return
 
-    struct task* task = current;
-    {
-        SCOPED_LOCK(task, task);
-
-        int rc = unshare(task);
-        if (IS_ERR(rc))
-            task_crash(SIGSEGV);
-
-        strlcpy(task->comm, comm, sizeof(task->comm));
-        task->arg_start = (uintptr_t)loader->arg_start;
-        task->arg_end = (uintptr_t)loader->arg_end;
-        task->env_start = (uintptr_t)loader->env_start;
-        task->env_end = (uintptr_t)loader->env_end;
-    }
+    int rc = finalize_exec(loader);
+    if (IS_ERR(rc))
+        task_crash(SIGSEGV);
 
     arch_disable_interrupts();
-    arch_enter_user_mode(task, loader->entry_point, loader->stack_ptr);
+    arch_enter_user_mode(current, loader->entry_point, loader->stack_ptr);
 }
 
 NODISCARD static int loader_load(struct loader* loader) {

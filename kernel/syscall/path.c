@@ -60,20 +60,27 @@ static struct inode* resolve_inode_at(int dirfd, const char* user_pathname,
 
 NODISCARD static long open(const struct path* base, const char* user_pathname,
                            int flags, unsigned mode) {
+    flags &= ~O_KERNEL_INTERNAL_MASK;
+
+    int fd_flags = 0;
+    if (flags & O_CLOEXEC) {
+        fd_flags |= FD_CLOEXEC;
+        flags &= ~O_CLOEXEC;
+    }
+
     char pathname[PATH_MAX];
     ssize_t len = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(len))
         return len;
 
     struct file* file FREE(file) =
-        vfs_open_at(base, pathname, flags & ~O_KERNEL_INTERNAL_MASK,
-                    (mode & ALLPERMS) | S_IFREG);
+        vfs_open_at(base, pathname, flags, (mode & ALLPERMS) | S_IFREG);
     if (PTR_ERR(file) == -EINTR)
         return -ERESTARTSYS;
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
-    return files_alloc_fd(current->files, 0, file);
+    return files_alloc_fd(current->files, 0, file, fd_flags);
 }
 
 long sys_open(const char* user_pathname, int flags, unsigned mode) {

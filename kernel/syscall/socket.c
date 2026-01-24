@@ -23,14 +23,17 @@ long sys_socket(int domain, int type, int protocol) {
     if (IS_ERR(ASSERT(socket)))
         return PTR_ERR(socket);
 
-    int flags = O_RDWR;
+    int file_flags = O_RDWR;
     if (type & SOCK_NONBLOCK)
-        flags |= O_NONBLOCK;
-    struct file* file FREE(file) = inode_open(socket, flags);
+        file_flags |= O_NONBLOCK;
+    struct file* file FREE(file) = inode_open(socket, file_flags);
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
 
-    return files_alloc_fd(current->files, 0, file);
+    int fd_flags = 0;
+    if (type & SOCK_CLOEXEC)
+        fd_flags |= FD_CLOEXEC;
+    return files_alloc_fd(current->files, 0, file, fd_flags);
 }
 
 long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
@@ -75,7 +78,7 @@ long sys_listen(int sockfd, int backlog) {
 
 long sys_accept4(int sockfd, struct sockaddr* user_addr,
                  socklen_t* user_addrlen, int flags) {
-    if (flags & ~SOCK_NONBLOCK)
+    if (flags & ~(SOCK_NONBLOCK | SOCK_CLOEXEC))
         return -EINVAL;
 
     struct file* file FREE(file) = files_ref_file(current->files, sockfd);
@@ -114,7 +117,10 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
     if (IS_ERR(ASSERT(connector_file)))
         return PTR_ERR(connector_file);
 
-    return files_alloc_fd(current->files, 0, connector_file);
+    int fd_flags = 0;
+    if (flags & SOCK_CLOEXEC)
+        fd_flags |= FD_CLOEXEC;
+    return files_alloc_fd(current->files, 0, connector_file, fd_flags);
 }
 
 long sys_connect(int sockfd, const struct sockaddr* user_addr,
