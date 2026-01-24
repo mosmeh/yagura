@@ -50,6 +50,7 @@ BIN_TARGET_NAMES := \
 	stat \
 	stty \
 	tests/basename \
+	tests/chmod \
 	tests/cwd \
 	tests/framebuffer \
 	tests/init \

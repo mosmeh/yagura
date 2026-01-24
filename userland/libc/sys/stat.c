@@ -86,3 +86,17 @@ int mknodat(int dirfd, const char* pathname, mode_t mode, dev_t dev) {
 int mkfifo(const char* pathname, mode_t mode) {
     return mknod(pathname, mode | S_IFIFO, 0);
 }
+
+int chmod(const char* pathname, mode_t mode) {
+    return __syscall_return(SYSCALL2(chmod, pathname, mode));
+}
+
+int fchmod(int fd, mode_t mode) {
+    return __syscall_return(SYSCALL2(fchmod, fd, mode));
+}
+
+int fchmodat(int dirfd, const char* pathname, mode_t mode, int flags) {
+    if (flags)
+        return -EINVAL;
+    return __syscall_return(SYSCALL3(fchmodat, dirfd, pathname, mode));
+}
