@@ -73,6 +73,8 @@ long sys_chdir(const char* path);
 long sys_time32(time32_t* tloc);
 long sys_mknod(const char* pathname, mode_t mode, dev_t dev);
 long sys_chmod(const char* pathname, mode_t mode);
+long sys_lchown16(const char* pathname, linux_old_uid_t owner,
+                  linux_old_gid_t group);
 long sys_stat(const char* pathname, struct linux_old_stat* buf);
 long sys_lseek(int fd, off_t offset, int whence);
 long sys_getpid(void);
@@ -126,6 +128,7 @@ long sys_munmap(void* addr, size_t length);
 long sys_truncate(const char* path, off_t length);
 long sys_ftruncate(int fd, off_t length);
 long sys_fchmod(int fd, mode_t mode);
+long sys_fchown16(int fd, linux_old_uid_t owner, linux_old_gid_t group);
 long sys_newstat(const char* pathname, struct linux_stat* buf);
 long sys_newlstat(const char* pathname, struct linux_stat* buf);
 long sys_newfstat(int fd, struct linux_stat* buf);
@@ -162,6 +165,8 @@ long sys_getresgid16(linux_old_gid_t* rgid, linux_old_gid_t* egid,
                      linux_old_gid_t* sgid);
 long sys_prctl(int op, unsigned long arg2, unsigned long arg3,
                unsigned long arg4, unsigned long arg5);
+long sys_chown16(const char* pathname, linux_old_uid_t owner,
+                 linux_old_gid_t group);
 long sys_getcwd(char* buf, size_t size);
 long sys_vfork(struct registers*);
 long sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
@@ -169,13 +174,16 @@ long sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
 long sys_stat64(const char* pathname, struct linux_stat64* buf);
 long sys_lstat64(const char* pathname, struct linux_stat64* buf);
 long sys_fstat64(int fd, struct linux_stat64* buf);
+long sys_lchown(const char* pathname, uid_t owner, gid_t group);
 long sys_getuid(void);
 long sys_getgid(void);
 long sys_geteuid(void);
 long sys_getegid(void);
 long sys_getgroups(int size, gid_t* list);
+long sys_fchown(int fd, uid_t owner, gid_t group);
 long sys_getresuid(uid_t* ruid, uid_t* euid, uid_t* suid);
 long sys_getresgid(gid_t* rgid, gid_t* egid, gid_t* sgid);
+long sys_chown(const char* pathname, uid_t owner, gid_t group);
 long sys_getdents64(int fd, struct linux_dirent* dirp, size_t count);
 long sys_fcntl64(int fd, int cmd, unsigned long arg);
 long sys_gettid(void);
@@ -191,6 +199,8 @@ long sys_tgkill(pid_t tgid, pid_t tid, int sig);
 long sys_openat(int dirfd, const char* pathname, int flags, mode_t mode);
 long sys_mkdirat(int dirfd, const char* pathname, mode_t mode);
 long sys_mknodat(int dirfd, const char* pathname, mode_t mode, dev_t dev);
+long sys_fchownat(int dirfd, const char* pathname, uid_t owner, gid_t group,
+                  int flags);
 long sys_fstatat64(int dirfd, const char* pathname, struct linux_stat64* buf,
                    int flags);
 long sys_unlinkat(int dirfd, const char* pathname, int flags);
