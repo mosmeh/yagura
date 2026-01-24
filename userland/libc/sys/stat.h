@@ -32,3 +32,7 @@ int mkdirat(int dirfd, const char* pathname, mode_t mode);
 int mknod(const char* pathname, mode_t mode, dev_t dev);
 int mknodat(int dirfd, const char* pathname, mode_t mode, dev_t dev);
 int mkfifo(const char* pathname, mode_t mode);
+
+int chmod(const char* pathname, mode_t mode);
+int fchmod(int fd, mode_t mode);
+int fchmodat(int dirfd, const char* pathname, mode_t mode, int flags);

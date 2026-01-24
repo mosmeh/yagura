@@ -25,7 +25,7 @@
     F(chdir, sys_chdir, 0)                                                     \
     F(time, sys_time32, 0)                                                     \
     F(mknod, sys_mknod, 0)                                                     \
-    F(chmod, sys_ni_syscall, 0)                                                \
+    F(chmod, sys_chmod, 0)                                                     \
     F(lchown, sys_ni_syscall, 0)                                               \
     F(break, sys_ni_syscall, 0)                                                \
     F(oldstat, sys_stat, 0)                                                    \
@@ -104,7 +104,7 @@
     F(munmap, sys_munmap, 0)                                                   \
     F(truncate, sys_truncate, 0)                                               \
     F(ftruncate, sys_ftruncate, 0)                                             \
-    F(fchmod, sys_ni_syscall, 0)                                               \
+    F(fchmod, sys_fchmod, 0)                                                   \
     F(fchown, sys_ni_syscall, 0)                                               \
     F(getpriority, sys_ni_syscall, 0)                                          \
     F(setpriority, sys_ni_syscall, 0)                                          \
@@ -312,7 +312,7 @@
     F(linkat, sys_linkat, 0)                                                   \
     F(symlinkat, sys_symlinkat, 0)                                             \
     F(readlinkat, sys_readlinkat, 0)                                           \
-    F(fchmodat, sys_ni_syscall, 0)                                             \
+    F(fchmodat, sys_fchmodat, 0)                                               \
     F(faccessat, sys_faccessat, 0)                                             \
     F(pselect6, sys_pselect6_time32, 0)                                        \
     F(ppoll, sys_ppoll_time32, 0)                                              \
