@@ -260,6 +260,26 @@ loader_push_strings_from_user(struct loader* loader,
     return 0;
 }
 
+NODISCARD static int unshare(struct task* task) {
+    if (refcount_get(&task->files->refcount) > 1) {
+        struct files* new_files = files_clone(task->files);
+        if (IS_ERR(ASSERT(new_files)))
+            return PTR_ERR(new_files);
+        files_unref(task->files);
+        task->files = new_files;
+    }
+
+    if (refcount_get(&task->sighand->refcount) > 1) {
+        struct sighand* new_sighand = sighand_clone(task->sighand);
+        if (IS_ERR(ASSERT(new_sighand)))
+            return PTR_ERR(new_sighand);
+        sighand_unref(task->sighand);
+        task->sighand = new_sighand;
+    }
+
+    return 0;
+}
+
 _Noreturn static void loader_commit(struct loader* loader) {
     ASSERT(loader->entry_point);
     ASSERT(loader->arg_start);
@@ -271,9 +291,16 @@ _Noreturn static void loader_commit(struct loader* loader) {
 
     const char* comm = basename(loader->pathname);
 
+    // Point of no return
+
     struct task* task = current;
     {
         SCOPED_LOCK(task, task);
+
+        int rc = unshare(task);
+        if (IS_ERR(rc))
+            task_crash(SIGSEGV);
+
         strlcpy(task->comm, comm, sizeof(task->comm));
         task->arg_start = (uintptr_t)loader->arg_start;
         task->arg_end = (uintptr_t)loader->arg_end;
