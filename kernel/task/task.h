@@ -1,5 +1,7 @@
 #pragma once
 
+#include <common/integer.h>
+#include <common/limits.h>
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/arch/context.h>
@@ -96,6 +98,7 @@ NODISCARD int fs_chdir(struct fs*, struct path*);
 
 struct files {
     struct file* entries[OPEN_MAX];
+    unsigned long closed_on_exec[DIV_CEIL(OPEN_MAX, ULONG_WIDTH)];
     struct mutex lock;
     refcount_t refcount;
 };
@@ -109,15 +112,27 @@ DEFINE_REFCOUNTED_BASE(files, struct files*, refcount, __files_destroy)
 
 // Allocates lowest-numbered file descriptor >= min_fd
 // that is not already used, and sets it to the given file.
-NODISCARD int files_alloc_fd(struct files*, int min_fd, struct file*);
+// Flags are the file descriptor flags (FD_*).
+NODISCARD int files_alloc_fd(struct files*, int min_fd, struct file*,
+                             int flags);
 
 // Sets the file at given fd to the given file.
 // If the fd is already used, replaces and frees the old file.
-NODISCARD int files_set_file(struct files*, int fd, struct file*);
+// Flags are the file descriptor flags (FD_*).
+NODISCARD int files_set_file(struct files*, int fd, struct file*, int flags);
 
 int files_free_fd(struct files*, int fd);
 
 struct file* files_ref_file(struct files*, int fd);
+
+// Gets the file descriptor flags (FD_*) for the given fd.
+NODISCARD int files_get_flags(struct files*, int fd);
+
+// Sets the file descriptor flags (FD_*) for the given fd.
+NODISCARD int files_set_flags(struct files*, int fd, int flags);
+
+// Closes all file descriptors with FD_CLOEXEC flag set.
+NODISCARD int files_close_on_exec(struct files*);
 
 struct sighand {
     struct sigaction actions[NSIG - 1];
