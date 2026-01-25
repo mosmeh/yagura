@@ -1,6 +1,7 @@
 #include "private.h"
 #include <common/string.h>
 #include <kernel/api/sys/limits.h>
+#include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/phys.h>
@@ -120,12 +121,31 @@ static int print_maps(struct file* file, struct vec* vec) {
     SCOPED_LOCK(vm, vm);
     for (struct vm_region* region = vm_first_region(vm); region;
          region = vm_next_region(region)) {
-        int ret = vec_printf(
-            vec, "%08zx-%08zx %c%c%c%c\n", region->start << PAGE_SHIFT,
-            region->end << PAGE_SHIFT, region->flags & VM_READ ? 'r' : '-',
-            region->flags & VM_WRITE ? 'w' : '-',
-            region->flags & VM_EXEC ? 'x' : '-',
-            region->flags & VM_SHARED ? 's' : 'p');
+        dev_t dev = 0;
+        ino_t ino = 0;
+        struct vm_obj* obj = region->obj;
+        if (obj && obj->vm_ops == &inode_vm_ops) {
+            struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
+            struct kstat stat;
+            if (IS_OK(inode_stat(inode, &stat))) {
+                dev = stat.st_dev;
+                ino = stat.st_ino;
+            }
+        }
+
+        int ret =
+            vec_printf(vec,
+                       "%08zx-%08zx "
+                       "%c%c%c%c "
+                       "%08lx "
+                       "%02x:%02x %lu\n",
+                       region->start << PAGE_SHIFT, region->end << PAGE_SHIFT,
+                       region->flags & VM_READ ? 'r' : '-',
+                       region->flags & VM_WRITE ? 'w' : '-',
+                       region->flags & VM_EXEC ? 'x' : '-',
+                       region->flags & VM_SHARED ? 's' : 'p',
+                       (unsigned long)region->offset << PAGE_SHIFT, major(dev),
+                       minor(dev), ino);
         if (IS_ERR(ret))
             return ret;
     }
