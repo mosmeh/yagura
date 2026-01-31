@@ -339,8 +339,8 @@
     F(dup3, sys_dup3, 0)                                                       \
     F(pipe2, sys_pipe2, 0)                                                     \
     F(inotify_init1, sys_ni_syscall, 0)                                        \
-    F(preadv, sys_ni_syscall, 0)                                               \
-    F(pwritev, sys_ni_syscall, 0)                                              \
+    F(preadv, sys_preadv, 0)                                                   \
+    F(pwritev, sys_pwritev, 0)                                                 \
     F(rt_tgsigqueueinfo, sys_ni_syscall, 0)                                    \
     F(perf_event_open, sys_ni_syscall, 0)                                      \
     F(recvmmsg, sys_ni_syscall, 0)                                             \
@@ -384,8 +384,8 @@
     F(membarrier, sys_ni_syscall, 0)                                           \
     F(mlock2, sys_ni_syscall, 0)                                               \
     F(copy_file_range, sys_ni_syscall, 0)                                      \
-    F(preadv2, sys_ni_syscall, 0)                                              \
-    F(pwritev2, sys_ni_syscall, 0)                                             \
+    F(preadv2, sys_preadv2, 0)                                                 \
+    F(pwritev2, sys_pwritev2, 0)                                               \
     F(pkey_mprotect, sys_ni_syscall, 0)                                        \
     F(pkey_alloc, sys_ni_syscall, 0)                                           \
     F(pkey_free, sys_ni_syscall, 0)                                            \

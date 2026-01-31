@@ -224,6 +224,10 @@ long sys_getcpu(unsigned int* cpu, unsigned int* node,
                 struct getcpu_cache* tcache);
 long sys_dup3(int oldfd, int newfd, int flags);
 long sys_pipe2(int pipefd[2], int flags);
+long sys_preadv(int fd, const struct iovec* iov, int iovcnt,
+                unsigned long offset_low, unsigned long offset_high);
+long sys_pwritev(int fd, const struct iovec* iov, int iovcnt,
+                 unsigned long offset_low, unsigned long offset_high);
 long sys_syncfs(int fd);
 long sys_renameat2(int olddirfd, const char* oldpath, int newdirfd,
                    const char* newpath, unsigned int flags);
@@ -235,6 +239,12 @@ long sys_listen(int sockfd, int backlog);
 long sys_accept4(int sockfd, struct sockaddr* addr, socklen_t* addrlen,
                  int flags);
 long sys_shutdown(int sockfd, int how);
+long sys_preadv2(int fd, const struct iovec* iov, int iovcnt,
+                 unsigned long offset_low, unsigned long offset_high,
+                 int flags);
+long sys_pwritev2(int fd, const struct iovec* iov, int iovcnt,
+                  unsigned long offset_low, unsigned long offset_high,
+                  int flags);
 long sys_statx(int dirfd, const char* pathname, int flags, unsigned int mask,
                struct statx* statxbuf);
 long sys_clock_gettime(clockid_t clockid, struct timespec* tp);
