@@ -229,6 +229,13 @@ long sys_preadv(int fd, const struct iovec* iov, int iovcnt,
 long sys_pwritev(int fd, const struct iovec* iov, int iovcnt,
                  unsigned long offset_low, unsigned long offset_high);
 long sys_syncfs(int fd);
+long sys_process_vm_readv(pid_t pid, const struct iovec* local_iov,
+                          unsigned long liovcnt, const struct iovec* remote_iov,
+                          unsigned long riovcnt, unsigned long flags);
+long sys_process_vm_writev(pid_t pid, const struct iovec* local_iov,
+                           unsigned long liovcnt,
+                           const struct iovec* remote_iov,
+                           unsigned long riovcnt, unsigned long flags);
 long sys_renameat2(int olddirfd, const char* oldpath, int newdirfd,
                    const char* newpath, unsigned int flags);
 long sys_getrandom(void* buf, size_t buflen, unsigned int flags);

@@ -77,7 +77,7 @@ SRCS := \
 	kernel/syscall/file_ctrl.c \
 	kernel/syscall/file_io.c \
 	kernel/syscall/fs.c \
-	kernel/syscall/mmap.c \
+	kernel/syscall/memory.c \
 	kernel/syscall/path.c \
 	kernel/syscall/select.c \
 	kernel/syscall/signal.c \

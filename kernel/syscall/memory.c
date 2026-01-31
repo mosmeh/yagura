@@ -5,8 +5,10 @@
 #include <kernel/api/sys/mman.h>
 #include <kernel/api/sys/stat.h>
 #include <kernel/api/sys/syscall.h>
+#include <kernel/api/sys/uio.h>
 #include <kernel/fs/file.h>
 #include <kernel/memory/memory.h>
+#include <kernel/memory/phys.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
 #include <kernel/syscall/syscall.h>
@@ -192,4 +194,110 @@ long sys_msync(void* addr, size_t length, int flags) {
     if (!(flags & (MS_SYNC | MS_ASYNC)))
         return -EINVAL;
     return for_each_overlapping_region(addr, length, sync, NULL);
+}
+
+NODISCARD
+static long process_vm_rw(pid_t pid, const struct iovec* user_local_iov,
+                          unsigned long liovcnt,
+                          const struct iovec* user_remote_iov,
+                          unsigned long riovcnt, unsigned long flags,
+                          bool write) {
+    if (flags)
+        return -EINVAL;
+    if (liovcnt == 0 || riovcnt == 0)
+        return 0;
+    if (!is_user_range(user_local_iov, liovcnt * sizeof(struct iovec)) ||
+        !is_user_range(user_remote_iov, riovcnt * sizeof(struct iovec)))
+        return -EFAULT;
+
+    struct task* task FREE(task) = task_find_by_tid(pid);
+    if (!task)
+        return -ESRCH;
+
+    struct vm* vm = task->vm;
+    SCOPED_LOCK(vm, vm);
+
+    size_t total_copied = 0;
+    unsigned long local_iov_index = 0;
+    struct iovec local_iov = {0};
+    unsigned long remote_iov_index = 0;
+    struct iovec remote_iov = {0};
+    while (local_iov_index < liovcnt && remote_iov_index < riovcnt) {
+        if (local_iov.iov_len == 0) {
+            if (copy_from_user(&local_iov, user_local_iov + local_iov_index,
+                               sizeof(struct iovec)))
+                return -EFAULT;
+            if (local_iov.iov_len == 0) {
+                ++local_iov_index;
+                continue;
+            }
+            if (!is_user_range(local_iov.iov_base, local_iov.iov_len))
+                return -EFAULT;
+        }
+        if (remote_iov.iov_len == 0) {
+            if (copy_from_user(&remote_iov, user_remote_iov + remote_iov_index,
+                               sizeof(struct iovec)))
+                return -EFAULT;
+            if (remote_iov.iov_len == 0) {
+                ++remote_iov_index;
+                continue;
+            }
+            if (!is_user_range(remote_iov.iov_base, remote_iov.iov_len))
+                return -EFAULT;
+        }
+
+        struct page* page =
+            vm_get_page(vm, remote_iov.iov_base, write ? VM_WRITE : VM_READ);
+        if (IS_ERR(page))
+            return PTR_ERR(page);
+        if (!page)
+            return -EFAULT;
+
+        size_t to_copy = MIN(local_iov.iov_len, remote_iov.iov_len);
+        to_copy = MIN(to_copy, PAGE_SIZE);
+        size_t page_offset = (uintptr_t)remote_iov.iov_base % PAGE_SIZE;
+        if (page_offset)
+            to_copy = MIN(to_copy, PAGE_SIZE - page_offset);
+
+        char buf[PAGE_SIZE];
+        if (write) {
+            if (copy_from_user(buf, local_iov.iov_base, to_copy))
+                return -EFAULT;
+            page_copy_from_buffer(page, buf, page_offset, to_copy);
+        } else {
+            page_copy_to_buffer(page, buf, page_offset, to_copy);
+            if (copy_to_user(local_iov.iov_base, buf, to_copy))
+                return -EFAULT;
+        }
+
+        total_copied += to_copy;
+
+        local_iov.iov_base = (unsigned char*)local_iov.iov_base + to_copy;
+        local_iov.iov_len -= to_copy;
+        if (local_iov.iov_len == 0)
+            ++local_iov_index;
+
+        remote_iov.iov_base = (unsigned char*)remote_iov.iov_base + to_copy;
+        remote_iov.iov_len -= to_copy;
+        if (remote_iov.iov_len == 0)
+            ++remote_iov_index;
+    }
+
+    return total_copied;
+}
+
+long sys_process_vm_readv(pid_t pid, const struct iovec* user_local_iov,
+                          unsigned long liovcnt,
+                          const struct iovec* user_remote_iov,
+                          unsigned long riovcnt, unsigned long flags) {
+    return process_vm_rw(pid, user_local_iov, liovcnt, user_remote_iov, riovcnt,
+                         flags, false);
+}
+
+long sys_process_vm_writev(pid_t pid, const struct iovec* user_local_iov,
+                           unsigned long liovcnt,
+                           const struct iovec* user_remote_iov,
+                           unsigned long riovcnt, unsigned long flags) {
+    return process_vm_rw(pid, user_local_iov, liovcnt, user_remote_iov, riovcnt,
+                         flags, true);
 }

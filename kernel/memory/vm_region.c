@@ -115,6 +115,9 @@ struct page* vm_region_get_page(struct vm_region* region, size_t index,
     if (request & ~flags)
         return ERR_PTR(-EFAULT);
 
+    if (!(request & (VM_READ | VM_WRITE | VM_EXEC)))
+        return NULL;
+
     struct tree_node** new_node = &region->private_pages.root;
     struct tree_node* parent = NULL;
     if (!(flags & VM_SHARED)) {

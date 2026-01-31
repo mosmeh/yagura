@@ -128,7 +128,8 @@ NODISCARD int vm_populate(void* virt_start_addr, void* virt_end_addr,
                           unsigned request);
 
 // Returns the page corresponding to the given virtual address.
-struct page* vm_get_page(struct vm*, void* virt_addr);
+// `request` is a combination of VM_* flags that the page should satisfy.
+struct page* vm_get_page(struct vm*, void* virt_addr, unsigned request);
 
 // Returns the first region in the vm.
 struct vm_region* vm_first_region(const struct vm*);

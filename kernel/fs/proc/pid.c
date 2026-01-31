@@ -21,9 +21,11 @@ static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
     size_t offset = 0;
     while (offset < size) {
         uintptr_t curr_addr = (uintptr_t)user_src + offset;
-        struct page* page = vm_get_page(vm, (void*)curr_addr);
-        if (IS_ERR(ASSERT(page)))
+        struct page* page = vm_get_page(vm, (void*)curr_addr, VM_READ);
+        if (IS_ERR(page))
             return PTR_ERR(page);
+        if (!page)
+            return -EFAULT;
         size_t page_offset = curr_addr % PAGE_SIZE;
         size_t to_copy = MIN(PAGE_SIZE - page_offset, size - offset);
         page_copy_to_buffer(page, (unsigned char*)dst + offset, page_offset,

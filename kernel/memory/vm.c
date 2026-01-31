@@ -151,6 +151,8 @@ NODISCARD static int map_page(struct vm* vm, void* virt_addr,
     struct page* page = vm_region_get_page(region, index, request);
     if (IS_ERR(page))
         return PTR_ERR(page);
+    if (!page)
+        return -EFAULT;
 
     uintptr_t page_addr = ROUND_DOWN((uintptr_t)virt_addr, PAGE_SIZE);
     unsigned flags = region->flags | obj->flags;
@@ -231,7 +233,7 @@ int vm_populate(void* virt_start_addr, void* virt_end_addr, unsigned request) {
     return rc;
 }
 
-struct page* vm_get_page(struct vm* vm, void* virt_addr) {
+struct page* vm_get_page(struct vm* vm, void* virt_addr, unsigned request) {
     // If vm is not locked, the returned page may become invalid anytime.
     ASSERT(vm_is_locked_by_current(vm));
 
@@ -240,7 +242,7 @@ struct page* vm_get_page(struct vm* vm, void* virt_addr) {
         return NULL;
 
     size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
-    return vm_region_get_page(region, index, region->flags);
+    return vm_region_get_page(region, index, request);
 }
 
 struct vm_region* vm_first_region(const struct vm* vm) {
