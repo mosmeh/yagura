@@ -7,13 +7,13 @@
 #include <string.h>
 #include <unistd.h>
 
-static ssize_t getdents(int fd, struct linux_dirent* dirp, size_t count) {
-    return __syscall_return(SYSCALL3(getdents, fd, dirp, count));
+static ssize_t getdents64(int fd, struct linux_dirent64* dirp, size_t count) {
+    return __syscall_return(SYSCALL3(getdents64, fd, dirp, count));
 }
 
 typedef struct __DIR {
     int fd;
-    struct linux_dirent* buf;
+    struct linux_dirent64* buf;
     size_t buf_capacity, buf_size;
     size_t buf_cursor;
     struct dirent dent;
@@ -44,13 +44,13 @@ struct dirent* readdir(DIR* dirp) {
     if (dirp->buf_cursor >= dirp->buf_size) {
         int saved_errno = errno;
         for (;;) {
-            struct linux_dirent* new_buf =
+            struct linux_dirent64* new_buf =
                 realloc(dirp->buf, dirp->buf_capacity);
             if (!new_buf)
                 return NULL;
             dirp->buf = new_buf;
             errno = 0;
-            ssize_t nread = getdents(dirp->fd, dirp->buf, dirp->buf_capacity);
+            ssize_t nread = getdents64(dirp->fd, dirp->buf, dirp->buf_capacity);
             if (nread == 0) {
                 errno = saved_errno;
                 return NULL;
@@ -67,17 +67,19 @@ struct dirent* readdir(DIR* dirp) {
         dirp->buf_cursor = 0;
     }
 
-    const struct linux_dirent* src =
-        (struct linux_dirent*)((unsigned char*)dirp->buf + dirp->buf_cursor);
+    const struct linux_dirent64* src =
+        (const void*)((const unsigned char*)dirp->buf + dirp->buf_cursor);
     struct dirent* dest = &dirp->dent;
-    dest->d_ino = src->d_ino;
-    dest->d_off = src->d_off;
-    dest->d_reclen = sizeof(struct dirent);
+    *dest = (struct dirent){
+        .d_ino = src->d_ino,
+        .d_off = src->d_off,
+        .d_reclen = sizeof(struct dirent),
+        .d_type = src->d_type,
+    };
     size_t name_size =
-        src->d_reclen - 2 - __builtin_offsetof(struct linux_dirent, d_name);
+        src->d_reclen - __builtin_offsetof(struct linux_dirent, d_name);
     name_size = MIN(name_size, sizeof(dest->d_name));
     strlcpy(dest->d_name, src->d_name, name_size);
-    dest->d_type = *(src->d_name + name_size + 2);
     dirp->buf_cursor += src->d_reclen;
     return dest;
 }
