@@ -5,6 +5,10 @@
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
+// To avoid undefined behavior when shifting by LONG_WIDTH,
+// shift by HALF_LONG_WIDTH twice.
+#define HALF_LONG_WIDTH (LONG_WIDTH / 2)
+
 long sys_read(int fd, void* user_buf, size_t count) {
     struct file* file FREE(file) = files_ref_file(current->files, fd);
     if (IS_ERR(ASSERT(file)))
@@ -19,11 +23,8 @@ long sys_read(int fd, void* user_buf, size_t count) {
     return nread;
 }
 
-long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
-        return PTR_ERR(file);
-
+NODISCARD static ssize_t readv(struct file* file, const struct iovec* user_iov,
+                               int iovcnt, uint64_t offset) {
     if (iovcnt < 0)
         return -EINVAL;
     if (iovcnt == 0)
@@ -45,7 +46,7 @@ long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
         unsigned char* user_dest = iov.iov_base;
         size_t count = iov.iov_len;
         while (count) {
-            ssize_t n = file_read(file, user_dest, count);
+            ssize_t n = file_pread(file, user_dest, count, offset);
             if (n == -EINTR) {
                 if (nread == 0)
                     return -ERESTARTSYS;
@@ -57,10 +58,43 @@ long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
                 return nread;
             nread += n;
             user_dest += n;
+            offset += n;
             count -= n;
         }
     }
     return nread;
+}
+
+long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+
+    SCOPED_LOCK(file, file);
+    ssize_t nread = readv(file, user_iov, iovcnt, file->offset);
+    if (IS_OK(nread))
+        file->offset += nread;
+    return nread;
+}
+
+long sys_preadv(int fd, const struct iovec* user_iov, int iovcnt,
+                unsigned long offset_low, unsigned long offset_high) {
+    return sys_preadv2(fd, user_iov, iovcnt, offset_low, offset_high, 0);
+}
+
+long sys_preadv2(int fd, const struct iovec* user_iov, int iovcnt,
+                 unsigned long offset_low, unsigned long offset_high,
+                 int flags) {
+    (void)flags;
+
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+
+    uint64_t offset =
+        (((uint64_t)offset_high << HALF_LONG_WIDTH) << HALF_LONG_WIDTH) |
+        offset_low;
+    return readv(file, user_iov, iovcnt, offset);
 }
 
 long sys_write(int fd, const void* user_buf, size_t count) {
@@ -77,11 +111,8 @@ long sys_write(int fd, const void* user_buf, size_t count) {
     return nwritten;
 }
 
-long sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
-        return PTR_ERR(file);
-
+NODISCARD static ssize_t writev(struct file* file, const struct iovec* user_iov,
+                                int iovcnt, uint64_t offset) {
     if (iovcnt < 0)
         return -EINVAL;
     if (iovcnt == 0)
@@ -103,7 +134,7 @@ long sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
         const unsigned char* user_src = iov.iov_base;
         size_t count = iov.iov_len;
         while (count) {
-            ssize_t n = file_write(file, user_src, count);
+            ssize_t n = file_pwrite(file, user_src, count, offset);
             if (n == -EINTR) {
                 if (nwritten == 0)
                     return -ERESTARTSYS;
@@ -115,10 +146,43 @@ long sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
                 return nwritten;
             nwritten += n;
             user_src += n;
+            offset += n;
             count -= n;
         }
     }
     return nwritten;
+}
+
+long sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+
+    SCOPED_LOCK(file, file);
+    ssize_t nwritten = writev(file, user_iov, iovcnt, file->offset);
+    if (IS_OK(nwritten))
+        file->offset += nwritten;
+    return nwritten;
+}
+
+long sys_pwritev(int fd, const struct iovec* user_iov, int iovcnt,
+                 unsigned long offset_low, unsigned long offset_high) {
+    return sys_pwritev2(fd, user_iov, iovcnt, offset_low, offset_high, 0);
+}
+
+long sys_pwritev2(int fd, const struct iovec* user_iov, int iovcnt,
+                  unsigned long offset_low, unsigned long offset_high,
+                  int flags) {
+    (void)flags;
+
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+
+    uint64_t offset =
+        (((uint64_t)offset_high << HALF_LONG_WIDTH) << HALF_LONG_WIDTH) |
+        offset_low;
+    return writev(file, user_iov, iovcnt, offset);
 }
 
 long sys_lseek(int fd, off_t offset, int whence) {
