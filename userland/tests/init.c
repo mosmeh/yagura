@@ -1,8 +1,12 @@
+#include <common/string.h>
+#include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <linux/major.h>
 #include <panic.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/limits.h>
 #include <sys/mount.h>
 #include <sys/reboot.h>
 #include <sys/stat.h>
@@ -10,12 +14,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static int spawn(char* filename) {
+static void spawn(char* filename) {
     pid_t pid = fork();
-    if (pid < 0) {
-        perror("fork");
-        abort();
-    }
+    ASSERT_OK(pid);
     if (pid == 0) {
         char* argv[] = {filename, NULL};
         static char* envp[] = {NULL};
@@ -24,7 +25,11 @@ static int spawn(char* filename) {
             abort();
         }
     }
-    return waitpid(pid, NULL, 0);
+
+    int status;
+    ASSERT_OK(waitpid(pid, &status, 0));
+    ASSERT(WIFEXITED(status));
+    ASSERT(WEXITSTATUS(status) == EXIT_SUCCESS);
 }
 
 int main(void) {
@@ -38,11 +43,24 @@ int main(void) {
     ASSERT_OK(dup2(fd, STDOUT_FILENO));
     ASSERT_OK(dup2(fd, STDERR_FILENO));
 
-    ASSERT_OK(mkdir("/dev/shm", 0755));
-    ASSERT_OK(mount("tmpfs", "/dev/shm", "tmpfs", 0, NULL));
-
-    ASSERT_OK(spawn("/bin/usertests"));
-    ASSERT_OK(spawn("/bin/xv6-usertests"));
+    DIR* dir = opendir("/bin/tests");
+    ASSERT(dir);
+    for (;;) {
+        errno = 0;
+        struct dirent* dent = readdir(dir);
+        if (!dent) {
+            ASSERT(errno == 0);
+            break;
+        }
+        if (dent->d_type != DT_REG)
+            continue;
+        if (!strcmp(dent->d_name, "init"))
+            continue;
+        printf("[TEST] %s\n", dent->d_name);
+        char path[PATH_MAX];
+        (void)snprintf(path, sizeof(path), "/bin/tests/%s", dent->d_name);
+        spawn(path);
+    }
 
     reboot(RB_POWER_OFF);
     UNREACHABLE();
