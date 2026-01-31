@@ -64,6 +64,7 @@ BIN_TARGET_NAMES := \
 	tests/pipe \
 	tests/random \
 	tests/read-write \
+	tests/stat \
 	tests/string \
 	tests/time \
 	tests/tree \

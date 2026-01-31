@@ -1,5 +1,6 @@
 #include "private.h"
 #include <kernel/api/fcntl.h>
+#include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
@@ -182,12 +183,8 @@ long sys_fstat64(int fd, struct linux_stat64* user_buf) {
     return copy_stat_to_user64(&buf, user_buf);
 }
 
-long sys_fstatat64(int dirfd, const char* user_pathname,
-                   struct linux_stat64* user_buf, int flags) {
-    if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH))
-        return -EINVAL;
-
-    struct kstat buf;
+NODISCARD static int stat_at(int dirfd, const char* user_pathname,
+                             struct kstat* buf, int flags) {
     if (!user_pathname) {
         if (!(flags & AT_EMPTY_PATH))
             return -EFAULT;
@@ -196,40 +193,86 @@ long sys_fstatat64(int dirfd, const char* user_pathname,
         if (IS_ERR(ASSERT(file)))
             return PTR_ERR(file);
 
-        int rc = inode_stat(file->inode, &buf);
-        if (IS_ERR(rc))
-            return rc;
-    } else {
-        char pathname[PATH_MAX];
-        ssize_t len = copy_pathname_from_user(pathname, user_pathname);
-        if (IS_ERR(len))
-            return len;
-
-        if (pathname[0]) {
-            struct path* base FREE(path) = path_from_dirfd(dirfd);
-            if (IS_ERR(ASSERT(base)))
-                return PTR_ERR(base);
-
-            int vfs_flags = 0;
-            if (flags & AT_SYMLINK_NOFOLLOW)
-                vfs_flags |= O_NOFOLLOW | O_NOFOLLOW_NOERROR;
-            int rc = vfs_stat_at(base, pathname, &buf, vfs_flags);
-            if (IS_ERR(rc))
-                return rc;
-        } else {
-            if (!(flags & AT_EMPTY_PATH))
-                return -ENOENT;
-
-            struct file* file FREE(file) =
-                files_ref_file(current->files, dirfd);
-            if (IS_ERR(ASSERT(file)))
-                return PTR_ERR(file);
-
-            int rc = inode_stat(file->inode, &buf);
-            if (IS_ERR(rc))
-                return rc;
-        }
+        return inode_stat(file->inode, buf);
     }
 
+    char pathname[PATH_MAX];
+    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
+    if (IS_ERR(len))
+        return len;
+
+    if (pathname[0]) {
+        struct path* base FREE(path) = path_from_dirfd(dirfd);
+        if (IS_ERR(ASSERT(base)))
+            return PTR_ERR(base);
+
+        int vfs_flags = 0;
+        if (flags & AT_SYMLINK_NOFOLLOW)
+            vfs_flags |= O_NOFOLLOW | O_NOFOLLOW_NOERROR;
+        return vfs_stat_at(base, pathname, buf, vfs_flags);
+    }
+
+    if (!(flags & AT_EMPTY_PATH))
+        return -ENOENT;
+
+    struct file* file FREE(file) = files_ref_file(current->files, dirfd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+
+    return inode_stat(file->inode, buf);
+}
+
+long sys_fstatat64(int dirfd, const char* user_pathname,
+                   struct linux_stat64* user_buf, int flags) {
+    if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH))
+        return -EINVAL;
+
+    struct kstat buf;
+    int rc = stat_at(dirfd, user_pathname, &buf, flags);
+    if (IS_ERR(rc))
+        return rc;
+
     return copy_stat_to_user64(&buf, user_buf);
+}
+
+long sys_statx(int dirfd, const char* user_pathname, int flags,
+               unsigned int mask, struct statx* user_statxbuf) {
+    if (mask & STATX__RESERVED)
+        return -EINVAL;
+    if ((flags & AT_STATX_SYNC_TYPE) == AT_STATX_SYNC_TYPE)
+        return -EINVAL;
+    if ((flags & ~AT_STATX_SYNC_TYPE) & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH))
+        return -EINVAL;
+
+    struct kstat buf;
+    int rc = stat_at(dirfd, user_pathname, &buf, flags);
+    if (IS_ERR(rc))
+        return rc;
+
+    struct statx statx = {
+        .stx_mask = STATX_BASIC_STATS,
+        .stx_blksize = buf.st_blksize,
+        .stx_nlink = buf.st_nlink,
+        .stx_uid = buf.st_uid,
+        .stx_gid = buf.st_gid,
+        .stx_mode = buf.st_mode,
+        .stx_ino = buf.st_ino,
+        .stx_size = buf.st_size,
+        .stx_blocks = buf.st_blocks,
+        .stx_atime = {.tv_sec = buf.st_atim.tv_sec,
+                      .tv_nsec = buf.st_atim.tv_nsec},
+        .stx_ctime = {.tv_sec = buf.st_ctim.tv_sec,
+                      .tv_nsec = buf.st_ctim.tv_nsec},
+        .stx_mtime = {.tv_sec = buf.st_mtim.tv_sec,
+                      .tv_nsec = buf.st_mtim.tv_nsec},
+        .stx_rdev_major = major(buf.st_rdev),
+        .stx_rdev_minor = minor(buf.st_rdev),
+        .stx_dev_major = major(buf.st_dev),
+        .stx_dev_minor = minor(buf.st_dev),
+    };
+
+    if (copy_to_user(user_statxbuf, &statx, sizeof(struct statx)))
+        return -EFAULT;
+
+    return 0;
 }

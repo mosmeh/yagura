@@ -1,5 +1,7 @@
 #pragma once
 
+#include <common/stdint.h>
+
 #define S_IFMT 0170000
 #define S_IFDIR 0040000
 #define S_IFCHR 0020000
@@ -108,3 +110,82 @@ struct linux_old_stat {
     unsigned long st_mtime;
     unsigned long st_ctime;
 };
+
+struct statx_timestamp {
+    int64_t tv_sec;   // Seconds since the Epoch (UNIX time)
+    uint32_t tv_nsec; // Nanoseconds since tv_sec
+    uint32_t __reserved;
+};
+
+struct statx {
+    uint32_t stx_mask;       // Mask of bits indicating filled fields
+    uint32_t stx_blksize;    // Block size for filesystem I/O
+    uint64_t stx_attributes; // Extra file attribute indicators
+    uint32_t stx_nlink;      // Number of hard links
+    uint32_t stx_uid;        // User ID of owner
+    uint32_t stx_gid;        // Group ID of owner
+    uint16_t stx_mode;       // File type and mode
+    uint16_t __spare0[1];
+    uint64_t stx_ino;    // Inode number
+    uint64_t stx_size;   // Total size in bytes
+    uint64_t stx_blocks; // Number of 512B blocks allocated
+    // Mask to show what's supported in stx_attributes
+    uint64_t stx_attributes_mask;
+
+    // The following fields are file timestamps
+    struct statx_timestamp stx_atime; // Last access
+    struct statx_timestamp stx_btime; // Creation
+    struct statx_timestamp stx_ctime; // Last status change
+    struct statx_timestamp stx_mtime; // Last modification
+
+    // If this file represents a device, then the next two fields contain
+    // the ID of the device
+    uint32_t stx_rdev_major; // Major ID
+    uint32_t stx_rdev_minor; // Minor ID
+
+    // The next two fields contain the ID of the device
+    // containing the filesystem where the file resides
+    uint32_t stx_dev_major; // Major ID
+    uint32_t stx_dev_minor; // Minor ID
+
+    uint64_t stx_mnt_id; // Mount ID
+
+    // Direct I/O alignment restrictions
+    uint32_t stx_dio_mem_align;
+    uint32_t stx_dio_offset_align;
+
+    uint64_t stx_subvol; // Subvolume identifier
+
+    uint32_t stx_atomic_write_unit_min;     // Min atomic write unit in bytes
+    uint32_t stx_atomic_write_unit_max;     // Max atomic write unit in bytes
+    uint32_t stx_atomic_write_segments_max; // Max atomic write segment count
+
+    // File offset alignment for direct I/O reads
+    uint32_t stx_dio_read_offset_align;
+
+    // Optimised max atomic write unit in bytes
+    uint32_t stx_atomic_write_unit_max_opt;
+    uint32_t __spare2[1];
+
+    uint64_t __spare3[8];
+};
+
+#define STATX_TYPE 0x00000001U           // Want/got stx_mode & S_IFMT
+#define STATX_MODE 0x00000002U           // Want/got stx_mode & ~S_IFMT
+#define STATX_NLINK 0x00000004U          // Want/got stx_nlink
+#define STATX_UID 0x00000008U            // Want/got stx_uid
+#define STATX_GID 0x00000010U            // Want/got stx_gid
+#define STATX_ATIME 0x00000020U          // Want/got stx_atime
+#define STATX_MTIME 0x00000040U          // Want/got stx_mtime
+#define STATX_CTIME 0x00000080U          // Want/got stx_ctime
+#define STATX_INO 0x00000100U            // Want/got stx_ino
+#define STATX_SIZE 0x00000200U           // Want/got stx_size
+#define STATX_BLOCKS 0x00000400U         // Want/got stx_blocks
+#define STATX_BASIC_STATS 0x000007ffU    // The stuff in the normal stat struct
+#define STATX_BTIME 0x00000800U          // Want/got stx_btime
+#define STATX_MNT_ID 0x00001000U         // Got stx_mnt_id
+#define STATX_DIOALIGN 0x00002000U       // Want/got direct I/O alignment info
+#define STATX_MNT_ID_UNIQUE 0x00004000U  // Want/got extended stx_mount_id
+#define STATX_SUBVOL 0x00008000U         // Want/got stx_subvol
+#define STATX_WRITE_ATOMIC 0x00010000U   // Want/got atomic_write_* fields
+#define STATX_DIO_READ_ALIGN 0x00020000U // Want/got dio read alignment info
