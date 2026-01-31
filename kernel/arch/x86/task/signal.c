@@ -23,46 +23,66 @@ void signal_trampoline(void) {
     __builtin_unreachable();
 }
 
+struct sigcontext {
+    sigset_t blocked_signals;
+    struct registers regs;
+};
+
+struct sigframe {
+    uintptr_t restorer;
+    int signum;
+    struct sigcontext ctx;
+#ifdef ARCH_I386
+    unsigned char trampoline[8];
+#endif
+#ifdef ARCH_X86_64
+    unsigned char trampoline[10];
+#endif
+};
+
 int arch_handle_signal(struct registers* regs, int signum,
                        const struct sigaction* action) {
-    struct sigcontext ctx = {
-        .regs = *regs,
-        .blocked_signals = current->blocked_signals,
-    };
-    ASSERT((uintptr_t)signal_trampoline_start + sizeof(ctx.trampoline) ==
+    struct sigframe frame = {.signum = signum,
+                             .ctx = {
+                                 .regs = *regs,
+                                 .blocked_signals = current->blocked_signals,
+                             }};
+    ASSERT((uintptr_t)signal_trampoline_start + sizeof(frame.trampoline) ==
            (uintptr_t)signal_trampoline_end);
-    memcpy(ctx.trampoline, signal_trampoline_start, sizeof(ctx.trampoline));
-
-    uintptr_t sp = regs->sp;
+    memcpy(frame.trampoline, signal_trampoline_start, sizeof(frame.trampoline));
 
 #ifdef ARCH_X86_64
-    sp -= 128; // Skip red zone
+    regs->sp -= 128; // Skip red zone
 #endif
 
-    sp = ROUND_DOWN(sp, 16);
+    regs->sp -= sizeof(struct sigframe);
 
-    // Push the context of the interrupted task
-    sp -= sizeof(struct sigcontext);
-    struct sigcontext* user_ctx = (struct sigcontext*)sp;
-    if (copy_to_user(user_ctx, &ctx, sizeof(struct sigcontext)))
+#ifdef ARCH_I386
+    regs->sp = ROUND_DOWN(regs->sp + 4, 16) - 4;
+#endif
+#ifdef ARCH_X86_64
+    regs->sp = ROUND_DOWN(regs->sp, 16) - 8;
+#endif
+
+    struct sigframe* user_frame = (struct sigframe*)regs->sp;
+    frame.restorer = (action->sa_flags & SA_RESTORER)
+                         ? (uintptr_t)action->sa_restorer
+                         : (uintptr_t)user_frame->trampoline;
+    if (copy_to_user(user_frame, &frame, sizeof(struct sigframe)))
         return -EFAULT;
 
-    // Push the argument of the signal handler
-    sp -= sizeof(long);
-    if (copy_to_user((void*)sp, &signum, sizeof(long)))
-        return -EFAULT;
-
-    uintptr_t trampoline = (action->sa_flags & SA_RESTORER)
-                               ? (uintptr_t)action->sa_restorer
-                               : (uintptr_t)user_ctx->trampoline;
-
-    // Push the return address of the signal handler
-    sp -= sizeof(uintptr_t);
-    if (copy_to_user((void*)sp, &trampoline, sizeof(uintptr_t)))
-        return -EFAULT;
-
-    regs->sp = sp;
     regs->ip = (uintptr_t)action->sa_handler;
+    regs->cs = USER_CS | 3;
+
+#ifdef ARCH_I386
+    regs->ax = signum;
+    regs->cx = regs->dx = 0;
+    regs->ss = regs->ds = regs->es = USER_DS | 3;
+#endif
+#ifdef ARCH_X86_64
+    regs->di = signum;
+    regs->ax = 0;
+#endif
 
     return 0;
 }
