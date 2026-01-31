@@ -353,8 +353,8 @@
     F(syncfs, sys_syncfs, 0)                                                   \
     F(sendmmsg, sys_ni_syscall, 0)                                             \
     F(setns, sys_ni_syscall, 0)                                                \
-    F(process_vm_readv, sys_ni_syscall, 0)                                     \
-    F(process_vm_writev, sys_ni_syscall, 0)                                    \
+    F(process_vm_readv, sys_process_vm_readv, 0)                               \
+    F(process_vm_writev, sys_process_vm_writev, 0)                             \
     F(kcmp, sys_ni_syscall, 0)                                                 \
     F(finit_module, sys_ni_syscall, 0)                                         \
     F(sched_setattr, sys_ni_syscall, 0)                                        \
