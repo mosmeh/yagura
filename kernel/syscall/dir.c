@@ -133,7 +133,7 @@ static ssize_t fill_dir(void* user_buf, size_t buf_size, const char* name,
         return -EFAULT;
     if (copy_to_user(user_dent->d_name, name, name_size))
         return -EFAULT;
-    if (copy_to_user(user_dent->d_name + name_size + sizeof(char), &type,
+    if (copy_to_user((unsigned char*)user_dent + rec_len - sizeof(char), &type,
                      sizeof(char)))
         return -EFAULT;
 
