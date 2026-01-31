@@ -24,7 +24,6 @@ BIN_TARGET_NAMES := \
 	hexdump \
 	imgview \
 	init \
-	init-test \
 	kill \
 	less \
 	ln \
@@ -50,15 +49,26 @@ BIN_TARGET_NAMES := \
 	sleep \
 	stat \
 	stty \
+	tests/framebuffer \
+	tests/libgen \
+	tests/malloc \
+	tests/mmap \
+	tests/open \
+	tests/pipe \
+	tests/read-write \
+	tests/run \
+	tests/string \
+	tests/tree \
+	tests/unix-socket \
+	tests/xv6-usertests \
 	touch \
 	uname \
-	usertests \
-	wc \
-	xv6-usertests
+	wc
 
 BIN_TARGETS := $(addprefix $(USERLAND_BIN_DIR)/,$(BIN_TARGET_NAMES))
 BIN_OBJS := $(addprefix $(OUT_DIR)/userland/,$(BIN_TARGET_NAMES:=.o))
 BIN_DEPS := $(BIN_OBJS:.o=.d)
+BIN_DIRS := $(sort $(dir $(BIN_TARGETS)))
 
 LIBC_TARGET := $(OUT_DIR)/libc.a
 
@@ -121,7 +131,7 @@ CFLAGS += \
 
 LIBC_SRCS += \
 	userland/libc/arch/x86_64/asm.S \
-	userland/libc/arch/x86_64/tls.o \
+	userland/libc/arch/x86_64/tls.c \
 	$(LIBC_X86_SRCS)
 else
 $(error Unknown ARCH '$(ARCH)')
@@ -140,13 +150,13 @@ all: $(BIN_TARGETS)
 $(OUT_DIR):
 	@mkdir -p $@
 
-$(USERLAND_BIN_DIR):
+$(BIN_DIRS):
 	@mkdir -p $@
 
 $(OBJ_DIRS):
 	@mkdir -p $@
 
-$(BIN_TARGETS): $(USERLAND_BIN_DIR)/% : $(OUT_DIR)/userland/%.o $(LIBC_TARGET) | $(USERLAND_BIN_DIR)
+$(BIN_TARGETS): $(USERLAND_BIN_DIR)/% : $(OUT_DIR)/userland/%.o $(LIBC_TARGET) | $(BIN_DIRS)
 	@echo "[LD] $(patsubst $(ROOT)/%,%,$@)"
 	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< -lc
 

@@ -404,7 +404,7 @@ void sharedfd(void) {
     }
     close(fd);
     unlink("sharedfd");
-    ASSERT_OK(nc == 10000 && np == 10000);
+    ASSERT(nc == 10000 && np == 10000);
 }
 
 // four processes write different files at the same

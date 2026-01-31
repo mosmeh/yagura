@@ -10,7 +10,7 @@ INITRD="${INITRD:-${BUILD_DIR}/initrd.img}"
 ! "qemu-system-${ARCH}" \
     -kernel "${KERNEL}" \
     -initrd "${INITRD}" \
-    -append 'panic=poweroff init=/bin/init-test console=ttyS0' \
+    -append 'panic=poweroff init=/bin/tests/run console=ttyS0' \
     -d guest_errors \
     -no-reboot \
     -cpu max \
