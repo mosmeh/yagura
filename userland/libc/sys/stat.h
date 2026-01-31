@@ -25,6 +25,8 @@ int lstat(const char* pathname, struct stat* buf);
 int fstat(int fd, struct stat* buf);
 int fstatat(int dirfd, const char* restrict pathname,
             struct stat* restrict statbuf, int flags);
+int statx(int dirfd, const char* restrict pathname, int flags,
+          unsigned int mask, struct statx* restrict statxbuf);
 
 int mkdir(const char* pathname, mode_t mode);
 int mkdirat(int dirfd, const char* pathname, mode_t mode);

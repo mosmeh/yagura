@@ -67,6 +67,7 @@ BIN_TARGET_NAMES := \
 	tests/read-write \
 	tests/run \
 	tests/select \
+	tests/stat \
 	tests/string \
 	tests/time \
 	tests/tree \

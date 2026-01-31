@@ -67,6 +67,12 @@ int fstatat(int dirfd, const char* pathname, struct stat* statbuf, int flags) {
     return rc;
 }
 
+int statx(int dirfd, const char* pathname, int flags, unsigned int mask,
+          struct statx* statxbuf) {
+    return __syscall_return(
+        SYSCALL5(statx, dirfd, pathname, flags, mask, statxbuf));
+}
+
 int mkdir(const char* pathname, mode_t mode) {
     return __syscall_return(SYSCALL2(mkdir, pathname, mode));
 }

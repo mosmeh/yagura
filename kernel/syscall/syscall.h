@@ -13,6 +13,7 @@ struct mmap_arg_struct;
 struct rusage;
 struct sel_arg_struct;
 struct sigaction;
+struct statx;
 struct sysinfo;
 struct timezone;
 struct tms;
@@ -234,6 +235,8 @@ long sys_listen(int sockfd, int backlog);
 long sys_accept4(int sockfd, struct sockaddr* addr, socklen_t* addrlen,
                  int flags);
 long sys_shutdown(int sockfd, int how);
+long sys_statx(int dirfd, const char* pathname, int flags, unsigned int mask,
+               struct statx* statxbuf);
 long sys_clock_gettime(clockid_t clockid, struct timespec* tp);
 long sys_clock_settime(clockid_t clockid, const struct timespec* tp);
 long sys_clock_getres(clockid_t clockid, struct timespec* res);
