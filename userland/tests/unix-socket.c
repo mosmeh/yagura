@@ -166,8 +166,13 @@ int main(void) {
 
     ASSERT_OK(shutdown(peer_fd1, SHUT_WR));
 
-    ASSERT_OK(waitpid(pid1, NULL, 0));
-    ASSERT_OK(waitpid(pid2, NULL, 0));
+    int status;
+    ASSERT_OK(waitpid(pid1, &status, 0));
+    ASSERT(WIFEXITED(status));
+    ASSERT(WEXITSTATUS(status) == 0);
+    ASSERT_OK(waitpid(pid2, &status, 0));
+    ASSERT(WIFEXITED(status));
+    ASSERT(WEXITSTATUS(status) == 0);
 
     ASSERT_OK(close(sockfd));
     ASSERT_OK(close(sockfd2));

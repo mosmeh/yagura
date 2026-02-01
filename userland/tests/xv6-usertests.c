@@ -38,7 +38,14 @@
 #define MAXFILE 1024
 #define MAXARG 1024
 
-static pid_t wait(void) { return waitpid(-1, NULL, 0); }
+static pid_t wait_success(void) {
+    int status;
+    pid_t pid = wait(&status);
+    ASSERT_OK(pid);
+    ASSERT(WIFEXITED(status));
+    ASSERT(WEXITSTATUS(status) == 0);
+    return pid;
+}
 
 static int exec(const char* filename, char* const argv[]) {
     static char* const envp[] = {NULL};
@@ -74,7 +81,7 @@ void exitiputtest(void) {
         ASSERT_OK(rmdir("../iputdir"));
         exit(0);
     }
-    wait();
+    wait_success();
     printf("exitiput test ok\n");
 }
 
@@ -102,7 +109,7 @@ void openiputtest(void) {
     }
     sleep(1);
     ASSERT_OK(rmdir("oidir"));
-    wait();
+    wait_success();
     printf("openiput test ok\n");
 }
 
@@ -268,7 +275,7 @@ void pipe1(void) {
         }
         ASSERT(total == 5 * 1033);
         close(fds[0]);
-        wait();
+        wait_success();
     }
     printf("pipe1 ok\n");
 }
@@ -309,9 +316,12 @@ void preempt(void) {
     kill(pid2, SIGKILL);
     kill(pid3, SIGKILL);
     printf("wait... ");
-    wait();
-    wait();
-    wait();
+    for (int i = 0; i < 3; ++i) {
+        int status;
+        ASSERT_OK(wait(&status));
+        ASSERT(WIFSIGNALED(status));
+        ASSERT(WTERMSIG(status) == SIGKILL);
+    }
     printf("preempt ok\n");
 }
 
@@ -324,7 +334,7 @@ void exitwait(void) {
         pid = fork();
         ASSERT_OK(pid);
         if (pid)
-            ASSERT(wait() == pid);
+            ASSERT(wait_success() == pid);
         else
             exit(0);
     }
@@ -360,7 +370,7 @@ void mem(void) {
         printf("mem ok\n");
         exit(0);
     } else {
-        wait();
+        ASSERT_OK(wait(NULL));
     }
 }
 
@@ -389,7 +399,7 @@ void sharedfd(void) {
     if (pid == 0)
         exit(0);
     else
-        wait();
+        wait_success();
     close(fd);
     fd = open("sharedfd", O_RDONLY);
     ASSERT_OK(fd);
@@ -441,7 +451,7 @@ void fourfiles(void) {
     }
 
     for (pi = 0; pi < 4; pi++)
-        wait();
+        wait_success();
 
     for (i = 0; i < 2; i++) {
         fname = names[i];
@@ -493,7 +503,7 @@ void createdelete(void) {
     }
 
     for (pi = 0; pi < 4; pi++)
-        wait();
+        wait_success();
 
     name[0] = name[1] = name[2] = 0;
     for (i = 0; i < N; i++) {
@@ -607,7 +617,7 @@ void concreate(void) {
         if (pid == 0)
             exit(0);
         else
-            wait();
+            wait_success();
     }
 
     memset(fa, 0, sizeof(fa));
@@ -647,7 +657,7 @@ void concreate(void) {
         if (pid == 0)
             exit(0);
         else
-            wait();
+            wait_success();
     }
 
     printf("concreate ok\n");
@@ -677,7 +687,7 @@ void linkunlink(void) {
     }
 
     if (pid)
-        wait();
+        wait_success();
     else
         exit(0);
 
@@ -953,9 +963,9 @@ void forktest(void) {
     }
 
     for (; n > 0; n--)
-        ASSERT_OK(wait());
+        ASSERT_OK(wait_success());
 
-    ASSERT_ERR(wait());
+    ASSERT_ERR(wait(NULL));
 
     printf("fork test OK\n");
 }
@@ -997,7 +1007,7 @@ void bigargtest(void) {
         close(fd);
         exit(0);
     }
-    wait();
+    wait_success();
     fd = open("bigarg-ok", O_RDONLY);
     ASSERT_OK(fd);
     close(fd);

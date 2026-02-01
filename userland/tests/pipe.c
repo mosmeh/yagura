@@ -112,7 +112,10 @@ int main(void) {
     ASSERT(pollfds3[0].revents == 0);
     ASSERT(pollfds3[1].revents == POLLOUT);
 
-    ASSERT_OK(waitpid(pid, NULL, 0));
+    int status;
+    ASSERT_OK(waitpid(pid, &status, 0));
+    ASSERT(WIFEXITED(status));
+    ASSERT(WEXITSTATUS(status) == 0);
 
     ASSERT_OK(close(send_fds[0]));
     ASSERT_OK(close(recv_fds[1]));

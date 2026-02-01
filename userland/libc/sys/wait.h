@@ -5,5 +5,6 @@
 
 struct rusage;
 
+pid_t wait(int* wstatus);
 pid_t waitpid(pid_t pid, int* wstatus, int options);
 pid_t wait4(pid_t pid, int* wstatus, int options, struct rusage* rusage);

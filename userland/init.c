@@ -169,7 +169,7 @@ int main(void) {
     }
 
     for (;;)
-        waitpid(-1, NULL, 0); // Reap zombies
+        wait(NULL); // Reap zombies
 
     UNREACHABLE();
 }
