@@ -992,13 +992,14 @@ void bigargtest(void) {
     pid = fork();
     ASSERT_OK(pid);
     if (pid == 0) {
+        size_t size = 1024;
+        char* buf = malloc(size);
+        ASSERT(buf);
+        memset(buf, 'x', size - 1);
+        buf[size - 1] = 0;
         static char* args[MAXARG];
-        int i;
-        for (i = 0; i < MAXARG - 1; i++)
-            args[i] = "bigargs test: failed\n                                  "
-                      "                                                        "
-                      "                                                        "
-                      "                                                     ";
+        for (int i = 0; i < MAXARG - 1; i++)
+            args[i] = buf;
         args[MAXARG - 1] = 0;
         printf("bigarg test\n");
         exec("/bin/echo", args);

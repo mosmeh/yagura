@@ -2,6 +2,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <libgen.h>
 #include <linux/major.h>
 #include <panic.h>
 #include <stdio.h>
@@ -13,6 +14,8 @@
 #include <sys/sysmacros.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+static const char* default_dir = "/bin/tests";
 
 static void spawn(char* filename) {
     pid_t pid = fork();
@@ -32,8 +35,8 @@ static void spawn(char* filename) {
     ASSERT(WEXITSTATUS(status) == EXIT_SUCCESS);
 }
 
-static void run(void) {
-    DIR* dir = opendir("/bin/tests");
+static void run(const char* dir_path) {
+    DIR* dir = opendir(dir_path);
     ASSERT(dir);
     for (;;) {
         errno = 0;
@@ -48,14 +51,17 @@ static void run(void) {
             continue;
         printf("[TEST] %s\n", dent->d_name);
         char path[PATH_MAX];
-        (void)snprintf(path, sizeof(path), "/bin/tests/%s", dent->d_name);
+        (void)snprintf(path, sizeof(path), "%s/%s", dir_path, dent->d_name);
         spawn(path);
     }
 }
 
-int main(void) {
+int main(int argc, char** argv) {
     if (getpid() != 1) {
-        run();
+        if (argc > 0 && argv[0][0] == '/')
+            run(dirname(argv[0]));
+        else
+            run(default_dir);
         return EXIT_SUCCESS;
     }
 
@@ -67,7 +73,7 @@ int main(void) {
     ASSERT_OK(dup2(fd, STDOUT_FILENO));
     ASSERT_OK(dup2(fd, STDERR_FILENO));
 
-    run();
+    run(default_dir);
 
     reboot(RB_POWER_OFF);
     UNREACHABLE();

@@ -39,3 +39,14 @@ jobs:
             - run: make
             - run: make test
               timeout-minutes: 3
+    host-test:
+        runs-on: ubuntu-24.04
+        env:
+            CC: gcc
+            ARCH: i386
+        steps:
+            - uses: actions/checkout@v4
+            - run: make userland
+            # Reduce stack size to reach command-line argument size limits easily
+            - run: sudo systemd-run --scope --quiet -p MemoryMax=256M bash -c 'ulimit -s 4096 && ${{ github.workspace }}/build/i386/base/bin/tests/run'
+              timeout-minutes: 3
