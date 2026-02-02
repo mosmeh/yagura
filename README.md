@@ -14,7 +14,7 @@ First, install dependencies:
 
 ```sh
 # on Ubuntu
-sudo apt install gcc-multilib cpio qemu-system-x86
+sudo apt install build-essential cpio qemu-system-x86
 ```
 
 Then run the following command to build and run:
