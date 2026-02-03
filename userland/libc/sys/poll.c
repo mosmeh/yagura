@@ -11,6 +11,7 @@ int ppoll(struct pollfd* fds, nfds_t nfds, const struct timespec* tmo_p,
     struct timespec timeout;
     if (tmo_p)
         timeout = *tmo_p;
-    return __syscall_return(SYSCALL5(ppoll, fds, nfds, tmo_p ? &timeout : NULL,
-                                     sigmask, sizeof(sigset_t)));
+    return __syscall_return(SYSCALL5(ppoll_time64, fds, nfds,
+                                     tmo_p ? &timeout : NULL, sigmask,
+                                     sizeof(sigset_t)));
 }

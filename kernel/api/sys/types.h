@@ -12,7 +12,7 @@ typedef long off_t;
 typedef long long loff_t;
 typedef int pid_t;
 typedef long clock_t;
-typedef long time_t;
+typedef long long time_t;
 typedef unsigned int useconds_t;
 typedef long suseconds_t;
 typedef long blksize_t;
