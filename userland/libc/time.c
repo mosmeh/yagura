@@ -82,10 +82,6 @@ char* asctime_r(const struct tm* time_ptr, char* buf) {
     return len > 0 ? buf : NULL;
 }
 
-int nanosleep(const struct timespec* req, struct timespec* rem) {
-    return __syscall_return(SYSCALL2(nanosleep, req, rem));
-}
-
 int clock_gettime(clockid_t clockid, struct timespec* tp) {
     return __syscall_return(SYSCALL2(clock_gettime64, clockid, tp));
 }
@@ -98,9 +94,19 @@ int clock_getres(clockid_t clockid, struct timespec* res) {
     return __syscall_return(SYSCALL2(clock_getres_time64, clockid, res));
 }
 
+NODISCARD static int raw_clock_nanosleep(clockid_t clockid, int flags,
+                                         const struct timespec* request,
+                                         struct timespec* remain) {
+    return SYSCALL4(clock_nanosleep_time64, clockid, flags, request, remain);
+}
+
+int nanosleep(const struct timespec* req, struct timespec* rem) {
+    return __syscall_return(raw_clock_nanosleep(CLOCK_MONOTONIC, 0, req, rem));
+}
+
 int clock_nanosleep(clockid_t clockid, int flags,
                     const struct timespec* request, struct timespec* remain) {
-    int rc = SYSCALL4(clock_nanosleep_time64, clockid, flags, request, remain);
+    int rc = raw_clock_nanosleep(clockid, flags, request, remain);
     // unlike other syscall wrappers, clock_nanosleep returns the error value
     // instead of returning -1 and setting errno
     if (IS_ERR(rc))
