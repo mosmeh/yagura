@@ -37,20 +37,23 @@ void arch_switch_context(struct task* prev, struct task* next) {
     // Call __reschedule(prev) after switching to the stack of the next
     // task to prevent other CPUs from using the stack of prev_task while
     // we are still using it.
-    __asm__ volatile("pushl %%ebp\n"       // ebp cannot be in the clobber list
-                     "movl $1f, (%%eax)\n" // prev->ip = $1f
-                     "movl %%esp, 0x04(%%eax)\n" // prev->sp = esp
-                     "movl 0x04(%%ebx), %%esp\n" // esp = next->sp
-                     "pushl %%eax\n"
-                     "call __reschedule\n"
-                     "add $4, %%esp\n"
-                     "movl (%%ebx), %%eax\n" // eax = next->ip
-                     "jmp *%%eax\n"
-                     "1:\n"
-                     "popl %%ebp\n"
-                     :
-                     : "a"(&prev->arch), "b"(&next->arch)
-                     : "ecx", "edx", "esi", "edi", "memory");
+    __asm__ volatile(
+        "pushl %%ebp\n"                    // ebp cannot be in the clobber list
+        "movl $1f, %c[ip_offset](%%eax)\n" // prev->ip = $1f
+        "movl %%esp, %c[sp_offset](%%eax)\n" // prev->sp = esp
+        "movl %c[sp_offset](%%ebx), %%esp\n" // esp = next->sp
+        "pushl %%eax\n"
+        "call __reschedule\n"
+        "add $4, %%esp\n"
+        "movl %c[ip_offset](%%ebx), %%eax\n" // eax = next->ip
+        "jmp *%%eax\n"
+        "1:\n"
+        "popl %%ebp\n"
+        :
+        : "a"(&prev->arch),
+          "b"(&next->arch), [ip_offset] "i"(offsetof(struct arch_task, ip)),
+          [sp_offset] "i"(offsetof(struct arch_task, sp))
+        : "ecx", "edx", "esi", "edi", "memory");
 }
 
 void arch_enter_user_mode(struct task* task, void* entry_point,
