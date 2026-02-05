@@ -10,3 +10,5 @@ typedef struct {
         __attribute__((__aligned__(__alignof__(long double))));
     void* __max_align3 __attribute__((__aligned__(__alignof__(void*))));
 } max_align_t;
+
+#define offsetof(t, d) __builtin_offsetof(t, d)

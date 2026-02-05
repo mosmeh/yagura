@@ -47,7 +47,7 @@ void* aligned_alloc(size_t alignment, size_t size) {
     ASSERT(alignment <= getauxval(AT_PAGESZ));
 
     size_t data_offset =
-        ROUND_UP(__builtin_offsetof(struct malloc_header, data), alignment);
+        ROUND_UP(offsetof(struct malloc_header, data), alignment);
     size_t real_size = data_offset + size;
     void* addr = mmap(NULL, real_size, PROT_READ | PROT_WRITE,
                       MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
@@ -103,7 +103,7 @@ void* realloc(void* ptr, size_t new_size) {
 
     struct malloc_header* new_header = header_from_ptr(new_ptr);
     memcpy(new_header->data, old_header->data,
-           old_header->size - __builtin_offsetof(struct malloc_header, data));
+           old_header->size - offsetof(struct malloc_header, data));
 
     free(ptr);
 
