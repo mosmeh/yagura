@@ -326,7 +326,7 @@ NODISCARD static int loader_load(struct loader* loader) {
 
     int rc = 0;
     struct vm* prev_vm = vm_enter(loader->vm);
-    mutex_lock(&loader->vm->lock);
+    vm_lock(loader->vm);
 
     for (size_t depth = 0;; ++depth) {
         // Linux imposes a limit of 4 interpreter recursions
@@ -340,7 +340,7 @@ NODISCARD static int loader_load(struct loader* loader) {
                 continue;
             if (IS_ERR(rc) || !loader->commit)
                 break;
-            mutex_unlock(&loader->vm->lock);
+            vm_unlock(loader->vm);
             vm_unref(prev_vm);
             loader_commit(loader);
         }
@@ -351,7 +351,7 @@ NODISCARD static int loader_load(struct loader* loader) {
     }
 
     ASSERT(IS_ERR(rc));
-    mutex_unlock(&loader->vm->lock);
+    vm_unlock(loader->vm);
     vm_enter(prev_vm);
     return rc;
 }
