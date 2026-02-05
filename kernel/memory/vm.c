@@ -219,8 +219,8 @@ int vm_populate(void* virt_start_addr, void* virt_end_addr, unsigned request) {
         }
         if (vm != prev_vm) {
             if (prev_vm)
-                mutex_unlock(&prev_vm->lock);
-            mutex_lock(&vm->lock);
+                vm_unlock(prev_vm);
+            vm_lock(vm);
             prev_vm = vm;
         }
         rc = map_page(vm, (void*)addr, request);
@@ -228,7 +228,7 @@ int vm_populate(void* virt_start_addr, void* virt_end_addr, unsigned request) {
             break;
     }
     if (prev_vm)
-        mutex_unlock(&prev_vm->lock);
+        vm_unlock(prev_vm);
 
     return rc;
 }

@@ -213,7 +213,7 @@ static int pop_one_signal(void) {
 
 int signal_pop(struct sigaction* out_action) {
     struct sighand* sighand = current->sighand;
-    spinlock_lock(&sighand->lock);
+    sighand_lock(sighand);
     for (;;) {
         int signum = pop_one_signal();
         if (!signum)
@@ -228,17 +228,17 @@ int signal_pop(struct sigaction* out_action) {
                 *out_action = *action;
             if (action->sa_flags & SA_RESETHAND)
                 action->sa_handler = SIG_DFL;
-            spinlock_unlock(&sighand->lock);
+            sighand_unlock(sighand);
             return signum;
         }
 
         switch (default_dispositions[signum]) {
         case DISP_TERM:
         case DISP_CORE:
-            spinlock_unlock(&sighand->lock);
+            sighand_unlock(sighand);
             task_terminate(signum);
         case DISP_STOP: {
-            spinlock_unlock(&sighand->lock);
+            sighand_unlock(sighand);
 
             {
                 SCOPED_DISABLE_INTERRUPTS();
@@ -247,7 +247,7 @@ int signal_pop(struct sigaction* out_action) {
             }
             // Here we were resumed by SIGCONT.
 
-            spinlock_lock(&sighand->lock);
+            sighand_lock(sighand);
             break;
         }
         case DISP_CONT:
@@ -257,7 +257,7 @@ int signal_pop(struct sigaction* out_action) {
             UNREACHABLE();
         }
     }
-    spinlock_unlock(&sighand->lock);
+    sighand_unlock(sighand);
     return 0;
 }
 
