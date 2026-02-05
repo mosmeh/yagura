@@ -7,10 +7,6 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 
-void __reschedule(struct arch_task* task) {
-    sched_reschedule(CONTAINER_OF(task, struct task, arch));
-}
-
 void arch_switch_context(struct task* prev, struct task* next) {
     ASSERT(!arch_interrupts_enabled());
 
@@ -34,23 +30,25 @@ void arch_switch_context(struct task* prev, struct task* next) {
         __asm__ volatile("frstor %0" ::"m"(next->arch.fpu_state));
     // NOLINTEND(bugprone-branch-clone)
 
-    // Call __reschedule(prev) after switching to the stack of the next
-    // task to prevent other CPUs from using the stack of prev_task while
+    // Call sched_reschedule(prev) only after switching to the stack of the next
+    // task to prevent other CPUs from using the stack of the prev task while
     // we are still using it.
-    __asm__ volatile("pushl %%ebp\n"       // ebp cannot be in the clobber list
-                     "movl $1f, (%%eax)\n" // prev->ip = $1f
-                     "movl %%esp, 0x04(%%eax)\n" // prev->sp = esp
-                     "movl 0x04(%%ebx), %%esp\n" // esp = next->sp
-                     "pushl %%eax\n"
-                     "call __reschedule\n"
-                     "add $4, %%esp\n"
-                     "movl (%%ebx), %%eax\n" // eax = next->ip
-                     "jmp *%%eax\n"
-                     "1:\n"
-                     "popl %%ebp\n"
-                     :
-                     : "a"(&prev->arch), "b"(&next->arch)
-                     : "ecx", "edx", "esi", "edi", "memory");
+    __asm__ volatile(
+        "pushl %%ebp\n"                    // ebp cannot be in the clobber list
+        "movl $1f, %c[ip_offset](%%eax)\n" // prev->arch.ip = $1f
+        "movl %%esp, %c[sp_offset](%%eax)\n" // prev->arch.sp = esp
+        "movl %c[sp_offset](%%ebx), %%esp\n" // esp = next->arch.sp
+        "pushl %%eax\n"
+        "call sched_reschedule\n"
+        "add $4, %%esp\n"
+        "movl %c[ip_offset](%%ebx), %%eax\n" // eax = next->arch.ip
+        "jmp *%%eax\n"
+        "1:\n"
+        "popl %%ebp\n"
+        :
+        : "a"(prev), "b"(next), [ip_offset] "i"(offsetof(struct task, arch.ip)),
+          [sp_offset] "i"(offsetof(struct task, arch.sp))
+        : "ecx", "edx", "esi", "edi", "memory");
 }
 
 void arch_enter_user_mode(struct task* task, void* entry_point,

@@ -7,10 +7,6 @@
 #include <kernel/kmsg.h>
 #include <kernel/task/task.h>
 
-void __reschedule(struct arch_task* task) {
-    sched_reschedule(CONTAINER_OF(task, struct task, arch));
-}
-
 void arch_switch_context(struct task* prev, struct task* next) {
     ASSERT(!arch_interrupts_enabled());
 
@@ -36,22 +32,24 @@ void arch_switch_context(struct task* prev, struct task* next) {
         __asm__ volatile("frstor %0" ::"m"(next->arch.fpu_state));
     // NOLINTEND(bugprone-branch-clone)
 
-    // Call __reschedule(prev) after switching to the stack of the next
-    // task to prevent other CPUs from using the stack of prev_task while
+    // Call sched_reschedule(prev) only after switching to the stack of the next
+    // task to prevent other CPUs from using the stack of the prev task while
     // we are still using it.
-    __asm__ volatile("pushq %%rbp\n"       // rbp cannot be in the clobber list
-                     "movq $1f, (%%rdi)\n" // prev->ip = $1f
-                     "movq %%rsp, 0x08(%%rdi)\n" // prev->sp = rsp
-                     "movq 0x08(%%rbx), %%rsp\n" // rsp = next->sp
-                     "call __reschedule\n"
-                     "movq (%%rbx), %%rbx\n" // rbx = next->ip
-                     "jmp *%%rbx\n"
-                     "1:\n"
-                     "popq %%rbp\n"
-                     :
-                     : "D"(&prev->arch), "b"(&next->arch)
-                     : "rax", "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11",
-                       "r12", "r13", "r14", "r15", "memory");
+    __asm__ volatile(
+        "pushq %%rbp\n"                    // rbp cannot be in the clobber list
+        "movq $1f, %c[ip_offset](%%rdi)\n" // prev->arch.ip = $1f
+        "movq %%rsp, %c[sp_offset](%%rdi)\n" // prev->arch.sp = rsp
+        "movq %c[sp_offset](%%rbx), %%rsp\n" // rsp = next->arch.sp
+        "call sched_reschedule\n"
+        "movq %c[ip_offset](%%rbx), %%rbx\n" // rbx = next->arch.ip
+        "jmp *%%rbx\n"
+        "1:\n"
+        "popq %%rbp\n"
+        :
+        : "D"(prev), "b"(next), [ip_offset] "i"(offsetof(struct task, arch.ip)),
+          [sp_offset] "i"(offsetof(struct task, arch.sp))
+        : "rax", "rcx", "rdx", "rsi", "r8", "r9", "r10", "r11", "r12", "r13",
+          "r14", "r15", "memory");
 }
 
 void arch_enter_user_mode(struct task* task, void* entry_point,
