@@ -76,8 +76,7 @@ struct dirent* readdir(DIR* dirp) {
         .d_reclen = sizeof(struct dirent),
         .d_type = src->d_type,
     };
-    size_t name_size =
-        src->d_reclen - __builtin_offsetof(struct linux_dirent, d_name);
+    size_t name_size = src->d_reclen - offsetof(struct linux_dirent, d_name);
     name_size = MIN(name_size, sizeof(dest->d_name));
     strlcpy(dest->d_name, src->d_name, name_size);
     dirp->buf_cursor += src->d_reclen;
