@@ -3,6 +3,7 @@
 #include <common/string.h>
 #include <kernel/api/sched.h>
 #include <kernel/kmsg.h>
+#include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
 static _Atomic(pid_t) next_tid = 1;

@@ -9,7 +9,7 @@
 #include <kernel/api/termios.h>
 #include <kernel/fs/file.h>
 #include <kernel/panic.h>
-#include <kernel/task/task.h>
+#include <kernel/task/signal.h>
 
 static const struct termios default_termios = {
     .c_iflag = TTYDEF_IFLAG,

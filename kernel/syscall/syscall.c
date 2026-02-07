@@ -2,9 +2,10 @@
 #include <kernel/api/sys/syscall.h>
 #include <kernel/arch/interrupts.h>
 #include <kernel/kmsg.h>
+#include <kernel/panic.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/system.h>
-#include <kernel/task/task.h>
+#include <kernel/task/signal.h>
 
 long sys_ni_syscall(void) { return -ENOSYS; }
 
