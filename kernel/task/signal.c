@@ -4,6 +4,7 @@
 #include <common/string.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
 static struct slab sighand_slab;

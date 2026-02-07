@@ -6,6 +6,7 @@
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>
+#include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 #include <kernel/time.h>
 

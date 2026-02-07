@@ -5,6 +5,7 @@
 #include <kernel/fs/file.h>
 #include <kernel/panic.h>
 #include <kernel/socket.h>
+#include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
 struct unix_socket {

@@ -1,5 +1,6 @@
 #include <common/limits.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
 long sys_kill(pid_t pid, int sig) {
