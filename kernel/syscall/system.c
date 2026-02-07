@@ -215,7 +215,7 @@ long sys_getcpu(unsigned int* user_cpu, unsigned int* user_node,
     (void)user_tcache;
     int rc = 0;
     if (user_cpu) {
-        unsigned id = arch_cpu_get_id();
+        unsigned id = cpu_get_id();
         rc |= copy_to_user(user_cpu, &id, sizeof(unsigned));
     }
     if (user_node) {

@@ -19,10 +19,12 @@ int arch_init_task(struct task* task, void (*entry_point)(void)) {
     *regs = (struct registers){
         .cs = KERNEL_CS,
         .ss = KERNEL_DS,
-        .gs = KERNEL_DS,
-        .fs = KERNEL_DS,
-        .es = KERNEL_DS,
+#ifdef ARCH_I386
         .ds = KERNEL_DS,
+        .es = KERNEL_DS,
+        .fs = CPU_SELECTOR,
+        .gs = KERNEL_DS,
+#endif
         .ip = (uintptr_t)entry_point,
         .sp = task->kernel_stack_top,
         .flags = X86_EFLAGS_IF | X86_EFLAGS_FIXED,

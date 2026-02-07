@@ -5,7 +5,10 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 
-static struct cpu bsp;
+static struct cpu bsp = {
+    .self = &bsp,
+    .id = 0,
+};
 size_t num_cpus = 1;
 struct cpu* cpus[MAX_NUM_CPUS] = {&bsp};
 static struct mpsc* msg_pool;
@@ -32,7 +35,10 @@ struct cpu* cpu_add(void) {
 
     struct cpu* cpu = kmalloc(sizeof(struct cpu));
     ASSERT(cpu);
-    *cpu = (struct cpu){0};
+    *cpu = (struct cpu){
+        .self = cpu,
+        .id = num_cpus,
+    };
     init_msg_queue(cpu);
 
     cpus[num_cpus++] = cpu;
@@ -40,13 +46,6 @@ struct cpu* cpu_add(void) {
 }
 
 struct cpu* cpu_get_bsp(void) { return &bsp; }
-
-struct cpu* cpu_get_current(void) {
-    ASSERT(!arch_interrupts_enabled());
-    struct cpu* cpu = cpus[arch_cpu_get_id()];
-    ASSERT(cpu);
-    return cpu;
-}
 
 void cpu_relax(void) {
     cpu_process_messages();
@@ -74,7 +73,7 @@ void cpu_free_message(struct ipi_message* msg) {
 void cpu_broadcast_message_queued(struct ipi_message* msg, bool eager) {
     {
         SCOPED_DISABLE_INTERRUPTS();
-        uint8_t cpu_id = arch_cpu_get_id();
+        unsigned long cpu_id = cpu_get_id();
         for (size_t i = 0; i < num_cpus; ++i) {
             if (i == cpu_id)
                 continue;
@@ -89,7 +88,7 @@ void cpu_broadcast_message_queued(struct ipi_message* msg, bool eager) {
 void cpu_broadcast_message_coalesced(unsigned int type, bool eager) {
     {
         SCOPED_DISABLE_INTERRUPTS();
-        uint8_t cpu_id = arch_cpu_get_id();
+        unsigned long cpu_id = cpu_get_id();
         for (size_t i = 0; i < num_cpus; ++i) {
             if (i == cpu_id)
                 continue;

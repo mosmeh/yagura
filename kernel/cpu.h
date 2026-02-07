@@ -3,9 +3,13 @@
 #include <common/stdbool.h>
 #include <common/stddef.h>
 #include <kernel/arch/cpu.h>
+#include <kernel/interrupts.h>
 #include <kernel/memory/memory.h>
 
 struct cpu {
+    struct cpu* self;
+    unsigned long id;
+
     _Atomic(struct task*) current_task;
     struct task* idle_task;
 
@@ -23,7 +27,18 @@ extern size_t num_cpus;
 extern struct cpu* cpus[MAX_NUM_CPUS];
 
 struct cpu* cpu_get_bsp(void);
-struct cpu* cpu_get_current(void);
+
+static inline struct cpu* cpu_get_current(void) {
+    ASSERT(!arch_interrupts_enabled());
+    struct cpu* cpu = (void*)arch_cpu_read(offsetof(struct cpu, self));
+    ASSERT(cpu);
+    return cpu;
+}
+
+static inline unsigned long cpu_get_id(void) {
+    SCOPED_DISABLE_INTERRUPTS();
+    return arch_cpu_read(offsetof(struct cpu, id));
+}
 
 struct cpu* cpu_add(void);
 

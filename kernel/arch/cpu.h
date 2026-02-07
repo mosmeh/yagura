@@ -7,8 +7,8 @@ struct cpu;
 struct vec;
 struct arch_cpu;
 
-// Returns the ID of the current CPU.
-uint8_t arch_cpu_get_id(void);
+// Reads a value from the struct cpu for this CPU at the specified offset.
+unsigned long arch_cpu_read(size_t offset);
 
 // Returns the hardware capabilities bitmask that should be exposed to userland
 // as AT_HWCAP.

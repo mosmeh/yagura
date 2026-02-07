@@ -99,12 +99,12 @@ extern unsigned char kmap_page_table_start[];
 static pte_t* kmap_page_table =
     (pte_t*)((uintptr_t)kmap_page_table_start + KERNEL_IMAGE_START);
 
-static size_t kmap_page_index(size_t local_index) {
-    return (size_t)arch_cpu_get_id() * KMAP_MAX_NUM_PER_CPU + local_index;
+static size_t kmap_page_index(const struct cpu* cpu, size_t local_index) {
+    return cpu->id * KMAP_MAX_NUM_PER_CPU + local_index;
 }
 
-static uintptr_t kmap_addr(size_t local_index) {
-    return KMAP_START + (kmap_page_index(local_index) << PAGE_SHIFT);
+static uintptr_t kmap_addr(const struct cpu* cpu, size_t local_index) {
+    return KMAP_START + (kmap_page_index(cpu, local_index) << PAGE_SHIFT);
 }
 
 void* kmap(phys_addr_t phys_addr) {
@@ -113,8 +113,9 @@ void* kmap(phys_addr_t phys_addr) {
 
     bool int_flag = arch_interrupts_enabled();
     arch_disable_interrupts();
+    struct cpu* cpu = cpu_get_current();
 
-    struct kmap_ctrl* kmap = &cpu_get_current()->kmap;
+    struct kmap_ctrl* kmap = &cpu->kmap;
     size_t index = kmap->num_mapped++;
     ASSERT(index < KMAP_MAX_NUM_PER_CPU);
     ASSERT(!kmap->phys_addrs[index]);
@@ -126,11 +127,11 @@ void* kmap(phys_addr_t phys_addr) {
 
     kmap->phys_addrs[index] = phys_addr;
 
-    pte_t* pte = kmap_page_table + kmap_page_index(index);
+    pte_t* pte = kmap_page_table + kmap_page_index(cpu, index);
     ASSERT(!(*pte & PTE_PRESENT));
     *pte = phys_addr | PTE_PRESENT | PTE_WRITE;
 
-    uintptr_t kaddr = kmap_addr(index);
+    uintptr_t kaddr = kmap_addr(cpu, index);
     arch_flush_tlb_single(kaddr);
     return (void*)kaddr;
 }
@@ -139,7 +140,9 @@ void kunmap(void* addr) {
     ASSERT(!arch_interrupts_enabled());
     ASSERT(addr);
 
-    size_t offset = (uintptr_t)addr - kmap_addr(0);
+    struct cpu* cpu = cpu_get_current();
+
+    size_t offset = (uintptr_t)addr - kmap_addr(cpu, 0);
     ASSERT(offset % PAGE_SIZE == 0);
     size_t index = offset >> PAGE_SHIFT;
     ASSERT(index < KMAP_MAX_NUM_PER_CPU);
@@ -149,7 +152,7 @@ void kunmap(void* addr) {
     kmap->phys_addrs[index] = 0;
     --kmap->num_mapped;
 
-    pte_t* pte = kmap_page_table + kmap_page_index(index);
+    pte_t* pte = kmap_page_table + kmap_page_index(cpu, index);
     ASSERT(*pte & PTE_PRESENT);
     *pte = 0;
     arch_flush_tlb_single((uintptr_t)addr);

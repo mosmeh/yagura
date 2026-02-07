@@ -1,5 +1,6 @@
 #include <kernel/arch/x86/gdt.h>
 #include <kernel/arch/x86/interrupts/interrupts.h>
+#include <kernel/arch/x86/msr.h>
 #include <kernel/cpu.h>
 
 static void set_segment(struct gdt_segment* gdt, size_t index, uint32_t low,
@@ -21,16 +22,16 @@ static void set_base_limit(struct gdt_segment* gdt, size_t index, uint32_t base,
 }
 
 void gdt_init_cpu(void) {
-    // Avoid using cpu_get_current() here, as it relies on GDT_ENTRY_CPU_ID
+    // Avoid using cpu_get_current() here, as it relies on the segment
+    // we are about to set up.
     struct cpu* cpu = NULL;
-    size_t cpu_id = 0;
     if (num_cpus <= 1) {
         cpu = cpu_get_bsp();
     } else {
         uint8_t apic_id = lapic_get_id();
-        for (; cpu_id < num_cpus; ++cpu_id) {
-            if (cpus[cpu_id]->arch.apic_id == apic_id) {
-                cpu = cpus[cpu_id];
+        for (size_t i = 0; i < num_cpus; ++i) {
+            if (cpus[i]->arch.apic_id == apic_id) {
+                cpu = cpus[i];
                 break;
             }
         }
@@ -45,21 +46,11 @@ void gdt_init_cpu(void) {
         .limit = sizeof(cpu->arch.gdt) - 1,
         .base = (uintptr_t)gdt,
     };
+    *tss = (struct tss){
+        .iomap_base = sizeof(struct tss),
+    };
 
     set_segment(gdt, 0, 0, 0);
-
-#ifdef ARCH_I386
-    set_segment(gdt, GDT_ENTRY_KERNEL_CS, 0x0000ffff, 0x00cf9a00);
-    set_segment(gdt, GDT_ENTRY_KERNEL_DS, 0x0000ffff, 0x00cf9200);
-    set_segment(gdt, GDT_ENTRY_USER_CS, 0x0000ffff, 0x00cffa00);
-    set_segment(gdt, GDT_ENTRY_USER_DS, 0x0000ffff, 0x00cff200);
-#endif
-#ifdef ARCH_X86_64
-    set_segment(gdt, GDT_ENTRY_KERNEL_CS, 0x0000ffff, 0x00af9a00);
-    set_segment(gdt, GDT_ENTRY_KERNEL_DS, 0x0000ffff, 0x008f9200);
-    set_segment(gdt, GDT_ENTRY_USER_DS, 0x0000ffff, 0x008ff200);
-    set_segment(gdt, GDT_ENTRY_USER_CS, 0x0000ffff, 0x00affa00);
-#endif
 
     gdt[GDT_ENTRY_TSS] = (struct gdt_segment){
         .dpl = 0,
@@ -79,40 +70,58 @@ void gdt_init_cpu(void) {
     for (size_t i = 0; i < NUM_GDT_TLS_ENTRIES; ++i)
         set_segment(gdt, GDT_ENTRY_TLS_MIN + i, 0, 0);
 
-    gdt[GDT_ENTRY_CPU_ID] = (struct gdt_segment){
+#ifdef ARCH_I386
+    set_segment(gdt, GDT_ENTRY_KERNEL_CS, 0x0000ffff, 0x00cf9a00);
+    set_segment(gdt, GDT_ENTRY_KERNEL_DS, 0x0000ffff, 0x00cf9200);
+    set_segment(gdt, GDT_ENTRY_USER_CS, 0x0000ffff, 0x00cffa00);
+    set_segment(gdt, GDT_ENTRY_USER_DS, 0x0000ffff, 0x00cff200);
+
+    gdt[GDT_ENTRY_CPU] = (struct gdt_segment){
         .dpl = 0,
         .segment_present = 1,
         .granularity = 0,
         .operation_size64 = 0,
         .operation_size32 = 1,
         .descriptor_type = 1,
-        .type = 0x5, // Read-only grows-down data
+        .type = 0x1, // Read-only data
     };
-    set_base_limit(gdt, GDT_ENTRY_CPU_ID, 0, cpu_id);
+    set_base_limit(gdt, GDT_ENTRY_CPU, (uintptr_t)cpu, sizeof(struct cpu) - 1);
 
-    *tss = (struct tss){
-#ifdef ARCH_I386
-        .ss0 = KERNEL_DS,
+    tss->ss0 = KERNEL_DS;
+
+    __asm__ volatile("lgdt %[gdtr]\n"
+                     "movw %%ax, %%ds\n"
+                     "movw %%ax, %%es\n"
+                     "movw %%ax, %%gs\n"
+                     "movw %%ax, %%ss\n"
+                     "movw %%bx, %%fs\n"
+                     "ljmpl %[kernel_cs], $1f\n"
+                     "1:\n"
+                     :
+                     : [gdtr] "m"(*gdtr), "a"(KERNEL_DS),
+                       "b"(CPU_SELECTOR), [kernel_cs] "i"(KERNEL_CS)
+                     : "memory");
 #endif
-        .iomap_base = sizeof(struct tss),
-    };
+
+#ifdef ARCH_X86_64
+    set_segment(gdt, GDT_ENTRY_KERNEL_CS, 0x0000ffff, 0x00af9a00);
+    set_segment(gdt, GDT_ENTRY_KERNEL_DS, 0x0000ffff, 0x008f9200);
+    set_segment(gdt, GDT_ENTRY_USER_DS, 0x0000ffff, 0x008ff200);
+    set_segment(gdt, GDT_ENTRY_USER_CS, 0x0000ffff, 0x00affa00);
 
     __asm__ volatile("lgdt %[gdtr]\n"
                      "movw %%ax, %%ds\n"
                      "movw %%ax, %%es\n"
                      "movw %%ax, %%fs\n"
                      "movw %%ax, %%gs\n"
-                     "movw %%ax, %%ss\n"
+                     "movw %%bx, %%ss\n"
                      :
-                     : [gdtr] "m"(*gdtr), "a"(KERNEL_DS)
+                     : [gdtr] "m"(*gdtr), "a"(0UL), "b"(KERNEL_DS)
                      : "memory");
 
-#ifdef ARCH_I386
-    __asm__ volatile("ljmpl %[kernel_cs], $1f\n"
-                     "1:\n"
-                     :
-                     : [kernel_cs] "i"(KERNEL_CS)
-                     : "memory");
+    wrmsr(MSR_FS_BASE, 0);
+    wrmsr(MSR_GS_BASE, (uint64_t)cpu);
+    wrmsr(MSR_KERNEL_GS_BASE, 0);
 #endif
 
     __asm__ volatile("ltr %%ax" : : "a"(TSS_SELECTOR) : "memory");

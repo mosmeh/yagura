@@ -473,6 +473,7 @@ static struct syscall_abi abi = {
 static void handler(struct registers* regs) {
     ASSERT((regs->cs & 3) == 3);
     ASSERT((regs->ss & 3) == 3);
+    SCOPED_ENABLE_INTERRUPTS();
     syscall_handle(&abi, regs);
 }
 

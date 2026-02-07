@@ -56,11 +56,7 @@ void arch_enter_user_mode(struct task* task, void* entry_point,
                           void* user_stack) {
     memset(task->arch.tls, 0, sizeof(task->arch.tls));
 
-    __asm__ volatile("movw %%ax, %%ds\n"
-                     "movw %%ax, %%es\n"
-                     "movw %%ax, %%fs\n"
-                     "movw %%ax, %%gs\n"
-                     "pushq %%rax\n"
+    __asm__ volatile("pushq %%rax\n"
                      "pushq %%rbx\n"
                      "pushq %[eflags]\n"
                      "pushq %[user_cs]\n"
@@ -80,6 +76,7 @@ void arch_enter_user_mode(struct task* task, void* entry_point,
                      "movq $0, %%r13\n"
                      "movq $0, %%r14\n"
                      "movq $0, %%r15\n"
+                     "swapgs\n"
                      "iretq\n"
                      :
                      : [user_cs] "i"(USER_CS | 3),

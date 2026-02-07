@@ -1,4 +1,14 @@
     .text
+
+.macro swapgs_if_needed
+    movq (8 * 22)(%rsp), %rax
+    andq $3, %rax
+    cmpq $0, %rax # if cs & 3 == 0
+    je 1f
+    swapgs
+1:
+.endm
+
     .globl isr_entry
 isr_entry:
     pushq %rax
@@ -23,12 +33,7 @@ isr_entry:
     pushq %fs
     pushq %gs
 
-    movw $0, %ax
-    movw %ax, %ds
-    movw %ax, %es
-    movw %ax, %fs
-    movw %ax, %gs
-    movw %ax, %ss
+    swapgs_if_needed
 
     cld
     movq %rsp, %rdi
@@ -38,12 +43,12 @@ isr_entry:
 
     .globl do_iret
 do_iret:
-    popq %gs
-    popq %fs
-    popq %rax
-    movq %rax, %es
-    popq %rax
-    movq %rax, %ds
+    swapgs_if_needed
+
+    addq $(8 * 4), %rsp # pop gs, fs, es, ds
+    movq $0, %rax
+    movw %ax, %es
+    movw %ax, %ds
     popq %r15
     popq %r14
     popq %r13
@@ -59,5 +64,5 @@ do_iret:
     popq %rcx
     popq %rbx
     popq %rax
-    addq $16, %rsp # pop error_code and interrupt_num
+    addq $(8 * 2), %rsp # pop error_code and interrupt_num
     iretq

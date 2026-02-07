@@ -18,8 +18,9 @@ isr_entry:
     movw $KERNEL_DS, %ax
     movw %ax, %ds
     movw %ax, %es
-    movw %ax, %fs
     movw %ax, %gs
+    movw $CPU_SELECTOR, %ax
+    movw %ax, %fs
 
     cld
 
@@ -46,5 +47,5 @@ do_iret:
     popl %ebx
     popl %eax
 
-    addl $8, %esp # pop error_code and interrupt_num
+    addl $(4 * 2), %esp # pop error_code and interrupt_num
     iret
