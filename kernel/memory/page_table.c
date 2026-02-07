@@ -20,7 +20,7 @@ static void flush_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,
 
     struct ipi_message* msg = NULL;
     if (arch_smp_active()) {
-        uint8_t current_cpu_id = arch_cpu_get_id();
+        unsigned long current_cpu_id = cpu_get_id();
         for (size_t i = 0; i < num_cpus; ++i) {
             if (i == current_cpu_id)
                 continue;

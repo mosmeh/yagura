@@ -52,6 +52,7 @@ void arch_interrupts_set_handler(uint8_t num, interrupt_handler_fn handler) {
 void isr_handler(struct registers* regs) {
     unsigned long interrupt_num = regs->interrupt_num;
     ASSERT(interrupt_num < NUM_IDT_ENTRIES);
+    ASSERT(!arch_interrupts_enabled());
 
     if (interrupt_num >= IRQ(0) && interrupt_num != SYSCALL_VECTOR) {
         unsigned long irq = interrupt_num - IRQ(0);
@@ -84,11 +85,7 @@ static void set_gate(uint8_t index, uintptr_t base, uint16_t selector,
     };
 }
 
-void idt_set_gate_user_callable(uint8_t index) {
-    struct idt_gate* entry = idt + index;
-    entry->gate_type = TRAP_GATE32;
-    entry->dpl = 3;
-}
+void idt_set_gate_user_callable(uint8_t index) { idt[index].dpl = 3; }
 
 static void load_idt(struct idtr* idtr) {
     __asm__ volatile("lidt %0" ::"m"(*idtr) : "memory");

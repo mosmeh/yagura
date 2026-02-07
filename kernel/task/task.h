@@ -5,6 +5,7 @@
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/arch/context.h>
+#include <kernel/cpu.h>
 #include <kernel/fs/fs.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>
@@ -61,7 +62,13 @@ extern struct spinlock tasks_lock;
 void task_init(void);
 
 #define current task_get_current()
-struct task* task_get_current(void);
+
+static inline struct task* task_get_current(void) {
+    struct task* task =
+        (void*)arch_cpu_read(offsetof(struct cpu, current_task));
+    ASSERT(task);
+    return task;
+}
 
 struct task* task_create(const char* comm, void (*entry_point)(void));
 struct task* task_clone(const struct task*, unsigned flags);

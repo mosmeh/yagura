@@ -353,15 +353,6 @@ void cpu_init_smp(void) {
     }
 }
 
-uint8_t arch_cpu_get_id(void) {
-    uint32_t id;
-    __asm__ volatile("lsl %[selector], %[id]"
-                     : [id] "=r"(id)
-                     : [selector] "r"(CPU_ID_SELECTOR));
-    ASSERT(id < num_cpus);
-    return id;
-}
-
 void arch_cpu_broadcast_ipi(void) { lapic_broadcast_ipi(); }
 
 void arch_cpu_unicast_ipi(struct cpu* dest) {

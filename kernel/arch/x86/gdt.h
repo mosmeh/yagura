@@ -1,6 +1,16 @@
 #pragma once
 
+#define KERNEL_CS (GDT_ENTRY_KERNEL_CS * 8)
+#define KERNEL_DS (GDT_ENTRY_KERNEL_DS * 8)
+#define USER_CS (GDT_ENTRY_USER_CS * 8)
+#define USER_DS (GDT_ENTRY_USER_DS * 8)
+#define TSS_SELECTOR (GDT_ENTRY_TSS * 8)
+
+#define NUM_GDT_TLS_ENTRIES 3
+
 #ifdef ARCH_I386
+#define CPU_SELECTOR (GDT_ENTRY_CPU * 8)
+
 #define NUM_GDT_ENTRIES 10
 #define GDT_ENTRY_KERNEL_CS 1
 #define GDT_ENTRY_KERNEL_DS 2
@@ -8,12 +18,11 @@
 #define GDT_ENTRY_USER_DS 4
 #define GDT_ENTRY_TSS 5
 #define GDT_ENTRY_TLS_MIN 6
-#define NUM_GDT_TLS_ENTRIES 3
-#define GDT_ENTRY_CPU_ID 9
+#define GDT_ENTRY_CPU 9
 #endif
 
 #ifdef ARCH_X86_64
-#define NUM_GDT_ENTRIES 11
+#define NUM_GDT_ENTRIES 10
 #define GDT_ENTRY_KERNEL_CS 1
 #define GDT_ENTRY_KERNEL_DS 2
 #define GDT_ENTRY_USER_DS 3
@@ -21,19 +30,7 @@
 #define GDT_ENTRY_TSS 5
 #define GDT_ENTRY_TSS2 6
 #define GDT_ENTRY_TLS_MIN 7
-#define NUM_GDT_TLS_ENTRIES 3
-#define GDT_ENTRY_CPU_ID 10
 #endif
-
-#define KERNEL_CS (GDT_ENTRY_KERNEL_CS * 8)
-#define KERNEL_DS (GDT_ENTRY_KERNEL_DS * 8)
-#define USER_CS (GDT_ENTRY_USER_CS * 8)
-#define USER_DS (GDT_ENTRY_USER_DS * 8)
-#define TSS_SELECTOR (GDT_ENTRY_TSS * 8)
-#ifdef ARCH_X86_64
-#define TSS_SELECTOR2 (GDT_ENTRY_TSS2 * 8)
-#endif
-#define CPU_ID_SELECTOR (GDT_ENTRY_CPU_ID * 8)
 
 #ifndef __ASSEMBLER__
 

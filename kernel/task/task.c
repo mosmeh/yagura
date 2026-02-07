@@ -2,8 +2,6 @@
 #include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/sched.h>
-#include <kernel/cpu.h>
-#include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/task/task.h>
 
@@ -30,13 +28,6 @@ void task_init(void) {
 
     task_fs_init();
     task_signal_init();
-}
-
-struct task* task_get_current(void) {
-    SCOPED_DISABLE_INTERRUPTS();
-    struct task* task = cpu_get_current()->current_task;
-    ASSERT(task);
-    return task;
 }
 
 struct task* task_create(const char* comm, void (*entry_point)(void)) {
