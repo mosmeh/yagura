@@ -40,11 +40,8 @@ DEFINE_LOCKED(file, struct file*, mutex, lock)
 void __file_destroy(struct file*);
 DEFINE_REFCOUNTED_BASE(file, struct file*, refcount, __file_destroy)
 
-NODISCARD ssize_t file_read(struct file*, void* user_buffer, size_t count);
 NODISCARD ssize_t file_pread(struct file*, void* user_buffer, size_t count,
                              uint64_t offset);
-NODISCARD ssize_t file_write(struct file*, const void* user_buffer,
-                             size_t count);
 NODISCARD ssize_t file_pwrite(struct file*, const void* user_buffer,
                               size_t count, uint64_t offset);
 

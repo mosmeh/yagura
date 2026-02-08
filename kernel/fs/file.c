@@ -37,14 +37,6 @@ void __file_destroy(struct file* file) {
     inode_unref(inode);
 }
 
-ssize_t file_read(struct file* file, void* user_buffer, size_t count) {
-    SCOPED_LOCK(file, file);
-    ssize_t nread = file_pread(file, user_buffer, count, file->offset);
-    if (IS_OK(nread))
-        file->offset += nread;
-    return nread;
-}
-
 NODISCARD
 static ssize_t default_file_pread(struct file* file, void* user_buffer,
                                   size_t count, uint64_t offset) {
@@ -101,14 +93,6 @@ ssize_t file_pread(struct file* file, void* user_buffer, size_t count,
     if (file->fops->pread)
         return file->fops->pread(file, user_buffer, count, offset);
     return default_file_pread(file, user_buffer, count, offset);
-}
-
-ssize_t file_write(struct file* file, const void* user_buffer, size_t count) {
-    SCOPED_LOCK(file, file);
-    ssize_t nwritten = file_pwrite(file, user_buffer, count, file->offset);
-    if (IS_OK(nwritten))
-        file->offset += nwritten;
-    return nwritten;
 }
 
 NODISCARD

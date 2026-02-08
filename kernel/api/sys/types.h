@@ -19,5 +19,6 @@ typedef long blksize_t;
 typedef uint64_t blkcnt_t;
 typedef long ssize_t;
 
+typedef long linux_old_time_t;
 typedef unsigned short linux_old_uid_t;
 typedef unsigned short linux_old_gid_t;

@@ -101,6 +101,13 @@ long sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
     return (long)vm_region_to_virt(region);
 }
 
+long sys_mmap(void* addr, size_t length, int prot, int flags, int fd,
+              unsigned long off) {
+    if (off % PAGE_SIZE)
+        return -EINVAL;
+    return sys_mmap_pgoff(addr, length, prot, flags, fd, off >> PAGE_SHIFT);
+}
+
 struct mmap_arg_struct {
     unsigned long addr;
     unsigned long len;

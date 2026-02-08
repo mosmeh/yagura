@@ -76,6 +76,10 @@ long sys_listen(int sockfd, int backlog) {
     return unix_socket_listen(file->inode, backlog);
 }
 
+long sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
+    return sys_accept4(sockfd, addr, addrlen, 0);
+}
+
 long sys_accept4(int sockfd, struct sockaddr* user_addr,
                  socklen_t* user_addrlen, int flags) {
     if (flags & ~(SOCK_NONBLOCK | SOCK_CLOEXEC))

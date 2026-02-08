@@ -222,17 +222,31 @@ NODISCARD static int stat_at(int dirfd, const char* user_pathname,
     return inode_stat(file->inode, buf);
 }
 
-long sys_fstatat64(int dirfd, const char* user_pathname,
-                   struct linux_stat64* user_buf, int flags) {
+NODISCARD static int fstatat(int dirfd, const char* user_pathname,
+                             struct kstat* buf, int flags) {
     if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH))
         return -EINVAL;
+    return stat_at(dirfd, user_pathname, buf, flags);
+}
 
+long sys_fstatat64(int dirfd, const char* user_pathname,
+                   struct linux_stat64* user_buf, int flags) {
     struct kstat buf;
-    int rc = stat_at(dirfd, user_pathname, &buf, flags);
+    int rc = fstatat(dirfd, user_pathname, &buf, flags);
     if (IS_ERR(rc))
         return rc;
 
     return copy_stat_to_user64(&buf, user_buf);
+}
+
+long sys_newfstatat(int dirfd, const char* user_pathname,
+                    struct linux_stat* user_buf, int flags) {
+    struct kstat buf;
+    int rc = fstatat(dirfd, user_pathname, &buf, flags);
+    if (IS_ERR(rc))
+        return rc;
+
+    return copy_stat_to_user(&buf, user_buf);
 }
 
 long sys_statx(int dirfd, const char* user_pathname, int flags,
