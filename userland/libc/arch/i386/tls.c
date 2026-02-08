@@ -2,7 +2,6 @@
 #include <arch/tls.h>
 #include <kernel/api/x86/asm/ldt.h>
 #include <panic.h>
-#include <pthread.h>
 
 void __set_thread_area(void* addr) {
     struct user_desc tls_desc = {
@@ -33,10 +32,4 @@ int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
     };
     return __clone_impl(fn, stack, flags, arg, parent_tid, child_tid,
                         &tls_desc);
-}
-
-pthread_t pthread_self(void) {
-    pthread_t pth;
-    __asm__ volatile("movl %%gs:0, %0" : "=r"(pth));
-    return pth;
 }

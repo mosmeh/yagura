@@ -8,6 +8,9 @@ struct fpu_state {
 
 struct arch_task {
     uintptr_t ip, sp;
+#ifdef ARCH_X86_64
+    uintptr_t fs_base, gs_base;
+#endif
     struct gdt_segment tls[NUM_GDT_TLS_ENTRIES];
     struct fpu_state fpu_state;
 };

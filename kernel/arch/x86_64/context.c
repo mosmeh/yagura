@@ -7,6 +7,21 @@
 #include <kernel/kmsg.h>
 #include <kernel/task/task.h>
 
+static void restore_context(struct cpu* cpu, const struct arch_task* arch) {
+    wrmsr(MSR_FS_BASE, arch->fs_base);
+    // swapgs will load MSR_KERNEL_GS_BASE to the GS base
+    wrmsr(MSR_KERNEL_GS_BASE, arch->gs_base);
+
+    memcpy(cpu->arch.gdt + GDT_ENTRY_TLS_MIN, arch->tls, sizeof(arch->tls));
+
+    // NOLINTBEGIN(bugprone-branch-clone)
+    if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
+        __asm__ volatile("fxrstor %0" ::"m"(arch->fpu_state));
+    else
+        __asm__ volatile("frstor %0" ::"m"(arch->fpu_state));
+    // NOLINTEND(bugprone-branch-clone)
+}
+
 void arch_switch_context(struct task* prev, struct task* next) {
     ASSERT(!arch_interrupts_enabled());
 
@@ -22,15 +37,7 @@ void arch_switch_context(struct task* prev, struct task* next) {
     cpu->arch.tss.rsp0l = next->kernel_stack_top & 0xffffffff;
     cpu->arch.tss.rsp0h = next->kernel_stack_top >> 32;
 
-    memcpy(cpu->arch.gdt + GDT_ENTRY_TLS_MIN, next->arch.tls,
-           sizeof(next->arch.tls));
-
-    // NOLINTBEGIN(bugprone-branch-clone)
-    if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
-        __asm__ volatile("fxrstor %0" ::"m"(next->arch.fpu_state));
-    else
-        __asm__ volatile("frstor %0" ::"m"(next->arch.fpu_state));
-    // NOLINTEND(bugprone-branch-clone)
+    restore_context(cpu, &next->arch);
 
     // Call sched_reschedule(prev) only after switching to the stack of the next
     // task to prevent other CPUs from using the stack of the prev task while
@@ -54,7 +61,10 @@ void arch_switch_context(struct task* prev, struct task* next) {
 
 void arch_enter_user_mode(struct task* task, void* entry_point,
                           void* user_stack) {
+    task->arch.fs_base = task->arch.gs_base = 0;
     memset(task->arch.tls, 0, sizeof(task->arch.tls));
+    task->arch.fpu_state = initial_fpu_state;
+    restore_context(cpu_get_current(), &task->arch);
 
     __asm__ volatile("pushq %%rax\n"
                      "pushq %%rbx\n"

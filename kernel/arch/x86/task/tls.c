@@ -140,10 +140,18 @@ long sys_set_thread_area(struct user_desc* user_u_info) {
 }
 
 int arch_set_tls(struct task* task, void* user_tls) {
+#ifdef ARCH_I386
     struct user_desc u_info;
     if (copy_from_user(&u_info, user_tls, sizeof(struct user_desc)))
         return -EFAULT;
     if (!is_user_desc_valid(&u_info))
         return -EINVAL;
     return set_tls_entry(task, &u_info);
+#endif
+#ifdef ARCH_X86_64
+    if (!is_user_address(user_tls))
+        return -EPERM;
+    task->arch.fs_base = (unsigned long)user_tls;
+    return 0;
+#endif
 }
