@@ -8,17 +8,40 @@
 #include <kernel/syscall/syscall.h>
 #include <kernel/time.h>
 
-long sys_time32(time32_t* user_tloc) {
+NODISCARD static int time(time_t* tloc) {
     struct timespec now;
     int rc = time_now(CLOCK_REALTIME, &now);
     if (IS_ERR(rc))
         return rc;
-    time32_t sec = now.tv_sec;
+    if (tloc)
+        *tloc = now.tv_sec;
+    return 0;
+}
+
+long sys_time(linux_old_time_t* user_tloc) {
+    time_t t;
+    int rc = time(&t);
+    if (IS_ERR(rc))
+        return rc;
+    linux_old_time_t old_t = t;
     if (user_tloc) {
-        if (copy_to_user(user_tloc, &sec, sizeof(time32_t)))
+        if (copy_to_user(user_tloc, &old_t, sizeof(linux_old_time_t)))
             return -EFAULT;
     }
-    return sec;
+    return old_t;
+}
+
+long sys_time32(time32_t* user_tloc) {
+    time_t t;
+    int rc = time(&t);
+    if (IS_ERR(rc))
+        return rc;
+    time32_t t32 = t;
+    if (user_tloc) {
+        if (copy_to_user(user_tloc, &t32, sizeof(time32_t)))
+            return -EFAULT;
+    }
+    return t32;
 }
 
 long sys_stime32(const time32_t* user_t) {
@@ -244,6 +267,11 @@ long sys_clock_nanosleep_time32(clockid_t clockid, int flags,
             return -EFAULT;
     }
     return 0;
+}
+
+long sys_nanosleep(const struct timespec* user_duration,
+                   struct timespec* user_rem) {
+    return sys_clock_nanosleep(CLOCK_MONOTONIC, 0, user_duration, user_rem);
 }
 
 long sys_nanosleep_time32(const struct timespec32* user_duration,
