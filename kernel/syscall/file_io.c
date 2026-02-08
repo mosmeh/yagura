@@ -9,18 +9,36 @@
 // shift by HALF_LONG_WIDTH twice.
 #define HALF_LONG_WIDTH (LONG_WIDTH / 2)
 
-long sys_read(int fd, void* user_buf, size_t count) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
-        return PTR_ERR(file);
+NODISCARD static ssize_t pread(struct file* file, void* user_buf, size_t count,
+                               uint64_t offset) {
     if (count == 0)
         return 0;
     if (!is_user_range(user_buf, count))
         return -EFAULT;
-    ssize_t nread = file_read(file, user_buf, count);
+    ssize_t nread = file_pread(file, user_buf, count, offset);
     if (nread == -EINTR)
         return -ERESTARTSYS;
     return nread;
+}
+
+long sys_read(int fd, void* user_buf, size_t count) {
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+    SCOPED_LOCK(file, file);
+    ssize_t nread = pread(file, user_buf, count, file->offset);
+    if (IS_OK(nread))
+        file->offset += nread;
+    return nread;
+}
+
+long sys_pread64(int fd, void* user_buf, size_t count, loff_t pos) {
+    if (pos < 0)
+        return -EINVAL;
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+    return pread(file, user_buf, count, pos);
 }
 
 NODISCARD static ssize_t readv(struct file* file, const struct iovec* user_iov,
@@ -97,18 +115,36 @@ long sys_preadv2(int fd, const struct iovec* user_iov, int iovcnt,
     return readv(file, user_iov, iovcnt, offset);
 }
 
-long sys_write(int fd, const void* user_buf, size_t count) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
-        return PTR_ERR(file);
+NODISCARD static ssize_t pwrite(struct file* file, const void* user_buf,
+                                size_t count, uint64_t offset) {
     if (count == 0)
         return 0;
     if (!is_user_range(user_buf, count))
         return -EFAULT;
-    ssize_t nwritten = file_write(file, user_buf, count);
+    ssize_t nwritten = file_pwrite(file, user_buf, count, offset);
     if (nwritten == -EINTR)
         return -ERESTARTSYS;
     return nwritten;
+}
+
+long sys_write(int fd, const void* user_buf, size_t count) {
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+    SCOPED_LOCK(file, file);
+    ssize_t nwritten = pwrite(file, user_buf, count, file->offset);
+    if (IS_OK(nwritten))
+        file->offset += nwritten;
+    return nwritten;
+}
+
+long sys_pwrite64(int fd, const void* buf, size_t count, loff_t pos) {
+    if (pos < 0)
+        return -EINVAL;
+    struct file* file FREE(file) = files_ref_file(current->files, fd);
+    if (IS_ERR(ASSERT(file)))
+        return PTR_ERR(file);
+    return pwrite(file, buf, count, pos);
 }
 
 NODISCARD static ssize_t writev(struct file* file, const struct iovec* user_iov,
