@@ -29,6 +29,10 @@ void arch_switch_context(struct task* prev, struct task* next) {
     memcpy(cpu->arch.gdt + GDT_ENTRY_TLS_MIN, next->arch.tls,
            sizeof(next->arch.tls));
 
+    wrmsr(MSR_FS_BASE, next->arch.fs_base);
+    // swapgs will load MSR_KERNEL_GS_BASE to the GS base
+    wrmsr(MSR_KERNEL_GS_BASE, next->arch.gs_base);
+
     // NOLINTBEGIN(bugprone-branch-clone)
     if (cpu_has_feature(cpu, X86_FEATURE_FXSR))
         __asm__ volatile("fxrstor %0" ::"m"(next->arch.fpu_state));

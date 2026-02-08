@@ -32,12 +32,12 @@ __syscall:
 // Thus, we have to keep the fn and arg on the new stack so that the child can
 // call fn(arg) after the clone.
 
-// int __clone_impl(int (*fn)(void*), void* stack, int flags, void* arg,
-	//              pid_t* parent_tid, void* tls, pid_t* child_tid);
-    .globl __clone_impl
-    .hidden __clone_impl
-    .type __clone_impl, @function
-__clone_impl:
+// int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
+//             pid_t* parent_tid, void* tls, pid_t* child_tid);
+    .globl __clone
+    .hidden __clone
+    .type __clone, @function
+__clone:
     pushq %rbx
     movq 40(%rsp), %rcx   // rcx = new stack
     andq $-16, %rcx       // align the stack to 16 bytes boundary
