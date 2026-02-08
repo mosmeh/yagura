@@ -22,6 +22,10 @@ struct arch_cpu {
     struct gdt_segment gdt[NUM_GDT_ENTRIES];
     struct tss tss;
     struct gdtr gdtr;
+
+#ifdef ARCH_X86_64
+    uintptr_t kernel_sp;
+#endif
 };
 
 #ifdef ARCH_I386

@@ -1,4 +1,4 @@
-#include <kernel/api/sys/syscall.h>
+#include <kernel/api/i386/asm/unistd.h>
 #include <kernel/arch/x86/interrupts/interrupts.h>
 #include <kernel/arch/x86/interrupts/isr_stubs.h>
 #include <kernel/arch/x86/memory/page_fault.h>

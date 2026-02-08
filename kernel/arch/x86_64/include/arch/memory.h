@@ -1,7 +1,7 @@
 #pragma once
 
 #define USER_VIRT_START 0UL
-#define USER_VIRT_END 0x800000000000
+#define USER_VIRT_END 0x7ffffffff000
 
 #define KERNEL_VIRT_START 0xffff800000000000
 

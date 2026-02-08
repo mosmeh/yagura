@@ -10,8 +10,14 @@ void* mmap(void* addr, size_t length, int prot, int flags, int fd,
         errno = EINVAL;
         return MAP_FAILED;
     }
-    return (void*)__syscall_return(SYSCALL6(mmap2, addr, length, prot, flags,
-                                            fd, offset / MMAP2_PAGE_UNIT));
+    long rc;
+#ifdef SYS_mmap2
+    rc = SYSCALL6(mmap2, addr, length, prot, flags, fd,
+                  offset / MMAP2_PAGE_UNIT);
+#else
+    rc = SYSCALL6(mmap, addr, length, prot, flags, fd, offset);
+#endif
+    return (void*)__syscall_return(rc);
 }
 
 int munmap(void* addr, size_t length) {

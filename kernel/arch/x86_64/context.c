@@ -25,6 +25,7 @@ void arch_switch_context(struct task* prev, struct task* next) {
 
     cpu->arch.tss.rsp0l = next->kernel_stack_top & 0xffffffff;
     cpu->arch.tss.rsp0h = next->kernel_stack_top >> 32;
+    cpu->arch.kernel_sp = next->kernel_stack_top;
 
     memcpy(cpu->arch.gdt + GDT_ENTRY_TLS_MIN, next->arch.tls,
            sizeof(next->arch.tls));

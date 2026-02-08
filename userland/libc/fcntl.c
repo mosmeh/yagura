@@ -29,6 +29,10 @@ int fcntl(int fd, int cmd, ...) {
     return __syscall_return(SYSCALL3(fcntl, fd, cmd, arg));
 }
 
+#ifndef SYS_fcntl64
+#define SYS_fcntl64 SYS_fcntl
+#endif
+
 int fcntl64(int fd, int cmd, ...) {
     va_list args;
     va_start(args, cmd);

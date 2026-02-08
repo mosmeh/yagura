@@ -71,13 +71,33 @@ int execvpe(const char* file, char* const argv[], char* const envp[]) {
     return -1;
 }
 
-uid_t getuid(void) { return __syscall_return(SYSCALL0(getuid32)); }
+#ifdef SYS_getuid32
+#undef SYS_getuid
+#define SYS_getuid SYS_getuid32
+#endif
 
-uid_t geteuid(void) { return __syscall_return(SYSCALL0(geteuid32)); }
+uid_t getuid(void) { return __syscall_return(SYSCALL0(getuid)); }
 
-gid_t getgid(void) { return __syscall_return(SYSCALL0(getgid32)); }
+#ifdef SYS_geteuid32
+#undef SYS_geteuid
+#define SYS_geteuid SYS_geteuid32
+#endif
 
-gid_t getegid(void) { return __syscall_return(SYSCALL0(getegid32)); }
+uid_t geteuid(void) { return __syscall_return(SYSCALL0(geteuid)); }
+
+#ifdef SYS_getgid32
+#undef SYS_getgid
+#define SYS_getgid SYS_getgid32
+#endif
+
+gid_t getgid(void) { return __syscall_return(SYSCALL0(getgid)); }
+
+#ifdef SYS_getegid32
+#undef SYS_getegid
+#define SYS_getegid SYS_getegid32
+#endif
+
+gid_t getegid(void) { return __syscall_return(SYSCALL0(getegid)); }
 
 int access(const char* pathname, int mode) {
     return __syscall_return(SYSCALL2(access, pathname, mode));
@@ -162,16 +182,31 @@ int rmdir(const char* pathname) {
     return __syscall_return(SYSCALL1(rmdir, pathname));
 }
 
+#ifdef SYS_chown32
+#undef SYS_chown
+#define SYS_chown SYS_chown32
+#endif
+
 int chown(const char* pathname, uid_t owner, gid_t group) {
-    return __syscall_return(SYSCALL3(chown32, pathname, owner, group));
+    return __syscall_return(SYSCALL3(chown, pathname, owner, group));
 }
+
+#ifdef SYS_fchown32
+#undef SYS_fchown
+#define SYS_fchown SYS_fchown32
+#endif
 
 int fchown(int fd, uid_t owner, gid_t group) {
-    return __syscall_return(SYSCALL3(fchown32, fd, owner, group));
+    return __syscall_return(SYSCALL3(fchown, fd, owner, group));
 }
 
+#ifdef SYS_lchown32
+#undef SYS_lchown
+#define SYS_lchown SYS_lchown32
+#endif
+
 int lchown(const char* pathname, uid_t owner, gid_t group) {
-    return __syscall_return(SYSCALL3(lchown32, pathname, owner, group));
+    return __syscall_return(SYSCALL3(lchown, pathname, owner, group));
 }
 
 int fchownat(int dirfd, const char* pathname, uid_t owner, gid_t group,
