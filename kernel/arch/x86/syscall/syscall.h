@@ -7,6 +7,8 @@ struct user_desc;
 
 void syscall_init(void);
 
+long sys_arch_prctl(int op, unsigned long addr);
+
 long sys_ia32_pread64(int fd, void* buf, size_t count, uint32_t pos_lo,
                       uint32_t pos_hi);
 long sys_ia32_pwrite64(int fd, const void* buf, size_t count, uint32_t pos_lo,

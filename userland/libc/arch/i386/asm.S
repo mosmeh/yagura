@@ -98,3 +98,10 @@ __sa_restorer:
     movl $SYS_sigreturn, %eax
     int $SYSCALL_VECTOR
     ud2
+
+// pthread_t pthread_self(void);
+    .globl pthread_self
+    .type pthread_self, @function
+pthread_self:
+    movl %gs:0, %eax
+    ret

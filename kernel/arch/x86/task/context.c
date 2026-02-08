@@ -1,8 +1,12 @@
 #include <common/string.h>
+#include <kernel/api/x86/asm/prctl.h>
 #include <kernel/api/x86/asm/processor-flags.h>
 #include <kernel/arch/context.h>
 #include <kernel/arch/x86/cpu.h>
+#include <kernel/arch/x86/msr.h>
+#include <kernel/arch/x86/syscall/syscall.h>
 #include <kernel/arch/x86/task/context.h>
+#include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 
@@ -37,6 +41,10 @@ int arch_clone_user_task(struct task* to, const struct task* from,
                          const struct registers* from_regs, void* user_stack) {
     to->arch = (struct arch_task){
         .ip = (uintptr_t)do_iret,
+#ifdef ARCH_X86_64
+        .fs_base = from->arch.fs_base,
+        .gs_base = from->arch.gs_base,
+#endif
         .fpu_state = from->arch.fpu_state,
     };
     memcpy(to->arch.tls, from->arch.tls, sizeof(to->arch.tls));
@@ -70,4 +78,42 @@ void arch_walk_stack(uintptr_t bp, bool (*callback)(uintptr_t ip, void* data),
 
 bool arch_is_user_mode(const struct registers* regs) {
     return (regs->cs & 3) == 3;
+}
+
+long sys_arch_prctl(int op, unsigned long addr) {
+#ifdef ARCH_X86_64
+    switch (op) {
+    case ARCH_SET_FS: {
+        if (!is_user_address((void*)addr))
+            return -EPERM;
+        SCOPED_DISABLE_INTERRUPTS();
+        wrmsr(MSR_FS_BASE, addr);
+        current->arch.fs_base = addr;
+        return 0;
+    }
+    case ARCH_SET_GS: {
+        if (!is_user_address((void*)addr))
+            return -EPERM;
+        SCOPED_DISABLE_INTERRUPTS();
+        // swapgs will load MSR_KERNEL_GS_BASE to the GS base
+        wrmsr(MSR_KERNEL_GS_BASE, addr);
+        current->arch.gs_base = addr;
+        return 0;
+    }
+    case ARCH_GET_FS:
+        if (copy_to_user((void*)addr, &current->arch.fs_base,
+                         sizeof(uintptr_t)))
+            return -EFAULT;
+        return 0;
+    case ARCH_GET_GS:
+        if (copy_to_user((void*)addr, &current->arch.gs_base,
+                         sizeof(uintptr_t)))
+            return -EFAULT;
+        return 0;
+    }
+#else
+    (void)op;
+    (void)addr;
+#endif
+    return -EINVAL;
 }

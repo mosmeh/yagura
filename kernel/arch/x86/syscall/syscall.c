@@ -392,7 +392,7 @@
     F(pkey_alloc, sys_ni_syscall, 0)                                           \
     F(pkey_free, sys_ni_syscall, 0)                                            \
     F(statx, sys_statx, 0)                                                     \
-    F(arch_prctl, sys_ni_syscall, 0)                                           \
+    F(arch_prctl, sys_arch_prctl, 0)                                           \
     F(io_pgetevents, sys_ni_syscall, 0)                                        \
     F(rseq, sys_ni_syscall, 0)                                                 \
     F(semget, sys_ni_syscall, 0)                                               \

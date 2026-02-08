@@ -32,12 +32,12 @@ __syscall:
 // Thus, we have to keep the fn and arg on the new stack so that the child can
 // call fn(arg) after the clone.
 
-// int __clone_impl(int (*fn)(void*), void* stack, int flags, void* arg,
-//                  pid_t* parent_tid, pid_t* child_tid, void* tls);
-    .globl __clone_impl
-    .hidden __clone_impl
-    .type __clone_impl, @function
-__clone_impl:
+// int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
+//             pid_t* parent_tid, pid_t* child_tid, void* tls);
+    .globl __clone
+    .hidden __clone
+    .type __clone, @function
+__clone:
     pushq %rbx
     andq $-16, %rsi       // align the stack to 16 bytes boundary
     subq $16, %rsi        // reserve space for fn and arg
@@ -88,3 +88,10 @@ __sa_restorer:
     movl $SYS_rt_sigreturn, %eax
     int $SYSCALL_VECTOR
     ud2
+
+// pthread_t pthread_self(void);
+    .globl pthread_self
+    .type pthread_self, @function
+pthread_self:
+    movq %fs:0, %rax
+    ret

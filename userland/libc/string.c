@@ -165,7 +165,7 @@ const char* const sys_siglist[NSIG] = {ENUMERATE_SIGNALS(MSG)
 #undef NAME
 #undef MSG
 
-static char buf[32];
+static _Thread_local char buf[32];
 
 char* strsignal(int signum) {
     const char* desc = NULL;
