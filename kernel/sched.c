@@ -111,14 +111,16 @@ static void unblock_tasks(void) {
 
     struct task* prev = NULL;
     for (struct task* it = blocked_tasks; it;) {
-        sigset_t signals = task_get_pending_signals(it);
+        sigset_t signals;
+        task_get_pending_signals(it, &signals);
 
         bool ready = false;
         switch (it->state) {
         case TASK_UNINTERRUPTIBLE:
         case TASK_INTERRUPTIBLE: {
             ASSERT(it->unblock);
-            bool interrupted = it->state == TASK_INTERRUPTIBLE && signals;
+            bool interrupted =
+                it->state == TASK_INTERRUPTIBLE && !sigisemptyset(&signals);
             if (interrupted || it->unblock(it->block_data)) {
                 it->unblock = NULL;
                 it->block_data = NULL;
@@ -128,7 +130,7 @@ static void unblock_tasks(void) {
             break;
         }
         case TASK_STOPPED:
-            if (signals & sigmask(SIGCONT))
+            if (sigismember(&signals, SIGCONT))
                 ready = true;
             break;
         default:

@@ -12,7 +12,6 @@ struct iovec;
 struct mmap_arg_struct;
 struct rusage;
 struct sel_arg_struct;
-struct sigaction;
 struct statx;
 struct sysinfo;
 struct timezone;
@@ -108,12 +107,12 @@ long sys_chroot(const char* path);
 long sys_dup2(int oldfd, int newfd);
 long sys_getppid(void);
 long sys_getpgrp(void);
-long sys_sigaction(int signum, const struct sigaction* act,
-                   struct sigaction* oldact);
+long sys_sigaction(int signum, const struct linux_old_sigaction* act,
+                   struct linux_old_sigaction* oldact);
 long sys_sgetmask(void);
 long sys_ssetmask(long newmask);
-long sys_sigsuspend(const sigset_t* mask);
-long sys_sigpending(sigset_t* set);
+long sys_sigsuspend(const linux_old_sigset_t* mask);
+long sys_sigpending(linux_old_sigset_t* set);
 long sys_sethostname(const char* name, int len);
 long sys_gettimeofday(struct linux_timeval* tv, struct timezone* tz);
 long sys_settimeofday(const struct linux_timeval* tv,
@@ -144,7 +143,8 @@ long sys_clone(struct registers*, unsigned long flags, void* stack,
 long sys_setdomainname(const char* name, int len);
 long sys_newuname(struct utsname* buf);
 long sys_mprotect(void* addr, size_t len, int prot);
-long sys_sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
+long sys_sigprocmask(int how, const linux_old_sigset_t* set,
+                     linux_old_sigset_t* oldset);
 long sys_getpgid(pid_t pid);
 long sys_fchdir(int fd);
 long sys_llseek(unsigned int fd, unsigned long offset_high,
@@ -167,6 +167,13 @@ long sys_getresgid16(linux_old_gid_t* rgid, linux_old_gid_t* egid,
                      linux_old_gid_t* sgid);
 long sys_prctl(int op, unsigned long arg2, unsigned long arg3,
                unsigned long arg4, unsigned long arg5);
+long sys_rt_sigreturn(struct registers*);
+long sys_rt_sigaction(int signum, const struct sigaction* act,
+                      struct sigaction* oldact, size_t sigsetsize);
+long sys_rt_sigprocmask(int how, const sigset_t* set, sigset_t* oldset,
+                        size_t sigsetsize);
+long sys_rt_sigpending(sigset_t* set, size_t sigsetsize);
+long sys_rt_sigsuspend(const sigset_t* mask, size_t sigsetsize);
 long sys_chown16(const char* pathname, linux_old_uid_t owner,
                  linux_old_gid_t group);
 long sys_getcwd(char* buf, size_t size);

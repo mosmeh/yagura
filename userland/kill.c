@@ -14,7 +14,7 @@ static int parse_signum(const char* s) {
     if (str_is_uint(s))
         return atoi(s);
     for (int i = 0; i < NSIG; ++i) {
-        if (!strcmp(s, sys_signame[i]))
+        if (sys_signame[i] && !strcmp(s, sys_signame[i]))
             return i;
     }
     return -1;

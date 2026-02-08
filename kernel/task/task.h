@@ -34,8 +34,8 @@ struct task {
     struct files* files;
 
     struct sighand* sighand;
-    _Atomic(sigset_t) pending_signals;
-    _Atomic(sigset_t) blocked_signals;
+    sigset_t pending_signals;
+    sigset_t blocked_signals;
 
     unblock_fn unblock;
     void* block_data;
@@ -159,7 +159,7 @@ struct thread_group {
     pid_t tgid;
     _Atomic(pid_t) pgid, ppid;
     _Atomic(size_t) num_running_tasks;
-    _Atomic(sigset_t) pending_signals;
+    sigset_t pending_signals;
     int exit_signal;
     refcount_t refcount;
 };
@@ -172,7 +172,6 @@ DEFINE_REFCOUNTED_BASE(thread_group, struct thread_group*, refcount,
 
 // Returns the set of pending signals for the current task,
 // excluding blocked signals.
-sigset_t task_get_pending_signals(struct task*);
+void task_get_pending_signals(struct task*, sigset_t* out_set);
 
-// Returns the previous blocked signal set.
-sigset_t task_set_blocked_signals(struct task*, sigset_t);
+void task_set_blocked_signals(struct task*, const sigset_t*);

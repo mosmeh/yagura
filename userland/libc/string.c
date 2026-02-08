@@ -158,13 +158,25 @@ char* strerror(int errnum) {
 
 #define NAME(NAME, MSG) STRINGIFY(NAME),
 #define MSG(NAME, MSG) MSG,
-const char* const sys_signame[] = {ENUMERATE_SIGNALS(NAME)};
-const char* const sys_siglist[] = {ENUMERATE_SIGNALS(MSG)};
+const char* const sys_signame[NSIG] = {ENUMERATE_SIGNALS(NAME)};
+const char* const sys_siglist[NSIG] = {ENUMERATE_SIGNALS(MSG)
+
+};
 #undef NAME
 #undef MSG
 
+static char buf[32];
+
 char* strsignal(int signum) {
+    const char* desc = NULL;
     if (0 <= signum && signum < NSIG)
-        return (char*)sys_siglist[signum];
-    return "Unknown signal";
+        desc = sys_siglist[signum];
+    if (desc)
+        return (char*)desc;
+    if (SIGRTMIN <= signum && signum <= SIGRTMAX)
+        (void)snprintf(buf, sizeof(buf), "Real-time signal %d",
+                       signum - SIGRTMIN);
+    else
+        (void)snprintf(buf, sizeof(buf), "Unknown signal %d", signum);
+    return buf;
 }
