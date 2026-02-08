@@ -1,7 +1,11 @@
 #pragma once
 
 #define USER_VIRT_START 0UL
-#define USER_VIRT_END 0x800000000000
+
+// When a syscall is invoked at the highest canonical address,
+// the return address to user space will be out of the canonical address range.
+// We avoid this by reserving the last page of the canonical address range.
+#define USER_VIRT_END 0x7ffffffff000
 
 #define KERNEL_VIRT_START 0xffff800000000000
 

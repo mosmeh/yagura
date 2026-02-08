@@ -82,22 +82,42 @@ char* asctime_r(const struct tm* time_ptr, char* buf) {
     return len > 0 ? buf : NULL;
 }
 
+#ifdef SYS_clock_gettime64
+#undef SYS_clock_gettime
+#define SYS_clock_gettime SYS_clock_gettime64
+#endif
+
 int clock_gettime(clockid_t clockid, struct timespec* tp) {
-    return __syscall_return(SYSCALL2(clock_gettime64, clockid, tp));
+    return __syscall_return(SYSCALL2(clock_gettime, clockid, tp));
 }
+
+#ifdef SYS_clock_settime64
+#undef SYS_clock_settime
+#define SYS_clock_settime SYS_clock_settime64
+#endif
 
 int clock_settime(clockid_t clockid, const struct timespec* tp) {
-    return __syscall_return(SYSCALL2(clock_settime64, clockid, tp));
+    return __syscall_return(SYSCALL2(clock_settime, clockid, tp));
 }
 
+#ifdef SYS_clock_getres_time64
+#undef SYS_clock_getres
+#define SYS_clock_getres SYS_clock_getres_time64
+#endif
+
 int clock_getres(clockid_t clockid, struct timespec* res) {
-    return __syscall_return(SYSCALL2(clock_getres_time64, clockid, res));
+    return __syscall_return(SYSCALL2(clock_getres, clockid, res));
 }
+
+#ifdef SYS_clock_nanosleep_time64
+#undef SYS_clock_nanosleep
+#define SYS_clock_nanosleep SYS_clock_nanosleep_time64
+#endif
 
 NODISCARD static int raw_clock_nanosleep(clockid_t clockid, int flags,
                                          const struct timespec* request,
                                          struct timespec* remain) {
-    return SYSCALL4(clock_nanosleep_time64, clockid, flags, request, remain);
+    return SYSCALL4(clock_nanosleep, clockid, flags, request, remain);
 }
 
 int nanosleep(const struct timespec* req, struct timespec* rem) {

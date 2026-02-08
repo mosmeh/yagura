@@ -12,10 +12,13 @@
 #define NUM_SYSCALLS 1025
 
 static const int denylist[] = {
-    SYS_exit,
-    SYS_exit_group,
-    SYS_pause,
+    SYS_exit,          SYS_exit_group, SYS_pause,
+#ifdef SYS_sigsuspend
     SYS_sigsuspend,
+#endif
+#ifdef SYS_rt_sigsuspend
+    SYS_rt_sigsuspend,
+#endif
 };
 
 static uint32_t random_state[4];

@@ -12,19 +12,14 @@ _start:
     .hidden __syscall
     .type __syscall, @function
 __syscall:
-    pushq %rbx
-    pushq %rbp
-    movq %rdi, %rax
-    movq %rsi, %rbx
-    movq %rdx, %r11
-    movq %rcx, %rdx
-    movq %r11, %rcx
-    movq %r8, %rsi
-    movq %r9, %rdi
-    movq 0x18(%rsp), %rbp
-    int $SYSCALL_VECTOR
-    popq %rbp
-    popq %rbx
+    movq %rdi, %rax   // syscall number
+    movq %rsi, %rdi   // arg1
+    movq %rdx, %rsi   // arg2
+    movq %rcx, %rdx   // arg3
+    movq %r8, %r10    // arg4
+    movq %r9, %r8     // arg5
+    movq 8(%rsp), %r9 // arg6
+    syscall
     ret
 
 // In case of CLONE_VM, the child shares the same memory space with the parent,
@@ -38,29 +33,26 @@ __syscall:
     .hidden __clone
     .type __clone, @function
 __clone:
-    pushq %rbx
     andq $-16, %rsi       // align the stack to 16 bytes boundary
     subq $16, %rsi        // reserve space for fn and arg
     movq %rcx, 8(%rsi)    // push arg to the new stack
     movq %rdi, (%rsi)     // push fn to the new stack
-    movq %rsi, %rcx       // rcx = new stack
-    movq %rdx, %rbx       // rbx = flags
+    movq %rdx, %rdi       // rdi = flags
     movq %r8, %rdx        // rdx = parent_tid
-    movq 16(%rsp), %rsi   // rsi = tls
-    movq %r9, %rdi        // rdi = child_tid
+    movq %r9, %r10        // r10 = child_tid
+    movq 8(%rsp), %r8     // r8 = tls
     movq $SYS_clone, %rax
-    int $SYSCALL_VECTOR   // clone(flags, stack, parent_tid, tls, child_tid)
+    syscall               // clone(flags, stack, parent_tid, child_tid, tls)
     testq %rax, %rax
     jz child
-    popq %rbx
     ret
 child:
     popq %rax             // rax = fn
     popq %rdi             // rdi = arg
     call *%rax            // fn(arg)
-    movq %rax, %rbx       // rbx = return value
+    movq %rax, %rdi       // rdi = return value
     movq $SYS_exit, %rax
-    int $SYSCALL_VECTOR   // exit(fn(arg))
+    syscall               // exit(fn(arg))
     ud2
 
 // long __syscall_return(long rc);
@@ -74,7 +66,7 @@ child:
 vfork:
     popq %rdx // save return address
     movq $SYS_vfork, %rax
-    int $SYSCALL_VECTOR
+    syscall
     pushq %rdx
     movq %rax, %rdi
     call __syscall_return
@@ -86,7 +78,7 @@ vfork:
     .type __sa_restorer, @object
 __sa_restorer:
     movl $SYS_rt_sigreturn, %eax
-    int $SYSCALL_VECTOR
+    syscall
     ud2
 
 // pthread_t pthread_self(void);
