@@ -111,6 +111,7 @@ X86_SRCS := \
 	kernel/arch/x86/rtc.c \
 	kernel/arch/x86/smp.c \
 	kernel/arch/x86/syscall/ia32.c \
+	kernel/arch/x86/syscall/int80.c \
 	kernel/arch/x86/syscall/syscall.c \
 	kernel/arch/x86/task/context.c \
 	kernel/arch/x86/task/signal.c \
@@ -123,6 +124,7 @@ LINKER_SCRIPT_SRC := $(ROOT)/kernel/arch/x86/kernel.lds.S
 
 CFLAGS += \
 	-m32 \
+	-isystem$(ROOT)/kernel/api/i386 \
 	-isystem$(ROOT)/kernel/api/x86 \
 	-isystem$(ROOT)/kernel/arch/i386/include \
 	-isystem$(ROOT)/kernel/arch/x86/include
@@ -143,6 +145,7 @@ CFLAGS += \
 	-mcmodel=kernel -fno-pic \
 	-mno-red-zone \
 	-mno-80387 -mno-mmx -mno-sse -mno-sse2 \
+	-isystem$(ROOT)/kernel/api/x86_64 \
 	-isystem$(ROOT)/kernel/api/x86 \
 	-isystem$(ROOT)/kernel/arch/x86_64/include \
 	-isystem$(ROOT)/kernel/arch/x86/include
@@ -151,6 +154,7 @@ SRCS += \
 	kernel/arch/x86_64/boot.S \
 	kernel/arch/x86_64/context.c \
 	kernel/arch/x86_64/interrupts.S \
+	kernel/arch/x86_64/syscall.c \
 	$(X86_SRCS)
 else
 $(error Unknown ARCH '$(ARCH)')

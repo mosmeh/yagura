@@ -6,6 +6,7 @@
 struct user_desc;
 
 void syscall_init(void);
+void syscall_init_cpu(void);
 
 long sys_arch_prctl(int op, unsigned long addr);
 

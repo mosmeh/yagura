@@ -1,6 +1,6 @@
 #include <common/integer.h>
 #include <common/string.h>
-#include <kernel/api/sys/syscall.h>
+#include <kernel/api/i386/asm/unistd.h>
 #include <kernel/arch/x86/task/context.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>

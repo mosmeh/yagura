@@ -44,6 +44,7 @@
 #define ALLPERMS (ACCESSPERMS | S_ISUID | S_ISGID | S_ISVTX)
 
 struct linux_stat {
+#ifdef ARCH_I386
     unsigned long st_dev;
     unsigned long st_ino;
     unsigned short st_mode;
@@ -62,6 +63,28 @@ struct linux_stat {
     unsigned long st_ctime_nsec;
     unsigned long __unused4;
     unsigned long __unused5;
+#else
+    unsigned long st_dev;
+    unsigned long st_ino;
+    unsigned long st_nlink;
+
+    unsigned int st_mode;
+    unsigned int st_uid;
+    unsigned int st_gid;
+    unsigned int __pad0;
+    unsigned long st_rdev;
+    long st_size;
+    long st_blksize;
+    long st_blocks;
+
+    unsigned long st_atime;
+    unsigned long st_atime_nsec;
+    unsigned long st_mtime;
+    unsigned long st_mtime_nsec;
+    unsigned long st_ctime;
+    unsigned long st_ctime_nsec;
+    long __unused[3];
+#endif
 };
 
 struct linux_stat64 {

@@ -5,6 +5,7 @@
 #include <kernel/arch/x86/cpu.h>
 #include <kernel/arch/x86/interrupts/interrupts.h>
 #include <kernel/arch/x86/smp.h>
+#include <kernel/arch/x86/syscall/syscall.h>
 #include <kernel/cpu.h>
 #include <kernel/drivers/acpi.h>
 #include <kernel/interrupts.h>
@@ -95,6 +96,7 @@ _Noreturn void ap_start(void) {
     cpu_init_features();
     idt_flush();
     lapic_init_cpu();
+    syscall_init_cpu();
 
     ++num_ready_cpus;
     while (!smp_active)

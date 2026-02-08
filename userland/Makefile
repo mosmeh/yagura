@@ -136,6 +136,7 @@ LIBC_X86_SRCS := \
 ifeq ($(ARCH), i386)
 CFLAGS += \
 	-m32 \
+	-isystem$(ROOT)/kernel/api/i386 \
 	-isystem$(ROOT)/kernel/api/x86
 
 LIBC_SRCS += \
@@ -146,6 +147,7 @@ LIBC_SRCS += \
 else ifeq ($(ARCH), x86_64)
 CFLAGS += \
 	-m64 \
+	-isystem$(ROOT)/kernel/api/x86_64 \
 	-isystem$(ROOT)/kernel/api/x86
 
 LIBC_SRCS += \
