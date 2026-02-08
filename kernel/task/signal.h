@@ -27,3 +27,18 @@ NODISCARD int signal_pop(struct sigaction* out_action);
 // Handles a signal for the current task.
 void signal_handle(struct registers* regs, int signum,
                    const struct sigaction* action);
+
+void sigemptyset(sigset_t*);
+
+int sigaddset(sigset_t*, int signum);
+int sigdelset(sigset_t*, int signum);
+
+void sigaddsetmask(sigset_t*, unsigned long mask);
+void sigdelsetmask(sigset_t*, unsigned long mask);
+
+void sigandsets(sigset_t* dest, const sigset_t* left, const sigset_t* right);
+void sigorsets(sigset_t* dest, const sigset_t* left, const sigset_t* right);
+void sigandnsets(sigset_t* dest, const sigset_t* left, const sigset_t* right);
+
+int sigismember(const sigset_t*, int signum);
+int sigisemptyset(const sigset_t*);

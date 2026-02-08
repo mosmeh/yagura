@@ -3,8 +3,8 @@
 #include <kernel/api/signal.h>
 #include <sys/types.h>
 
-extern const char* const sys_signame[];
-extern const char* const sys_siglist[];
+extern const char* const sys_signame[NSIG];
+extern const char* const sys_siglist[NSIG];
 
 int kill(pid_t pid, int sig);
 int tgkill(pid_t tgid, pid_t tid, int sig);

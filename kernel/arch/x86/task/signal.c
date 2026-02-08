@@ -4,24 +4,25 @@
 #include <kernel/arch/x86/task/context.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
+#ifdef ARCH_I386
 extern unsigned char signal_trampoline_start[];
 extern unsigned char signal_trampoline_end[];
 
-void signal_trampoline(void) {
-    unsigned long dummy;
-    __asm__ volatile(
+__attribute__((used, naked)) static void signal_trampoline(void) {
+    __asm__(
         ".globl signal_trampoline_start, signal_trampoline_end\n"
         "signal_trampoline_start:\n"
-        "pop %[num]\n" // pop signum
-        "mov %[sigreturn], %[num]\n"
+        "pop %%eax\n" // pop signum
+        "mov %[sigreturn], %%eax\n"
         "int %[syscall_vector]\n"
         "signal_trampoline_end:\n"
-        : [num] "=&a"(dummy)
+        :
         : [sigreturn] "i"(SYS_sigreturn), [syscall_vector] "i"(SYSCALL_VECTOR));
-    __builtin_unreachable();
 }
+#endif
 
 struct sigcontext {
     sigset_t blocked_signals;
@@ -32,16 +33,17 @@ struct sigframe {
     uintptr_t restorer;
     int signum;
     struct sigcontext ctx;
-#ifdef ARCH_I386
     unsigned char trampoline[8];
-#endif
-#ifdef ARCH_X86_64
-    unsigned char trampoline[10];
-#endif
+};
+
+struct rt_sigframe {
+    uintptr_t restorer;
+    struct sigcontext ctx;
 };
 
 int arch_handle_signal(struct registers* regs, int signum,
                        const struct sigaction* action) {
+#ifdef ARCH_I386
     struct sigframe frame = {.signum = signum,
                              .ctx = {
                                  .regs = *regs,
@@ -51,18 +53,8 @@ int arch_handle_signal(struct registers* regs, int signum,
            (uintptr_t)signal_trampoline_end);
     memcpy(frame.trampoline, signal_trampoline_start, sizeof(frame.trampoline));
 
-#ifdef ARCH_X86_64
-    regs->sp -= 128; // Skip red zone
-#endif
-
     regs->sp -= sizeof(struct sigframe);
-
-#ifdef ARCH_I386
     regs->sp = ROUND_DOWN(regs->sp + 4, 16) - 4;
-#endif
-#ifdef ARCH_X86_64
-    regs->sp = ROUND_DOWN(regs->sp, 16) - 8;
-#endif
 
     struct sigframe* user_frame = (struct sigframe*)regs->sp;
     frame.restorer = (action->sa_flags & SA_RESTORER)
@@ -73,13 +65,30 @@ int arch_handle_signal(struct registers* regs, int signum,
 
     regs->ip = (uintptr_t)action->sa_handler;
     regs->cs = USER_CS | 3;
-
-#ifdef ARCH_I386
     regs->ax = signum;
     regs->cx = regs->dx = 0;
     regs->ss = regs->ds = regs->es = USER_DS | 3;
 #endif
+
 #ifdef ARCH_X86_64
+    if (!(action->sa_flags & SA_RESTORER))
+        return -EFAULT;
+
+    struct rt_sigframe frame = {.restorer = (uintptr_t)action->sa_restorer,
+                                .ctx = {
+                                    .regs = *regs,
+                                    .blocked_signals = current->blocked_signals,
+                                }};
+
+    regs->sp -= 128; // Skip red zone
+    regs->sp -= sizeof(struct rt_sigframe);
+    regs->sp = ROUND_DOWN(regs->sp, 16) - 8;
+
+    if (copy_to_user((void*)regs->sp, &frame, sizeof(struct rt_sigframe)))
+        return -EFAULT;
+
+    regs->ip = (uintptr_t)action->sa_handler;
+    regs->cs = USER_CS | 3;
     regs->di = signum;
     regs->ax = 0;
 #endif
@@ -151,7 +160,9 @@ long sys_sigreturn(struct registers* regs) {
 
     regs->flags = (regs->flags & ~FIX_EFLAGS) | (ctx.regs.flags & FIX_EFLAGS);
 
-    task_set_blocked_signals(current, ctx.blocked_signals);
+    task_set_blocked_signals(current, &ctx.blocked_signals);
 
     return ctx.regs.ax;
 }
+
+long sys_rt_sigreturn(struct registers* regs) { return sys_sigreturn(regs); }

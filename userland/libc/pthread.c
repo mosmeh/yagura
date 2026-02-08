@@ -132,7 +132,8 @@ int pthread_kill(pthread_t thread, int sig) {
 }
 
 int pthread_sigmask(int how, const sigset_t* set, sigset_t* oldset) {
-    PTHREAD_RETURN(SYSCALL3(sigprocmask, how, set, oldset));
+    PTHREAD_RETURN(
+        SYSCALL4(rt_sigprocmask, how, set, oldset, sizeof(sigset_t)));
 }
 
 int pthread_attr_init(pthread_attr_t* attr) {

@@ -2,6 +2,7 @@
 #include <common/integer.h>
 #include <common/limits.h>
 #include <common/string.h>
+#include <kernel/api/signal.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/signal.h>
@@ -34,69 +35,87 @@ void __sighand_destroy(struct sighand* sighand) {
     slab_free(&sighand_slab, sighand);
 }
 
-sigset_t task_get_pending_signals(struct task* task) {
-    return (task->pending_signals | task->thread_group->pending_signals) &
-           ~task->blocked_signals;
+void task_get_pending_signals(struct task* task, sigset_t* out_set) {
+    SCOPED_LOCK(sighand, task->sighand);
+    for (size_t i = 0; i < ARRAY_SIZE(out_set->sig); ++i)
+        out_set->sig[i] = (task->pending_signals.sig[i] |
+                           task->thread_group->pending_signals.sig[i]) &
+                          ~task->blocked_signals.sig[i];
 }
 
-sigset_t task_set_blocked_signals(struct task* task, sigset_t sigset) {
-    return atomic_exchange(&task->blocked_signals,
-                           sigset & ~(sigmask(SIGKILL) | sigmask(SIGSTOP)));
+void task_set_blocked_signals(struct task* task, const sigset_t* sigset) {
+    SCOPED_LOCK(sighand, task->sighand);
+    task->blocked_signals = *sigset;
+    sigdelsetmask(&task->blocked_signals, sigmask(SIGKILL) | sigmask(SIGSTOP));
 }
 
-static enum {
+__extension__ static enum {
     DISP_TERM,
     DISP_IGN,
     DISP_CORE,
     DISP_STOP,
     DISP_CONT,
 } default_dispositions[] = {
-    [SIGABRT] = DISP_CORE,   [SIGALRM] = DISP_TERM,   [SIGBUS] = DISP_CORE,
-    [SIGCHLD] = DISP_IGN,    [SIGCONT] = DISP_CONT,   [SIGFPE] = DISP_CORE,
-    [SIGHUP] = DISP_TERM,    [SIGILL] = DISP_CORE,    [SIGINT] = DISP_TERM,
-    [SIGIO] = DISP_TERM,     [SIGKILL] = DISP_TERM,   [SIGPIPE] = DISP_TERM,
-    [SIGPROF] = DISP_TERM,   [SIGPWR] = DISP_TERM,    [SIGQUIT] = DISP_CORE,
-    [SIGSEGV] = DISP_CORE,   [SIGSTKFLT] = DISP_TERM, [SIGSTOP] = DISP_STOP,
-    [SIGTSTP] = DISP_STOP,   [SIGSYS] = DISP_CORE,    [SIGTERM] = DISP_TERM,
-    [SIGTRAP] = DISP_CORE,   [SIGTTIN] = DISP_STOP,   [SIGTTOU] = DISP_STOP,
-    [SIGURG] = DISP_IGN,     [SIGUSR1] = DISP_TERM,   [SIGUSR2] = DISP_TERM,
-    [SIGVTALRM] = DISP_TERM, [SIGXCPU] = DISP_CORE,   [SIGXFSZ] = DISP_CORE,
-    [SIGWINCH] = DISP_IGN,
+    [SIGABRT] = DISP_CORE,   [SIGALRM] = DISP_TERM,
+    [SIGBUS] = DISP_CORE,    [SIGCHLD] = DISP_IGN,
+    [SIGCONT] = DISP_CONT,   [SIGFPE] = DISP_CORE,
+    [SIGHUP] = DISP_TERM,    [SIGILL] = DISP_CORE,
+    [SIGINT] = DISP_TERM,    [SIGIO] = DISP_TERM,
+    [SIGKILL] = DISP_TERM,   [SIGPIPE] = DISP_TERM,
+    [SIGPROF] = DISP_TERM,   [SIGPWR] = DISP_TERM,
+    [SIGQUIT] = DISP_CORE,   [SIGSEGV] = DISP_CORE,
+    [SIGSTKFLT] = DISP_TERM, [SIGSTOP] = DISP_STOP,
+    [SIGTSTP] = DISP_STOP,   [SIGSYS] = DISP_CORE,
+    [SIGTERM] = DISP_TERM,   [SIGTRAP] = DISP_CORE,
+    [SIGTTIN] = DISP_STOP,   [SIGTTOU] = DISP_STOP,
+    [SIGURG] = DISP_IGN,     [SIGUSR1] = DISP_TERM,
+    [SIGUSR2] = DISP_TERM,   [SIGVTALRM] = DISP_TERM,
+    [SIGXCPU] = DISP_CORE,   [SIGXFSZ] = DISP_CORE,
+    [SIGWINCH] = DISP_IGN,   [SIGRTMIN... SIGRTMAX] = DISP_TERM,
 };
 
 STATIC_ASSERT(ARRAY_SIZE(default_dispositions) == NSIG);
 
+static void clear_pending_signal(struct task* task, int signum) {
+    ASSERT(sighand_is_locked_by_current(task->sighand));
+
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, signum);
+
+    sigset_t* tg_pending = &task->thread_group->pending_signals;
+    sigandnsets(tg_pending, tg_pending, &set);
+
+    sigandnsets(&task->pending_signals, &task->pending_signals, &set);
+}
+
 static void send_signal_to_task(struct task* task, int signum,
                                 bool process_directed) {
+    SCOPED_LOCK(sighand, task->sighand);
+
     int default_disposition = default_dispositions[signum];
 
     // SIGCONT clears stop signals, and stop signals clear SIGCONT.
     // This takes effect even if the signal is ignored.
-    sigset_t cleared_signals = 0;
     switch (default_disposition) {
     case DISP_CONT:
-        cleared_signals |= sigmask(SIGSTOP) | sigmask(SIGTSTP) |
-                           sigmask(SIGTTIN) | sigmask(SIGTTOU);
+        clear_pending_signal(task, SIGSTOP);
+        clear_pending_signal(task, SIGTSTP);
+        clear_pending_signal(task, SIGTTIN);
+        clear_pending_signal(task, SIGTTOU);
         break;
     case DISP_STOP:
-        cleared_signals |= sigmask(SIGCONT);
+        clear_pending_signal(task, SIGCONT);
         break;
     default:
         break;
     }
-    if (cleared_signals) {
-        task->thread_group->pending_signals &= ~cleared_signals;
-        task->pending_signals &= ~cleared_signals;
-    }
 
-    sigset_t mask = sigmask(signum);
-
-    if (task->blocked_signals & mask) {
+    if (sigismember(&task->blocked_signals, signum)) {
         // Signal handlers may be changed while the signal is blocked,
         // so this signal should not be ignored.
     } else {
         struct sighand* sighand = task->sighand;
-        SCOPED_LOCK(sighand, sighand);
         sighandler_t handler = sighand->actions[signum - 1].sa_handler;
         if (task->thread_group->tgid == 1 && handler == SIG_DFL) {
             // Signals can be sent to the init process only when
@@ -109,9 +128,9 @@ static void send_signal_to_task(struct task* task, int signum,
     }
 
     if (process_directed)
-        task->thread_group->pending_signals |= mask;
+        sigaddset(&task->thread_group->pending_signals, signum);
     else
-        task->pending_signals |= mask;
+        sigaddset(&task->pending_signals, signum);
 }
 
 int signal_send_to_thread_groups(pid_t pgid, pid_t tgid, int signum) {
@@ -190,25 +209,20 @@ int signal_send_to_tasks(pid_t tgid, pid_t tid, int signum) {
 }
 
 static int pop_one_signal(void) {
-    int signum =
-        __builtin_ffs(current->pending_signals & ~current->blocked_signals);
-    if (signum) {
-        current->pending_signals &= ~sigmask(signum);
+    ASSERT(sighand_is_locked_by_current(current->sighand));
+
+    sigset_t pending;
+    task_get_pending_signals(current, &pending);
+    for (size_t i = 0; i < ARRAY_SIZE(pending.sig); i++) {
+        if (!pending.sig[i])
+            continue;
+        int b = __builtin_ffsl(pending.sig[i]);
+        if (!b)
+            continue;
+        int signum = i * LONG_WIDTH + b;
+        clear_pending_signal(current, signum);
         return signum;
     }
-
-    struct thread_group* tg = current->thread_group;
-    for (;;) {
-        sigset_t pending = tg->pending_signals;
-        int signum = __builtin_ffs(pending & ~current->blocked_signals);
-        if (!signum)
-            break;
-        sigset_t new_pending = pending & ~sigmask(signum);
-        if (atomic_compare_exchange_weak(&tg->pending_signals, &pending,
-                                         new_pending))
-            return signum;
-    }
-
     return 0;
 }
 
@@ -270,8 +284,65 @@ void signal_handle(struct registers* regs, int signum,
     if (IS_ERR(rc))
         task_crash(SIGSEGV);
 
-    sigset_t new_blocked = current->blocked_signals | action->sa_mask;
+    sigset_t new_blocked;
+    sigorsets(&new_blocked, &current->blocked_signals, &action->sa_mask);
     if (!(action->sa_flags & SA_NODEFER))
-        new_blocked |= sigmask(signum);
-    task_set_blocked_signals(current, new_blocked);
+        sigaddset(&new_blocked, signum);
+    task_set_blocked_signals(current, &new_blocked);
+}
+
+void sigemptyset(sigset_t* set) {
+    for (size_t i = 0; i < ARRAY_SIZE(set->sig); i++)
+        set->sig[i] = 0;
+}
+
+#define VALIDATE_SIGNUM(signum)                                                \
+    if ((signum) <= 0 || NSIG <= (signum))                                     \
+        return -EINVAL;
+
+#define INDEX(signum) (((signum) - 1) / LONG_WIDTH)
+#define MASK(signum) (1UL << (((signum) - 1) % LONG_WIDTH))
+
+int sigaddset(sigset_t* set, int signum) {
+    VALIDATE_SIGNUM(signum);
+    set->sig[INDEX(signum)] |= MASK(signum);
+    return 0;
+}
+
+int sigdelset(sigset_t* set, int signum) {
+    VALIDATE_SIGNUM(signum);
+    set->sig[INDEX(signum)] &= ~MASK(signum);
+    return 0;
+}
+
+void sigaddsetmask(sigset_t* set, unsigned long mask) { set->sig[0] |= mask; }
+
+void sigdelsetmask(sigset_t* set, unsigned long mask) { set->sig[0] &= ~mask; }
+
+void sigandsets(sigset_t* dest, const sigset_t* left, const sigset_t* right) {
+    for (size_t i = 0; i < ARRAY_SIZE(dest->sig); i++)
+        dest->sig[i] = left->sig[i] & right->sig[i];
+}
+
+void sigorsets(sigset_t* dest, const sigset_t* left, const sigset_t* right) {
+    for (size_t i = 0; i < ARRAY_SIZE(dest->sig); i++)
+        dest->sig[i] = left->sig[i] | right->sig[i];
+}
+
+void sigandnsets(sigset_t* dest, const sigset_t* left, const sigset_t* right) {
+    for (size_t i = 0; i < ARRAY_SIZE(dest->sig); i++)
+        dest->sig[i] = left->sig[i] & ~right->sig[i];
+}
+
+int sigismember(const sigset_t* set, int signum) {
+    VALIDATE_SIGNUM(signum);
+    return set->sig[INDEX(signum)] & MASK(signum);
+}
+
+int sigisemptyset(const sigset_t* set) {
+    for (size_t i = 0; i < ARRAY_SIZE(set->sig); i++) {
+        if (set->sig[i])
+            return 0;
+    }
+    return 1;
 }

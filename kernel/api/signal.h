@@ -1,37 +1,7 @@
 #pragma once
 
+#include <common/limits.h>
 #include <kernel/api/sys/types.h>
-
-typedef void (*sighandler_t)(int);
-typedef uint32_t sigset_t;
-
-#define sigmask(sig) (1U << ((sig) - 1))
-
-#define SIG_ERR ((sighandler_t)(-1)) // Error return.
-#define SIG_DFL ((sighandler_t)0)    // Default action.
-#define SIG_IGN ((sighandler_t)1)    // Ignore signal.
-
-#define SA_RESTORER 0x04000000
-
-// Restart syscall on signal return.
-#define SA_RESTART 0x10000000
-
-// Don't automatically block the signal when its handler is being executed.
-#define SA_NODEFER 0x40000000
-
-// Reset to SIG_DFL on entry to handler.
-#define SA_RESETHAND 0x80000000
-
-struct sigaction {
-    sighandler_t sa_handler;
-    sigset_t sa_mask;
-    int sa_flags;
-    void (*sa_restorer)(void);
-};
-
-#define SIG_BLOCK 0   // Block signals.
-#define SIG_UNBLOCK 1 // Unblock signals.
-#define SIG_SETMASK 2 // Set the set of blocked signals.
 
 #define ENUMERATE_SIGNALS(F)                                                   \
     F(SIGINVALID, "Invalid signal")                                            \
@@ -67,6 +37,54 @@ struct sigaction {
     F(SIGPWR, "Power failure")                                                 \
     F(SIGSYS, "Bad system call")
 
+enum {
 #define ENUM_ITEM(I, MSG) I,
-enum { ENUMERATE_SIGNALS(ENUM_ITEM) NSIG };
+    ENUMERATE_SIGNALS(ENUM_ITEM)
 #undef ENUM_ITEM
+        SIGRTMIN,
+    SIGRTMAX = 64,
+    NSIG,
+};
+
+typedef void (*sighandler_t)(int);
+
+typedef struct {
+    unsigned long sig[NSIG / LONG_WIDTH];
+} sigset_t;
+
+typedef unsigned long linux_old_sigset_t;
+
+#define sigmask(sig) (1UL << ((sig) - 1))
+
+#define SIG_ERR ((sighandler_t)(-1)) // Error return.
+#define SIG_DFL ((sighandler_t)0)    // Default action.
+#define SIG_IGN ((sighandler_t)1)    // Ignore signal.
+
+#define SA_RESTORER 0x04000000
+
+// Restart syscall on signal return.
+#define SA_RESTART 0x10000000
+
+// Don't automatically block the signal when its handler is being executed.
+#define SA_NODEFER 0x40000000
+
+// Reset to SIG_DFL on entry to handler.
+#define SA_RESETHAND 0x80000000
+
+struct sigaction {
+    sighandler_t sa_handler;
+    unsigned long sa_flags;
+    void (*sa_restorer)(void);
+    sigset_t sa_mask;
+};
+
+struct linux_old_sigaction {
+    sighandler_t sa_handler;
+    linux_old_sigset_t sa_mask;
+    int sa_flags;
+    void (*sa_restorer)(void);
+};
+
+#define SIG_BLOCK 0   // Block signals.
+#define SIG_UNBLOCK 1 // Unblock signals.
+#define SIG_SETMASK 2 // Set the set of blocked signals.

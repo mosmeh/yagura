@@ -86,7 +86,6 @@ vfork:
     .hidden __sa_restorer
     .type __sa_restorer, @object
 __sa_restorer:
-    popq %rax // pop signum
-    movl $SYS_sigreturn, %eax
+    movl $SYS_rt_sigreturn, %eax
     int $SYSCALL_VECTOR
     ud2

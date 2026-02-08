@@ -183,13 +183,14 @@
     F(setresgid, sys_ni_syscall, 0)                                            \
     F(getresgid, sys_getresgid16, 0)                                           \
     F(prctl, sys_prctl, 0)                                                     \
-    F(rt_sigreturn, sys_ni_syscall, 0)                                         \
-    F(rt_sigaction, sys_ni_syscall, 0)                                         \
-    F(rt_sigprocmask, sys_ni_syscall, 0)                                       \
-    F(rt_sigpending, sys_ni_syscall, 0)                                        \
+    F(rt_sigreturn, sys_rt_sigreturn,                                          \
+      SYSCALL_RAW_REGISTERS | SYSCALL_NO_ERROR)                                \
+    F(rt_sigaction, sys_rt_sigaction, 0)                                       \
+    F(rt_sigprocmask, sys_rt_sigprocmask, 0)                                   \
+    F(rt_sigpending, sys_rt_sigpending, 0)                                     \
     F(rt_sigtimedwait, sys_ni_syscall, 0)                                      \
     F(rt_sigqueueinfo, sys_ni_syscall, 0)                                      \
-    F(rt_sigsuspend, sys_ni_syscall, 0)                                        \
+    F(rt_sigsuspend, sys_rt_sigsuspend, 0)                                     \
     F(pread64, sys_ia32_pread64, 0)                                            \
     F(pwrite64, sys_ia32_pwrite64, 0)                                          \
     F(chown, sys_chown16, 0)                                                   \
