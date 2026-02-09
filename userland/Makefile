@@ -64,6 +64,7 @@ BIN_TARGET_NAMES := \
 	tests/open \
 	tests/pipe \
 	tests/process-vm \
+	tests/pthread \
 	tests/random \
 	tests/read-write \
 	tests/run \

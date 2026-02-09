@@ -17,7 +17,9 @@
 enum {
     STATE_JOINABLE,
     STATE_DETACHED,
-    STATE_EXITED,
+    STATE_JOINABLE_EXITED,
+    STATE_DETACHED_EXITED,
+    STATE_JOINED,
 };
 
 struct pthread_attr {
@@ -81,48 +83,62 @@ fail:
 
 int pthread_detach(pthread_t thread) {
     unsigned expected = STATE_JOINABLE;
-    if (!atomic_compare_exchange_strong(&thread->state, &expected,
-                                        STATE_DETACHED))
-        return EINVAL;
-    return 0;
+    if (atomic_compare_exchange_strong(&thread->state, &expected,
+                                       STATE_DETACHED))
+        return 0;
+
+    expected = STATE_JOINABLE_EXITED;
+    if (atomic_compare_exchange_strong(&thread->state, &expected,
+                                       STATE_DETACHED_EXITED))
+        return 0;
+
+    return EINVAL;
 }
 
 void pthread_exit(void* retval) {
     struct pthread* pth = pthread_self();
     pth->retval = retval;
-    unsigned state = atomic_exchange(&pth->state, STATE_EXITED);
-    switch (state) {
-    case STATE_JOINABLE:
-        break;
-    case STATE_DETACHED:
-        free(pth->alloc_base);
-        break;
-    default:
-        UNREACHABLE();
+
+    unsigned expected = STATE_JOINABLE;
+    if (!atomic_compare_exchange_strong(&pth->state, &expected,
+                                        STATE_JOINABLE_EXITED)) {
+        ASSERT(expected == STATE_DETACHED);
+        pth->state = STATE_DETACHED_EXITED;
     }
+
     SYSCALL1(exit, 0);
     UNREACHABLE();
 }
 
 int pthread_join(pthread_t thread, void** retval) {
+    if (thread == pthread_self())
+        return EDEADLK;
+
+    // FIXME: struct pthread and stack are leaked because we are yet to
+    //        implement a way to know when it is safe to free it.
     for (;;) {
-        switch (thread->state) {
+        unsigned expected = STATE_JOINABLE_EXITED;
+        if (atomic_compare_exchange_weak(&thread->state, &expected,
+                                         STATE_JOINED)) {
+            if (retval)
+                *retval = thread->retval;
+            return 0;
+        }
+        switch (expected) {
         case STATE_JOINABLE:
-            break;
+            sched_yield();
+            continue;
+        case STATE_JOINABLE_EXITED:
+            continue;
         case STATE_DETACHED:
+        case STATE_DETACHED_EXITED:
             return EINVAL;
-        case STATE_EXITED:
-            goto exit;
+        case STATE_JOINED:
+            return ESRCH;
         default:
             UNREACHABLE();
         }
-        sched_yield();
     }
-exit:
-    if (retval)
-        *retval = thread->retval;
-    free(thread->alloc_base);
-    return 0;
 }
 
 int pthread_equal(pthread_t t1, pthread_t t2) { return t1 == t2; }
@@ -162,6 +178,8 @@ int pthread_attr_getguardsize(const pthread_attr_t* attr, size_t* guardsize) {
 
 int pthread_attr_setstack(pthread_attr_t* attr, void* stackaddr,
                           size_t stacksize) {
+    if (stacksize < PTHREAD_STACK_MIN)
+        return EINVAL;
     (*attr)->stack_addr = stackaddr;
     (*attr)->stack_size = stacksize;
     return 0;
