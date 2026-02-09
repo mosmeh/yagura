@@ -48,6 +48,7 @@ struct pthread* __init_tls(void* tls) {
 
     uintptr_t p = (uintptr_t)tls + __tls_size - sizeof(struct pthread);
     p = ROUND_DOWN(p, tls_phdr->p_align);
+    p = ROUND_DOWN(p, _Alignof(struct pthread));
     memcpy((unsigned char*)p - tls_phdr->p_memsz, (void*)tls_phdr->p_vaddr,
            tls_phdr->p_filesz);
 
@@ -71,7 +72,8 @@ void __start(unsigned long* args) {
     // Initialize TLS
     tls_phdr = find_tls_phdr();
     ASSERT(tls_phdr);
-    __tls_size = tls_phdr->p_memsz + tls_phdr->p_align + sizeof(struct pthread);
+    __tls_size = tls_phdr->p_memsz + sizeof(struct pthread) +
+                 MAX(tls_phdr->p_align, _Alignof(struct pthread));
 
     // Initialize TLS for the main thread
     unsigned char* tls = malloc(__tls_size);
