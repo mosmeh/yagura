@@ -36,7 +36,7 @@ __syscall:
 // call fn(arg) after the clone.
 
 // int __clone_impl(int (*fn)(void*), void* stack, int flags, void* arg,
-//             pid_t* parent_tid, void* tls, pid_t* child_tid);
+//                  pid_t* parent_tid, pid_t* child_tid, void* tls);
     .globl __clone_impl
     .hidden __clone_impl
     .type __clone_impl, @function
@@ -53,10 +53,10 @@ __clone_impl:
     movl %eax, (%ecx)     // push fn to the new stack
     movl 24(%esp), %ebx   // ebx = flags
     movl 32(%esp), %edx   // edx = parent_tid
-    movl 40(%esp), %esi   // esi = child_tid
-    movl 36(%esp), %edi   // edi = tls
+    movl 40(%esp), %esi   // esi = tls
+    movl 36(%esp), %edi   // edi = child_tid
     movl $SYS_clone, %eax
-    int $SYSCALL_VECTOR   // clone(flags, stack, parent_tid, child_tid, tls)
+    int $SYSCALL_VECTOR   // clone(flags, stack, parent_tid, tls, child_tid)
     testl %eax, %eax
     jz child
     popl %edi

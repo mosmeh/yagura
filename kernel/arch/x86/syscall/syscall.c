@@ -4,6 +4,7 @@
 #include <kernel/arch/x86/task/context.h>
 #include <kernel/interrupts.h>
 #include <kernel/syscall/syscall.h>
+#include <kernel/task/task.h>
 
 // Linux syscalls introduced up to Linux 5.1.
 // Keep this list in sync with arch/x86/entry/syscalls/syscall_32.tbl
@@ -429,6 +430,13 @@
     F(io_uring_enter, sys_ni_syscall, 0)                                       \
     F(io_uring_register, sys_ni_syscall, 0)                                    \
     F(dbgprint, sys_dbgprint, 0)
+
+static long sys_clone(struct registers* regs, unsigned long flags,
+                      void* user_stack, pid_t* user_parent_tid, void* user_tls,
+                      pid_t* user_child_tid) {
+    return clone_user_task(regs, flags, user_stack, user_parent_tid,
+                           user_child_tid, user_tls);
+}
 
 static struct syscall syscalls[] = {
 #define F(name, handler, flags)                                                \

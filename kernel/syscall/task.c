@@ -78,58 +78,12 @@ long sys_execve(const char* user_pathname, char* const user_argv[],
 }
 
 long sys_fork(struct registers* regs) {
-    return sys_clone(regs, SIGCHLD, NULL, NULL, NULL, NULL);
+    return clone_user_task(regs, SIGCHLD, NULL, NULL, NULL, NULL);
 }
 
 long sys_vfork(struct registers* regs) {
-    return sys_clone(regs, CLONE_VM | CLONE_VFORK | SIGCHLD, NULL, NULL, NULL,
-                     NULL);
-}
-
-static bool unblock_vfork(void* ctx) {
-    struct task* task = ctx;
-    return task->state == TASK_DEAD;
-}
-
-// NOLINTBEGIN(readability-non-const-parameter)
-long sys_clone(struct registers* regs, unsigned long flags, void* user_stack,
-               pid_t* user_parent_tid, pid_t* user_child_tid, void* user_tls) {
-    // NOLINTEND(readability-non-const-parameter)
-    (void)user_child_tid;
-
-    struct task* task FREE(task) = task_clone(current, flags);
-    if (IS_ERR(ASSERT(task)))
-        return PTR_ERR(task);
-
-    int rc = arch_clone_task(task, current, regs, user_stack);
-    if (IS_ERR(rc))
-        return rc;
-
-    pid_t tid = task_generate_next_tid();
-    task->tid = tid;
-    if (!(flags & CLONE_THREAD))
-        task->thread_group->tgid = tid;
-
-    if (flags & CLONE_SETTLS) {
-        rc = arch_set_tls(task, user_tls);
-        if (IS_ERR(rc))
-            return rc;
-    }
-
-    if (flags & CLONE_PARENT_SETTID) {
-        if (copy_to_user(user_parent_tid, &tid, sizeof(pid_t)))
-            return -EFAULT;
-    }
-
-    sched_register(task);
-
-    if (flags & CLONE_VFORK) {
-        rc = sched_block(unblock_vfork, task, TASK_UNINTERRUPTIBLE);
-        if (IS_ERR(rc))
-            return rc;
-    }
-
-    return tid;
+    return clone_user_task(regs, CLONE_VM | CLONE_VFORK | SIGCHLD, NULL, NULL,
+                           NULL, NULL);
 }
 
 struct waitpid_blocker {

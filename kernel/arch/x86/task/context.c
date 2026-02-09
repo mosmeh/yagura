@@ -33,8 +33,8 @@ int arch_init_task(struct task* task, void (*entry_point)(void)) {
     return 0;
 }
 
-int arch_clone_task(struct task* to, const struct task* from,
-                    const struct registers* from_regs, void* user_stack) {
+int arch_clone_user_task(struct task* to, const struct task* from,
+                         const struct registers* from_regs, void* user_stack) {
     to->arch = (struct arch_task){
         .ip = (uintptr_t)do_iret,
         .fpu_state = from->arch.fpu_state,

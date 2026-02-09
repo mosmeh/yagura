@@ -3,6 +3,7 @@
 #include <common/string.h>
 #include <kernel/api/sched.h>
 #include <kernel/kmsg.h>
+#include <kernel/memory/safe_string.h>
 #include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
@@ -263,4 +264,51 @@ struct thread_group* thread_group_create(void) {
 
 void __thread_group_destroy(struct thread_group* tg) {
     slab_free(&thread_group_slab, tg);
+}
+
+static bool unblock_vfork(void* ctx) {
+    struct task* task = ctx;
+    return task->state == TASK_DEAD;
+}
+
+// NOLINTBEGIN(readability-non-const-parameter)
+int clone_user_task(struct registers* regs, unsigned long flags,
+                    void* user_stack, pid_t* user_parent_tid,
+                    pid_t* user_child_tid, void* user_tls) {
+    // NOLINTEND(readability-non-const-parameter)
+    (void)user_child_tid;
+
+    struct task* task FREE(task) = task_clone(current, flags);
+    if (IS_ERR(ASSERT(task)))
+        return PTR_ERR(task);
+
+    int rc = arch_clone_user_task(task, current, regs, user_stack);
+    if (IS_ERR(rc))
+        return rc;
+
+    pid_t tid = task_generate_next_tid();
+    task->tid = tid;
+    if (!(flags & CLONE_THREAD))
+        task->thread_group->tgid = tid;
+
+    if (flags & CLONE_SETTLS) {
+        rc = arch_set_tls(task, user_tls);
+        if (IS_ERR(rc))
+            return rc;
+    }
+
+    if (flags & CLONE_PARENT_SETTID) {
+        if (copy_to_user(user_parent_tid, &tid, sizeof(pid_t)))
+            return -EFAULT;
+    }
+
+    sched_register(task);
+
+    if (flags & CLONE_VFORK) {
+        rc = sched_block(unblock_vfork, task, TASK_UNINTERRUPTIBLE);
+        if (IS_ERR(rc))
+            return rc;
+    }
+
+    return tid;
 }

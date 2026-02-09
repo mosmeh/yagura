@@ -20,7 +20,7 @@ int clone(int (*fn)(void*), void* stack, int flags, void* arg, ...) {
     va_end(ap);
 
     return __syscall_return(
-        __clone(fn, stack, flags, arg, parent_tid, tls, NULL));
+        __clone(fn, stack, flags, arg, parent_tid, NULL, tls));
 }
 
 int sched_yield(void) { return __syscall_return(SYSCALL0(sched_yield)); }

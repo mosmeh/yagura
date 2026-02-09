@@ -69,7 +69,7 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* attrp,
 
     int flags = CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND |
                 CLONE_THREAD | CLONE_SETTLS | CLONE_PARENT_SETTID;
-    ret = __clone(thread_start, stack_top, flags, pth, &pth->tid, pth, NULL);
+    ret = __clone(thread_start, stack_top, flags, pth, &pth->tid, NULL, pth);
     if (IS_ERR(ret))
         goto fail;
 

@@ -18,10 +18,10 @@ void __set_thread_area(void* addr) {
 }
 
 int __clone_impl(int (*fn)(void*), void* stack, int flags, void* arg,
-                 pid_t* parent_tid, void* tls, pid_t* child_tid);
+                 pid_t* parent_tid, pid_t* child_tid, void* tls);
 
 int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
-            pid_t* parent_tid, void* tls, pid_t* child_tid) {
+            pid_t* parent_tid, pid_t* child_tid, void* tls) {
     uint16_t gs;
     __asm__ volatile("movw %%gs, %0" : "=r"(gs));
     struct user_desc tls_desc = {
@@ -31,8 +31,8 @@ int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
         .seg_32bit = 1,
         .limit_in_pages = 1,
     };
-    return __clone_impl(fn, stack, flags, arg, parent_tid, &tls_desc,
-                        child_tid);
+    return __clone_impl(fn, stack, flags, arg, parent_tid, child_tid,
+                        &tls_desc);
 }
 
 pthread_t pthread_self(void) {
