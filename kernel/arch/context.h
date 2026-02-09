@@ -15,9 +15,9 @@ NODISCARD int arch_init_task(struct task*, void (*entry_point)(void));
 // Clone architecture-specific context from one task to another.
 // If user_stack is non-null, the new task should use it as the user stack
 // pointer.
-NODISCARD int arch_clone_task(struct task* to, const struct task* from,
-                              const struct registers* from_regs,
-                              void* user_stack);
+NODISCARD int arch_clone_user_task(struct task* to, const struct task* from,
+                                   const struct registers* from_regs,
+                                   void* user_stack);
 
 // Switches context from prev to next.
 void arch_switch_context(struct task* prev, struct task* next);

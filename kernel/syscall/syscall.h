@@ -188,8 +188,6 @@ long sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen);
 long sys_connect(int sockfd, const struct sockaddr* addr, socklen_t addrlen);
 long sys_shutdown(int sockfd, int how);
 long sys_munmap(void* addr, size_t length);
-long sys_clone(struct registers*, unsigned long flags, void* stack,
-               pid_t* parent_tid, pid_t* child_tid, void* tls);
 long sys_execve(const char* pathname, char* const argv[], char* const envp[]);
 long sys_mmap(void* addr, size_t length, int prot, int flags, int fd,
               unsigned long off);

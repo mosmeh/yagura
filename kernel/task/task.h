@@ -175,3 +175,7 @@ DEFINE_REFCOUNTED_BASE(thread_group, struct thread_group*, refcount,
 void task_get_pending_signals(struct task*, sigset_t* out_set);
 
 void task_set_blocked_signals(struct task*, const sigset_t*);
+
+NODISCARD int clone_user_task(struct registers* regs, unsigned long flags,
+                              void* user_stack, pid_t* user_parent_tid,
+                              pid_t* user_child_tid, void* user_tls);

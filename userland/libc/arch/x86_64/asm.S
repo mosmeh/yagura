@@ -33,31 +33,30 @@ __syscall:
 // call fn(arg) after the clone.
 
 // int __clone_impl(int (*fn)(void*), void* stack, int flags, void* arg,
-	//              pid_t* parent_tid, void* tls, pid_t* child_tid);
+//                  pid_t* parent_tid, pid_t* child_tid, void* tls);
     .globl __clone_impl
     .hidden __clone_impl
     .type __clone_impl, @function
 __clone_impl:
     pushq %rbx
-    movq 40(%rsp), %rcx   // rcx = new stack
-    andq $-16, %rcx       // align the stack to 16 bytes boundary
-    subq $16, %rcx         // reserve space for fn and arg
-    movq 56(%rsp), %rax
-    movq %rax, 8(%rcx)    // push arg to the new stack
-    movq 16(%rsp), %rax
-    movq %rax, (%rcx)     // push fn to the new stack
-    movq 48(%rsp), %rbx   // rbx = flags
-    movq 64(%rsp), %rdx   // rdx = parent_tid
-    movq 80(%rsp), %rsi   // rsi = child_tid
-    movq 72(%rsp), %rdi   // rdi = tls
+    andq $-16, %rsi       // align the stack to 16 bytes boundary
+    subq $16, %rsi        // reserve space for fn and arg
+    movq %rcx, 8(%rsi)    // push arg to the new stack
+    movq %rdi, (%rsi)     // push fn to the new stack
+    movq %rsi, %rcx       // rcx = new stack
+    movq %rdx, %rbx       // rbx = flags
+    movq %r8, %rdx        // rdx = parent_tid
+    movq 16(%rsp), %rsi   // rsi = tls
+    movq %r9, %rdi        // rdi = child_tid
     movq $SYS_clone, %rax
-    int $SYSCALL_VECTOR   // clone(flags, stack, parent_tid, child_tid, tls)
+    int $SYSCALL_VECTOR   // clone(flags, stack, parent_tid, tls, child_tid)
     testq %rax, %rax
     jz child
     popq %rbx
     ret
 child:
     popq %rax             // rax = fn
+    popq %rdi             // rdi = arg
     call *%rax            // fn(arg)
     movq %rax, %rbx       // rbx = return value
     movq $SYS_exit, %rax

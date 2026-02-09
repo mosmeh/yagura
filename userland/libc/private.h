@@ -34,4 +34,4 @@ long __syscall(long num, long, long, long, long, long, long);
 unsigned long __syscall_return(unsigned long rc);
 
 int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
-            pid_t* parent_tid, void* tls, pid_t* child_tid);
+            pid_t* parent_tid, pid_t* child_tid, void* tls);
