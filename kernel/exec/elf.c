@@ -1,6 +1,8 @@
 #include "private.h"
 #include <arch/elf.h>
+#include <arch/system.h>
 #include <common/integer.h>
+#include <common/string.h>
 #include <kernel/api/elf.h>
 #include <kernel/cpu.h>
 #include <kernel/memory/safe_string.h>
@@ -192,6 +194,17 @@ static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
                           void* entry_point) {
     loader->stack_ptr = (void*)ROUND_DOWN((uintptr_t)loader->stack_ptr, 16);
 
+    unsigned char* platform;
+    {
+        size_t size = strlen(ARCH_UTS_MACHINE) + 1;
+        platform = loader->stack_ptr - size;
+        if (platform < loader->stack_base)
+            return -E2BIG;
+        if (copy_to_user(platform, ARCH_UTS_MACHINE, size))
+            return -EFAULT;
+    }
+    loader->stack_ptr = platform;
+
     unsigned char* random;
     {
         unsigned char buf[16] = {0};
@@ -207,21 +220,24 @@ static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
     loader->stack_ptr = random;
 
     elf_auxv_t auxv[] = {
+        {AT_HWCAP, {arch_cpu_get_hwcap()}},
+        {AT_PAGESZ, {PAGE_SIZE}},
+        {AT_CLKTCK, {CLK_TCK}},
         {AT_PHDR, {(uintptr_t)phdr_addr}},
         {AT_PHENT, {ehdr->e_phentsize}},
         {AT_PHNUM, {ehdr->e_phnum}},
-        {AT_PAGESZ, {PAGE_SIZE}},
         {AT_BASE, {interp_base}},
+        {AT_FLAGS, {0}},
         {AT_ENTRY, {(uintptr_t)entry_point}},
         {AT_UID, {0}},
         {AT_EUID, {0}},
         {AT_GID, {0}},
         {AT_EGID, {0}},
-        {AT_HWCAP, {arch_cpu_get_hwcap()}},
-        {AT_CLKTCK, {CLK_TCK}},
         {AT_SECURE, {0}},
         {AT_RANDOM, {(uintptr_t)random}},
+        {AT_HWCAP2, {0}},
         {AT_EXECFN, {(uintptr_t)loader->execfn}},
+        {AT_PLATFORM, {(uintptr_t)platform}},
         {AT_NULL, {0}},
     };
     loader->stack_ptr -= sizeof(auxv);
