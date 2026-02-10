@@ -119,6 +119,7 @@ struct screen* fb_screen_init(void) {
     font_data = kmalloc(MAX_FONT_SIZE);
     if (!font_data) {
         kprint("fb_screen: failed to allocate font buffer\n");
+        vm_obj_unmap(fb);
         return ERR_PTR(-ENOMEM);
     }
     set_font(&default_font);

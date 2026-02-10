@@ -18,7 +18,7 @@ NODISCARD static inline struct ring_buf* ring_buf_create(size_t capacity) {
     struct ring_buf* b =
         kmalloc(sizeof(struct ring_buf) + len * sizeof(unsigned char));
     if (!b)
-        return NULL;
+        return ERR_PTR(-ENOMEM);
     *b = (struct ring_buf){.len = len};
     return b;
 }

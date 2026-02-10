@@ -220,6 +220,7 @@ static struct path* resolve_path_at(const struct path* base,
         }
 
         struct inode* inode FREE(inode) = inode_lookup(path->inode, component);
+        ASSERT(inode);
 
         bool has_more_components = false;
         for (char* p = saved_ptr; p && *p; ++p) {
@@ -235,7 +236,7 @@ static struct path* resolve_path_at(const struct path* base,
             return path_join(path, NULL, component);
         }
 
-        if (IS_ERR(ASSERT(inode)))
+        if (IS_ERR(inode))
             return ERR_CAST(inode);
 
         struct inode* resolved = resolve_mounts(inode);
@@ -314,6 +315,7 @@ static struct path* create_at(const struct path* base, const char* pathname,
         // Another task is linking the same file. Look up the linked file.
 
         struct inode* inode = inode_lookup(path->parent->inode, path->basename);
+        ASSERT(inode);
         if (IS_OK(inode)) {
             path->inode = inode;
             break;

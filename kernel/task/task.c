@@ -256,7 +256,7 @@ void task_crash(int signum) {
 
 struct thread_group* thread_group_create(void) {
     struct thread_group* tg = slab_alloc(&thread_group_slab);
-    if (IS_ERR(tg))
+    if (IS_ERR(ASSERT(tg)))
         return tg;
     *tg = (struct thread_group){.refcount = REFCOUNT_INIT_ONE};
     return tg;

@@ -12,7 +12,7 @@ void path_init(void) { slab_init(&path_slab, "path", sizeof(struct path)); }
 
 struct path* path_create_root(struct inode* root) {
     struct path* path = slab_alloc(&path_slab);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return path;
     *path = (struct path){.inode = inode_ref(root)};
     return path;
@@ -79,7 +79,7 @@ struct path* path_dup(const struct path* path) {
         return parent;
 
     struct path* new_path = slab_alloc(&path_slab);
-    if (IS_ERR(new_path))
+    if (IS_ERR(ASSERT(new_path)))
         return new_path;
     *new_path = (struct path){
         .inode = inode_ref(path->inode),
@@ -96,11 +96,11 @@ struct path* path_join(struct path* parent, struct inode* inode,
         return dup_parent;
 
     char* dup_basename FREE(kfree) = kstrdup(basename);
-    if (!basename)
+    if (!dup_basename)
         return ERR_PTR(-ENOMEM);
 
     struct path* path = slab_alloc(&path_slab);
-    if (IS_ERR(path))
+    if (IS_ERR(ASSERT(path)))
         return path;
 
     if (inode)

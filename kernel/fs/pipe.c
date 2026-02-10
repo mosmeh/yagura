@@ -232,7 +232,7 @@ struct inode* pipe_create(void) {
     };
 
     struct ring_buf* buf = ring_buf_create(PIPE_BUF);
-    if (IS_ERR(buf)) {
+    if (IS_ERR(ASSERT(buf))) {
         slab_free(&pipe_slab, pipe);
         return ERR_CAST(buf);
     }

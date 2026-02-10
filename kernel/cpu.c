@@ -15,7 +15,7 @@ static struct mpsc* msg_pool;
 
 static void init_msg_queue(struct cpu* cpu) {
     cpu->queued_msgs = mpsc_create(MAX_NUM_CPUS);
-    ASSERT(cpu->queued_msgs);
+    ASSERT_PTR(cpu->queued_msgs);
 
     struct ipi_message* msg = kmalloc(sizeof(struct ipi_message));
     ASSERT(msg);
