@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
     long seed = (argc >= 3) ? atoi(argv[2]) : time(NULL);
     printf("%s %d %ld\n", argv[0], num_iterations, seed);
 
-    static const char* str = "Hello, World!";
+    static const char* const str = "Hello, World!";
     int page_size = sysconf(_SC_PAGESIZE);
 
     unsigned long patterns[] = {

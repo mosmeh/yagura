@@ -95,7 +95,7 @@ static int print_version(struct file* file, struct vec* vec) {
                       utsname.release, utsname.version);
 }
 
-static struct proc_entry entries[] = {
+static const struct proc_entry entries[] = {
     {"cmdline", S_IFREG, print_cmdline},
     {"cpuinfo", S_IFREG, proc_print_cpuinfo},
     {"filesystems", S_IFREG, print_filesystems},

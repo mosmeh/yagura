@@ -14,9 +14,9 @@ struct proc_entry {
     proc_print_fn print;
 };
 
-struct inode* proc_create_inode(struct mount*, ino_t, struct proc_entry*);
+struct inode* proc_create_inode(struct mount*, ino_t, const struct proc_entry*);
 struct inode* proc_lookup(struct inode* parent, const char* name,
-                          struct proc_entry* entries, size_t num_entries);
+                          const struct proc_entry* entries, size_t num_entries);
 int proc_getdents(struct file*, getdents_callback_fn, void* ctx,
                   const struct proc_entry* entries, size_t num_entries);
 

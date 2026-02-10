@@ -105,7 +105,7 @@ static const struct file_ops entry_fops = {
     .readlink = proc_readlink,
 };
 
-static struct inode* alloc_inode(ino_t ino, struct proc_entry* entry) {
+static struct inode* alloc_inode(ino_t ino, const struct proc_entry* entry) {
     struct proc_inode* node = slab_alloc(&proc_inode_slab);
     if (IS_ERR(ASSERT(node)))
         return ERR_CAST(node);
@@ -135,7 +135,7 @@ static struct inode* alloc_inode(ino_t ino, struct proc_entry* entry) {
 }
 
 struct inode* proc_create_inode(struct mount* mount, ino_t ino,
-                                struct proc_entry* entry) {
+                                const struct proc_entry* entry) {
     SCOPED_LOCK(mount, mount);
 
     struct inode* inode FREE(inode) = mount_lookup_inode(mount, ino);
@@ -158,8 +158,9 @@ static ino_t child_ino(ino_t parent_ino, size_t index) {
 }
 
 struct inode* proc_lookup(struct inode* parent, const char* name,
-                          struct proc_entry* entries, size_t num_entries) {
-    struct proc_entry* entry = entries;
+                          const struct proc_entry* entries,
+                          size_t num_entries) {
+    const struct proc_entry* entry = entries;
     for (size_t i = 0; i < num_entries; ++i) {
         if (!strcmp(entry->name, name)) {
             ino_t ino = child_ino(parent->ino, i);

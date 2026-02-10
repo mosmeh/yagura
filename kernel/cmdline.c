@@ -17,7 +17,7 @@ void cmdline_init(const char* str) {
     strlcpy(buf, str, MAX_CMDLINE_LEN);
 
     char* saved_ptr;
-    static const char* sep = " ";
+    static const char* const sep = " ";
     for (char* token = strtok_r(buf, sep, &saved_ptr); token;
          token = strtok_r(NULL, sep, &saved_ptr)) {
         keys[num_keys] = token;

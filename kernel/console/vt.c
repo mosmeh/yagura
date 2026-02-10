@@ -309,7 +309,7 @@ static void handle_csi_cup(struct vt* vt) {
     size_t x = 0;
     size_t y = 0;
 
-    static const char* sep = ";";
+    static const char* const sep = ";";
     char* saved_ptr;
     const char* param = strtok_r(vt->param_buf, sep, &saved_ptr);
     for (size_t i = 0; param; ++i) {
@@ -381,7 +381,7 @@ static void handle_csi_sgr(struct vt* vt) {
         return;
     }
 
-    static const char* sep = ";";
+    static const char* const sep = ";";
     char* saved_ptr;
     bool bold = false;
     for (const char* param = strtok_r(vt->param_buf, sep, &saved_ptr); param;

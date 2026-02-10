@@ -46,7 +46,7 @@ int main(int argc, char* const argv[]) {
         fd = -1;
         buf[buf_len] = 0;
 
-        static const char* sep = "\n";
+        static const char* const sep = "\n";
         char* saved_ptr;
         for (char* line = strtok_r(buf, sep, &saved_ptr); line;
              line = strtok_r(NULL, sep, &saved_ptr)) {

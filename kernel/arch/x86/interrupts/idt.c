@@ -87,17 +87,17 @@ static void set_gate(uint8_t index, uintptr_t base, uint16_t selector,
 
 void idt_set_gate_user_callable(uint8_t index) { idt[index].dpl = 3; }
 
-static void load_idt(struct idtr* idtr) {
+static void load_idt(const struct idtr* idtr) {
     __asm__ volatile("lidt %0" ::"m"(*idtr) : "memory");
 }
 
 void idt_invalidate(void) {
-    static struct idtr idtr = {0};
+    static const struct idtr idtr = {0};
     load_idt(&idtr);
 }
 
 void idt_flush(void) {
-    static struct idtr idtr = {
+    static const struct idtr idtr = {
         .limit = sizeof(idt) - 1,
         .base = (uintptr_t)idt,
     };
