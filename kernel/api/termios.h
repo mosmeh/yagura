@@ -1,20 +1,29 @@
 #pragma once
 
-#define NCCS 32
+#define LINUX_NCCS 19
 
 typedef unsigned char cc_t;
 typedef unsigned int speed_t;
 typedef unsigned int tcflag_t;
 
-struct termios {
-    tcflag_t c_iflag; /* input mode flags */
-    tcflag_t c_oflag; /* output mode flags */
-    tcflag_t c_cflag; /* control mode flags */
-    tcflag_t c_lflag; /* local mode flags */
-    cc_t c_line;      /* line discipline */
-    cc_t c_cc[NCCS];  /* control characters */
-    speed_t c_ispeed; /* input speed */
-    speed_t c_ospeed; /* output speed */
+struct linux_termios {
+    tcflag_t c_iflag;      // input mode flags
+    tcflag_t c_oflag;      // output mode flags
+    tcflag_t c_cflag;      // control mode flags
+    tcflag_t c_lflag;      // local mode flags
+    cc_t c_line;           // line discipline
+    cc_t c_cc[LINUX_NCCS]; // control characters
+};
+
+struct linux_termios2 {
+    tcflag_t c_iflag;      // input mode flags
+    tcflag_t c_oflag;      // output mode flags
+    tcflag_t c_cflag;      // control mode flags
+    tcflag_t c_lflag;      // local mode flags
+    cc_t c_line;           // line discipline
+    cc_t c_cc[LINUX_NCCS]; // control characters
+    speed_t c_ispeed;      // input speed
+    speed_t c_ospeed;      // output speed
 };
 
 // c_iflag bits
@@ -172,12 +181,3 @@ struct termios {
 #define TCSANOW 0
 #define TCSADRAIN 1
 #define TCSAFLUSH 2
-
-static const cc_t ttydefchars[NCCS] = {
-    [VINTR] = CINTR,       [VQUIT] = CQUIT,       [VERASE] = CERASE,
-    [VKILL] = CKILL,       [VEOF] = CEOF,         [VTIME] = CTIME,
-    [VMIN] = CMIN,         [VSWTC] = CSWTC,       [VSTART] = CSTART,
-    [VSTOP] = CSTOP,       [VSUSP] = CSUSP,       [VEOL] = CEOL,
-    [VREPRINT] = CREPRINT, [VDISCARD] = CDISCARD, [VWERASE] = CWERASE,
-    [VLNEXT] = CLNEXT,     [VEOL2] = CEOL2,
-};

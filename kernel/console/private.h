@@ -23,6 +23,20 @@ struct tty_ops {
     int (*ioctl)(struct tty*, struct file*, unsigned cmd, unsigned long arg);
 };
 
+struct ktermios {
+    tcflag_t c_iflag;      // input mode flags
+    tcflag_t c_oflag;      // output mode flags
+    tcflag_t c_cflag;      // control mode flags
+    tcflag_t c_lflag;      // local mode flags
+    cc_t c_line;           // line discipline
+    cc_t c_cc[LINUX_NCCS]; // control characters
+    speed_t c_ispeed;      // input speed
+    speed_t c_ospeed;      // output speed
+};
+
+STATIC_ASSERT(sizeof(struct ktermios) == sizeof(struct linux_termios2));
+STATIC_ASSERT(sizeof(struct linux_termios) < sizeof(struct linux_termios2));
+
 struct tty {
     struct char_dev char_dev;
     char name[16];
@@ -31,7 +45,7 @@ struct tty {
     size_t num_columns;
     size_t num_rows;
 
-    struct termios termios;
+    struct ktermios termios;
 
     struct ring_buf* input_buf;
     struct attr_char line_buf[1024];

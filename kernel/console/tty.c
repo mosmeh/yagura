@@ -11,7 +11,16 @@
 #include <kernel/panic.h>
 #include <kernel/task/signal.h>
 
-static const struct termios default_termios = {
+static const cc_t ttydefchars[LINUX_NCCS] = {
+    [VINTR] = CINTR,       [VQUIT] = CQUIT,       [VERASE] = CERASE,
+    [VKILL] = CKILL,       [VEOF] = CEOF,         [VTIME] = CTIME,
+    [VMIN] = CMIN,         [VSWTC] = CSWTC,       [VSTART] = CSTART,
+    [VSTOP] = CSTOP,       [VSUSP] = CSUSP,       [VEOL] = CEOL,
+    [VREPRINT] = CREPRINT, [VDISCARD] = CDISCARD, [VWERASE] = CWERASE,
+    [VLNEXT] = CLNEXT,     [VEOL2] = CEOL2,
+};
+
+static const struct ktermios default_termios = {
     .c_iflag = TTYDEF_IFLAG,
     .c_oflag = TTYDEF_OFLAG,
     .c_cflag = TTYDEF_CFLAG,
@@ -129,7 +138,7 @@ static void echo(struct tty* tty, const char* buf, size_t count) {
 }
 
 static void processed_echo(struct tty* tty, const char* buf, size_t count) {
-    const struct termios* termios = &tty->termios;
+    const struct ktermios* termios = &tty->termios;
     if (!(termios->c_oflag & OPOST) || !(termios->c_oflag & ONLCR)) {
         echo(tty, buf, count);
         return;
@@ -199,25 +208,34 @@ static int tty_ioctl(struct file* file, unsigned cmd, unsigned long arg) {
         tty->pgid = pgid;
         break;
     }
-    case TCGETS: {
-        struct termios termios;
+    case TCGETS:
+    case TCGETS2: {
+        struct ktermios termios;
         {
             SCOPED_LOCK(tty, tty);
             termios = tty->termios;
         }
-        if (copy_to_user((void*)arg, &termios, sizeof(struct termios)))
+        size_t size = cmd == TCGETS ? sizeof(struct linux_termios)
+                                    : sizeof(struct linux_termios2);
+        if (copy_to_user((void*)arg, &termios, size))
             return -EFAULT;
         break;
     }
     case TCSETS:
     case TCSETSW:
-    case TCSETSF: {
-        struct termios termios;
-        if (copy_from_user(&termios, (const void*)arg, sizeof(struct termios)))
+    case TCSETSF:
+    case TCSETS2:
+    case TCSETSW2:
+    case TCSETSF2: {
+        size_t size = (cmd == TCSETS || cmd == TCSETSW || cmd == TCSETSF)
+                          ? sizeof(struct linux_termios)
+                          : sizeof(struct linux_termios2);
+        struct ktermios termios;
+        if (copy_from_user(&termios, (const void*)arg, size))
             return -EFAULT;
         SCOPED_LOCK(tty, tty);
-        tty->termios = termios;
-        if (cmd == TCSETSF) {
+        memcpy(&tty->termios, &termios, size);
+        if (cmd == TCSETSF || cmd == TCSETSF2) {
             tty->line_len = 0;
             ring_buf_clear(tty->input_buf);
         }
@@ -300,7 +318,7 @@ static void commit_line(struct tty* tty) {
 }
 
 NODISCARD static int on_char(struct tty* tty, char ch) {
-    struct termios* termios = &tty->termios;
+    struct ktermios* termios = &tty->termios;
 
     if (termios->c_iflag & ISTRIP)
         ch &= 0x7f;
