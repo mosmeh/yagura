@@ -113,7 +113,7 @@
     F(statfs, sys_ni_syscall, 0)                                               \
     F(fstatfs, sys_ni_syscall, 0)                                              \
     F(ioperm, sys_ni_syscall, 0)                                               \
-    F(socketcall, sys_ni_syscall, 0)                                           \
+    F(socketcall, sys_socketcall, 0)                                           \
     F(syslog, sys_ni_syscall, 0)                                               \
     F(setitimer, sys_ni_syscall, 0)                                            \
     F(getitimer, sys_ni_syscall, 0)                                            \
