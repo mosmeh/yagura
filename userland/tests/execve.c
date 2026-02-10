@@ -6,7 +6,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static void spawn(char* pathname, char** argv, char** envp) {
+static void spawn(const char* pathname, char* const* argv, char* const* envp) {
     pid_t pid = fork();
     ASSERT_OK(pid);
     if (pid == 0)

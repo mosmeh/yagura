@@ -50,7 +50,7 @@ int execvpe(const char* file, char* const argv[], char* const envp[]) {
 
     int saved_errno = errno;
 
-    static const char* sep = ":";
+    static const char* const sep = ":";
     char* saved_ptr;
     for (const char* part = strtok_r(dup_path, sep, &saved_ptr); part;
          part = strtok_r(NULL, sep, &saved_ptr)) {

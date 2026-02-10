@@ -32,7 +32,7 @@ static struct virtual_console* consoles[NUM_CONSOLES];
 static _Atomic(struct virtual_console*) active_console;
 
 // Protects the underlying screen, which is shared by all virtual_consoles
-struct spinlock screen_lock;
+static struct spinlock screen_lock;
 
 static void activate_console(size_t index) {
     if (index >= NUM_CONSOLES)

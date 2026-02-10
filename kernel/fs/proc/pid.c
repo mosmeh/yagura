@@ -154,7 +154,7 @@ static int print_maps(struct file* file, struct vec* vec) {
     return 0;
 }
 
-static struct proc_entry entries[] = {
+static const struct proc_entry entries[] = {
     {"cmdline", S_IFREG, print_cmdline}, {"comm", S_IFREG, print_comm},
     {"cwd", S_IFLNK, print_cwd},         {"environ", S_IFREG, print_environ},
     {"maps", S_IFREG, print_maps},

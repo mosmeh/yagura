@@ -156,7 +156,7 @@ static struct char_dev kmsg = {
     .fops = &kmsg_fops,
 };
 
-static struct char_dev* devices[] = {
+static struct char_dev* const devices[] = {
     &null, &zero, &full, &random, &urandom, &kmsg,
 };
 

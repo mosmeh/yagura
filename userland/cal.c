@@ -12,7 +12,7 @@ int main(void) {
     struct tm tm;
     gmtime_r(&now, &tm);
 
-    static const char* month_names[] = {
+    static const char* const month_names[] = {
         "Jan", "Feb", "Mar", "Apr", "May", "Jun",
         "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     };

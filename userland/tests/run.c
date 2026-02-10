@@ -15,14 +15,14 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static const char* default_dir = "/bin/tests";
+static const char* const default_dir = "/bin/tests";
 
 static void spawn(char* filename) {
     pid_t pid = fork();
     ASSERT_OK(pid);
     if (pid == 0) {
         char* argv[] = {filename, NULL};
-        static char* envp[] = {NULL};
+        static char* const envp[] = {NULL};
         if (execve(argv[0], argv, envp) < 0) {
             perror("execve");
             abort();

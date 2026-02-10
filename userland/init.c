@@ -25,7 +25,7 @@ static pid_t do_spawn(const char* filename, char* const argv[]) {
             abort();
         }
 
-        static char* envp[] = {"PATH=/bin", "HOME=/root", NULL};
+        static char* const envp[] = {"PATH=/bin", "HOME=/root", NULL};
         if (execve(filename, argv, envp) < 0) {
             perror("execve");
             abort();
@@ -39,12 +39,12 @@ static pid_t spawn(char* filename) {
 }
 
 static pid_t spawn_getty(char* tty) {
-    static char* filename = "/bin/getty";
+    static char* const filename = "/bin/getty";
     return do_spawn(filename, (char*[]){filename, tty, NULL});
 }
 
 struct device_file {
-    char* pathname;
+    const char* pathname;
     mode_t mode;
     dev_t dev;
 };

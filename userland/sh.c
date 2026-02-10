@@ -124,7 +124,7 @@ static bool complete(struct line_editor* ed) {
     if (!dup_path)
         return false;
 
-    static const char* sep = ":";
+    static const char* const sep = ":";
     char* saved_ptr;
     for (const char* part = strtok_r(dup_path, sep, &saved_ptr); part;
          part = strtok_r(NULL, sep, &saved_ptr)) {

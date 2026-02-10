@@ -38,7 +38,7 @@ int main(int argc, char* const argv[]) {
         return EXIT_FAILURE;
     }
 
-    static char* shell = "/bin/sh";
+    static char* const shell = "/bin/sh";
     execve(shell, (char* const[]){shell, NULL}, environ);
     perror("execve");
 

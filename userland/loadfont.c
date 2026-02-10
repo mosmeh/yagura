@@ -11,7 +11,7 @@ struct font {
     unsigned height;
     unsigned char_count;
     unsigned char_size;
-    unsigned char* data;
+    const unsigned char* data;
 };
 
 #define PSF1_MAGIC0 0x36
@@ -31,7 +31,7 @@ struct psf1_header {
     unsigned char charsize;
 };
 
-NODISCARD static int load_psf1(struct font* font, unsigned char* buf,
+NODISCARD static int load_psf1(struct font* font, const unsigned char* buf,
                                size_t buf_size) {
     if (buf_size < sizeof(struct psf1_header))
         return -1;
@@ -66,7 +66,7 @@ struct psf2_header {
     unsigned width;
 };
 
-NODISCARD static int load_psf2(struct font* font, unsigned char* buf,
+NODISCARD static int load_psf2(struct font* font, const unsigned char* buf,
                                size_t buf_size) {
     if (buf_size < sizeof(struct psf2_header))
         return -1;
@@ -85,7 +85,7 @@ NODISCARD static int load_psf2(struct font* font, unsigned char* buf,
     return 0;
 }
 
-NODISCARD static int load_psf(struct font* font, unsigned char* buf,
+NODISCARD static int load_psf(struct font* font, const unsigned char* buf,
                               size_t buf_size) {
     int rc = load_psf1(font, buf, buf_size);
     if (rc >= 0)
@@ -130,7 +130,7 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    unsigned char_width = 32 * DIV_CEIL(font.width, 8);
+    size_t char_width = 32UL * DIV_CEIL(font.width, 8);
     size_t data_size =
         char_width * ((font.char_count < 128) ? 128 : font.char_count);
     unsigned char* data = malloc(data_size);
@@ -140,7 +140,7 @@ int main(void) {
         return EXIT_FAILURE;
     }
     memset(data, 0, data_size);
-    for (unsigned i = 0; i < font.char_count; ++i)
+    for (size_t i = 0; i < font.char_count; ++i)
         memcpy(data + i * char_width, font.data + i * font.char_size,
                font.char_size);
     free(buf);
