@@ -273,6 +273,7 @@ long sys_lstat(const char* pathname, struct linux_old_stat* buf);
 long sys_old_readdir(int fd, struct linux_old_dirent* dirp, size_t count);
 long sys_old_mmap(struct mmap_arg_struct*);
 long sys_fchown16(int fd, linux_old_uid_t owner, linux_old_gid_t group);
+long sys_socketcall(int call, unsigned long* args);
 long sys_uname(struct linux_old_utsname* buf);
 long sys_sigreturn(struct registers*);
 long sys_sigprocmask(int how, const linux_old_sigset_t* set,

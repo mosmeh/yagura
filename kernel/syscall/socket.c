@@ -1,6 +1,7 @@
 #include <common/string.h>
 #include <kernel/api/err.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/api/linux/net.h>
 #include <kernel/api/sys/socket.h>
 #include <kernel/api/sys/un.h>
 #include <kernel/fs/file.h>
@@ -161,4 +162,42 @@ long sys_shutdown(int sockfd, int how) {
     if (IS_ERR(ASSERT(file)))
         return PTR_ERR(file);
     return unix_socket_shutdown(file, how);
+}
+
+long sys_socketcall(int call, unsigned long* user_args) {
+    static const size_t num_args[] = {
+        [SYS_SOCKET] = 3,  [SYS_BIND] = 3,   [SYS_CONNECT] = 3,
+        [SYS_LISTEN] = 2,  [SYS_ACCEPT] = 3, [SYS_SHUTDOWN] = 2,
+        [SYS_ACCEPT4] = 4,
+    };
+    if (call < 0 || ARRAY_SIZE(num_args) <= (size_t)call)
+        return -EINVAL;
+
+    size_t n = num_args[call];
+    if (n == 0) // Unsupported call
+        return -EINVAL;
+
+    unsigned long a[6];
+    ASSERT(n <= ARRAY_SIZE(a));
+    if (copy_from_user(a, user_args, n * sizeof(unsigned long)))
+        return -EFAULT;
+
+    switch (call) {
+    case SYS_SOCKET:
+        return sys_socket(a[0], a[1], a[2]);
+    case SYS_BIND:
+        return sys_bind(a[0], (const void*)a[1], a[2]);
+    case SYS_CONNECT:
+        return sys_connect(a[0], (const void*)a[1], a[2]);
+    case SYS_LISTEN:
+        return sys_listen(a[0], a[1]);
+    case SYS_ACCEPT:
+        return sys_accept(a[0], (void*)a[1], (void*)a[2]);
+    case SYS_SHUTDOWN:
+        return sys_shutdown(a[0], a[1]);
+    case SYS_ACCEPT4:
+        return sys_accept4(a[0], (void*)a[1], (void*)a[2], a[3]);
+    default:
+        return -EINVAL;
+    }
 }
