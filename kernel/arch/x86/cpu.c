@@ -25,9 +25,7 @@ bool cpu_has_feature(const struct cpu* cpu, int feature) {
            (1UL << (feature & (LONG_WIDTH - 1)));
 }
 
-unsigned long arch_cpu_get_hwcap(void) {
-    return cpu_get_bsp()->arch.features[0];
-}
+unsigned long arch_cpu_get_hwcap(void) { return cpu_get_bsp()->arch.hwcap; }
 
 static void detect_features(struct cpu* cpu) {
     struct arch_cpu* arch = &cpu->arch;
@@ -56,6 +54,7 @@ static void detect_features(struct cpu* cpu) {
     case 0x6:
         arch->model += ((eax >> 16) & 0xf) << 4;
     }
+    arch->hwcap = edx;
 
 #define F(reg, bit, name)                                                      \
     if ((reg) & (1U << (bit)))                                                 \

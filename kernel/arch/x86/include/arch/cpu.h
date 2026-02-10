@@ -1,5 +1,6 @@
 #pragma once
 
+#include <common/integer.h>
 #include <common/limits.h>
 #include <common/macros.h>
 #include <kernel/arch/interrupts.h>
@@ -10,7 +11,8 @@ struct arch_cpu {
     uint32_t family;
     uint32_t model;
     uint32_t stepping;
-    unsigned long features[NUM_X86_FEATURES / LONG_WIDTH + 1];
+    uint32_t hwcap;
+    unsigned long features[DIV_CEIL(NUM_X86_FEATURES, LONG_WIDTH)];
     uint8_t apic_id;
     uint8_t phys_addr_bits;
     uint8_t virt_addr_bits;
