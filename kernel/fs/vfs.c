@@ -136,7 +136,9 @@ int proc_print_mounts(struct file* file, struct vec* vec) {
         char* path FREE(kfree) = path_to_string(it->path);
         if (!path)
             return -ENOMEM;
-        vec_printf(vec, "%s %s %s rw 0 0\n", fs->name, path, fs->name);
+        int rc = vec_printf(vec, "%s %s %s rw 0 0\n", fs->name, path, fs->name);
+        if (IS_ERR(rc))
+            return rc;
     }
     return 0;
 }
