@@ -187,11 +187,11 @@ $(LIBC_TARGET): $(LIBC_OBJS) | $(OUT_DIR)
 
 $(OUT_DIR)/%.o: $(ROOT)/%.c | $(OBJ_DIRS)
 	@echo "[CC] $(patsubst $(ROOT)/%,%,$<)"
-	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+	@$(CC) $(CFLAGS) -MD -MP -c -o $@ $<
 
 $(OUT_DIR)/%.o: $(ROOT)/%.S | $(OBJ_DIRS)
 	@echo "[AS] $(patsubst $(ROOT)/%,%,$<)"
-	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+	@$(CC) $(CFLAGS) -MD -MP -c -o $@ $<
 
 clean:
 	$(RM) -r $(OUT_DIR)
