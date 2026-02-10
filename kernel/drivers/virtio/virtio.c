@@ -226,7 +226,7 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
     if (!virtio_find_pci_cap(addr, VIRTIO_PCI_CAP_COMMON_CFG,
                              &common_cfg_cap)) {
         kprint("virtio: device is missing VIRTIO_PCI_CAP_COMMON_CFG\n");
-        return false;
+        return ERR_PTR(-ENODEV);
     }
 
     struct virtio* virtio =
@@ -239,7 +239,7 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
 
     unsigned char* common_cfg_space = pci_map_bar(addr, common_cfg_cap.bar);
     if (IS_ERR(ASSERT(common_cfg_space)))
-        goto fail_discovery;
+        goto fail_discovery_common_cfg;
     volatile struct virtio_pci_common_cfg* common_cfg =
         (volatile struct virtio_pci_common_cfg*)(common_cfg_space +
                                                  common_cfg_cap.offset);
@@ -248,7 +248,7 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
     if (!virtio_find_pci_cap(addr, VIRTIO_PCI_CAP_NOTIFY_CFG,
                              &notify_cap.cap)) {
         kprint("virtio: device is missing VIRTIO_PCI_CAP_NOTIFY_CFG\n");
-        goto fail_discovery;
+        goto fail_discovery_notify;
     }
 
     uintptr_t notify_offset =
@@ -256,7 +256,7 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
         common_cfg->queue_notify_off * notify_cap.notify_off_multiplier;
     unsigned char* notify_space = pci_map_bar(addr, notify_cap.cap.bar);
     if (IS_ERR(ASSERT(notify_space)))
-        goto fail_discovery;
+        goto fail_discovery_notify;
 
     virtio->notify_space = notify_space;
     uint16_t* notify = (uint16_t*)(notify_space + notify_offset);
@@ -341,8 +341,9 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
 
 fail_initialization:
     common_cfg->device_status |= VIRTIO_CONFIG_S_FAILED;
-fail_discovery:
+fail_discovery_notify:
     phys_unmap(common_cfg_space);
+fail_discovery_common_cfg:
     virtio_destroy(virtio);
     return ERR_PTR(-EIO);
 }

@@ -226,14 +226,14 @@ struct inode* unix_socket_create(void) {
 
     struct ring_buf* to_acceptor_buf FREE(ring_buf) =
         ring_buf_create(PAGE_SIZE);
-    if (IS_ERR(to_acceptor_buf)) {
+    if (IS_ERR(ASSERT(to_acceptor_buf))) {
         slab_free(&unix_socket_slab, socket);
         return ERR_CAST(to_acceptor_buf);
     }
 
     struct ring_buf* to_connector_buf FREE(ring_buf) =
         ring_buf_create(PAGE_SIZE);
-    if (IS_ERR(to_connector_buf)) {
+    if (IS_ERR(ASSERT(to_connector_buf))) {
         slab_free(&unix_socket_slab, socket);
         return ERR_CAST(to_connector_buf);
     }

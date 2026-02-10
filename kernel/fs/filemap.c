@@ -11,7 +11,7 @@ void filemap_init(void) {
 
 struct filemap* filemap_create(struct inode* inode) {
     struct filemap* filemap = slab_alloc(&filemap_slab);
-    if (IS_ERR(filemap))
+    if (IS_ERR(ASSERT(filemap)))
         return filemap;
     *filemap = (struct filemap){
         .inode = inode_ref(inode),

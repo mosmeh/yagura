@@ -16,7 +16,7 @@ void task_signal_init(void) {
 
 struct sighand* sighand_create(void) {
     struct sighand* sighand = slab_alloc(&sighand_slab);
-    if (IS_ERR(sighand))
+    if (IS_ERR(ASSERT(sighand)))
         return sighand;
     *sighand = (struct sighand){.refcount = REFCOUNT_INIT_ONE};
     return sighand;

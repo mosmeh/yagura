@@ -11,7 +11,7 @@ void task_fs_init(void) { slab_init(&fs_slab, "fs", sizeof(struct fs)); }
 
 struct fs* fs_create(void) {
     struct fs* fs = slab_alloc(&fs_slab);
-    if (IS_ERR(fs))
+    if (IS_ERR(ASSERT(fs)))
         return fs;
     *fs = (struct fs){
         .umask = 022,

@@ -43,7 +43,7 @@ int tty_register(struct tty* tty) {
 
     STATIC_ASSERT(PAGE_SIZE % sizeof(struct attr_char) == 0);
     tty->input_buf = ring_buf_create(PAGE_SIZE);
-    if (IS_ERR(tty->input_buf))
+    if (IS_ERR(ASSERT(tty->input_buf)))
         return PTR_ERR(tty->input_buf);
 
     struct char_dev* char_dev = &tty->char_dev;
