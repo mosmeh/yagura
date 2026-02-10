@@ -7,7 +7,7 @@ static inline unsigned long read_cr0(void) {
 }
 
 static inline void write_cr0(unsigned long value) {
-    __asm__ volatile("mov %0, %%cr0" ::"r"(value));
+    __asm__ volatile("mov %0, %%cr0" ::"r"(value) : "memory");
 }
 
 static inline unsigned long read_cr2(void) {
@@ -22,8 +22,8 @@ static inline unsigned long read_cr3(void) {
     return cr3;
 }
 
-static inline void write_cr3(unsigned long cr3) {
-    __asm__ volatile("mov %0, %%cr3" ::"r"(cr3) : "memory");
+static inline void write_cr3(unsigned long value) {
+    __asm__ volatile("mov %0, %%cr3" ::"r"(value) : "memory");
 }
 
 static inline unsigned long read_cr4(void) {
@@ -33,5 +33,5 @@ static inline unsigned long read_cr4(void) {
 }
 
 static inline void write_cr4(unsigned long value) {
-    __asm__ volatile("mov %0, %%cr4" ::"r"(value));
+    __asm__ volatile("mov %0, %%cr4" ::"r"(value) : "memory");
 }
