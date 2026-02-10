@@ -208,11 +208,11 @@ $(OBJ_DIRS):
 
 $(OUT_DIR)/%.o: $(ROOT)/%.c | $(OBJ_DIRS)
 	@echo "[CC] $(patsubst $(ROOT)/%,%,$<)"
-	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+	@$(CC) $(CFLAGS) -MD -MP -c -o $@ $<
 
 $(OUT_DIR)/%.o: $(ROOT)/%.S | $(OBJ_DIRS)
 	@echo "[AS] $(patsubst $(ROOT)/%,%,$<)"
-	@$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+	@$(CC) $(CFLAGS) -MD -MP -c -o $@ $<
 
 $(LINKER_SCRIPT): $(LINKER_SCRIPT_SRC) | $(OUT_DIR)
 	@echo "[CPP] $(patsubst $(ROOT)/%,%,$<)"
