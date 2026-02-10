@@ -1,5 +1,6 @@
 #pragma once
 
+#include <common/macros.h>
 #include <common/stdbool.h>
 
 #define X86_PF_PROT 0x1
@@ -10,7 +11,7 @@
 
 struct registers;
 
-bool x86_handle_page_fault(struct registers*, void* addr);
+NODISCARD bool x86_handle_page_fault(struct registers*, void* addr);
 
-bool safe_string_handle_page_fault(struct registers* regs,
-                                   unsigned long error_code);
+NODISCARD bool safe_string_handle_page_fault(struct registers* regs,
+                                             unsigned long error_code);

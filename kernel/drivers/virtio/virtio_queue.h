@@ -1,5 +1,6 @@
 #pragma once
 
+#include <common/macros.h>
 #include <common/stdbool.h>
 #include <common/stddef.h>
 #include <common/stdint.h>
@@ -74,8 +75,8 @@ struct virtq_desc_chain {
     uint16_t tail;
 };
 
-bool virtq_desc_chain_init(struct virtq_desc_chain*, struct virtq*,
-                           size_t num_descriptors);
+NODISCARD bool virtq_desc_chain_init(struct virtq_desc_chain*, struct virtq*,
+                                     size_t num_descriptors);
 void virtq_desc_chain_push_buf(struct virtq_desc_chain*, void* buf, size_t len,
                                bool device_writable);
-int virtq_desc_chain_submit(struct virtq_desc_chain*);
+NODISCARD int virtq_desc_chain_submit(struct virtq_desc_chain*);

@@ -41,8 +41,8 @@ const struct symbol* ksyms_lookup(uintptr_t addr);
 const struct symbol* ksyms_next(const struct symbol* symbol);
 
 void random_init(void);
-ssize_t random_get(void* buffer, size_t count);
-ssize_t random_get_user(void* user_buffer, size_t count);
+NODISCARD ssize_t random_get(void* buffer, size_t count);
+NODISCARD ssize_t random_get_user(void* user_buffer, size_t count);
 
 _Noreturn void reboot(const char* cmd);
 _Noreturn void poweroff(void);

@@ -22,7 +22,7 @@ void arch_reboot(void);
 // If power-off is not supported or the attempt fails, returns to the caller.
 void arch_poweroff(void);
 
-bool arch_random_init(void);
+NODISCARD bool arch_random_init(void);
 NODISCARD ssize_t arch_random_get(void* buffer, size_t count);
 
 void arch_time(struct timespec*);
