@@ -217,7 +217,7 @@ static void dirtest(void) {
 
     ASSERT_OK(chdir(".."));
 
-    ASSERT_OK(unlink("dir0"));
+    ASSERT_OK(rmdir("dir0"));
     printf("mkdir test ok\n");
 }
 
@@ -1032,7 +1032,10 @@ MAYBE_UNUSED static void fsfull(void) {
         name[5] = '\0';
         printf("writing %s\n", name);
         int fd = open(name, O_CREAT | O_RDWR, 0644);
-        ASSERT_OK(fd);
+        if (fd < 0) {
+            printf("open %s failed\n", name);
+            break;
+        }
         int total = 0;
         while (1) {
             int cc = write(fd, buf, 512);
@@ -1107,6 +1110,8 @@ int main(void) {
     iref();
     forktest();
     bigdir(); // slow
+
+    dirtest();
 
     exectest();
 
