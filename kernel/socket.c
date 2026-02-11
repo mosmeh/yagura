@@ -218,7 +218,7 @@ struct inode* unix_socket_create(void) {
     };
     inode->iops = &iops;
     inode->fops = &fops;
-    inode->mode = S_IFSOCK;
+    inode->mode = S_IFSOCK | ACCESSPERMS;
 
     socket->state = SOCKET_STATE_OPENED;
     socket->is_open_for_writing_to_connector = true;

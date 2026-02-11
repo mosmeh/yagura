@@ -245,7 +245,7 @@ struct inode* pipe_create(void) {
     };
     inode->iops = &iops;
     inode->fops = &pipe_fops;
-    inode->mode = S_IFIFO;
+    inode->mode = S_IFIFO | S_IRUSR | S_IWUSR;
 
     int rc = mount_commit_inode(pipe_mount, inode);
     if (IS_ERR(rc)) {
