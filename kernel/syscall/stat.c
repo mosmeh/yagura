@@ -185,10 +185,7 @@ long sys_fstat64(int fd, struct linux_stat64* user_buf) {
 
 NODISCARD static int stat_at(int dirfd, const char* user_pathname,
                              struct kstat* buf, int flags) {
-    if (!user_pathname) {
-        if (!(flags & AT_EMPTY_PATH))
-            return -EFAULT;
-
+    if (!user_pathname && (flags & AT_EMPTY_PATH)) {
         struct file* file FREE(file) = files_ref_file(current->files, dirfd);
         if (IS_ERR(ASSERT(file)))
             return PTR_ERR(file);

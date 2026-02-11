@@ -17,7 +17,7 @@ struct registers;
 struct page;
 
 static inline bool is_user_address(const void* addr) {
-    return addr && USER_VIRT_START <= (uintptr_t)addr &&
+    return USER_VIRT_START <= (uintptr_t)addr &&
            (uintptr_t)addr < USER_VIRT_END;
 }
 
@@ -29,7 +29,7 @@ static inline bool is_user_range(const void* addr, size_t size) {
 }
 
 static inline bool is_kernel_address(const void* addr) {
-    return addr && KERNEL_VIRT_START <= (uintptr_t)addr &&
+    return KERNEL_VIRT_START <= (uintptr_t)addr &&
            (uintptr_t)addr < KERNEL_VIRT_END;
 }
 

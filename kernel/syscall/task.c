@@ -65,9 +65,6 @@ long sys_sched_yield(void) {
 
 long sys_execve(const char* user_pathname, char* const user_argv[],
                 char* const user_envp[]) {
-    if (!user_pathname)
-        return -EFAULT;
-
     char pathname[PATH_MAX];
     ssize_t len = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(len))
