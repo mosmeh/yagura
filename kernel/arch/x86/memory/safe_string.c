@@ -28,7 +28,7 @@ static void end_user_access(void) {
 }
 
 NOINLINE int safe_memcpy(void* dest, const void* src, size_t n) {
-    if (!dest || !src || !is_canonical_addr(dest) || !is_canonical_addr(src))
+    if (!is_canonical_addr(dest) || !is_canonical_addr(src))
         return -EFAULT;
 
     size_t remainder;
@@ -48,7 +48,7 @@ NOINLINE int safe_memcpy(void* dest, const void* src, size_t n) {
 }
 
 NOINLINE int safe_memset(void* s, unsigned char c, size_t n) {
-    if (!s || !is_canonical_addr(s))
+    if (!is_canonical_addr(s))
         return -EFAULT;
 
     size_t remainder;
@@ -68,7 +68,7 @@ NOINLINE int safe_memset(void* s, unsigned char c, size_t n) {
 }
 
 NOINLINE ssize_t safe_strnlen(const char* str, size_t n) {
-    if (!str || !is_canonical_addr(str))
+    if (!is_canonical_addr(str))
         return -EFAULT;
 
     ssize_t count = 0;
@@ -99,7 +99,7 @@ NOINLINE ssize_t safe_strnlen(const char* str, size_t n) {
 }
 
 NOINLINE ssize_t safe_strncpy(char* dest, const char* src, size_t n) {
-    if (!dest || !src || !is_canonical_addr(dest) || !is_canonical_addr(src))
+    if (!is_canonical_addr(dest) || !is_canonical_addr(src))
         return -EFAULT;
     if (n == 0)
         return 0;
