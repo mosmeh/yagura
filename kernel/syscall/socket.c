@@ -5,6 +5,7 @@
 #include <kernel/api/sys/socket.h>
 #include <kernel/api/sys/un.h>
 #include <kernel/fs/file.h>
+#include <kernel/fs/path.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/socket.h>
 #include <kernel/syscall/syscall.h>
@@ -57,15 +58,15 @@ long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
     char path[UNIX_PATH_MAX + 1];
     strlcpy(path, addr_un.sun_path, sizeof(path));
 
-    struct file* addr_file FREE(file) =
-        vfs_open(path, O_CREAT | O_EXCL, S_IFSOCK);
-    if (IS_ERR(ASSERT(addr_file))) {
-        if (PTR_ERR(addr_file) == -EEXIST)
+    mode_t mode = S_IFSOCK | (file->inode->mode & ~current->fs->umask);
+    struct inode* addr_inode FREE(inode) = vfs_create(path, mode);
+    if (IS_ERR(ASSERT(addr_inode))) {
+        if (PTR_ERR(addr_inode) == -EEXIST)
             return -EADDRINUSE;
-        return PTR_ERR(addr_file);
+        return PTR_ERR(addr_inode);
     }
 
-    return unix_socket_bind(file->inode, addr_file->inode);
+    return unix_socket_bind(file->inode, addr_inode);
 }
 
 long sys_listen(int sockfd, int backlog) {
@@ -144,14 +145,14 @@ long sys_connect(int sockfd, const struct sockaddr* user_addr,
     if (addr_un.sun_family != AF_UNIX)
         return -EINVAL;
 
-    char path[UNIX_PATH_MAX + 1];
-    strlcpy(path, addr_un.sun_path, sizeof(path));
+    char pathname[UNIX_PATH_MAX + 1];
+    strlcpy(pathname, addr_un.sun_path, sizeof(pathname));
 
-    struct file* addr_file FREE(file) = vfs_open(path, 0, 0);
-    if (IS_ERR(ASSERT(addr_file)))
-        return PTR_ERR(addr_file);
+    struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
+    if (IS_ERR(ASSERT(path)))
+        return PTR_ERR(path);
 
-    int rc = unix_socket_connect(file, addr_file->inode);
+    int rc = unix_socket_connect(file, path->inode);
     if (rc == -EINTR)
         return -ERESTARTSYS;
     return rc;

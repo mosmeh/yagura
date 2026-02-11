@@ -119,16 +119,22 @@ static struct inode* alloc_inode(ino_t ino, const struct proc_entry* entry) {
     if (ino == PROC_ROOT_INO) {
         inode->iops = &root_iops;
         inode->fops = &root_fops;
-        inode->mode = S_IFDIR;
+        inode->mode = S_IFDIR | S_IRUGO | S_IXUGO;
     } else if (entry) {
         inode->iops = &entry_iops;
         inode->fops = &entry_fops;
-        inode->mode = entry->mode;
+
+        mode_t mode = entry->mode;
+        if (!(mode & S_IFMT))
+            mode |= S_IFREG;
+        if (!(mode & ALLPERMS))
+            mode |= (mode & S_IFMT) == S_IFLNK ? ACCESSPERMS : S_IRUGO;
+        inode->mode = mode;
     } else {
         ASSERT(ino >= (1UL << PROC_PID_INO_SHIFT));
         inode->iops = &pid_iops;
         inode->fops = &pid_fops;
-        inode->mode = S_IFDIR;
+        inode->mode = S_IFDIR | S_IRUGO | S_IXUGO;
     }
 
     return inode;

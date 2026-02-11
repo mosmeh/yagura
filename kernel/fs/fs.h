@@ -78,6 +78,10 @@ NODISCARD int inode_sync(struct inode*, uint64_t offset, uint64_t nbytes);
 
 NODISCARD struct file* inode_open(struct inode*, int flags);
 
+#define S_IRUGO (S_IRUSR | S_IRGRP | S_IROTH)
+#define S_IWUGO (S_IWUSR | S_IWGRP | S_IWOTH)
+#define S_IXUGO (S_IXUSR | S_IXGRP | S_IXOTH)
+
 struct kstat {
     dev_t st_dev;         /* ID of device containing file */
     ino_t st_ino;         /* Inode number */
