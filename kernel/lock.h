@@ -53,7 +53,7 @@ DEFINE_LOCK(spinlock)
     }
 
 #define __LOCK_GUARD_ID(name) CONCAT(__, CONCAT(name, _lock_guard))
-#define __LOCK_GUARD_UNLOCK(name) CONCAT(__LOCK_GUARD_ID(name), _unlock)
+#define __LOCK_GUARD_UNLOCK(name) __UNLOCK(__LOCK_GUARD_ID(name))
 
 #define SCOPED_LOCK(name, obj)                                                 \
     __LOCK(name)(obj);                                                         \
@@ -89,17 +89,17 @@ DEFINE_LOCK_GUARD(spinlock, struct spinlock*, spinlock, lock)
 #define DEFINE_LOCKED(name, type, lock_type, lock_field)                       \
     MAYBE_UNUSED static inline void __LOCK(name)(type obj) {                   \
         ASSERT_PTR(obj);                                                       \
-        lock_type##_lock(&obj->lock_field);                                    \
+        __LOCK(lock_type)(&obj->lock_field);                                   \
     }                                                                          \
                                                                                \
     MAYBE_UNUSED static inline void __UNLOCK(name)(type obj) {                 \
         ASSERT_PTR(obj);                                                       \
-        lock_type##_unlock(&obj->lock_field);                                  \
+        __UNLOCK(lock_type)(&obj->lock_field);                                 \
     }                                                                          \
                                                                                \
     MAYBE_UNUSED static inline bool __CURRENT_LOCKS(name)(const type obj) {    \
         ASSERT_PTR(obj);                                                       \
-        return CONCAT(lock_type, _is_locked_by_current)(&obj->lock_field);     \
+        return __CURRENT_LOCKS(lock_type)(&obj->lock_field);                   \
     }                                                                          \
                                                                                \
     DEFINE_LOCK_GUARD(name, type, lock_type, lock_field)
