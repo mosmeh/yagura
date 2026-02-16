@@ -10,7 +10,7 @@
 static struct tty* backing_tty;
 
 static int system_console_open(struct file* file) {
-    ASSERT(backing_tty);
+    ASSERT_PTR(backing_tty);
     file->private_data = backing_tty;
     file->fops = &tty_fops;
     return 0;

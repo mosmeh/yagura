@@ -31,7 +31,7 @@ static const struct ktermios default_termios = {
 
 int tty_register(struct tty* tty) {
     ASSERT(tty->dev > 0);
-    ASSERT(tty->ops);
+    ASSERT_PTR(tty->ops);
 
     switch (major(tty->dev)) {
     case TTY_MAJOR:

@@ -15,7 +15,7 @@ void fs_init(void) {
 
 static void inode_destroy(struct vm_obj* obj) {
     struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
-    ASSERT(inode->iops->destroy);
+    ASSERT_PTR(inode->iops->destroy);
     filemap_destroy(inode->filemap);
     inode_unref(inode->pipe);
     inode_unref(inode->bound_socket);
@@ -173,8 +173,8 @@ int inode_stat(struct inode* inode, struct kstat* buf) {
 
 int mount_commit_inode(struct mount* mount, struct inode* inode) {
     ASSERT(!(inode->flags & INODE_READY));
-    ASSERT(inode->iops);
-    ASSERT(inode->fops);
+    ASSERT_PTR(inode->iops);
+    ASSERT_PTR(inode->fops);
     ASSERT(inode->ino > 0);
     ASSERT(inode->mode & S_IFMT);
     ASSERT(refcount_get(&inode->vm_obj.refcount) > 0);

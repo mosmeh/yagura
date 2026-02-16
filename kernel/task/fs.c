@@ -220,7 +220,7 @@ int files_close_on_exec(struct files* files) {
             files->closed_on_exec[i] &= ~(1UL << (bit - 1));
             int fd = i * ULONG_WIDTH + (bit - 1);
             struct file** file = files->entries + fd;
-            ASSERT(*file);
+            ASSERT_PTR(*file);
             file_unref(*file);
             *file = NULL;
         }

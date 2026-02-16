@@ -150,7 +150,7 @@ static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
     for (; tree_node; tree_node = tree_next(tree_node)) {
         struct tmpfs_dentry* child =
             CONTAINER_OF(tree_node, struct tmpfs_dentry, tree_node);
-        ASSERT(child->name);
+        ASSERT_PTR(child->name);
         struct inode* inode = child->inode;
         unsigned char type = mode_to_dirent_type(inode->mode);
         if (!callback(child->name, inode->ino, type, ctx))

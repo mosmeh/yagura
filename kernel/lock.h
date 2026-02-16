@@ -88,17 +88,17 @@ DEFINE_LOCK_GUARD(spinlock, struct spinlock*, spinlock, lock)
 
 #define DEFINE_LOCKED(name, type, lock_type, lock_field)                       \
     MAYBE_UNUSED static inline void __LOCK(name)(type obj) {                   \
-        ASSERT(obj);                                                           \
+        ASSERT_PTR(obj);                                                       \
         lock_type##_lock(&obj->lock_field);                                    \
     }                                                                          \
                                                                                \
     MAYBE_UNUSED static inline void __UNLOCK(name)(type obj) {                 \
-        ASSERT(obj);                                                           \
+        ASSERT_PTR(obj);                                                       \
         lock_type##_unlock(&obj->lock_field);                                  \
     }                                                                          \
                                                                                \
     MAYBE_UNUSED static inline bool __CURRENT_LOCKS(name)(const type obj) {    \
-        ASSERT(obj);                                                           \
+        ASSERT_PTR(obj);                                                       \
         return CONCAT(lock_type, _is_locked_by_current)(&obj->lock_field);     \
     }                                                                          \
                                                                                \

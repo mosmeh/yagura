@@ -64,7 +64,7 @@ static size_t get_block_size(const struct block_dev* block_dev) {
 static ssize_t bdev_pread(struct inode* inode, void* buffer, size_t count,
                           uint64_t offset) {
     struct block_dev* block_dev = block_dev_from_inode(inode);
-    ASSERT(block_dev->bops->read);
+    ASSERT_PTR(block_dev->bops->read);
     size_t block_size = get_block_size(block_dev);
     if (offset % block_size != 0 || count % block_size != 0)
         return -EINVAL;
@@ -110,7 +110,7 @@ static struct mount* bdev_mount;
 
 int block_dev_register(struct block_dev* block_dev) {
     ASSERT(block_dev->dev > 0);
-    ASSERT(block_dev->bops);
+    ASSERT_PTR(block_dev->bops);
     ASSERT(block_dev->block_bits > 0);
     ASSERT(block_dev->num_blocks > 0);
 

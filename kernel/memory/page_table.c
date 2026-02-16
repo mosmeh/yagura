@@ -5,7 +5,7 @@
 #include <kernel/task/task.h>
 
 void* kmap_page(struct page* page) {
-    ASSERT(page);
+    ASSERT_PTR(page);
     return kmap(page_to_pfn(page) << PAGE_SHIFT);
 }
 

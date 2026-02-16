@@ -117,7 +117,7 @@ int vfs_mount_at(const struct file_system* fs, const struct path* base,
     struct mount* mount = ASSERT(file_system_mount(fs, source));
     if (IS_ERR(mount))
         return PTR_ERR(mount);
-    ASSERT(mount->root);
+    ASSERT_PTR(mount->root);
 
     mp->path = TAKE_PTR(target_path);
     mp->host = inode_ref(host);
@@ -296,8 +296,8 @@ static struct path* create_at(const struct path* base, const char* pathname,
         return TAKE_PTR(path);
     }
 
-    ASSERT(path->parent);
-    ASSERT(path->parent->inode);
+    ASSERT_PTR(path->parent);
+    ASSERT_PTR(path->parent->inode);
     if (!S_ISDIR(path->parent->inode->mode))
         return ERR_PTR(-ENOTDIR);
 
@@ -364,7 +364,7 @@ int vfs_stat_at(const struct path* base, const char* pathname,
         ASSERT(vfs_resolve_path_at(base, pathname, flags));
     if (IS_ERR(path))
         return PTR_ERR(path);
-    ASSERT(path->inode);
+    ASSERT_PTR(path->inode);
     return inode_stat(path->inode, buf);
 }
 

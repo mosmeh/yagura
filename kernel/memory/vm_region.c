@@ -34,7 +34,7 @@ static void vm_region_unset_obj(struct vm_region* region) {
             break;
         prev = it;
     }
-    ASSERT(it);
+    ASSERT_PTR(it);
     if (prev) {
         prev->shared_next = region->shared_next;
     } else {
@@ -93,7 +93,7 @@ void vm_region_set_obj(struct vm_region* region, struct vm_obj* obj,
     ASSERT(vm_is_locked_by_current(region->vm));
     ASSERT(!region->obj);
     ASSERT(!region->shared_next);
-    ASSERT(obj);
+    ASSERT_PTR(obj);
 
     region->offset = offset;
 

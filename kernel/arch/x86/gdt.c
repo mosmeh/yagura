@@ -36,7 +36,7 @@ void gdt_init_cpu(void) {
             }
         }
     }
-    ASSERT(cpu);
+    ASSERT_PTR(cpu);
 
     struct gdtr* gdtr = &cpu->arch.gdtr;
     struct gdt_segment* gdt = cpu->arch.gdt;

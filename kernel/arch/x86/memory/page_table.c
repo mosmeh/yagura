@@ -138,7 +138,7 @@ void* kmap(phys_addr_t phys_addr) {
 
 void kunmap(void* addr) {
     ASSERT(!arch_interrupts_enabled());
-    ASSERT(addr);
+    ASSERT_PTR(addr);
 
     struct cpu* cpu = cpu_get_current();
 

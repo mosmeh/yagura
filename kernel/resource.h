@@ -50,13 +50,13 @@ typedef struct refcount {
 } refcount_t;
 
 static inline size_t refcount_get(const refcount_t* refcount) {
-    ASSERT(refcount);
+    ASSERT_PTR(refcount);
     return atomic_load(&refcount->count);
 }
 
 // Returns the new reference count.
 static inline size_t refcount_inc(refcount_t* refcount) {
-    ASSERT(refcount);
+    ASSERT_PTR(refcount);
     size_t c = atomic_fetch_add(&refcount->count, 1);
     ASSERT(c > 0);
     return c + 1;
@@ -64,13 +64,13 @@ static inline size_t refcount_inc(refcount_t* refcount) {
 
 // Returns the new reference count.
 static inline size_t refcount_inc_allowing_zero(refcount_t* refcount) {
-    ASSERT(refcount);
+    ASSERT_PTR(refcount);
     return atomic_fetch_add(&refcount->count, 1) + 1;
 }
 
 // Returns the new reference count.
 static inline size_t refcount_dec(refcount_t* refcount) {
-    ASSERT(refcount);
+    ASSERT_PTR(refcount);
     ASSERT(refcount_get(refcount) > 0);
     size_t c = atomic_fetch_sub(&refcount->count, 1);
     ASSERT(c > 0);
@@ -104,7 +104,7 @@ static inline size_t refcount_dec(refcount_t* refcount) {
 
 #define DEFINE_REFCOUNTED_BASE(name, type, field, destructor)                  \
     static inline type name##_ref(type obj) {                                  \
-        ASSERT(obj);                                                           \
+        ASSERT_PTR(obj);                                                       \
         refcount_inc(&obj->field);                                             \
         return obj;                                                            \
     }                                                                          \
@@ -121,7 +121,7 @@ static inline size_t refcount_dec(refcount_t* refcount) {
 
 #define DEFINE_REFCOUNTED_SUB(name, type, base_type, base_field)               \
     static inline type name##_ref(type obj) {                                  \
-        ASSERT(obj);                                                           \
+        ASSERT_PTR(obj);                                                       \
         base_type##_ref(&obj->base_field);                                     \
         return obj;                                                            \
     }                                                                          \

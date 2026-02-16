@@ -550,9 +550,9 @@ void vt_write(struct vt* vt, const char* buf, size_t count) {
 }
 
 struct vt* vt_create(struct screen* screen) {
-    ASSERT(screen->get_size);
-    ASSERT(screen->put);
-    ASSERT(screen->clear);
+    ASSERT_PTR(screen->get_size);
+    ASSERT_PTR(screen->put);
+    ASSERT_PTR(screen->clear);
 
     size_t num_columns;
     size_t num_rows;

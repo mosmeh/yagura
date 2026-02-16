@@ -29,7 +29,7 @@ void filemap_destroy(struct filemap* filemap) {
 NODISCARD static int populate_page(struct filemap* filemap, struct page* page) {
     struct inode* inode = filemap->inode;
     ASSERT(inode_is_locked_by_current(inode));
-    ASSERT(inode->iops->pread);
+    ASSERT_PTR(inode->iops->pread);
 
     uint64_t byte_offset = (uint64_t)page->index << PAGE_SHIFT;
 
@@ -110,7 +110,7 @@ NODISCARD static int writeback_page(struct filemap* filemap,
     if (!(page->flags & PAGE_DIRTY))
         return 0;
 
-    ASSERT(inode->iops->pwrite);
+    ASSERT_PTR(inode->iops->pwrite);
 
     // Invalidate the mappings to detect writes to the page again.
     // If another task attempts to write to this page during the writeback,

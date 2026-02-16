@@ -299,11 +299,11 @@ NODISCARD static int finalize_exec(struct loader* loader) {
 }
 
 _Noreturn static void loader_commit(struct loader* loader) {
-    ASSERT(loader->entry_point);
-    ASSERT(loader->arg_start);
-    ASSERT(loader->arg_end);
-    ASSERT(loader->env_start);
-    ASSERT(loader->env_end);
+    ASSERT_PTR(loader->entry_point);
+    ASSERT_PTR(loader->arg_start);
+    ASSERT_PTR(loader->arg_end);
+    ASSERT_PTR(loader->env_start);
+    ASSERT_PTR(loader->env_end);
 
     exec_image_unload(&loader->image);
 

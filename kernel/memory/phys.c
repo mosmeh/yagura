@@ -295,7 +295,7 @@ struct page* page_get(size_t pfn) {
 }
 
 size_t page_to_pfn(const struct page* page) {
-    ASSERT(page);
+    ASSERT_PTR(page);
     ASSERT(page >= pages);
     ASSERT(page < (const struct page*)PAGE_ATLAS_END);
     return page - pages;

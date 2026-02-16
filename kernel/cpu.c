@@ -60,7 +60,7 @@ struct ipi_message* cpu_alloc_message(void) {
 }
 
 void cpu_free_message(struct ipi_message* msg) {
-    ASSERT(msg);
+    ASSERT_PTR(msg);
     ASSERT(refcount_get(&msg->refcount) == 0);
     while (!mpsc_enqueue(msg_pool, msg))
         cpu_relax();
@@ -122,7 +122,7 @@ static void handle_flush_tlb(struct ipi_message* msg) {
 }
 
 static void handle_flush_tlb_range(struct ipi_message* msg) {
-    ASSERT(msg);
+    ASSERT_PTR(msg);
     size_t virt_addr = msg->flush_tlb_range.virt_addr;
     size_t size = msg->flush_tlb_range.size;
     for (uintptr_t addr = virt_addr; addr < virt_addr + size; addr += PAGE_SIZE)

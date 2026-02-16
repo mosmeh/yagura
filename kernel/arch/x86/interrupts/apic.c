@@ -48,12 +48,12 @@ static void lapic_init(void) {
 }
 
 static uint32_t lapic_read(uint32_t reg) {
-    ASSERT(lapic);
+    ASSERT_PTR(lapic);
     return *(volatile uint32_t*)((uintptr_t)lapic + reg);
 }
 
 static void lapic_write(uint32_t reg, uint32_t value) {
-    ASSERT(lapic);
+    ASSERT_PTR(lapic);
     *(volatile uint32_t*)((uintptr_t)lapic + reg) = value;
 }
 
