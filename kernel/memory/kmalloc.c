@@ -6,13 +6,13 @@
 void* kmalloc(size_t size) {
     size_t npages = DIV_CEIL(size, PAGE_SIZE);
 
-    struct vm_obj* anon FREE(vm_obj) = anon_create();
-    if (IS_ERR(ASSERT(anon)))
+    struct vm_obj* anon FREE(vm_obj) = ASSERT(anon_create());
+    if (IS_ERR(anon))
         return NULL;
 
     unsigned char* addr =
-        vm_obj_map(anon, 0, npages, VM_READ | VM_WRITE | VM_SHARED);
-    if (IS_ERR(ASSERT(addr)))
+        ASSERT(vm_obj_map(anon, 0, npages, VM_READ | VM_WRITE | VM_SHARED));
+    if (IS_ERR(addr))
         return NULL;
 
     int rc =
@@ -38,8 +38,7 @@ void* krealloc(void* ptr, size_t new_size) {
 
     SCOPED_LOCK(vm, kernel_vm);
 
-    struct vm_region* region = vm_find(kernel_vm, ptr);
-    ASSERT(region);
+    struct vm_region* region = ASSERT_PTR(vm_find(kernel_vm, ptr));
     ASSERT(ptr == vm_region_to_virt(region));
 
     size_t new_npages = DIV_CEIL(new_size, PAGE_SIZE);

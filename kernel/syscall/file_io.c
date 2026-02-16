@@ -22,8 +22,8 @@ NODISCARD static ssize_t pread(struct file* file, void* user_buf, size_t count,
 }
 
 long sys_read(int fd, void* user_buf, size_t count) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     SCOPED_LOCK(file, file);
     ssize_t nread = pread(file, user_buf, count, file->offset);
@@ -35,8 +35,8 @@ long sys_read(int fd, void* user_buf, size_t count) {
 long sys_pread64(int fd, void* user_buf, size_t count, loff_t pos) {
     if (pos < 0)
         return -EINVAL;
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     return pread(file, user_buf, count, pos);
 }
@@ -84,8 +84,8 @@ NODISCARD static ssize_t readv(struct file* file, const struct iovec* user_iov,
 }
 
 long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
     SCOPED_LOCK(file, file);
@@ -105,8 +105,8 @@ long sys_preadv2(int fd, const struct iovec* user_iov, int iovcnt,
                  int flags) {
     (void)flags;
 
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
     uint64_t offset =
@@ -128,8 +128,8 @@ NODISCARD static ssize_t pwrite(struct file* file, const void* user_buf,
 }
 
 long sys_write(int fd, const void* user_buf, size_t count) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     SCOPED_LOCK(file, file);
     ssize_t nwritten = pwrite(file, user_buf, count, file->offset);
@@ -141,8 +141,8 @@ long sys_write(int fd, const void* user_buf, size_t count) {
 long sys_pwrite64(int fd, const void* buf, size_t count, loff_t pos) {
     if (pos < 0)
         return -EINVAL;
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     return pwrite(file, buf, count, pos);
 }
@@ -190,8 +190,8 @@ NODISCARD static ssize_t writev(struct file* file, const struct iovec* user_iov,
 }
 
 long sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
     SCOPED_LOCK(file, file);
@@ -211,8 +211,8 @@ long sys_pwritev2(int fd, const struct iovec* user_iov, int iovcnt,
                   int flags) {
     (void)flags;
 
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
     uint64_t offset =
@@ -222,8 +222,8 @@ long sys_pwritev2(int fd, const struct iovec* user_iov, int iovcnt,
 }
 
 long sys_lseek(int fd, off_t offset, int whence) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     return file_seek(file, offset, whence);
 }
@@ -231,8 +231,8 @@ long sys_lseek(int fd, off_t offset, int whence) {
 long sys_llseek(unsigned int fd, unsigned long offset_high,
                 unsigned long offset_low, loff_t* user_result,
                 unsigned int whence) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     loff_t offset = ((loff_t)offset_high << 32) | offset_low;
     loff_t rc = file_seek(file, offset, whence);
@@ -250,8 +250,8 @@ long sys_truncate(const char* user_path, off_t length) {
     ssize_t len = copy_pathname_from_user(path, user_path);
     if (IS_ERR(len))
         return len;
-    struct file* file FREE(file) = vfs_open(path, O_WRONLY, 0);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(vfs_open(path, O_WRONLY, 0));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     return file_truncate(file, length);
 }
@@ -259,15 +259,15 @@ long sys_truncate(const char* user_path, off_t length) {
 long sys_ftruncate(int fd, off_t length) {
     if (length < 0)
         return -EINVAL;
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     return file_truncate(file, length);
 }
 
 long sys_fsync(int fd) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     return file_sync(file, 0, UINT64_MAX);
 }

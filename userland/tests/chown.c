@@ -12,8 +12,7 @@ int main(void) {
     ASSERT_ERR(chown("nonexistent-file", 1000, 1000));
     ASSERT(errno == ENOENT);
 
-    int fd = open("/tmp/test-chown", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    int fd = ASSERT_OK(open("/tmp/test-chown", O_CREAT | O_RDWR, 0644));
 
     ASSERT_OK(chown("/tmp/test-chown", 1000, 1001));
     struct stat st;

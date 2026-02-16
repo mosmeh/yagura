@@ -47,8 +47,7 @@ void socket_init(void) {
     };
     ASSERT_OK(file_system_register(&sock_fs));
 
-    sock_mount = file_system_mount(&sock_fs, "sockfs");
-    ASSERT_PTR(sock_mount);
+    sock_mount = ASSERT_PTR(file_system_mount(&sock_fs, "sockfs"));
 }
 
 static bool is_unix_socket(const struct inode* inode) {
@@ -198,8 +197,8 @@ static short unix_socket_poll(struct file* file, short events) {
 static _Atomic(ino_t) next_ino = 1;
 
 struct inode* unix_socket_create(void) {
-    struct unix_socket* socket = slab_alloc(&unix_socket_slab);
-    if (IS_ERR(ASSERT(socket)))
+    struct unix_socket* socket = ASSERT(slab_alloc(&unix_socket_slab));
+    if (IS_ERR(socket))
         return ERR_CAST(socket);
     *socket = (struct unix_socket){
         .vfs_inode = INODE_INIT,
@@ -225,15 +224,15 @@ struct inode* unix_socket_create(void) {
     socket->is_open_for_writing_to_acceptor = true;
 
     struct ring_buf* to_acceptor_buf FREE(ring_buf) =
-        ring_buf_create(PAGE_SIZE);
-    if (IS_ERR(ASSERT(to_acceptor_buf))) {
+        ASSERT(ring_buf_create(PAGE_SIZE));
+    if (IS_ERR(to_acceptor_buf)) {
         slab_free(&unix_socket_slab, socket);
         return ERR_CAST(to_acceptor_buf);
     }
 
     struct ring_buf* to_connector_buf FREE(ring_buf) =
-        ring_buf_create(PAGE_SIZE);
-    if (IS_ERR(ASSERT(to_connector_buf))) {
+        ASSERT(ring_buf_create(PAGE_SIZE));
+    if (IS_ERR(to_connector_buf)) {
         slab_free(&unix_socket_slab, socket);
         return ERR_CAST(to_connector_buf);
     }

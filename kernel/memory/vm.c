@@ -28,11 +28,11 @@ void vm_init(void) {
 struct vm* vm_create(void* start, void* end) {
     if (end <= start)
         return ERR_PTR(-EINVAL);
-    struct vm* vm = slab_alloc(&vm_slab);
-    if (IS_ERR(ASSERT(vm)))
+    struct vm* vm = ASSERT(slab_alloc(&vm_slab));
+    if (IS_ERR(vm))
         return vm;
-    struct pagemap* pagemap = pagemap_create();
-    if (IS_ERR(ASSERT(pagemap))) {
+    struct pagemap* pagemap = ASSERT(pagemap_create());
+    if (IS_ERR(pagemap)) {
         slab_free(&vm_slab, vm);
         return ERR_CAST(pagemap);
     }
@@ -78,8 +78,8 @@ struct vm* vm_enter(struct vm* vm) {
 struct vm* vm_clone(struct vm* vm) {
     ASSERT(vm != kernel_vm);
 
-    struct vm* new_vm FREE(vm) = slab_alloc(&vm_slab);
-    if (IS_ERR(ASSERT(new_vm)))
+    struct vm* new_vm FREE(vm) = ASSERT(slab_alloc(&vm_slab));
+    if (IS_ERR(new_vm))
         return new_vm;
 
     *new_vm = (struct vm){
@@ -91,15 +91,15 @@ struct vm* vm_clone(struct vm* vm) {
     SCOPED_LOCK(vm, new_vm);
     SCOPED_LOCK(vm, vm);
 
-    struct pagemap* pagemap = pagemap_create();
-    if (IS_ERR(ASSERT(pagemap)))
+    struct pagemap* pagemap = ASSERT(pagemap_create());
+    if (IS_ERR(pagemap))
         return ERR_CAST(pagemap);
     new_vm->pagemap = pagemap;
 
     for (const struct vm_region* it = vm_first_region(vm); it;
          it = vm_next_region(it)) {
-        struct vm_region* new_region = vm_region_clone(new_vm, it);
-        if (IS_ERR(ASSERT(new_region)))
+        struct vm_region* new_region = ASSERT(vm_region_clone(new_vm, it));
+        if (IS_ERR(new_region))
             return ERR_CAST(new_region);
 
         struct tree_node** new_node = &new_vm->regions.root;
@@ -370,8 +370,7 @@ ssize_t vm_find_gap(struct vm* vm, size_t npages) {
         size_t start = vm->cached_gap_start;
         size_t end = start + npages;
         // The cache might be stale. Verify it.
-        struct vm_region* region = find_intersection(vm, start, end);
-        ASSERT_OK(region);
+        struct vm_region* region = ASSERT_OK(find_intersection(vm, start, end));
         if (!region) {
             vm->cached_gap_start = start + npages;
             vm->cached_gap_size -= npages;
@@ -434,8 +433,8 @@ struct vm_region* vm_alloc(struct vm* vm, size_t npages) {
 
     // slab_alloc() can allocate a new region, so it should be called
     // before vm_find_gap().
-    struct vm_region* region = vm_region_create(vm, 0, 0);
-    if (IS_ERR(ASSERT(region)))
+    struct vm_region* region = ASSERT(vm_region_create(vm, 0, 0));
+    if (IS_ERR(region))
         return region;
 
     ssize_t start = vm_find_gap(vm, npages);
@@ -465,12 +464,11 @@ struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
     if (start < vm->start || vm->end < end)
         return ERR_PTR(-ERANGE);
 
-    struct vm_region* new_region = vm_region_create(vm, start, end);
-    if (IS_ERR(ASSERT(new_region)))
+    struct vm_region* new_region = ASSERT(vm_region_create(vm, start, end));
+    if (IS_ERR(new_region))
         return new_region;
 
-    struct vm_region* region = find_intersection(vm, start, end);
-    ASSERT_OK(region);
+    struct vm_region* region = ASSERT_OK(find_intersection(vm, start, end));
 
     // Free overlapping regions
     while (region && start < region->end) {

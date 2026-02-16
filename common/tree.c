@@ -39,8 +39,7 @@ static void replace_child(struct tree* tree, struct tree_node* parent,
 
 static void rotate_left(struct tree* tree, struct tree_node* node) {
     ASSERT(node);
-    struct tree_node* pivot = node->right;
-    ASSERT(pivot);
+    struct tree_node* pivot = ASSERT(node->right);
     struct tree_node* parent = tree_parent(node);
 
     node->right = pivot->left;
@@ -56,8 +55,7 @@ static void rotate_left(struct tree* tree, struct tree_node* node) {
 
 static void rotate_right(struct tree* tree, struct tree_node* node) {
     ASSERT(node);
-    struct tree_node* pivot = node->left;
-    ASSERT(pivot);
+    struct tree_node* pivot = ASSERT(node->left);
     struct tree_node* parent = tree_parent(node);
 
     node->left = pivot->right;

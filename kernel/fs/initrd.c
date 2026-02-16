@@ -50,8 +50,7 @@ static size_t parse_hex(const char* s, size_t len) {
 void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
     kprint("initrd: populating root file system\n");
 
-    void* initrd FREE(phys) = phys_map(phys_addr, size, VM_READ);
-    ASSERT_PTR(initrd);
+    void* initrd FREE(phys) = ASSERT_PTR(phys_map(phys_addr, size, VM_READ));
 
     const unsigned char* cursor = initrd;
     const unsigned char* end = cursor + size;
@@ -85,20 +84,17 @@ void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
         switch (mode & S_IFMT) {
         case S_IFREG: {
             struct file* file FREE(file) =
-                vfs_open(filename, O_CREAT | O_WRONLY, mode);
-            if (IS_ERR(ASSERT(file)))
+                ASSERT(vfs_open(filename, O_CREAT | O_WRONLY, mode));
+            if (IS_ERR(file))
                 continue;
 
             if (file_size > 0) {
                 ASSERT_OK(file_truncate(file, file_size));
 
-                struct vm_obj* obj FREE(vm_obj) = file_mmap(file);
-                ASSERT_PTR(obj);
-
-                unsigned char* dest =
+                struct vm_obj* obj FREE(vm_obj) = ASSERT_PTR(file_mmap(file));
+                unsigned char* dest = ASSERT_PTR(
                     vm_obj_map(obj, 0, DIV_CEIL(file_size, PAGE_SIZE),
-                               VM_WRITE | VM_SHARED);
-                ASSERT_PTR(dest);
+                               VM_WRITE | VM_SHARED));
                 memcpy(dest, content, file_size);
                 vm_obj_unmap(dest);
             }
@@ -108,8 +104,8 @@ void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
         }
         case S_IFLNK: {
             struct file* file FREE(file) =
-                vfs_open(filename, O_CREAT | O_WRONLY, mode);
-            if (IS_ERR(ASSERT(file)))
+                ASSERT(vfs_open(filename, O_CREAT | O_WRONLY, mode));
+            if (IS_ERR(file))
                 continue;
             int rc = file_symlink(file, (const char*)content, file_size);
             (void)rc;
@@ -117,8 +113,8 @@ void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
             break;
         }
         default:
-            inode = vfs_create(filename, mode);
-            if (IS_ERR(ASSERT(inode)))
+            inode = ASSERT(vfs_create(filename, mode));
+            if (IS_ERR(inode))
                 continue;
             break;
         }

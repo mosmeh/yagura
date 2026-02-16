@@ -9,8 +9,7 @@
 
 static void test_private(void) {
     unlink("/tmp/test-mmap-private");
-    int fd = open("/tmp/test-mmap-private", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    int fd = ASSERT_OK(open("/tmp/test-mmap-private", O_CREAT | O_RDWR, 0644));
 
     size_t size = 30000 * sizeof(int);
     ASSERT_OK(ftruncate(fd, size));
@@ -55,8 +54,7 @@ static _Noreturn void reader1(void) {
 }
 
 static _Noreturn void reader2(void) {
-    int fd = open("/tmp/test-mmap-shared", O_RDWR);
-    ASSERT_OK(fd);
+    int fd = ASSERT_OK(open("/tmp/test-mmap-shared", O_RDWR));
     size_t size = 50000 * sizeof(int);
     ASSERT_OK(ftruncate(fd, size));
     int* buf = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -82,8 +80,7 @@ static void test_shared(void) {
     ASSERT(shared_addr != MAP_FAILED);
     for (size_t i = 0; i < 100; ++i)
         ((uint32_t*)shared_addr)[i] = i;
-    pid_t pid = fork();
-    ASSERT_OK(pid);
+    pid_t pid = ASSERT_OK(fork());
     if (pid == 0)
         reader1();
     int status;
@@ -94,16 +91,15 @@ static void test_shared(void) {
 
     unlink("/tmp/test-mmap-shared");
     {
-        int fd = open("/tmp/test-mmap-shared", O_RDWR | O_CREAT | O_EXCL, 0644);
-        ASSERT_OK(fd);
+        int fd = ASSERT_OK(
+            open("/tmp/test-mmap-shared", O_RDWR | O_CREAT | O_EXCL, 0644));
         size = 30000 * sizeof(int);
         ASSERT_OK(ftruncate(fd, size));
         int* buf = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         ASSERT(buf != MAP_FAILED);
         for (int i = 0; i < 30000; ++i)
             buf[i] = i;
-        pid = fork();
-        ASSERT_OK(pid);
+        pid = ASSERT_OK(fork());
         if (pid == 0)
             reader2();
         ASSERT_OK(waitpid(pid, &status, 0));
@@ -113,8 +109,7 @@ static void test_shared(void) {
         ASSERT_OK(munmap(buf, size));
     }
     {
-        int fd = open("/tmp/test-mmap-shared", O_RDWR);
-        ASSERT_OK(fd);
+        int fd = ASSERT_OK(open("/tmp/test-mmap-shared", O_RDWR));
         size = 50000 * sizeof(int);
         int* buf = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
         ASSERT(buf != MAP_FAILED);
@@ -126,11 +121,9 @@ static void test_shared(void) {
         ASSERT_OK(close(fd));
     }
     {
-        int fd = open("/tmp/test-mmap-shared", O_RDWR);
-        ASSERT_OK(fd);
+        int fd = ASSERT_OK(open("/tmp/test-mmap-shared", O_RDWR));
         size = 50000 * sizeof(int);
-        int* buf = malloc(size);
-        ASSERT(buf);
+        int* buf = ASSERT(malloc(size));
         ASSERT((size_t)read(fd, buf, size) == size);
         ASSERT_OK(close(fd));
         for (int i = 0; i < 30000; ++i)
@@ -155,8 +148,7 @@ int main(void) {
                 -1, 0) == MAP_FAILED);
     ASSERT(errno == EINVAL);
 
-    int fd = open("/tmp/test-mmap", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    int fd = ASSERT_OK(open("/tmp/test-mmap", O_CREAT | O_RDWR, 0644));
     errno = 0;
     ASSERT(mmap(NULL, 4096, PROT_READ, 0, fd, 0) == MAP_FAILED);
     ASSERT(errno == EINVAL);

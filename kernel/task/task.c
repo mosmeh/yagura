@@ -33,8 +33,8 @@ void task_init(void) {
 }
 
 struct task* task_create(const char* comm, void (*entry_point)(void)) {
-    struct task* task FREE(task) = task_clone(NULL, 0);
-    if (IS_ERR(ASSERT(task)))
+    struct task* task FREE(task) = ASSERT(task_clone(NULL, 0));
+    if (IS_ERR(task))
         return task;
 
     strlcpy(task->comm, comm, sizeof(task->comm));
@@ -90,7 +90,8 @@ struct task* task_clone(const struct task* task, unsigned flags) {
         vm = vm_ref(task->vm);
     else
         vm = vm_clone(task->vm);
-    if (IS_ERR(ASSERT(vm)))
+    ASSERT(vm);
+    if (IS_ERR(vm))
         return ERR_CAST(vm);
 
     struct fs* fs FREE(fs) = NULL;
@@ -100,7 +101,8 @@ struct task* task_clone(const struct task* task, unsigned flags) {
         fs = fs_ref(task->fs);
     else
         fs = fs_clone(task->fs);
-    if (IS_ERR(ASSERT(fs)))
+    ASSERT(fs);
+    if (IS_ERR(fs))
         return ERR_CAST(fs);
 
     struct files* files FREE(files) = NULL;
@@ -110,7 +112,8 @@ struct task* task_clone(const struct task* task, unsigned flags) {
         files = files_ref(task->files);
     else
         files = files_clone(task->files);
-    if (IS_ERR(ASSERT(files)))
+    ASSERT(files);
+    if (IS_ERR(files))
         return ERR_CAST(files);
 
     struct sighand* sighand FREE(sighand) = NULL;
@@ -120,15 +123,16 @@ struct task* task_clone(const struct task* task, unsigned flags) {
         sighand = sighand_ref(task->sighand);
     else
         sighand = sighand_clone(task->sighand);
-    if (IS_ERR(ASSERT(sighand)))
+    ASSERT(sighand);
+    if (IS_ERR(sighand))
         return ERR_CAST(sighand);
 
     struct thread_group* thread_group FREE(thread_group) = NULL;
     if (task && (flags & CLONE_THREAD)) {
         thread_group = thread_group_ref(task->thread_group);
     } else {
-        thread_group = thread_group_create();
-        if (IS_ERR(ASSERT(thread_group)))
+        thread_group = ASSERT(thread_group_create());
+        if (IS_ERR(thread_group))
             return ERR_CAST(thread_group);
         if (task) {
             thread_group->pgid = task->thread_group->pgid;
@@ -148,8 +152,8 @@ struct task* task_clone(const struct task* task, unsigned flags) {
 }
 
 pid_t task_spawn(const char* comm, void (*entry_point)(void)) {
-    struct task* task FREE(task) = task_create(comm, entry_point);
-    if (IS_ERR(ASSERT(task)))
+    struct task* task FREE(task) = ASSERT(task_create(comm, entry_point));
+    if (IS_ERR(task))
         return PTR_ERR(task);
     task->tid = task->thread_group->tgid = task_generate_next_tid();
     sched_register(task);
@@ -255,8 +259,8 @@ void task_crash(int signum) {
 }
 
 struct thread_group* thread_group_create(void) {
-    struct thread_group* tg = slab_alloc(&thread_group_slab);
-    if (IS_ERR(ASSERT(tg)))
+    struct thread_group* tg = ASSERT(slab_alloc(&thread_group_slab));
+    if (IS_ERR(tg))
         return tg;
     *tg = (struct thread_group){.refcount = REFCOUNT_INIT_ONE};
     return tg;
@@ -278,8 +282,8 @@ int clone_user_task(struct registers* regs, unsigned long flags,
     // NOLINTEND(readability-non-const-parameter)
     (void)user_child_tid;
 
-    struct task* task FREE(task) = task_clone(current, flags);
-    if (IS_ERR(ASSERT(task)))
+    struct task* task FREE(task) = ASSERT(task_clone(current, flags));
+    if (IS_ERR(task))
         return PTR_ERR(task);
 
     int rc = arch_clone_user_task(task, current, regs, user_stack);

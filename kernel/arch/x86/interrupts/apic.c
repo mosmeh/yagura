@@ -38,13 +38,11 @@
 static volatile void* lapic;
 
 static void lapic_init(void) {
-    const struct acpi* acpi = acpi_get();
-    ASSERT(acpi);
+    const struct acpi* acpi = ASSERT_PTR(acpi_get());
     ASSERT(acpi->lapic_addr);
 
     unsigned char* addr =
-        phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE);
-    ASSERT_PTR(addr);
+        ASSERT_PTR(phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE));
     ASSERT_OK(vm_populate(addr, addr + PAGE_SIZE, VM_READ | VM_WRITE));
     lapic = addr;
 }
@@ -177,15 +175,13 @@ static void io_apic_write_redirection(volatile void* io_apic, uint8_t index,
 }
 
 static void io_apic_init(void) {
-    const struct acpi* acpi = acpi_get();
-    ASSERT(acpi);
+    const struct acpi* acpi = ASSERT_PTR(acpi_get());
 
     // Route all interrupts to the BSP.
     uint8_t apic_id = cpu_get_bsp()->arch.apic_id;
 
     for (const struct io_apic** p = acpi->io_apics; *p; ++p) {
-        volatile void* io_apic = kmap((*p)->io_apic_addr);
-        ASSERT_PTR(io_apic);
+        volatile void* io_apic = ASSERT_PTR(kmap((*p)->io_apic_addr));
 
         size_t num_redirections =
             ((io_apic_read(io_apic, IO_APIC_REG_VER) >> 16) & 0xff) + 1;

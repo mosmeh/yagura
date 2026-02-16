@@ -30,9 +30,7 @@ struct cpu* cpu_get_bsp(void);
 
 static inline struct cpu* cpu_get_current(void) {
     ASSERT(!arch_interrupts_enabled());
-    struct cpu* cpu = (void*)arch_cpu_read(offsetof(struct cpu, self));
-    ASSERT(cpu);
-    return cpu;
+    return ASSERT_PTR((void*)arch_cpu_read(offsetof(struct cpu, self)));
 }
 
 static inline unsigned long cpu_get_id(void) {

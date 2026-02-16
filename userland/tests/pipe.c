@@ -11,8 +11,9 @@ static size_t read_all(int fd, void* buf, size_t count) {
     unsigned char* p = buf;
     size_t total = 0;
     while (total < count) {
-        ssize_t n = read(fd, p + total, count - total);
-        ASSERT_OK(n);
+        size_t n = ASSERT_OK(read(fd, p + total, count - total));
+        if (n == 0)
+            break;
         total += n;
     }
     return total;
@@ -22,9 +23,10 @@ static size_t write_all(int fd, const void* buf, size_t count) {
     const unsigned char* p = buf;
     size_t total = 0;
     while (total < count) {
-        ssize_t nwritten = write(fd, p + total, count - total);
-        ASSERT_OK(nwritten);
-        total += nwritten;
+        size_t n = ASSERT_OK(write(fd, p + total, count - total));
+        if (n == 0)
+            break;
+        total += n;
     }
     return total;
 }
@@ -40,8 +42,7 @@ static _Noreturn void peer(int send_fd, int recv_fd) {
         total += s;
     }
 
-    int flag = fcntl(recv_fd, F_GETFL);
-    ASSERT_OK(flag);
+    int flag = ASSERT_OK(fcntl(recv_fd, F_GETFL));
     ASSERT_OK(fcntl(recv_fd, F_SETFL, flag | O_NONBLOCK));
 
     char c;
@@ -72,8 +73,7 @@ int main(void) {
     int send_fds[2];
     ASSERT_OK(pipe(send_fds));
 
-    pid_t pid = fork();
-    ASSERT_OK(pid);
+    pid_t pid = ASSERT_OK(fork());
     if (pid == 0)
         peer(recv_fds[1], send_fds[0]);
 
@@ -93,8 +93,7 @@ int main(void) {
     ASSERT(pollfds2[0].revents == 0);
     ASSERT(pollfds2[1].revents == POLLIN);
 
-    int flag = fcntl(send_fds[1], F_GETFL);
-    ASSERT_OK(flag);
+    int flag = ASSERT_OK(fcntl(send_fds[1], F_GETFL));
     ASSERT_OK(fcntl(send_fds[1], F_SETFL, flag | O_NONBLOCK));
 
     int nwritten;

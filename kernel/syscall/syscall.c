@@ -57,8 +57,7 @@ void syscall_handle(const struct syscall_abi* abi, struct registers* regs) {
     long ret = dispatch(abi, regs, &flags);
 
     struct sigaction act;
-    int signum = signal_pop(&act);
-    ASSERT_OK(signum);
+    int signum = ASSERT_OK(signal_pop(&act));
 
     if (flags & SYSCALL_NO_ERROR) {
         abi->set_return_value(regs, ret);

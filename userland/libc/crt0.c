@@ -70,14 +70,12 @@ void __start(unsigned long* args) {
     auxv = (elf_auxv_t*)p;
 
     // Initialize TLS
-    tls_phdr = find_tls_phdr();
-    ASSERT(tls_phdr);
+    tls_phdr = ASSERT(find_tls_phdr());
     __tls_size = tls_phdr->p_memsz + sizeof(struct pthread) +
                  MAX(tls_phdr->p_align, _Alignof(struct pthread));
 
     // Initialize TLS for the main thread
-    unsigned char* tls = malloc(__tls_size);
-    ASSERT(tls);
+    unsigned char* tls = ASSERT(malloc(__tls_size));
     __set_thread_area(__init_tls(tls));
 
     exit(main(argc, argv, environ));

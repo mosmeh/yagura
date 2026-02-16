@@ -213,8 +213,9 @@ long sys_chroot(const char* user_path) {
     struct fs* fs = current->fs;
     SCOPED_LOCK(fs, fs);
 
-    struct path* new_root FREE(path) = vfs_resolve_path_at(fs->cwd, path, 0);
-    if (IS_ERR(ASSERT(new_root)))
+    struct path* new_root FREE(path) =
+        ASSERT(vfs_resolve_path_at(fs->cwd, path, 0));
+    if (IS_ERR(new_root))
         return PTR_ERR(new_root);
 
     return fs_chroot(fs, new_root);
@@ -250,16 +251,17 @@ long sys_chdir(const char* user_path) {
     struct fs* fs = current->fs;
     SCOPED_LOCK(fs, fs);
 
-    struct path* new_cwd FREE(path) = vfs_resolve_path_at(fs->cwd, path, 0);
-    if (IS_ERR(ASSERT(new_cwd)))
+    struct path* new_cwd FREE(path) =
+        ASSERT(vfs_resolve_path_at(fs->cwd, path, 0));
+    if (IS_ERR(new_cwd))
         return PTR_ERR(new_cwd);
 
     return fs_chdir(fs, new_cwd);
 }
 
 long sys_fchdir(int fd) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     if (!S_ISDIR(file->inode->mode) || !file->path)
         return -ENOTDIR;

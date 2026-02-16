@@ -10,8 +10,8 @@ static struct slab fs_slab;
 void task_fs_init(void) { slab_init(&fs_slab, "fs", sizeof(struct fs)); }
 
 struct fs* fs_create(void) {
-    struct fs* fs = slab_alloc(&fs_slab);
-    if (IS_ERR(ASSERT(fs)))
+    struct fs* fs = ASSERT(slab_alloc(&fs_slab));
+    if (IS_ERR(fs))
         return fs;
     *fs = (struct fs){
         .umask = 022,
@@ -21,18 +21,18 @@ struct fs* fs_create(void) {
 }
 
 struct fs* fs_clone(struct fs* fs) {
-    struct fs* new_fs FREE(fs) = fs_create();
-    if (IS_ERR(ASSERT(new_fs)))
+    struct fs* new_fs FREE(fs) = ASSERT(fs_create());
+    if (IS_ERR(new_fs))
         return new_fs;
 
     SCOPED_LOCK(fs, fs);
 
-    struct path* root FREE(path) = path_dup(fs->root);
-    if (IS_ERR(ASSERT(root)))
+    struct path* root FREE(path) = ASSERT(path_dup(fs->root));
+    if (IS_ERR(root))
         return ERR_CAST(root);
 
-    struct path* cwd FREE(path) = path_dup(fs->cwd);
-    if (IS_ERR(ASSERT(cwd)))
+    struct path* cwd FREE(path) = ASSERT(path_dup(fs->cwd));
+    if (IS_ERR(cwd))
         return ERR_CAST(cwd);
 
     new_fs->root = TAKE_PTR(root);
@@ -54,8 +54,8 @@ int fs_chroot(struct fs* fs, struct path* new_root) {
     if (!S_ISDIR(new_root->inode->mode))
         return -ENOTDIR;
 
-    struct path* dup_root FREE(path) = path_dup(new_root);
-    if (IS_ERR(ASSERT(dup_root)))
+    struct path* dup_root FREE(path) = ASSERT(path_dup(new_root));
+    if (IS_ERR(dup_root))
         return PTR_ERR(dup_root);
 
     path_destroy_recursive(fs->root);
@@ -70,8 +70,8 @@ int fs_chdir(struct fs* fs, struct path* new_cwd) {
     if (!S_ISDIR(new_cwd->inode->mode))
         return -ENOTDIR;
 
-    struct path* dup_cwd FREE(path) = path_dup(new_cwd);
-    if (IS_ERR(ASSERT(dup_cwd)))
+    struct path* dup_cwd FREE(path) = ASSERT(path_dup(new_cwd));
+    if (IS_ERR(dup_cwd))
         return PTR_ERR(dup_cwd);
 
     path_destroy_recursive(fs->cwd);
@@ -89,8 +89,8 @@ struct files* files_create(void) {
 }
 
 struct files* files_clone(struct files* files) {
-    struct files* new_files = files_create();
-    if (IS_ERR(ASSERT(new_files)))
+    struct files* new_files = ASSERT(files_create());
+    if (IS_ERR(new_files))
         return new_files;
 
     SCOPED_LOCK(files, files);

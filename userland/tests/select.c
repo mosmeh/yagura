@@ -9,8 +9,7 @@ int main(void) {
     int pipes[2];
     ASSERT_OK(pipe(pipes));
 
-    int fd = open("/tmp/test-select", O_CREAT | O_RDONLY, 0644);
-    ASSERT_OK(fd);
+    int fd = ASSERT_OK(open("/tmp/test-select", O_CREAT | O_RDONLY, 0644));
 
     fd_set read_fds;
     FD_ZERO(&read_fds);

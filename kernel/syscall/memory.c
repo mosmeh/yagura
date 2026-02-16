@@ -64,20 +64,21 @@ long sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
 
     struct vm_obj* obj FREE(vm_obj) = NULL;
     if (flags & MAP_ANONYMOUS) {
-        obj = anon_create();
-        if (IS_ERR(ASSERT(obj)))
+        obj = ASSERT(anon_create());
+        if (IS_ERR(obj))
             return PTR_ERR(obj);
     } else {
-        struct file* file FREE(file) = files_ref_file(current->files, fd);
-        if (IS_ERR(ASSERT(file)))
+        struct file* file FREE(file) =
+            ASSERT(files_ref_file(current->files, fd));
+        if (IS_ERR(file))
             return PTR_ERR(file);
         if (S_ISDIR(file->inode->mode))
             return -ENODEV;
         int rc = validate_file_prot(file, prot, flags);
         if (IS_ERR(rc))
             return rc;
-        obj = file_mmap(file);
-        if (IS_ERR(ASSERT(obj)))
+        obj = ASSERT(file_mmap(file));
+        if (IS_ERR(obj))
             return PTR_ERR(obj);
     }
 
@@ -88,7 +89,8 @@ long sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
     struct vm_region* region = (flags & MAP_FIXED)
                                    ? vm_alloc_at(vm, addr, npages)
                                    : vm_alloc(vm, npages);
-    if (IS_ERR(ASSERT(region)))
+    ASSERT(region);
+    if (IS_ERR(region))
         return PTR_ERR(region);
 
     unsigned vm_flags = prot_to_vm_flags(prot) | VM_USER;

@@ -31,8 +31,7 @@ void pipe_init(void) {
     };
     ASSERT_OK(file_system_register(&pipe_fs));
 
-    pipe_mount = file_system_mount(&pipe_fs, "pipefs");
-    ASSERT_PTR(pipe_mount);
+    pipe_mount = ASSERT_PTR(file_system_mount(&pipe_fs, "pipefs"));
 }
 
 static struct pipe* pipe_from_inode(struct inode* inode) {
@@ -72,8 +71,8 @@ static int pipe_open(struct file* file) {
         is_fifo = true;
         pipe_inode = file->inode->pipe;
         if (!pipe_inode) {
-            struct inode* new_pipe = pipe_create();
-            if (IS_ERR(ASSERT(new_pipe)))
+            struct inode* new_pipe = ASSERT(pipe_create());
+            if (IS_ERR(new_pipe))
                 return PTR_ERR(new_pipe);
             struct inode* expected = NULL;
             if (atomic_compare_exchange_strong(&file->inode->pipe, &expected,
@@ -224,15 +223,15 @@ const struct file_ops pipe_fops = {
 static _Atomic(ino_t) next_ino = 1;
 
 struct inode* pipe_create(void) {
-    struct pipe* pipe = slab_alloc(&pipe_slab);
-    if (IS_ERR(ASSERT(pipe)))
+    struct pipe* pipe = ASSERT(slab_alloc(&pipe_slab));
+    if (IS_ERR(pipe))
         return ERR_CAST(pipe);
     *pipe = (struct pipe){
         .vfs_inode = INODE_INIT,
     };
 
-    struct ring_buf* buf = ring_buf_create(PIPE_BUF);
-    if (IS_ERR(ASSERT(buf))) {
+    struct ring_buf* buf = ASSERT(ring_buf_create(PIPE_BUF));
+    if (IS_ERR(buf)) {
         slab_free(&pipe_slab, pipe);
         return ERR_CAST(buf);
     }

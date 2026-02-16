@@ -15,8 +15,8 @@ static struct slab file_slab;
 void file_init(void) { slab_init(&file_slab, "file", sizeof(struct file)); }
 
 struct file* file_create(struct inode* inode, int flags) {
-    struct file* file = slab_alloc(&file_slab);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file = ASSERT(slab_alloc(&file_slab));
+    if (IS_ERR(file))
         return file;
     *file = (struct file){
         .inode = inode_ref(inode),
@@ -109,8 +109,9 @@ static ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
     size_t page_offset = offset % PAGE_SIZE;
     SCOPED_LOCK(inode, inode);
     while (nwritten < count) {
-        struct page* page = filemap_ensure_page(filemap, page_index, true);
-        if (IS_ERR(ASSERT(page)))
+        struct page* page =
+            ASSERT(filemap_ensure_page(filemap, page_index, true));
+        if (IS_ERR(page))
             return PTR_ERR(page);
 
         char page_buf[PAGE_SIZE];
@@ -256,8 +257,8 @@ int file_symlink(struct file* file, const char* target, size_t target_len) {
 
     SCOPED_LOCK(inode, inode);
 
-    struct page* page = filemap_ensure_page(filemap, 0, false);
-    if (IS_ERR(ASSERT(page)))
+    struct page* page = ASSERT(filemap_ensure_page(filemap, 0, false));
+    if (IS_ERR(page))
         return PTR_ERR(page);
 
     unsigned char* mapped_page = kmap_page(page);

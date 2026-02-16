@@ -483,14 +483,13 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
 
 static struct virtual_console* virtual_console_create(uint8_t tty_num,
                                                       struct screen* screen) {
-    struct virtual_console* console = kmalloc(sizeof(struct virtual_console));
-    ASSERT(console);
+    struct virtual_console* console =
+        ASSERT_PTR(kmalloc(sizeof(struct virtual_console)));
     *console = (struct virtual_console){
         .mode = K_XLATE,
     };
 
-    console->vt = vt_create(screen);
-    ASSERT_PTR(console->vt);
+    console->vt = ASSERT_PTR(vt_create(screen));
     vt_set_palette(console->vt, default_palette);
 
     static const struct tty_ops tty_ops = {
@@ -511,10 +510,7 @@ static struct virtual_console* virtual_console_create(uint8_t tty_num,
 void virtual_console_init(struct screen* screen) {
     for (size_t i = 0; i < NUM_CONSOLES; ++i) {
         uint8_t tty_num = i + 1;
-        struct virtual_console* console =
-            virtual_console_create(tty_num, screen);
-        ASSERT_PTR(console);
-        consoles[i] = console;
+        consoles[i] = ASSERT_PTR(virtual_console_create(tty_num, screen));
     }
     activate_console(0);
 

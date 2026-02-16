@@ -57,8 +57,7 @@ int execvpe(const char* file, char* const argv[], char* const envp[]) {
         static char buf[1024];
         ASSERT(sprintf(buf, "%s/%s", part, file) > 0);
 
-        int rc = execve(buf, argv, envp);
-        ASSERT(rc < 0);
+        ASSERT_ERR(execve(buf, argv, envp));
         if (errno != ENOENT) {
             free(dup_path);
             return -1;

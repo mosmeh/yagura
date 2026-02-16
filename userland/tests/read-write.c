@@ -9,11 +9,9 @@ int main(void) {
     unlink("/tmp/test-read-write");
 
     {
-        int fd =
-            open("/tmp/test-read-write", O_WRONLY | O_CREAT | O_EXCL, 0644);
-        ASSERT_OK(fd);
-        int* buf = malloc(50000 * sizeof(int));
-        ASSERT(buf);
+        int fd = ASSERT_OK(
+            open("/tmp/test-read-write", O_WRONLY | O_CREAT | O_EXCL, 0644));
+        int* buf = ASSERT(malloc(50000 * sizeof(int)));
         for (int i = 0; i < 50000; ++i)
             buf[i] = i;
         ASSERT(write(fd, buf, 1000 * sizeof(int)) == 1000 * sizeof(int));
@@ -22,10 +20,8 @@ int main(void) {
         ASSERT_OK(close(fd));
     }
     {
-        int fd = open("/tmp/test-read-write", O_RDWR);
-        ASSERT_OK(fd);
-        int* buf = malloc(50000 * sizeof(int));
-        ASSERT(buf);
+        int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDWR));
+        int* buf = ASSERT(malloc(50000 * sizeof(int)));
         ASSERT(read(fd, buf, 1000 * sizeof(int)) == 1000 * sizeof(int));
         for (int i = 0; i < 1000; ++i)
             ASSERT(buf[i] == i);
@@ -40,10 +36,8 @@ int main(void) {
         free(buf);
     }
     {
-        int fd = open("/tmp/test-read-write", O_RDWR);
-        ASSERT_OK(fd);
-        int* buf = malloc(50000 * sizeof(int));
-        ASSERT(buf);
+        int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDWR));
+        int* buf = ASSERT(malloc(50000 * sizeof(int)));
         ASSERT(read(fd, buf, 1000 * sizeof(int)) == 1000 * sizeof(int));
         for (int i = 0; i < 1000; ++i)
             ASSERT(buf[i] == i);
@@ -57,10 +51,8 @@ int main(void) {
         ASSERT_OK(close(fd));
     }
     {
-        int fd = open("/tmp/test-read-write", O_RDONLY);
-        ASSERT_OK(fd);
-        int* buf = malloc(50000 * sizeof(int));
-        ASSERT(buf);
+        int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDONLY));
+        int* buf = ASSERT(malloc(50000 * sizeof(int)));
         ASSERT(read(fd, buf, 1000 * sizeof(int)) == 1000 * sizeof(int));
         for (int i = 0; i < 1000; ++i)
             ASSERT(buf[i] == i);
@@ -68,8 +60,7 @@ int main(void) {
         ASSERT_OK(close(fd));
     }
     {
-        int fd = open("/tmp/test-read-write", O_RDWR);
-        ASSERT_OK(fd);
+        int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDWR));
 
         errno = 0;
         ASSERT_ERR(read(fd, NULL, 100));

@@ -9,8 +9,7 @@ int main(void) {
     int pipe_fds[2];
     ASSERT_OK(pipe(pipe_fds));
 
-    pid_t pid = fork();
-    ASSERT_OK(pid);
+    pid_t pid = ASSERT_OK(fork());
     if (pid == 0) {
         close(pipe_fds[1]);
         char buf;
@@ -35,8 +34,7 @@ int main(void) {
     ASSERT_ERR(waitpid(-1, NULL, 0));
     ASSERT(errno == ECHILD);
 
-    pid = fork();
-    ASSERT_OK(pid);
+    pid = ASSERT_OK(fork());
     if (pid == 0)
         exit(55);
     struct rusage rusage = {

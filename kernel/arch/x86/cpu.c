@@ -333,8 +333,7 @@ void cpu_init_features(void) {
 }
 
 void cpu_init_smp(void) {
-    const struct acpi* acpi = acpi_get();
-    ASSERT(acpi);
+    const struct acpi* acpi = ASSERT_PTR(acpi_get());
     for (const struct local_apic** p = acpi->local_apics; *p; ++p) {
         if (!((*p)->flags & ACPI_LOCAL_APIC_ENABLED))
             continue;
@@ -346,8 +345,7 @@ void cpu_init_smp(void) {
         for (size_t i = 0; i < num_cpus; ++i)
             ASSERT(cpus[i]->arch.apic_id != apic_id);
 
-        struct cpu* cpu = cpu_add();
-        ASSERT(cpu);
+        struct cpu* cpu = ASSERT_PTR(cpu_add());
         cpu->arch.apic_id = apic_id;
     }
 }

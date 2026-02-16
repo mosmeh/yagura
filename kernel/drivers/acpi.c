@@ -140,8 +140,8 @@ static struct rsdt* map_rsdt(const struct rsdp_descriptor* rsdp) {
     if (phys_addr != rsdp->rsdt_address)
         return NULL; // Address does not fit in phys_addr_t
 
-    struct rsdt* header = phys_map(phys_addr, sizeof(struct rsdt), VM_READ);
-    ASSERT_PTR(header);
+    struct rsdt* header =
+        ASSERT_PTR(phys_map(phys_addr, sizeof(struct rsdt), VM_READ));
     uint32_t size = header->header.length;
     phys_unmap(header);
 
@@ -164,8 +164,8 @@ static struct xsdt* map_xsdt(const struct rsdp_descriptor* rsdp) {
     if (phys_addr != rsdp2->xsdt_address)
         return NULL; // Address does not fit in phys_addr_t
 
-    struct xsdt* header = phys_map(phys_addr, sizeof(struct xsdt), VM_READ);
-    ASSERT_PTR(header);
+    struct xsdt* header =
+        ASSERT_PTR(phys_map(phys_addr, sizeof(struct xsdt), VM_READ));
     uint32_t size = header->header.length;
     phys_unmap(header);
 
@@ -181,8 +181,7 @@ static struct xsdt* map_xsdt(const struct rsdp_descriptor* rsdp) {
 static size_t match_signature(phys_addr_t addr,
                               const char signature[static SIGNATURE_SIZE]) {
     struct sdt_header* header =
-        phys_map(addr, sizeof(struct sdt_header), VM_READ);
-    ASSERT_PTR(header);
+        ASSERT_PTR(phys_map(addr, sizeof(struct sdt_header), VM_READ));
     bool match =
         !memcmp(header->signature, signature, sizeof(header->signature));
     uint32_t length = header->length;
@@ -222,21 +221,17 @@ static void* map_table_in_xsdt(const struct xsdt* xsdt,
 
 static void* map_table(const struct rsdp_descriptor* rsdp,
                        const char signature[static SIGNATURE_SIZE]) {
-    struct xsdt* xsdt = map_xsdt(rsdp);
-    ASSERT_OK(xsdt);
+    struct xsdt* xsdt = ASSERT_OK(map_xsdt(rsdp));
     if (xsdt) {
-        void* table = map_table_in_xsdt(xsdt, signature);
-        ASSERT_OK(table);
+        void* table = ASSERT_OK(map_table_in_xsdt(xsdt, signature));
         phys_unmap(xsdt);
         if (table)
             return table;
     }
 
-    struct rsdt* rsdt = map_rsdt(rsdp);
-    ASSERT_OK(rsdt);
+    struct rsdt* rsdt = ASSERT_OK(map_rsdt(rsdp));
     if (rsdt) {
-        void* table = map_table_in_rsdt(rsdt, signature);
-        ASSERT_OK(table);
+        void* table = ASSERT_OK(map_table_in_rsdt(rsdt, signature));
         phys_unmap(rsdt);
         if (table)
             return table;
@@ -248,8 +243,7 @@ static void* map_table(const struct rsdp_descriptor* rsdp,
 static struct acpi acpi;
 
 static void parse_madt(const struct rsdp_descriptor* rsdp) {
-    const struct madt* madt = map_table(rsdp, "APIC");
-    ASSERT_OK(madt);
+    const struct madt* madt = ASSERT_OK(map_table(rsdp, "APIC"));
 
     size_t num_local_apics = 0;
     size_t num_io_apics = 0;
@@ -282,8 +276,7 @@ static void parse_madt(const struct rsdp_descriptor* rsdp) {
     // +1 for sentinel NULL pointers
     size_t total = (num_local_apics + 1) + (num_io_apics + 1) +
                    (num_interrupt_source_overrides + 1);
-    void** buf = kmalloc(total * sizeof(void*));
-    ASSERT(buf);
+    void** buf = ASSERT_PTR(kmalloc(total * sizeof(void*)));
     size_t offset = 0;
     acpi.local_apics = (void*)(buf + offset);
     offset += num_local_apics + 1;
@@ -335,8 +328,7 @@ static void parse_madt(const struct rsdp_descriptor* rsdp) {
 }
 
 static void parse_fadt(const struct rsdp_descriptor* rsdp) {
-    struct fadt* fadt = map_table(rsdp, "FACP");
-    ASSERT_OK(fadt);
+    struct fadt* fadt = ASSERT_OK(map_table(rsdp, "FACP"));
     if (fadt) {
         if (fadt->reset_reg.address_space == GENERIC_ADDRESS_SPACE_SYSTEM_IO) {
             acpi.reset_port = fadt->reset_reg.address;

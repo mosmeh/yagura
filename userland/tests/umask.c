@@ -5,12 +5,10 @@
 #include <unistd.h>
 
 int main(void) {
-    mode_t original_umask = umask(0243);
-    ASSERT_OK(original_umask);
+    mode_t original_umask = ASSERT_OK(umask(0243));
     {
         unlink("/tmp/test-chmod");
-        int fd = open("/tmp/test-chmod", O_CREAT | O_RDWR, 0777);
-        ASSERT_OK(fd);
+        int fd = ASSERT_OK(open("/tmp/test-chmod", O_CREAT | O_RDWR, 0777));
         struct stat st;
         ASSERT_OK(fstat(fd, &st));
         ASSERT(st.st_mode == (S_IFREG | (0777 & ~0243)));

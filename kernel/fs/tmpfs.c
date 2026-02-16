@@ -94,8 +94,8 @@ static int tmpfs_link(struct inode* vfs_parent, const char* name,
             return -EEXIST;
     }
 
-    struct tmpfs_dentry* dentry = slab_alloc(&tmpfs_dentry_slab);
-    if (IS_ERR(ASSERT(dentry)))
+    struct tmpfs_dentry* dentry = ASSERT(slab_alloc(&tmpfs_dentry_slab));
+    if (IS_ERR(dentry))
         return PTR_ERR(dentry);
     *dentry = (struct tmpfs_dentry){0};
     dentry->name = kstrdup(name);
@@ -214,8 +214,8 @@ static struct inode* tmpfs_create_inode(struct mount* vfs_mount, mode_t mode) {
     struct tmpfs_mount* mount =
         CONTAINER_OF(vfs_mount, struct tmpfs_mount, vfs_mount);
 
-    struct tmpfs_inode* inode = slab_alloc(&tmpfs_inode_slab);
-    if (IS_ERR(ASSERT(inode)))
+    struct tmpfs_inode* inode = ASSERT(slab_alloc(&tmpfs_inode_slab));
+    if (IS_ERR(inode))
         return ERR_CAST(inode);
     *inode = (struct tmpfs_inode){
         .vfs_inode = INODE_INIT,
@@ -240,8 +240,9 @@ static struct mount* tmpfs_mount(const char* source) {
     };
 
     struct mount* vfs_mount = &mount->vfs_mount;
-    struct inode* root FREE(inode) = tmpfs_create_inode(vfs_mount, S_IFDIR);
-    if (IS_ERR(ASSERT(root))) {
+    struct inode* root FREE(inode) =
+        ASSERT(tmpfs_create_inode(vfs_mount, S_IFDIR));
+    if (IS_ERR(root)) {
         kfree(mount);
         return ERR_CAST(root);
     }

@@ -21,15 +21,15 @@ long sys_socket(int domain, int type, int protocol) {
     if ((type & SOCK_TYPE_MASK) != SOCK_STREAM)
         return -ESOCKTNOSUPPORT;
 
-    struct inode* socket FREE(inode) = unix_socket_create();
-    if (IS_ERR(ASSERT(socket)))
+    struct inode* socket FREE(inode) = ASSERT(unix_socket_create());
+    if (IS_ERR(socket))
         return PTR_ERR(socket);
 
     int file_flags = O_RDWR;
     if (type & SOCK_NONBLOCK)
         file_flags |= O_NONBLOCK;
-    struct file* file FREE(file) = inode_open(socket, file_flags);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(inode_open(socket, file_flags));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
     int fd_flags = 0;
@@ -39,8 +39,9 @@ long sys_socket(int domain, int type, int protocol) {
 }
 
 long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
-    struct file* file FREE(file) = files_ref_file(current->files, sockfd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) =
+        ASSERT(files_ref_file(current->files, sockfd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
@@ -59,8 +60,8 @@ long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
     strlcpy(path, addr_un.sun_path, sizeof(path));
 
     mode_t mode = S_IFSOCK | (file->inode->mode & ~current->fs->umask);
-    struct inode* addr_inode FREE(inode) = vfs_create(path, mode);
-    if (IS_ERR(ASSERT(addr_inode))) {
+    struct inode* addr_inode FREE(inode) = ASSERT(vfs_create(path, mode));
+    if (IS_ERR(addr_inode)) {
         if (PTR_ERR(addr_inode) == -EEXIST)
             return -EADDRINUSE;
         return PTR_ERR(addr_inode);
@@ -70,8 +71,9 @@ long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
 }
 
 long sys_listen(int sockfd, int backlog) {
-    struct file* file FREE(file) = files_ref_file(current->files, sockfd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) =
+        ASSERT(files_ref_file(current->files, sockfd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
         return -ENOTSOCK;
@@ -87,8 +89,9 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
     if (flags & ~(SOCK_NONBLOCK | SOCK_CLOEXEC))
         return -EINVAL;
 
-    struct file* file FREE(file) = files_ref_file(current->files, sockfd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) =
+        ASSERT(files_ref_file(current->files, sockfd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
     if (user_addr) {
@@ -110,17 +113,18 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
             return -EFAULT;
     }
 
-    struct inode* connector FREE(inode) = unix_socket_accept(file);
+    struct inode* connector FREE(inode) = ASSERT(unix_socket_accept(file));
     if (PTR_ERR(connector) == -EINTR)
         return -ERESTARTSYS;
-    if (IS_ERR(ASSERT(connector)))
+    if (IS_ERR(connector))
         return PTR_ERR(connector);
 
     int file_flags = O_RDWR;
     if (flags & SOCK_NONBLOCK)
         file_flags |= O_NONBLOCK;
-    struct file* connector_file FREE(file) = inode_open(connector, file_flags);
-    if (IS_ERR(ASSERT(connector_file)))
+    struct file* connector_file FREE(file) =
+        ASSERT(inode_open(connector, file_flags));
+    if (IS_ERR(connector_file))
         return PTR_ERR(connector_file);
 
     int fd_flags = 0;
@@ -131,8 +135,9 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
 
 long sys_connect(int sockfd, const struct sockaddr* user_addr,
                  socklen_t addrlen) {
-    struct file* file FREE(file) = files_ref_file(current->files, sockfd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) =
+        ASSERT(files_ref_file(current->files, sockfd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
     if (addrlen <= sizeof(sa_family_t) || sizeof(struct sockaddr_un) < addrlen)
@@ -148,8 +153,8 @@ long sys_connect(int sockfd, const struct sockaddr* user_addr,
     char pathname[UNIX_PATH_MAX + 1];
     strlcpy(pathname, addr_un.sun_path, sizeof(pathname));
 
-    struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
-    if (IS_ERR(ASSERT(path)))
+    struct path* path FREE(path) = ASSERT(vfs_resolve_path(pathname, 0));
+    if (IS_ERR(path))
         return PTR_ERR(path);
 
     int rc = unix_socket_connect(file, path->inode);
@@ -159,8 +164,9 @@ long sys_connect(int sockfd, const struct sockaddr* user_addr,
 }
 
 long sys_shutdown(int sockfd, int how) {
-    struct file* file FREE(file) = files_ref_file(current->files, sockfd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) =
+        ASSERT(files_ref_file(current->files, sockfd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     return unix_socket_shutdown(file, how);
 }

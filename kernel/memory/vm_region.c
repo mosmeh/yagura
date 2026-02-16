@@ -10,8 +10,8 @@ void vm_region_init(void) {
 }
 
 struct vm_region* vm_region_create(struct vm* vm, size_t start, size_t end) {
-    struct vm_region* region = slab_alloc(&region_slab);
-    if (IS_ERR(ASSERT(region)))
+    struct vm_region* region = ASSERT(slab_alloc(&region_slab));
+    if (IS_ERR(region))
         return region;
 
     *region = (struct vm_region){
@@ -59,8 +59,8 @@ void vm_region_destroy(struct vm_region* region) {
 
 struct vm_region* vm_region_clone(struct vm* new_vm,
                                   const struct vm_region* region) {
-    struct vm_region* cloned = slab_alloc(&region_slab);
-    if (IS_ERR(ASSERT(cloned)))
+    struct vm_region* cloned = ASSERT(slab_alloc(&region_slab));
+    if (IS_ERR(cloned))
         return cloned;
 
     *cloned = (struct vm_region){
@@ -73,8 +73,8 @@ struct vm_region* vm_region_clone(struct vm* new_vm,
     for (struct page* page = pages_first(&region->private_pages); page;
          page = pages_next(page)) {
         struct page* new_page =
-            pages_alloc_at(&cloned->private_pages, page->index);
-        if (IS_ERR(ASSERT(new_page))) {
+            ASSERT(pages_alloc_at(&cloned->private_pages, page->index));
+        if (IS_ERR(new_page)) {
             vm_region_destroy(cloned);
             return ERR_CAST(new_page);
         }
@@ -133,23 +133,22 @@ struct page* vm_region_get_page(struct vm_region* region, size_t index,
         }
     }
 
-    const struct vm_ops* vm_ops = obj->vm_ops;
-    ASSERT(vm_ops);
+    const struct vm_ops* vm_ops = ASSERT_PTR(obj->vm_ops);
 
     SCOPED_LOCK(vm_obj, obj);
 
-    ASSERT(vm_ops->get_page);
-    struct page* shared_page =
-        vm_ops->get_page(obj, region->offset + index, request & VM_WRITE);
-    if (IS_ERR(ASSERT(shared_page)))
+    ASSERT_PTR(vm_ops->get_page);
+    struct page* shared_page = ASSERT(
+        vm_ops->get_page(obj, region->offset + index, request & VM_WRITE));
+    if (IS_ERR(shared_page))
         return shared_page;
 
     if (!(request & VM_WRITE) || (flags & VM_SHARED))
         return shared_page;
 
     // Copy on write
-    struct page* private_page = page_alloc();
-    if (IS_ERR(ASSERT(private_page)))
+    struct page* private_page = ASSERT(page_alloc());
+    if (IS_ERR(private_page))
         return private_page;
     private_page->index = index;
     *new_node = &private_page->tree_node;
@@ -245,8 +244,8 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         // Left (`region`): [start, end) with new flags
         // Right (`right_region`): [end, region->end) with old flags
 
-        struct vm_region* right_region = slab_alloc(&region_slab);
-        if (IS_ERR(ASSERT(right_region)))
+        struct vm_region* right_region = ASSERT(slab_alloc(&region_slab));
+        if (IS_ERR(right_region))
             return PTR_ERR(right_region);
 
         struct tree right_pages = {0};
@@ -271,8 +270,8 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         // Left (`region`): [region->start, start) with old flags
         // Right (`right_region`): [start, end) with new flags
 
-        struct vm_region* right_region = slab_alloc(&region_slab);
-        if (IS_ERR(ASSERT(right_region)))
+        struct vm_region* right_region = ASSERT(slab_alloc(&region_slab));
+        if (IS_ERR(right_region))
             return PTR_ERR(right_region);
 
         struct tree right_pages = {0};
@@ -298,11 +297,11 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
         // Middle (`middle_region`): [start, end) with new flags
         // Right (`right_region`): [end, region->end) with old flags
 
-        struct vm_region* middle_region = slab_alloc(&region_slab);
-        if (IS_ERR(ASSERT(middle_region)))
+        struct vm_region* middle_region = ASSERT(slab_alloc(&region_slab));
+        if (IS_ERR(middle_region))
             return PTR_ERR(middle_region);
-        struct vm_region* right_region = slab_alloc(&region_slab);
-        if (IS_ERR(ASSERT(right_region))) {
+        struct vm_region* right_region = ASSERT(slab_alloc(&region_slab));
+        if (IS_ERR(right_region)) {
             slab_free(&region_slab, middle_region);
             return PTR_ERR(right_region);
         }
@@ -384,8 +383,8 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
         // Left (`region`): [region->start, start)
         // Right (`right_region`): [end, region->end)
 
-        struct vm_region* right_region = slab_alloc(&region_slab);
-        if (IS_ERR(ASSERT(right_region)))
+        struct vm_region* right_region = ASSERT(slab_alloc(&region_slab));
+        if (IS_ERR(right_region))
             return PTR_ERR(right_region);
 
         struct tree middle_pages = {0};

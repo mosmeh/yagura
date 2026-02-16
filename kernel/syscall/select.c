@@ -25,8 +25,7 @@ static bool unblock_wait_fds(void* data) {
             continue;
 
         struct pollfd* pollfd = waiter->pollfds + i;
-        pollfd->revents = file_poll(file, pollfd->events);
-        ASSERT_OK(pollfd->revents);
+        pollfd->revents = ASSERT_OK(file_poll(file, pollfd->events));
         ASSERT((pollfd->revents & ~pollfd->events) == 0);
         if (pollfd->revents)
             ++waiter->num_events;
@@ -78,8 +77,8 @@ NODISCARD static int wait_fds(nfds_t nfds, struct pollfd pollfds[nfds],
             waiter.files[i] = NULL;
             if (pollfd->fd < 0)
                 continue;
-            struct file* file = files_ref_file(files, pollfd->fd);
-            if (IS_ERR(ASSERT(file))) {
+            struct file* file = ASSERT(files_ref_file(files, pollfd->fd));
+            if (IS_ERR(file)) {
                 pollfd->revents = POLLNVAL;
                 ++waiter.num_events;
                 continue;

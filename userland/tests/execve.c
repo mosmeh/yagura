@@ -7,8 +7,7 @@
 #include <unistd.h>
 
 static void spawn(const char* pathname, char* const* argv, char* const* envp) {
-    pid_t pid = fork();
-    ASSERT_OK(pid);
+    pid_t pid = ASSERT_OK(fork());
     if (pid == 0)
         ASSERT_OK(execve(pathname, argv, envp));
     int status;
@@ -54,8 +53,7 @@ int main(int argc, char** argv) {
     spawn("/bin/true", (char*[]){"true", NULL}, NULL);
     spawn("/bin/true", NULL, (char*[]){"KEY=VALUE", NULL});
 
-    int fd = open("/bin/true", O_RDONLY);
-    ASSERT_OK(fd);
+    int fd = ASSERT_OK(open("/bin/true", O_RDONLY));
     ASSERT_OK(dup2(fd, 100));
     ASSERT_OK(dup2(fd, 101));
     ASSERT_OK(fcntl(fd, F_DUPFD, 102));

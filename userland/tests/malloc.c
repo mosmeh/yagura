@@ -5,10 +5,8 @@ int main(void) {
     free(malloc(0));
 
     for (size_t i = 0; i < 10000; ++i) {
-        void* buf = malloc(1);
-        ASSERT(buf);
-        void* buf2 = malloc(100000);
-        ASSERT(buf2);
+        void* buf = ASSERT(malloc(1));
+        void* buf2 = ASSERT(malloc(100000));
         free(buf);
         free(buf2);
     }

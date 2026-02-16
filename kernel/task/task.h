@@ -64,10 +64,7 @@ void task_init(void);
 #define current task_get_current()
 
 static inline struct task* task_get_current(void) {
-    struct task* task =
-        (void*)arch_cpu_read(offsetof(struct cpu, current_task));
-    ASSERT(task);
-    return task;
+    return ASSERT_PTR((void*)arch_cpu_read(offsetof(struct cpu, current_task)));
 }
 
 struct task* task_create(const char* comm, void (*entry_point)(void));

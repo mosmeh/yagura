@@ -237,8 +237,9 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
         .num_virtqs = num_virtqs,
     };
 
-    unsigned char* common_cfg_space = pci_map_bar(addr, common_cfg_cap.bar);
-    if (IS_ERR(ASSERT(common_cfg_space)))
+    unsigned char* common_cfg_space =
+        ASSERT(pci_map_bar(addr, common_cfg_cap.bar));
+    if (IS_ERR(common_cfg_space))
         goto fail_discovery_common_cfg;
     volatile struct virtio_pci_common_cfg* common_cfg =
         (volatile struct virtio_pci_common_cfg*)(common_cfg_space +
@@ -254,8 +255,8 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
     uintptr_t notify_offset =
         notify_cap.cap.offset +
         common_cfg->queue_notify_off * notify_cap.notify_off_multiplier;
-    unsigned char* notify_space = pci_map_bar(addr, notify_cap.cap.bar);
-    if (IS_ERR(ASSERT(notify_space)))
+    unsigned char* notify_space = ASSERT(pci_map_bar(addr, notify_cap.cap.bar));
+    if (IS_ERR(notify_space))
         goto fail_discovery_notify;
 
     virtio->notify_space = notify_space;
@@ -315,8 +316,8 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
             goto fail_initialization;
         }
 
-        struct virtq* virtq = virtq_create(queue_size);
-        if (IS_ERR(ASSERT(virtq)))
+        struct virtq* virtq = ASSERT(virtq_create(queue_size));
+        if (IS_ERR(virtq))
             goto fail_initialization;
         virtq->index = i;
         virtq->notify = notify;

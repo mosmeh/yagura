@@ -78,8 +78,8 @@ static int copy_from_user_to_remote_vm(struct vm* vm, void* user_dest,
 }
 
 int exec_image_load(struct exec_image* image, const char* pathname) {
-    struct path* path FREE(path) = vfs_resolve_path(pathname, 0);
-    if (IS_ERR(ASSERT(path)))
+    struct path* path FREE(path) = ASSERT(vfs_resolve_path(pathname, 0));
+    if (IS_ERR(path))
         return PTR_ERR(path);
 
     struct kstat stat;
@@ -89,17 +89,17 @@ int exec_image_load(struct exec_image* image, const char* pathname) {
     if (!S_ISREG(stat.st_mode))
         return -EACCES;
 
-    struct file* file FREE(file) = inode_open(path->inode, O_RDONLY);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(inode_open(path->inode, O_RDONLY));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
-    struct vm_obj* vm_obj FREE(vm_obj) = file_mmap(file);
-    if (IS_ERR(ASSERT(vm_obj)))
+    struct vm_obj* vm_obj FREE(vm_obj) = ASSERT(file_mmap(file));
+    if (IS_ERR(vm_obj))
         return PTR_ERR(vm_obj);
 
-    void* data = vm_obj_map(vm_obj, 0, DIV_CEIL(stat.st_size, PAGE_SIZE),
-                            VM_READ | VM_WRITE);
-    if (IS_ERR(ASSERT(data)))
+    void* data = ASSERT(vm_obj_map(vm_obj, 0, DIV_CEIL(stat.st_size, PAGE_SIZE),
+                                   VM_READ | VM_WRITE));
+    if (IS_ERR(data))
         return PTR_ERR(data);
 
     exec_image_unload(image);
@@ -121,8 +121,8 @@ void exec_image_unload(struct exec_image* image) {
 }
 
 NODISCARD static int loader_init_vm(struct loader* loader) {
-    struct vm* vm FREE(vm) = vm_create(0, (void*)USER_VIRT_END);
-    if (IS_ERR(ASSERT(vm)))
+    struct vm* vm FREE(vm) = ASSERT(vm_create(0, (void*)USER_VIRT_END));
+    if (IS_ERR(vm))
         return PTR_ERR(vm);
 
     SCOPED_LOCK(vm, vm);
@@ -131,8 +131,8 @@ NODISCARD static int loader_init_vm(struct loader* loader) {
 
     size_t npages = 2 + (STACK_SIZE >> PAGE_SHIFT);
     unsigned char* guard_start = (void*)(USER_VIRT_END - npages * PAGE_SIZE);
-    struct vm_region* region = vm_alloc_at(vm, guard_start, npages);
-    if (IS_ERR(ASSERT(region)))
+    struct vm_region* region = ASSERT(vm_alloc_at(vm, guard_start, npages));
+    if (IS_ERR(region))
         return PTR_ERR(region);
 
     // Split the region into three:
@@ -145,11 +145,10 @@ NODISCARD static int loader_init_vm(struct loader* loader) {
     unsigned char* stack_base = guard_start + PAGE_SIZE;
 
     // Get the middle region, which is the stack
-    struct vm_region* stack_region = vm_find(vm, (void*)stack_base);
-    ASSERT(stack_region);
+    struct vm_region* stack_region = ASSERT_PTR(vm_find(vm, (void*)stack_base));
 
-    struct vm_obj* stack_obj FREE(vm_obj) = anon_create();
-    if (IS_ERR(ASSERT(stack_obj)))
+    struct vm_obj* stack_obj FREE(vm_obj) = ASSERT(anon_create());
+    if (IS_ERR(stack_obj))
         return PTR_ERR(stack_obj);
     vm_region_set_obj(stack_region, stack_obj, 0);
 
@@ -269,16 +268,16 @@ NODISCARD static int finalize_exec(struct loader* loader) {
     SCOPED_LOCK(task, task);
 
     if (refcount_get(&task->files->refcount) > 1) {
-        struct files* new_files = files_clone(task->files);
-        if (IS_ERR(ASSERT(new_files)))
+        struct files* new_files = ASSERT(files_clone(task->files));
+        if (IS_ERR(new_files))
             return PTR_ERR(new_files);
         files_unref(task->files);
         task->files = new_files;
     }
 
     if (refcount_get(&task->sighand->refcount) > 1) {
-        struct sighand* new_sighand = sighand_clone(task->sighand);
-        if (IS_ERR(ASSERT(new_sighand)))
+        struct sighand* new_sighand = ASSERT(sighand_clone(task->sighand));
+        if (IS_ERR(new_sighand))
             return PTR_ERR(new_sighand);
         sighand_unref(task->sighand);
         task->sighand = new_sighand;

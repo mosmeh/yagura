@@ -103,8 +103,9 @@ void fb_init(void) {
         kprintf("fb: failed to get fb info: %d\n", rc);
         return;
     }
-    vm_obj = phys_create(fb_info.phys_addr, DIV_CEIL(buf_size(), PAGE_SIZE));
-    if (IS_ERR(ASSERT(vm_obj))) {
+    vm_obj =
+        ASSERT(phys_create(fb_info.phys_addr, DIV_CEIL(buf_size(), PAGE_SIZE)));
+    if (IS_ERR(vm_obj)) {
         kprint("fb: failed to create vm object for framebuffer\n");
         return;
     }

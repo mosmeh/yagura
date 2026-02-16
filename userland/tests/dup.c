@@ -9,8 +9,7 @@ int main(void) {
     ASSERT_ERR(dup(-1));
     ASSERT(errno == EBADF);
 
-    int fd1 = dup(STDIN_FILENO);
-    ASSERT_OK(fd1);
+    int fd1 = ASSERT_OK(dup(STDIN_FILENO));
     ASSERT(fd1 != STDIN_FILENO);
 
     errno = 0;
@@ -36,12 +35,10 @@ int main(void) {
     ASSERT(fd3 == 101);
     ASSERT(fcntl(fd3, F_GETFD) & FD_CLOEXEC);
 
-    int fd4 = fcntl(fd2, F_DUPFD, 150);
-    ASSERT_OK(fd4);
+    int fd4 = ASSERT_OK(fcntl(fd2, F_DUPFD, 150));
     ASSERT(fd4 >= 150);
 
-    int fd5 = fcntl(fd2, F_DUPFD_CLOEXEC, 200);
-    ASSERT_OK(fd5);
+    int fd5 = ASSERT_OK(fcntl(fd2, F_DUPFD_CLOEXEC, 200));
     ASSERT(fd5 >= 200);
     ASSERT(fcntl(fd5, F_GETFD) & FD_CLOEXEC);
 
@@ -53,8 +50,7 @@ int main(void) {
     ASSERT(fd7 == 251);
     ASSERT(!(fcntl(fd7, F_GETFD) & FD_CLOEXEC));
 
-    int fd8 = fcntl(fd3, F_DUPFD, 252);
-    ASSERT_OK(fd8);
+    int fd8 = ASSERT_OK(fcntl(fd3, F_DUPFD, 252));
     ASSERT(!(fcntl(fd8, F_GETFD) & FD_CLOEXEC));
 
     return EXIT_SUCCESS;

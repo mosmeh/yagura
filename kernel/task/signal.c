@@ -15,16 +15,16 @@ void task_signal_init(void) {
 }
 
 struct sighand* sighand_create(void) {
-    struct sighand* sighand = slab_alloc(&sighand_slab);
-    if (IS_ERR(ASSERT(sighand)))
+    struct sighand* sighand = ASSERT(slab_alloc(&sighand_slab));
+    if (IS_ERR(sighand))
         return sighand;
     *sighand = (struct sighand){.refcount = REFCOUNT_INIT_ONE};
     return sighand;
 }
 
 struct sighand* sighand_clone(struct sighand* sighand) {
-    struct sighand* new_sighand = sighand_create();
-    if (IS_ERR(ASSERT(new_sighand)))
+    struct sighand* new_sighand = ASSERT(sighand_create());
+    if (IS_ERR(new_sighand))
         return new_sighand;
     SCOPED_LOCK(sighand, sighand);
     memcpy(new_sighand->actions, sighand->actions, sizeof(sighand->actions));

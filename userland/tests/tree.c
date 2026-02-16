@@ -81,8 +81,7 @@ static void remove_random(struct tree* tree) {
 }
 
 int main(void) {
-    struct node* nodes = malloc(NUM_NODES * sizeof(struct node));
-    ASSERT(nodes);
+    struct node* nodes = ASSERT(malloc(NUM_NODES * sizeof(struct node)));
 
     void (*test_cases[])(struct tree*) = {
         remove_first,

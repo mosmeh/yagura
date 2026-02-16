@@ -14,11 +14,9 @@ struct cpu* cpus[MAX_NUM_CPUS] = {&bsp};
 static struct mpsc* msg_pool;
 
 static void init_msg_queue(struct cpu* cpu) {
-    cpu->queued_msgs = mpsc_create(MAX_NUM_CPUS);
-    ASSERT_PTR(cpu->queued_msgs);
+    cpu->queued_msgs = ASSERT_PTR(mpsc_create(MAX_NUM_CPUS));
 
-    struct ipi_message* msg = kmalloc(sizeof(struct ipi_message));
-    ASSERT(msg);
+    struct ipi_message* msg = ASSERT_PTR(kmalloc(sizeof(struct ipi_message)));
     *msg = (struct ipi_message){0};
     ASSERT(mpsc_enqueue(msg_pool, msg));
 }
@@ -26,15 +24,13 @@ static void init_msg_queue(struct cpu* cpu) {
 struct cpu* cpu_add(void) {
     if (!msg_pool) {
         // First AP is being added
-        msg_pool = mpsc_create(MAX_NUM_CPUS);
-        ASSERT_PTR(msg_pool);
+        msg_pool = ASSERT_PTR(mpsc_create(MAX_NUM_CPUS));
         init_msg_queue(&bsp);
     }
 
     ASSERT(num_cpus < ARRAY_SIZE(cpus));
 
-    struct cpu* cpu = kmalloc(sizeof(struct cpu));
-    ASSERT(cpu);
+    struct cpu* cpu = ASSERT_PTR(kmalloc(sizeof(struct cpu)));
     *cpu = (struct cpu){
         .self = cpu,
         .id = num_cpus,

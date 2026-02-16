@@ -7,8 +7,7 @@
 
 int main(void) {
     unlink("/tmp/test-stat");
-    int fd = open("/tmp/test-stat", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    int fd = ASSERT_OK(open("/tmp/test-stat", O_CREAT | O_RDWR, 0644));
 
     ASSERT_OK(ftruncate(fd, 5));
 

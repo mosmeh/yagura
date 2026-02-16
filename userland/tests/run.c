@@ -18,8 +18,7 @@
 static const char* const default_dir = "/bin/tests";
 
 static void spawn(char* filename) {
-    pid_t pid = fork();
-    ASSERT_OK(pid);
+    pid_t pid = ASSERT_OK(fork());
     if (pid == 0) {
         char* argv[] = {filename, NULL};
         static char* const envp[] = {NULL};
@@ -36,8 +35,7 @@ static void spawn(char* filename) {
 }
 
 static void run(const char* dir_path) {
-    DIR* dir = opendir(dir_path);
-    ASSERT(dir);
+    DIR* dir = ASSERT(opendir(dir_path));
     for (;;) {
         errno = 0;
         struct dirent* dent = readdir(dir);
@@ -54,6 +52,7 @@ static void run(const char* dir_path) {
         (void)snprintf(path, sizeof(path), "%s/%s", dir_path, dent->d_name);
         spawn(path);
     }
+    closedir(dir);
 }
 
 int main(int argc, char** argv) {

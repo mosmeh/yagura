@@ -21,8 +21,8 @@ static void proc_destroy(struct inode* vfs_inode) {
 }
 
 static int proc_open(struct file* file) {
-    struct vec* vec = slab_alloc(&vec_slab);
-    if (IS_ERR(ASSERT(vec)))
+    struct vec* vec = ASSERT(slab_alloc(&vec_slab));
+    if (IS_ERR(vec))
         return PTR_ERR(vec);
     *vec = (struct vec){0};
 
@@ -106,8 +106,8 @@ static const struct file_ops entry_fops = {
 };
 
 static struct inode* alloc_inode(ino_t ino, const struct proc_entry* entry) {
-    struct proc_inode* node = slab_alloc(&proc_inode_slab);
-    if (IS_ERR(ASSERT(node)))
+    struct proc_inode* node = ASSERT(slab_alloc(&proc_inode_slab));
+    if (IS_ERR(node))
         return ERR_CAST(node);
     *node = (struct proc_inode){
         .vfs_inode = INODE_INIT,
@@ -148,8 +148,8 @@ struct inode* proc_create_inode(struct mount* mount, ino_t ino,
     if (inode)
         return TAKE_PTR(inode);
 
-    inode = alloc_inode(ino, entry);
-    if (IS_ERR(ASSERT(inode)))
+    inode = ASSERT(alloc_inode(ino, entry));
+    if (IS_ERR(inode))
         return inode;
 
     int rc = mount_commit_inode(mount, inode);
@@ -200,8 +200,8 @@ static struct mount* proc_mount(const char* source) {
     *mount = (struct mount){0};
 
     struct inode* root FREE(inode) =
-        proc_create_inode(mount, PROC_ROOT_INO, NULL);
-    if (IS_ERR(ASSERT(root)))
+        ASSERT(proc_create_inode(mount, PROC_ROOT_INO, NULL));
+    if (IS_ERR(root))
         return ERR_CAST(root);
     mount_set_root(mount, root);
 

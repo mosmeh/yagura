@@ -26,9 +26,7 @@ void sched_init_smp(void) {
         }
         char comm[SIZEOF_FIELD(struct task, comm)];
         (void)snprintf(comm, sizeof(comm), "idle/%zu", i);
-        struct task* idle = task_create(comm, do_idle);
-        ASSERT_PTR(idle);
-        cpu->idle_task = idle;
+        cpu->idle_task = ASSERT_PTR(task_create(comm, do_idle));
     }
 }
 
@@ -36,7 +34,7 @@ static _Atomic(struct task*) ready_queue;
 static struct spinlock ready_queue_lock;
 
 static void enqueue_ready(struct task* task) {
-    ASSERT(task);
+    ASSERT_PTR(task);
     ASSERT(task->state == TASK_RUNNING);
     ASSERT(!task->ready_queue_next);
     ASSERT(!task->blocked_next);
@@ -69,7 +67,7 @@ static struct task* dequeue_ready(void) {
 }
 
 void sched_register(struct task* task) {
-    ASSERT(task);
+    ASSERT_PTR(task);
     ASSERT(task->state == TASK_RUNNING);
     task_ref(task);
     ++task->thread_group->num_running_tasks;
@@ -99,7 +97,7 @@ static struct task* blocked_tasks;
 static struct spinlock blocked_tasks_lock;
 
 static void add_blocked(struct task* task) {
-    ASSERT(task);
+    ASSERT_PTR(task);
     ASSERT(!task->blocked_next);
     SCOPED_LOCK(spinlock, &blocked_tasks_lock);
     task->blocked_next = blocked_tasks;
@@ -118,7 +116,7 @@ static void unblock_tasks(void) {
         switch (it->state) {
         case TASK_UNINTERRUPTIBLE:
         case TASK_INTERRUPTIBLE: {
-            ASSERT(it->unblock);
+            ASSERT_PTR(it->unblock);
             bool interrupted =
                 it->state == TASK_INTERRUPTIBLE && !sigisemptyset(&signals);
             if (interrupted || it->unblock(it->block_data)) {
@@ -180,7 +178,7 @@ void sched_yield(void) {
 
     struct cpu* cpu = cpu_get_current();
     struct task* prev_task = cpu->current_task;
-    ASSERT(prev_task);
+    ASSERT_PTR(prev_task);
 
     unblock_tasks();
 
@@ -229,7 +227,6 @@ void sched_reschedule(struct task* task) {
 
 void sched_tick(struct registers* regs) {
     ASSERT(!arch_interrupts_enabled());
-    ASSERT(current);
 
     bool preempted_in_user_mode = arch_is_user_mode(regs);
     if (preempted_in_user_mode)
@@ -243,8 +240,7 @@ void sched_tick(struct registers* regs) {
         return;
 
     struct sigaction act;
-    int signum = signal_pop(&act);
-    ASSERT_OK(signum);
+    int signum = ASSERT_OK(signal_pop(&act));
     if (signum > 0)
         signal_handle(regs, signum, &act);
 }

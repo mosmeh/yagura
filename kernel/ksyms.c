@@ -24,8 +24,7 @@ void ksyms_init(void) {
     size_t n = 0;
     for (const char* p = ksyms_start; p < ksyms_end; ++p)
         n += *p == '\n';
-    symbols = kmalloc(n * sizeof(struct symbol));
-    ASSERT(symbols);
+    symbols = ASSERT_PTR(kmalloc(n * sizeof(struct symbol)));
 
     struct symbol* symbol = symbols;
     for (char* p = ksyms_start; p < ksyms_end; ++p, ++symbol) {

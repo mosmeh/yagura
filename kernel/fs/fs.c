@@ -26,8 +26,9 @@ static struct page* inode_get_page(struct vm_obj* obj, size_t index,
                                    bool write) {
     ASSERT(vm_obj_is_locked_by_current(obj));
     struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
-    struct page* page = filemap_ensure_page(inode->filemap, index, true);
-    if (IS_ERR(ASSERT(page)))
+    struct page* page =
+        ASSERT(filemap_ensure_page(inode->filemap, index, true));
+    if (IS_ERR(page))
         return page;
     if (write) {
         page->flags |= PAGE_DIRTY;
@@ -115,8 +116,8 @@ struct file* inode_open(struct inode* inode, int flags) {
         return ERR_PTR(-EINVAL);
     }
 
-    struct file* file FREE(file) = file_create(inode, flags);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(file_create(inode, flags));
+    if (IS_ERR(file))
         return file;
 
     switch (inode->mode & S_IFMT) {
@@ -179,8 +180,8 @@ int mount_commit_inode(struct mount* mount, struct inode* inode) {
     ASSERT(refcount_get(&inode->vm_obj.refcount) > 0);
     ASSERT(!inode->next);
 
-    struct filemap* filemap = filemap_create(inode);
-    if (IS_ERR(ASSERT(filemap)))
+    struct filemap* filemap = ASSERT(filemap_create(inode));
+    if (IS_ERR(filemap))
         return PTR_ERR(filemap);
     inode->filemap = filemap;
 
@@ -203,8 +204,9 @@ struct inode* mount_create_inode(struct mount* mount, mode_t mode) {
     if (!mount->fs->create_inode)
         return ERR_PTR(-EROFS);
 
-    struct inode* inode FREE(inode) = mount->fs->create_inode(mount, mode);
-    if (IS_ERR(ASSERT(inode)))
+    struct inode* inode FREE(inode) =
+        ASSERT(mount->fs->create_inode(mount, mode));
+    if (IS_ERR(inode))
         return inode;
 
     int rc = mount_commit_inode(mount, inode);

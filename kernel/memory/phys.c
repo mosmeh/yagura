@@ -197,8 +197,7 @@ void phys_init(void) {
         free_pages += r->pfn_end - r->pfn_start;
     }
 
-    ssize_t zero_page_pfn = page_alloc_raw();
-    ASSERT_OK(zero_page_pfn);
+    size_t zero_page_pfn = ASSERT_OK(page_alloc_raw());
     void* kaddr = kmap(zero_page_pfn << PAGE_SHIFT);
     memset(kaddr, 0, PAGE_SIZE);
     kunmap(kaddr);
@@ -228,8 +227,7 @@ void phys_init(void) {
 
         for (uintptr_t virt_addr = start_addr; virt_addr < end_addr;
              virt_addr += PAGE_SIZE) {
-            ssize_t pfn = page_alloc_raw();
-            ASSERT_OK(pfn);
+            size_t pfn = ASSERT_OK(page_alloc_raw());
             ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, pfn,
                                         VM_READ | VM_WRITE));
         }
@@ -274,8 +272,7 @@ void phys_init(void) {
 
         for (uintptr_t virt_addr = start_addr; virt_addr < end_addr;
              virt_addr += PAGE_SIZE) {
-            ssize_t pfn = page_alloc_raw();
-            ASSERT_OK(pfn);
+            size_t pfn = ASSERT_OK(page_alloc_raw());
             ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, pfn,
                                         VM_READ | VM_WRITE));
         }
@@ -428,8 +425,8 @@ struct page* pages_alloc_at(struct tree* tree, size_t index) {
             return ERR_PTR(-EEXIST);
     }
 
-    struct page* page = page_alloc();
-    if (IS_ERR(ASSERT(page)))
+    struct page* page = ASSERT(page_alloc());
+    if (IS_ERR(page))
         return page;
     page->index = index;
 

@@ -24,8 +24,7 @@ int main(void) {
         mmap(NULL, fix.smem_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     ASSERT_OK(close(fd));
     ASSERT(fb != MAP_FAILED);
-    void* buf = malloc(fix.smem_len);
-    ASSERT(buf);
+    void* buf = ASSERT(malloc(fix.smem_len));
     memcpy(buf, fb, fix.smem_len);
     memcpy(fb, buf, fix.smem_len);
     free(buf);

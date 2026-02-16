@@ -7,10 +7,10 @@
 #define UNIMPLEMENTED() PANIC("Unimplemented")
 #define ASSERT(cond)                                                           \
     __extension__({                                                            \
-        __typeof__(cond) _cond = (cond);                                       \
-        if (!_cond)                                                            \
+        __typeof__(cond) __cond = (cond);                                      \
+        if (!__cond)                                                           \
             PANIC("Assertion failed: " #cond);                                 \
-        _cond;                                                                 \
+        __cond;                                                                \
     })
 
 _Noreturn void panic(const char* file, size_t line, const char* message, ...);

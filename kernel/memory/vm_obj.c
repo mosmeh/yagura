@@ -9,9 +9,8 @@
 void __vm_obj_destroy(struct vm_obj* obj) {
     ASSERT(!obj->shared_regions);
 
-    const struct vm_ops* vm_ops = obj->vm_ops;
-    ASSERT(vm_ops);
-    ASSERT(vm_ops->destroy_obj);
+    const struct vm_ops* vm_ops = ASSERT_PTR(obj->vm_ops);
+    ASSERT_PTR(vm_ops->destroy_obj);
     vm_ops->destroy_obj(obj);
 }
 
@@ -19,8 +18,8 @@ void* vm_obj_map(struct vm_obj* obj, size_t offset, size_t npages,
                  unsigned flags) {
     SCOPED_LOCK(vm, kernel_vm);
 
-    struct vm_region* region = vm_alloc(kernel_vm, npages);
-    if (IS_ERR(ASSERT(region)))
+    struct vm_region* region = ASSERT(vm_alloc(kernel_vm, npages));
+    if (IS_ERR(region))
         return ERR_CAST(region);
 
     ASSERT_OK(vm_region_set_flags(region, 0, npages, flags, ~0));
@@ -34,8 +33,7 @@ void vm_obj_unmap(void* virt_addr) {
         return;
 
     SCOPED_LOCK(vm, kernel_vm);
-    struct vm_region* region = vm_find(kernel_vm, virt_addr);
-    ASSERT(region);
+    struct vm_region* region = ASSERT_PTR(vm_find(kernel_vm, virt_addr));
     ASSERT(ROUND_DOWN((uintptr_t)virt_addr, PAGE_SIZE) ==
            (uintptr_t)vm_region_to_virt(region));
     ASSERT_OK(vm_region_free(region, 0, region->end - region->start));
@@ -102,8 +100,8 @@ static struct page* anon_get_page(struct vm_obj* obj, size_t index,
     if (IS_ERR(rc))
         return ERR_PTR(rc);
 
-    struct page* page = page_alloc();
-    if (IS_ERR(ASSERT(page)))
+    struct page* page = ASSERT(page_alloc());
+    if (IS_ERR(page))
         return page;
     page->index = index;
     page_fill(page, 0, 0, PAGE_SIZE);
@@ -120,8 +118,8 @@ static const struct vm_ops anon_vm_ops = {
 };
 
 struct vm_obj* anon_create(void) {
-    struct anon* anon = slab_alloc(&anon_slab);
-    if (IS_ERR(ASSERT(anon)))
+    struct anon* anon = ASSERT(slab_alloc(&anon_slab));
+    if (IS_ERR(anon))
         return ERR_CAST(anon);
     *anon = (struct anon){
         .vm_obj =
@@ -169,8 +167,8 @@ struct vm_obj* phys_create(phys_addr_t phys_addr, size_t npages) {
     if (end <= start)
         return ERR_PTR(-EOVERFLOW);
 
-    struct phys* phys = slab_alloc(&phys_slab);
-    if (IS_ERR(ASSERT(phys)))
+    struct phys* phys = ASSERT(slab_alloc(&phys_slab));
+    if (IS_ERR(phys))
         return ERR_CAST(phys);
     *phys = (struct phys){
         .vm_obj =
@@ -188,12 +186,14 @@ void* phys_map(phys_addr_t phys_addr, size_t size, unsigned vm_flags) {
     phys_addr_t aligned_addr = ROUND_DOWN(phys_addr, PAGE_SIZE);
     size_t npages = DIV_CEIL(phys_addr - aligned_addr + size, PAGE_SIZE);
 
-    struct vm_obj* phys FREE(vm_obj) = phys_create(aligned_addr, npages);
-    if (IS_ERR(ASSERT(phys)))
+    struct vm_obj* phys FREE(vm_obj) =
+        ASSERT(phys_create(aligned_addr, npages));
+    if (IS_ERR(phys))
         return ERR_CAST(phys);
 
-    unsigned char* addr = vm_obj_map(phys, 0, npages, vm_flags | VM_SHARED);
-    if (IS_ERR(ASSERT(addr)))
+    unsigned char* addr =
+        ASSERT(vm_obj_map(phys, 0, npages, vm_flags | VM_SHARED));
+    if (IS_ERR(addr))
         return addr;
     return addr + (phys_addr - aligned_addr);
 }

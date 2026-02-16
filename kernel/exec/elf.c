@@ -91,13 +91,13 @@ static int load_segments(struct vm* vm, const struct exec_image* image,
             uintptr_t region_start;
             if (fixed || base_addr != INVALID_ADDR) {
                 region_start = ROUND_DOWN(vaddr, PAGE_SIZE);
-                region = vm_alloc_at(vm, (void*)region_start, npages);
-                if (IS_ERR(ASSERT(region)))
+                region = ASSERT(vm_alloc_at(vm, (void*)region_start, npages));
+                if (IS_ERR(region))
                     return PTR_ERR(region);
             } else {
                 // Let the VM choose the address
-                region = vm_alloc(vm, npages);
-                if (IS_ERR(ASSERT(region)))
+                region = ASSERT(vm_alloc(vm, npages));
+                if (IS_ERR(region))
                     return PTR_ERR(region);
                 region_start = (uintptr_t)vm_region_to_virt(region);
                 vaddr = region_start + page_offset;
@@ -145,8 +145,8 @@ static int load_segments(struct vm* vm, const struct exec_image* image,
 
             size_t npages = (zero_end - zero_start) >> PAGE_SHIFT;
             struct vm_region* region =
-                vm_alloc_at(vm, (void*)zero_start, npages);
-            if (IS_ERR(ASSERT(region)))
+                ASSERT(vm_alloc_at(vm, (void*)zero_start, npages));
+            if (IS_ERR(region))
                 return PTR_ERR(region);
 
             // Linux sets READ | WRITE | EXEC for anonymous tail pages
@@ -155,8 +155,8 @@ static int load_segments(struct vm* vm, const struct exec_image* image,
             if (IS_ERR(rc))
                 return rc;
 
-            struct vm_obj* anon FREE(vm_obj) = anon_create();
-            if (IS_ERR(ASSERT(anon)))
+            struct vm_obj* anon FREE(vm_obj) = ASSERT(anon_create());
+            if (IS_ERR(anon))
                 return PTR_ERR(anon);
             vm_region_set_obj(region, anon, 0);
         }

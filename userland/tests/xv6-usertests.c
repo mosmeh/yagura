@@ -40,8 +40,7 @@
 
 static pid_t wait_success(void) {
     int status;
-    pid_t pid = wait(&status);
-    ASSERT_OK(pid);
+    pid_t pid = ASSERT_OK(wait(&status));
     ASSERT(WIFEXITED(status));
     ASSERT(WEXITSTATUS(status) == 0);
     return pid;
@@ -73,8 +72,7 @@ static void exitiputtest(void) {
 
     printf("exitiput test\n");
 
-    pid = fork();
-    ASSERT_OK(pid);
+    pid = ASSERT_OK(fork());
     if (pid == 0) {
         ASSERT_OK(mkdir("iputdir", 0755));
         ASSERT_OK(chdir("iputdir"));
@@ -101,8 +99,7 @@ static void openiputtest(void) {
 
     printf("openiput test\n");
     ASSERT_OK(mkdir("oidir", 0755));
-    pid = fork();
-    ASSERT_OK(pid);
+    pid = ASSERT_OK(fork());
     if (pid == 0) {
         ASSERT_ERR(open("oidir", O_RDWR));
         exit(0);
@@ -119,11 +116,9 @@ static void opentest(void) {
     int fd;
 
     printf("open test\n");
-    fd = open("/bin/echo", O_RDONLY);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("/bin/echo", O_RDONLY));
     close(fd);
-    fd = open("doesnotexist", O_RDONLY);
-    ASSERT_ERR(fd);
+    ASSERT_ERR(open("doesnotexist", O_RDONLY));
     printf("open test ok\n");
 }
 
@@ -132,16 +127,14 @@ static void writetest(void) {
     int i;
 
     printf("small file test\n");
-    fd = open("small", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("small", O_CREAT | O_RDWR, 0644));
     for (i = 0; i < 100; i++) {
         ASSERT(write(fd, "aaaaaaaaaa", 10) == 10);
         ASSERT(write(fd, "bbbbbbbbbb", 10) == 10);
     }
     printf("writes ok\n");
     close(fd);
-    fd = open("small", O_RDONLY);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("small", O_RDONLY));
     i = read(fd, buf, 2000);
     ASSERT(i == 2000);
     close(fd);
@@ -157,19 +150,14 @@ static void writetest1(void) {
 
     printf("big files test\n");
 
-    fd = open("big", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
-
+    fd = ASSERT_OK(open("big", O_CREAT | O_RDWR, 0644));
     for (i = 0; i < MAXFILE; i++) {
         ((int*)buf)[0] = i;
         ASSERT(write(fd, buf, 512) == 512);
     }
-
     close(fd);
 
-    fd = open("big", O_RDONLY);
-    ASSERT_OK(fd);
-
+    fd = ASSERT_OK(open("big", O_RDONLY));
     n = 0;
     for (;;) {
         i = read(fd, buf, 512);
@@ -250,8 +238,7 @@ static void pipe1(void) {
     int total;
 
     ASSERT_OK(pipe(fds));
-    pid = fork();
-    ASSERT_OK(pid);
+    pid = ASSERT_OK(fork());
     seq = 0;
     if (pid == 0) {
         close(fds[0]);
@@ -331,8 +318,7 @@ static void exitwait(void) {
     int pid;
 
     for (i = 0; i < 100; i++) {
-        pid = fork();
-        ASSERT_OK(pid);
+        pid = ASSERT_OK(fork());
         if (pid)
             ASSERT(wait_success() == pid);
         else
@@ -390,8 +376,7 @@ static void sharedfd(void) {
     printf("sharedfd test\n");
 
     unlink("sharedfd");
-    fd = open("sharedfd", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("sharedfd", O_CREAT | O_RDWR, 0644));
     pid = fork();
     memset(buf, pid == 0 ? 'c' : 'p', sizeof(buf));
     for (i = 0; i < 1000; i++)
@@ -401,8 +386,7 @@ static void sharedfd(void) {
     else
         wait_success();
     close(fd);
-    fd = open("sharedfd", O_RDONLY);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("sharedfd", O_RDONLY));
     nc = np = 0;
     while ((n = read(fd, buf, sizeof(buf))) > 0) {
         for (i = 0; i < sizeof(buf); i++) {
@@ -436,12 +420,9 @@ static void fourfiles(void) {
         fname = names[pi];
         unlink(fname);
 
-        pid = fork();
-        ASSERT_OK(pid);
-
+        pid = ASSERT_OK(fork());
         if (pid == 0) {
-            fd = open(fname, O_CREAT | O_RDWR, 0644);
-            ASSERT_OK(fd);
+            fd = ASSERT_OK(open(fname, O_CREAT | O_RDWR, 0644));
 
             memset(buf, '0' + pi, 512);
             for (i = 0; i < 12; i++)
@@ -482,16 +463,13 @@ static void createdelete(void) {
     printf("createdelete test\n");
 
     for (pi = 0; pi < 4; pi++) {
-        pid = fork();
-        ASSERT_OK(pid);
-
+        pid = ASSERT_OK(fork());
         if (pid == 0) {
             name[0] = 'p' + pi;
             name[2] = '\0';
             for (i = 0; i < N; i++) {
                 name[1] = '0' + i;
-                fd = open(name, O_CREAT | O_RDWR, 0644);
-                ASSERT_OK(fd);
+                fd = ASSERT_OK(open(name, O_CREAT | O_RDWR, 0644));
                 close(fd);
                 if (i > 0 && (i % 2) == 0) {
                     name[1] = '0' + (i / 2);
@@ -537,13 +515,11 @@ static void unlinkread(void) {
     int fd1;
 
     printf("unlinkread test\n");
-    fd = open("unlinkread", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("unlinkread", O_CREAT | O_RDWR, 0644));
     write(fd, "hello", 5);
     close(fd);
 
-    fd = open("unlinkread", O_RDWR);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("unlinkread", O_RDWR));
     ASSERT_OK(unlink("unlinkread"));
 
     fd1 = open("unlinkread", O_CREAT | O_RDWR, 0644);
@@ -566,8 +542,7 @@ static void linktest(void) {
     unlink("lf1");
     unlink("lf2");
 
-    fd = open("lf1", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("lf1", O_CREAT | O_RDWR, 0644));
     ASSERT(write(fd, "hello", 5) == 5);
     close(fd);
 
@@ -576,8 +551,7 @@ static void linktest(void) {
 
     ASSERT_ERR(open("lf1", O_RDONLY));
 
-    fd = open("lf2", O_RDONLY);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("lf2", O_RDONLY));
     ASSERT(read(fd, buf, sizeof(buf)) == 5);
     close(fd);
 
@@ -610,8 +584,7 @@ static void concreate(void) {
         if ((pid && (i % 3) == 1) || (pid == 0 && (i % 5) == 1)) {
             link("C0", file);
         } else {
-            fd = open(file, O_CREAT | O_RDWR, 0644);
-            ASSERT_OK(fd);
+            fd = ASSERT_OK(open(file, O_CREAT | O_RDWR, 0644));
             close(fd);
         }
         if (pid == 0)
@@ -641,8 +614,7 @@ static void concreate(void) {
 
     for (i = 0; i < 40; i++) {
         file[1] = '0' + i;
-        pid = fork();
-        ASSERT_OK(pid);
+        pid = ASSERT_OK(fork());
         if (((i % 3) == 0 && pid == 0) || ((i % 3) == 1 && pid != 0)) {
             close(open(file, O_RDONLY));
             close(open(file, O_RDONLY));
@@ -671,8 +643,7 @@ static void linkunlink(void) {
 
     printf("linkunlink test\n");
 
-    pid = fork();
-    ASSERT_OK(pid);
+    pid = ASSERT_OK(fork());
 
     unsigned int x = (pid ? 1 : 97);
     for (i = 0; i < 100; i++) {
@@ -703,8 +674,7 @@ static void bigdir(void) {
     printf("bigdir test\n");
     unlink("bd");
 
-    fd = open("bd", O_CREAT, 0644);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("bd", O_CREAT, 0644));
     close(fd);
 
     for (i = 0; i < 500; i++) {
@@ -736,8 +706,7 @@ static void subdir(void) {
     unlink("ff");
     ASSERT_OK(mkdir("dd", 0755));
 
-    fd = open("dd/ff", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("dd/ff", O_CREAT | O_RDWR, 0644));
     write(fd, "ff", 2);
     close(fd);
 
@@ -745,13 +714,11 @@ static void subdir(void) {
 
     ASSERT_OK(mkdir("/dd/dd", 0755));
 
-    fd = open("dd/dd/ff", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("dd/dd/ff", O_CREAT | O_RDWR, 0644));
     write(fd, "FF", 2);
     close(fd);
 
-    fd = open("dd/dd/../ff", O_RDONLY);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("dd/dd/../ff", O_RDONLY));
     cc = read(fd, buf, sizeof(buf));
     ASSERT(cc == 2 && buf[0] == 'f');
     close(fd);
@@ -766,8 +733,7 @@ static void subdir(void) {
     ASSERT_OK(chdir("dd/../../../dd"));
     ASSERT_OK(chdir("./.."));
 
-    fd = open("dd/dd/ffff", O_RDONLY);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("dd/dd/ffff", O_RDONLY));
     ASSERT(read(fd, buf, sizeof(buf)) == 2);
     close(fd);
 
@@ -807,8 +773,7 @@ static void bigwrite(void) {
 
     unlink("bigwrite");
     for (sz = 499; sz < 12 * 512; sz += 471) {
-        fd = open("bigwrite", O_CREAT | O_RDWR, 0644);
-        ASSERT_OK(fd);
+        fd = ASSERT_OK(open("bigwrite", O_CREAT | O_RDWR, 0644));
         int i;
         for (i = 0; i < 2; i++) {
             int cc = write(fd, buf, sz);
@@ -830,20 +795,17 @@ static void bigfile(void) {
     printf("bigfile test\n");
 
     unlink("bigfile");
-    fd = open("bigfile", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("bigfile", O_CREAT | O_RDWR, 0644));
     for (i = 0; i < 20; i++) {
         memset(buf, i, 600);
         ASSERT(write(fd, buf, 600) == 600);
     }
     close(fd);
 
-    fd = open("bigfile", O_RDONLY);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("bigfile", O_RDONLY));
     total = 0;
     for (i = 0;; i++) {
-        cc = read(fd, buf, 300);
-        ASSERT_OK(cc);
+        cc = ASSERT_OK(read(fd, buf, 300));
         if (cc == 0)
             break;
         ASSERT(cc == 300);
@@ -865,11 +827,11 @@ static void fourteen(void) {
 
     ASSERT_OK(mkdir("12345678901234", 0755));
     ASSERT_OK(mkdir("12345678901234/123456789012345", 0755));
-    fd = open("12345678901234/123456789012345/123456789012345", O_CREAT, 0644);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(
+        open("12345678901234/123456789012345/123456789012345", O_CREAT, 0644));
     close(fd);
-    fd = open("12345678901234/123456789012345/123456789012345", O_RDONLY);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(
+        open("12345678901234/123456789012345/123456789012345", O_RDONLY));
     close(fd);
 
     ASSERT_ERR(mkdir("12345678901234/123456789012345", 0755));
@@ -896,21 +858,17 @@ static void dirfile(void) {
 
     printf("dir vs file\n");
 
-    fd = open("dirfile", O_CREAT, 0644);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("dirfile", O_CREAT, 0644));
     close(fd);
     ASSERT_ERR(chdir("dirfile"));
-    fd = open("dirfile/xx", O_RDONLY);
-    ASSERT_ERR(fd);
-    fd = open("dirfile/xx", O_CREAT, 0644);
-    ASSERT_ERR(fd);
+    ASSERT_ERR(open("dirfile/xx", O_RDONLY));
+    ASSERT_ERR(open("dirfile/xx", O_CREAT, 0644));
     ASSERT_ERR(mkdir("dirfile/xx", 0755));
     ASSERT_ERR(unlink("dirfile/xx"));
     ASSERT_ERR(link("README", "dirfile/xx"));
     ASSERT_OK(unlink("dirfile"));
 
-    fd = open(".", O_RDWR);
-    ASSERT_ERR(fd);
+    ASSERT_ERR(open(".", O_RDWR));
     fd = open(".", O_RDONLY);
     ASSERT_ERR(write(fd, "x", 1));
     close(fd);
@@ -989,12 +947,10 @@ static void bigargtest(void) {
     int fd;
 
     unlink("bigarg-ok");
-    pid = fork();
-    ASSERT_OK(pid);
+    pid = ASSERT_OK(fork());
     if (pid == 0) {
         size_t size = 1024;
-        char* buf = malloc(size);
-        ASSERT(buf);
+        char* buf = ASSERT(malloc(size));
         memset(buf, 'x', size - 1);
         buf[size - 1] = 0;
         static char* args[MAXARG];
@@ -1009,8 +965,7 @@ static void bigargtest(void) {
         exit(0);
     }
     wait_success();
-    fd = open("bigarg-ok", O_RDONLY);
-    ASSERT_OK(fd);
+    fd = ASSERT_OK(open("bigarg-ok", O_RDONLY));
     close(fd);
     unlink("bigarg-ok");
 }

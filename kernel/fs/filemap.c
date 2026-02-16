@@ -10,8 +10,8 @@ void filemap_init(void) {
 }
 
 struct filemap* filemap_create(struct inode* inode) {
-    struct filemap* filemap = slab_alloc(&filemap_slab);
-    if (IS_ERR(ASSERT(filemap)))
+    struct filemap* filemap = ASSERT(slab_alloc(&filemap_slab));
+    if (IS_ERR(filemap))
         return filemap;
     *filemap = (struct filemap){
         .inode = inode_ref(inode),
@@ -74,8 +74,8 @@ struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
     uint64_t byte_offset = (uint64_t)index << PAGE_SHIFT;
     if (byte_offset >= inode->size) {
         if (extend) {
-            struct page* page = page_alloc();
-            if (IS_ERR(ASSERT(page)))
+            struct page* page = ASSERT(page_alloc());
+            if (IS_ERR(page))
                 return page;
             page->index = index;
             page_fill(page, 0, 0, PAGE_SIZE);
@@ -86,8 +86,8 @@ struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
         return NULL;
     }
 
-    struct page* page = page_alloc();
-    if (IS_ERR(ASSERT(page)))
+    struct page* page = ASSERT(page_alloc());
+    if (IS_ERR(page))
         return page;
     page->index = index;
 

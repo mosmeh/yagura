@@ -24,8 +24,8 @@ NODISCARD static int lstat(const char* user_pathname, struct kstat* buf) {
 }
 
 NODISCARD static int fstat(int fd, struct kstat* buf) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     return inode_stat(file->inode, buf);
 }
@@ -186,8 +186,9 @@ long sys_fstat64(int fd, struct linux_stat64* user_buf) {
 NODISCARD static int stat_at(int dirfd, const char* user_pathname,
                              struct kstat* buf, int flags) {
     if (!user_pathname && (flags & AT_EMPTY_PATH)) {
-        struct file* file FREE(file) = files_ref_file(current->files, dirfd);
-        if (IS_ERR(ASSERT(file)))
+        struct file* file FREE(file) =
+            ASSERT(files_ref_file(current->files, dirfd));
+        if (IS_ERR(file))
             return PTR_ERR(file);
 
         return inode_stat(file->inode, buf);
@@ -199,8 +200,8 @@ NODISCARD static int stat_at(int dirfd, const char* user_pathname,
         return len;
 
     if (pathname[0]) {
-        struct path* base FREE(path) = path_from_dirfd(dirfd);
-        if (IS_ERR(ASSERT(base)))
+        struct path* base FREE(path) = ASSERT(path_from_dirfd(dirfd));
+        if (IS_ERR(base))
             return PTR_ERR(base);
 
         int vfs_flags = 0;
@@ -212,8 +213,9 @@ NODISCARD static int stat_at(int dirfd, const char* user_pathname,
     if (!(flags & AT_EMPTY_PATH))
         return -ENOENT;
 
-    struct file* file FREE(file) = files_ref_file(current->files, dirfd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) =
+        ASSERT(files_ref_file(current->files, dirfd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
     return inode_stat(file->inode, buf);

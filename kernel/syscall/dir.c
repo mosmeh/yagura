@@ -19,8 +19,8 @@ static bool set_has_children(const char* name, ino_t ino, unsigned char type,
 int ensure_directory_is_empty(struct inode* inode) {
     ASSERT(S_ISDIR(inode->mode));
 
-    struct file* file FREE(file) = inode_open(inode, O_RDONLY);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(inode_open(inode, O_RDONLY));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
     bool has_children = false;
@@ -65,8 +65,8 @@ static bool getdents_callback(const char* name, ino_t ino, unsigned char type,
 
 NODISCARD static long getdents(int fd, void* user_buf, size_t count,
                                fill_dir_fn fill_dir) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
 
     struct fill_dir_ctx ctx = {

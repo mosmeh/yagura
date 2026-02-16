@@ -12,8 +12,7 @@ int main(void) {
     ASSERT_ERR(chmod("nonexistent-file", 0755));
     ASSERT(errno == ENOENT);
 
-    int fd = open("/tmp/test-chmod", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    int fd = ASSERT_OK(open("/tmp/test-chmod", O_CREAT | O_RDWR, 0644));
 
     struct stat st;
     ASSERT_OK(fstat(fd, &st));

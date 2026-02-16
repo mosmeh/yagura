@@ -31,8 +31,8 @@ static void serial_console_echo(struct tty* tty, const char* buf,
 }
 
 static struct serial_console* serial_console_create(uint8_t index) {
-    struct serial_console* console = kmalloc(sizeof(struct serial_console));
-    ASSERT(console);
+    struct serial_console* console =
+        ASSERT_PTR(kmalloc(sizeof(struct serial_console)));
     *console = (struct serial_console){
         .index = index,
     };
@@ -52,11 +52,8 @@ static struct serial_console* serial_console_create(uint8_t index) {
 
 void serial_console_init(void) {
     for (uint8_t i = 0; i < SERIAL_NUM_PORTS; ++i) {
-        if (serial_is_port_enabled(i)) {
-            struct serial_console* console = serial_console_create(i);
-            ASSERT_PTR(console);
-            consoles[i] = console;
-        }
+        if (serial_is_port_enabled(i))
+            consoles[i] = ASSERT_PTR(serial_console_create(i));
     }
     serial_set_input_handler(on_char);
 }

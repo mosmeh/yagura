@@ -51,8 +51,8 @@ struct mount* file_system_mount(const struct file_system* fs,
                                 const char* source) {
     struct mount* mount;
     if (fs->mount) {
-        mount = fs->mount(source);
-        if (IS_ERR(ASSERT(mount)))
+        mount = ASSERT(fs->mount(source));
+        if (IS_ERR(mount))
             return mount;
     } else {
         mount = kmalloc(sizeof(struct mount));
@@ -101,8 +101,9 @@ int vfs_mount(const struct file_system* fs, const char* source,
 
 int vfs_mount_at(const struct file_system* fs, const struct path* base,
                  const char* source, const char* target) {
-    struct path* target_path FREE(path) = vfs_resolve_path_at(base, target, 0);
-    if (IS_ERR(ASSERT(target_path)))
+    struct path* target_path FREE(path) =
+        ASSERT(vfs_resolve_path_at(base, target, 0));
+    if (IS_ERR(target_path))
         return PTR_ERR(target_path);
 
     struct inode* host = target_path->inode;
@@ -113,8 +114,8 @@ int vfs_mount_at(const struct file_system* fs, const struct path* base,
     if (!mp)
         return -ENOMEM;
 
-    struct mount* mount = file_system_mount(fs, source);
-    if (IS_ERR(ASSERT(mount)))
+    struct mount* mount = ASSERT(file_system_mount(fs, source));
+    if (IS_ERR(mount))
         return PTR_ERR(mount);
     ASSERT(mount->root);
 
@@ -158,8 +159,8 @@ static struct path* follow_symlink(const struct path* parent,
     ASSERT(S_ISLNK(inode->mode));
     ASSERT(depth <= SYMLOOP_MAX);
 
-    struct file* file FREE(file) = inode_open(inode, O_RDONLY);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(inode_open(inode, O_RDONLY));
+    if (IS_ERR(file))
         return ERR_CAST(file);
 
     char target[SYMLINK_MAX];
@@ -192,7 +193,8 @@ static struct path* resolve_path_at(const struct path* base,
     } else {
         path = path_dup(base);
     }
-    if (IS_ERR(ASSERT(path)))
+    ASSERT(path);
+    if (IS_ERR(path))
         return path;
 
     char* dup_pathname FREE(kfree) = kstrdup(pathname);
@@ -219,8 +221,8 @@ static struct path* resolve_path_at(const struct path* base,
             continue;
         }
 
-        struct inode* inode FREE(inode) = inode_lookup(path->inode, component);
-        ASSERT(inode);
+        struct inode* inode FREE(inode) =
+            ASSERT(inode_lookup(path->inode, component));
 
         bool has_more_components = false;
         for (char* p = saved_ptr; p && *p; ++p) {
@@ -259,8 +261,8 @@ static struct path* resolve_path_at(const struct path* base,
                 return ERR_PTR(-ELOOP);
         }
 
-        struct path* joined = path_join(path, inode, component);
-        if (IS_ERR(ASSERT(joined)))
+        struct path* joined = ASSERT(path_join(path, inode, component));
+        if (IS_ERR(joined))
             return joined;
         path_destroy_recursive(path);
         path = joined;
@@ -284,8 +286,8 @@ static struct path* create_at(const struct path* base, const char* pathname,
     ASSERT(mode & S_IFMT);
 
     struct path* path FREE(path) =
-        vfs_resolve_path_at(base, pathname, O_ALLOW_NOENT);
-    if (IS_ERR(ASSERT(path)))
+        ASSERT(vfs_resolve_path_at(base, pathname, O_ALLOW_NOENT));
+    if (IS_ERR(path))
         return ERR_CAST(path);
 
     if (path->inode) {
@@ -300,8 +302,8 @@ static struct path* create_at(const struct path* base, const char* pathname,
         return ERR_PTR(-ENOTDIR);
 
     struct inode* new_inode FREE(inode) =
-        mount_create_inode(path->parent->inode->mount, mode);
-    if (IS_ERR(ASSERT(new_inode)))
+        ASSERT(mount_create_inode(path->parent->inode->mount, mode));
+    if (IS_ERR(new_inode))
         return ERR_CAST(new_inode);
 
     for (;;) {
@@ -314,8 +316,8 @@ static struct path* create_at(const struct path* base, const char* pathname,
             return ERR_PTR(rc);
         // Another task is linking the same file. Look up the linked file.
 
-        struct inode* inode = inode_lookup(path->parent->inode, path->basename);
-        ASSERT(inode);
+        struct inode* inode =
+            ASSERT(inode_lookup(path->parent->inode, path->basename));
         if (IS_OK(inode)) {
             path->inode = inode;
             break;
@@ -338,12 +340,13 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
     struct path* path FREE(path) =
         (flags & O_CREAT) ? create_at(base, pathname, mode, flags & O_EXCL)
                           : vfs_resolve_path_at(base, pathname, flags);
-    if (IS_ERR(ASSERT(path)))
+    ASSERT(path);
+    if (IS_ERR(path))
         return ERR_CAST(path);
 
-    ASSERT(path->inode);
-    struct file* file = inode_open(path->inode, flags);
-    if (IS_ERR(ASSERT(file)))
+    ASSERT_PTR(path->inode);
+    struct file* file = ASSERT(inode_open(path->inode, flags));
+    if (IS_ERR(file))
         return file;
 
     file->path = TAKE_PTR(path);
@@ -357,8 +360,9 @@ int vfs_stat(const char* pathname, struct kstat* buf, int flags) {
 
 int vfs_stat_at(const struct path* base, const char* pathname,
                 struct kstat* buf, int flags) {
-    struct path* path FREE(path) = vfs_resolve_path_at(base, pathname, flags);
-    if (IS_ERR(ASSERT(path)))
+    struct path* path FREE(path) =
+        ASSERT(vfs_resolve_path_at(base, pathname, flags));
+    if (IS_ERR(path))
         return PTR_ERR(path);
     ASSERT(path->inode);
     return inode_stat(path->inode, buf);
@@ -371,8 +375,8 @@ struct inode* vfs_create(const char* pathname, mode_t mode) {
 
 struct inode* vfs_create_at(const struct path* base, const char* pathname,
                             mode_t mode) {
-    struct path* path = create_at(base, pathname, mode, true);
-    if (IS_ERR(ASSERT(path)))
+    struct path* path = ASSERT(create_at(base, pathname, mode, true));
+    if (IS_ERR(path))
         return ERR_CAST(path);
     struct inode* inode = inode_ref(path->inode);
     path_destroy_recursive(path);
@@ -397,13 +401,9 @@ void vfs_init(void) {
     proc_init();
 
     kprint("vfs: mounting root filesystem\n");
-    const struct file_system* fs = file_system_find("tmpfs");
-    ASSERT(fs);
-    struct mount* mount = file_system_mount(fs, "tmpfs");
-    ASSERT_PTR(mount);
-
-    struct path* root FREE(path) = path_create_root(mount->root);
-    ASSERT_PTR(root);
+    const struct file_system* fs = ASSERT_PTR(file_system_find("tmpfs"));
+    struct mount* mount = ASSERT_PTR(file_system_mount(fs, "tmpfs"));
+    struct path* root FREE(path) = ASSERT_PTR(path_create_root(mount->root));
 
     SCOPED_LOCK(fs, current->fs);
     ASSERT_OK(fs_chroot(current->fs, root));

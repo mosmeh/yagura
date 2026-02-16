@@ -51,8 +51,7 @@ void smp_init(void) {
     }
 
     size_t ap_stack_size = STACK_SIZE * (num_cpus - 1);
-    unsigned char* ap_stack = kmalloc(ap_stack_size);
-    ASSERT(ap_stack);
+    unsigned char* ap_stack = ASSERT_PTR(kmalloc(ap_stack_size));
     ap_stack_top = ap_stack + ap_stack_size;
 
     STATIC_ASSERT(AP_TRAMPOLINE_ADDR < 0x100000);

@@ -9,8 +9,9 @@ static size_t read_all(int fd, void* buf, size_t count) {
     unsigned char* p = buf;
     size_t total = 0;
     while (total < count) {
-        ssize_t n = read(fd, p + total, count - total);
-        ASSERT_OK(n);
+        size_t n = ASSERT_OK(read(fd, p + total, count - total));
+        if (n == 0)
+            break;
         total += n;
     }
     return total;
@@ -20,9 +21,10 @@ static size_t write_all(int fd, const void* buf, size_t count) {
     const unsigned char* p = buf;
     size_t total = 0;
     while (total < count) {
-        ssize_t nwritten = write(fd, p + total, count - total);
-        ASSERT_OK(nwritten);
-        total += nwritten;
+        size_t n = ASSERT_OK(write(fd, p + total, count - total));
+        if (n == 0)
+            break;
+        total += n;
     }
     return total;
 }
@@ -39,8 +41,7 @@ int main(void) {
     ASSERT_ERR(symlink("", "/tmp/test-link"));
     ASSERT(errno == ENOENT);
 
-    int fd = open("/tmp/test-link-target", O_CREAT | O_RDWR, 0644);
-    ASSERT_OK(fd);
+    int fd = ASSERT_OK(open("/tmp/test-link-target", O_CREAT | O_RDWR, 0644));
     ASSERT(write_all(fd, "xxx", 3) == 3);
 
     ASSERT_OK(link("/tmp/test-link-target", "/tmp/test-link-hard"));
@@ -48,13 +49,11 @@ int main(void) {
 
     char buf[4];
 
-    int fd2 = open("/tmp/test-link-hard", O_RDONLY);
-    ASSERT_OK(fd2);
+    int fd2 = ASSERT_OK(open("/tmp/test-link-hard", O_RDONLY));
     ASSERT(read_all(fd2, buf, 3) == 3);
     ASSERT(memcmp(buf, "xxx", 3) == 0);
 
-    int fd3 = open("/tmp/test-link-sym", O_RDONLY);
-    ASSERT_OK(fd3);
+    int fd3 = ASSERT_OK(open("/tmp/test-link-sym", O_RDONLY));
     ASSERT(read_all(fd3, buf, 3) == 3);
     ASSERT(memcmp(buf, "xxx", 3) == 0);
 

@@ -13,8 +13,8 @@ long sys_fcntl(int fd, int cmd, unsigned long arg) {
     switch (cmd) {
     case F_DUPFD:
     case F_DUPFD_CLOEXEC: {
-        struct file* file FREE(file) = files_ref_file(files, fd);
-        if (IS_ERR(ASSERT(file)))
+        struct file* file FREE(file) = ASSERT(files_ref_file(files, fd));
+        if (IS_ERR(file))
             return PTR_ERR(file);
         if (arg >= OPEN_MAX)
             return -EINVAL;
@@ -28,14 +28,14 @@ long sys_fcntl(int fd, int cmd, unsigned long arg) {
     case F_SETFD:
         return files_set_flags(files, fd, arg);
     case F_GETFL: {
-        struct file* file FREE(file) = files_ref_file(files, fd);
-        if (IS_ERR(ASSERT(file)))
+        struct file* file FREE(file) = ASSERT(files_ref_file(files, fd));
+        if (IS_ERR(file))
             return PTR_ERR(file);
         return file->flags;
     }
     case F_SETFL: {
-        struct file* file FREE(file) = files_ref_file(files, fd);
-        if (IS_ERR(ASSERT(file)))
+        struct file* file FREE(file) = ASSERT(files_ref_file(files, fd));
+        if (IS_ERR(file))
             return PTR_ERR(file);
         file->flags = (file->flags & ~SETFL_MASK) | (arg & SETFL_MASK);
         return 0;
@@ -51,8 +51,8 @@ long sys_fcntl64(int fd, int cmd, unsigned long arg) {
 
 long sys_dup(int oldfd) {
     struct files* files = current->files;
-    struct file* file FREE(file) = files_ref_file(files, oldfd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(files, oldfd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     return files_alloc_fd(files, 0, file, 0);
 }
@@ -61,8 +61,8 @@ long sys_dup2(int oldfd, int newfd) {
     if (newfd < 0)
         return -EBADF;
     struct files* files = current->files;
-    struct file* oldfd_file FREE(file) = files_ref_file(files, oldfd);
-    if (IS_ERR(ASSERT(oldfd_file)))
+    struct file* oldfd_file FREE(file) = ASSERT(files_ref_file(files, oldfd));
+    if (IS_ERR(oldfd_file))
         return PTR_ERR(oldfd_file);
     if (oldfd == newfd)
         return oldfd;
@@ -80,8 +80,8 @@ long sys_dup3(int oldfd, int newfd, int flags) {
     if (newfd < 0)
         return -EBADF;
     struct files* files = current->files;
-    struct file* oldfd_file FREE(file) = files_ref_file(files, oldfd);
-    if (IS_ERR(ASSERT(oldfd_file)))
+    struct file* oldfd_file FREE(file) = ASSERT(files_ref_file(files, oldfd));
+    if (IS_ERR(oldfd_file))
         return PTR_ERR(oldfd_file);
     int fd_flags = 0;
     if (flags & O_CLOEXEC)
@@ -93,8 +93,8 @@ long sys_dup3(int oldfd, int newfd, int flags) {
 }
 
 long sys_ioctl(int fd, unsigned cmd, unsigned long arg) {
-    struct file* file FREE(file) = files_ref_file(current->files, fd);
-    if (IS_ERR(ASSERT(file)))
+    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    if (IS_ERR(file))
         return PTR_ERR(file);
     int rc = file_ioctl(file, cmd, arg);
     if (rc == -EINTR)
@@ -115,16 +115,18 @@ long sys_pipe2(int user_pipefd[2], int flags) {
         flags &= ~O_CLOEXEC;
     }
 
-    struct inode* pipe FREE(inode) = pipe_create();
-    if (IS_ERR(ASSERT(pipe)))
+    struct inode* pipe FREE(inode) = ASSERT(pipe_create());
+    if (IS_ERR(pipe))
         return PTR_ERR(pipe);
 
-    struct file* reader_file FREE(file) = inode_open(pipe, flags | O_RDONLY);
-    if (IS_ERR(ASSERT(reader_file)))
+    struct file* reader_file FREE(file) =
+        ASSERT(inode_open(pipe, flags | O_RDONLY));
+    if (IS_ERR(reader_file))
         return PTR_ERR(reader_file);
 
-    struct file* writer_file FREE(file) = inode_open(pipe, flags | O_WRONLY);
-    if (IS_ERR(ASSERT(writer_file)))
+    struct file* writer_file FREE(file) =
+        ASSERT(inode_open(pipe, flags | O_WRONLY));
+    if (IS_ERR(writer_file))
         return PTR_ERR(writer_file);
 
     struct files* files = current->files;

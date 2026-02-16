@@ -171,8 +171,7 @@ struct pagemap* kernel_pagemap =
 
 phys_addr_t virt_to_phys(void* virt_addr) {
     uintptr_t vaddr = (uintptr_t)virt_addr;
-    phys_addr_t pt_phys_addr = get_page_table(kernel_pagemap, vaddr);
-    ASSERT(pt_phys_addr);
+    phys_addr_t pt_phys_addr = ASSERT(get_page_table(kernel_pagemap, vaddr));
     pte_t* page_table = kmap(pt_phys_addr);
     pte_t entry = page_table[LEVEL_INDEX(vaddr, 0)];
     kunmap(page_table);

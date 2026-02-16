@@ -14,8 +14,9 @@ static size_t read_all(int fd, void* buf, size_t count) {
     unsigned char* p = buf;
     size_t total = 0;
     while (total < count) {
-        ssize_t n = read(fd, p + total, count - total);
-        ASSERT_OK(n);
+        size_t n = ASSERT_OK(read(fd, p + total, count - total));
+        if (n == 0)
+            break;
         total += n;
     }
     return total;
@@ -25,9 +26,10 @@ static size_t write_all(int fd, const void* buf, size_t count) {
     const unsigned char* p = buf;
     size_t total = 0;
     while (total < count) {
-        ssize_t nwritten = write(fd, p + total, count - total);
-        ASSERT_OK(nwritten);
-        total += nwritten;
+        size_t n = ASSERT_OK(write(fd, p + total, count - total));
+        if (n == 0)
+            break;
+        total += n;
     }
     return total;
 }
@@ -35,8 +37,7 @@ static size_t write_all(int fd, const void* buf, size_t count) {
 static struct sockaddr_un addr = {AF_UNIX, ""};
 
 static _Noreturn void receiver(bool shut_rd) {
-    int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    ASSERT_OK(sockfd);
+    int sockfd = ASSERT_OK(socket(AF_UNIX, SOCK_STREAM, 0));
     ASSERT_OK(connect(sockfd, (const struct sockaddr*)&addr,
                       sizeof(struct sockaddr_un)));
 
@@ -82,12 +83,10 @@ int main(void) {
     struct sockaddr_un addr2 = {AF_UNIX, "/tmp/test-socket2"};
     struct sockaddr_un addr3 = {AF_UNIX, "/tmp/test-socket3"};
 
-    int sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    ASSERT_OK(sockfd);
+    int sockfd = ASSERT_OK(socket(AF_UNIX, SOCK_STREAM, 0));
 
-    int sockfd2 =
-        socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
-    ASSERT_OK(sockfd2);
+    int sockfd2 = ASSERT_OK(
+        socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0));
     ASSERT(fcntl(sockfd2, F_GETFL) & O_NONBLOCK);
     ASSERT(fcntl(sockfd2, F_GETFD) & FD_CLOEXEC);
     ASSERT_OK(bind(sockfd2, (const struct sockaddr*)&addr2,
@@ -136,19 +135,15 @@ int main(void) {
     ASSERT_ERR(write(sockfd, &c, 1));
     ASSERT(errno == ENOTCONN);
 
-    pid_t pid1 = fork();
-    ASSERT_OK(pid1);
+    pid_t pid1 = ASSERT_OK(fork());
     if (pid1 == 0)
         receiver(false);
-    int peer_fd1 = accept(sockfd, NULL, NULL);
-    ASSERT_OK(peer_fd1);
+    int peer_fd1 = ASSERT_OK(accept(sockfd, NULL, NULL));
 
-    pid_t pid2 = fork();
-    ASSERT_OK(pid2);
+    pid_t pid2 = ASSERT_OK(fork());
     if (pid2 == 0)
         receiver(true);
-    int peer_fd2 = accept(sockfd, NULL, NULL);
-    ASSERT_OK(peer_fd2);
+    int peer_fd2 = ASSERT_OK(accept(sockfd, NULL, NULL));
 
     ASSERT_OK(shutdown(peer_fd1, SHUT_RD));
     ASSERT(read(peer_fd1, &c, 1) == 0);
