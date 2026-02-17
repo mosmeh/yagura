@@ -1,5 +1,6 @@
 #include <kernel/api/err.h>
 #include <kernel/arch/x86/memory/page_fault.h>
+#include <kernel/arch/x86/smap.h>
 #include <kernel/arch/x86/task/context.h>
 #include <kernel/cpu.h>
 #include <kernel/memory/memory.h>
@@ -17,23 +18,13 @@ static bool is_canonical_addr(const void* addr) {
 #endif
 }
 
-static void begin_user_access(void) {
-    if (cpu_has_feature(cpu_get_bsp(), X86_FEATURE_SMAP))
-        __asm__ volatile("stac" ::: "memory");
-}
-
-static void end_user_access(void) {
-    if (cpu_has_feature(cpu_get_bsp(), X86_FEATURE_SMAP))
-        __asm__ volatile("clac" ::: "memory");
-}
-
 NOINLINE int safe_memcpy(void* dest, const void* src, size_t n) {
     if (!is_canonical_addr(dest) || !is_canonical_addr(src))
         return -EFAULT;
 
     size_t remainder;
 
-    begin_user_access();
+    smap_begin_user_access();
     __asm__ volatile(".globl safe_memcpy_copy\n"
                      "safe_memcpy_copy:\n"
                      "rep movsb\n"
@@ -42,7 +33,7 @@ NOINLINE int safe_memcpy(void* dest, const void* src, size_t n) {
                      : "=c"(remainder)
                      : "S"(src), "D"(dest), "c"(n)
                      : "memory");
-    end_user_access();
+    smap_end_user_access();
 
     return remainder == 0 ? 0 : -EFAULT;
 }
@@ -53,7 +44,7 @@ NOINLINE int safe_memset(void* s, unsigned char c, size_t n) {
 
     size_t remainder;
 
-    begin_user_access();
+    smap_begin_user_access();
     __asm__ volatile(".globl safe_memset_write\n"
                      "safe_memset_write:\n"
                      "rep stosb\n"
@@ -62,7 +53,7 @@ NOINLINE int safe_memset(void* s, unsigned char c, size_t n) {
                      : "=c"(remainder)
                      : "D"(s), "a"(c), "c"(n)
                      : "memory");
-    end_user_access();
+    smap_end_user_access();
 
     return remainder == 0 ? 0 : -EFAULT;
 }
@@ -73,7 +64,7 @@ NOINLINE ssize_t safe_strnlen(const char* str, size_t n) {
 
     ssize_t count = 0;
 
-    begin_user_access();
+    smap_begin_user_access();
     __asm__ volatile("1:\n"
                      "test %[n], %[n]\n"
                      "je 2f\n"
@@ -90,7 +81,7 @@ NOINLINE ssize_t safe_strnlen(const char* str, size_t n) {
                      "2:\n"
                      : "=c"(count)
                      : [str] "b"(str), [count] "c"(count), [n] "d"(n));
-    end_user_access();
+    smap_end_user_access();
 
     if (count < 0)
         return -EFAULT;
@@ -106,7 +97,7 @@ NOINLINE ssize_t safe_strncpy(char* dest, const char* src, size_t n) {
 
     ssize_t count = 0;
 
-    begin_user_access();
+    smap_begin_user_access();
     __asm__ volatile(
         "1:\n"
         ".globl safe_strncpy_read\n"
@@ -128,7 +119,7 @@ NOINLINE ssize_t safe_strncpy(char* dest, const char* src, size_t n) {
         : "=c"(count)
         : [dest] "D"(dest), [src] "S"(src), [n] "a"(n), [count] "c"(0L)
         : "ebx", "memory");
-    end_user_access();
+    smap_end_user_access();
 
     if (count < 0)
         return -EFAULT;

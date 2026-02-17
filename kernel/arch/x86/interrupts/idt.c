@@ -2,6 +2,7 @@
 #include <kernel/arch/x86/interrupts/interrupts.h>
 #include <kernel/arch/x86/interrupts/isr_stubs.h>
 #include <kernel/arch/x86/memory/page_fault.h>
+#include <kernel/arch/x86/smap.h>
 #include <kernel/arch/x86/task/context.h>
 #include <kernel/cpu.h>
 #include <kernel/interrupts.h>
@@ -50,6 +51,10 @@ void arch_interrupts_set_handler(uint8_t num, interrupt_handler_fn handler) {
 }
 
 void isr_handler(struct registers* regs) {
+    // We may have been interrupted while we were in the middle of accessing
+    // user memory with AC flag set for SMAP.
+    smap_end_user_access();
+
     unsigned long interrupt_num = regs->interrupt_num;
     ASSERT(interrupt_num < NUM_IDT_ENTRIES);
     ASSERT(!arch_interrupts_enabled());
