@@ -9,14 +9,14 @@
 bool x86_handle_page_fault(struct registers* regs, void* addr) {
     unsigned long error_code = regs->error_code;
     if (error_code & X86_PF_RSVD) {
-        kprintf("Reserved bit violation at 0x%p\n", addr);
+        kprintf("page_fault: reserved bit violation at 0x%p\n", addr);
         return false;
     }
 
     if (is_user_address(addr) && !(error_code & X86_PF_USER) &&
         cpu_has_feature(cpu_get_current(), X86_FEATURE_SMAP) &&
         !(regs->flags & X86_EFLAGS_AC)) {
-        kprintf("SMAP violation at 0x%p\n", addr);
+        kprintf("page_fault: SMAP violation at 0x%p\n", addr);
         return false;
     }
 
@@ -37,7 +37,7 @@ bool x86_handle_page_fault(struct registers* regs, void* addr) {
     if (safe_string_handle_page_fault(regs, error_code))
         return true;
 
-    kprintf("Page fault (%s%s%s%s) at 0x%p\n",
+    kprintf("page_fault: %s%s%s%s at 0x%p\n",
             error_code & X86_PF_PROT ? "page-protection " : "non-present ",
             error_code & X86_PF_WRITE ? "write " : "read ",
             error_code & X86_PF_USER ? "user-mode " : "kernel-mode ",

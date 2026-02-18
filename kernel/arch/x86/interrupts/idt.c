@@ -134,7 +134,7 @@ static _Noreturn void crash(const struct registers* regs, int signum) {
 
 #define DEFINE_EXCEPTION(num, msg, signum)                                     \
     static void handle_exception##num(struct registers* regs) {                \
-        kprint("Exception: " msg "\n");                                        \
+        kprint("exception: " msg "\n");                                        \
         crash(regs, signum);                                                   \
     }
 

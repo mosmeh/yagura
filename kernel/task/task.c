@@ -254,7 +254,8 @@ void task_terminate(int signum) {
 }
 
 void task_crash(int signum) {
-    kprintf("Task crashed: tid=%d signal=%d\n", current->tid, signum);
+    kprintf("task: %s (tid=%d) crashed with signal %d\n", current->comm,
+            current->tid, signum);
     task_terminate(signum);
 }
 
