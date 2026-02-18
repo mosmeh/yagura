@@ -5,31 +5,19 @@
 #include <unistd.h>
 
 int main(void) {
-    errno = 0;
-    ASSERT_ERR(dup(-1));
-    ASSERT(errno == EBADF);
+    ASSERT_ERRNO(dup(-1), EBADF);
 
     int fd1 = ASSERT_OK(dup(STDIN_FILENO));
     ASSERT(fd1 != STDIN_FILENO);
 
-    errno = 0;
-    ASSERT_ERR(dup2(-1, 100));
-    ASSERT(errno == EBADF);
+    ASSERT_ERRNO(dup2(-1, 100), EBADF);
 
     int fd2 = dup2(STDIN_FILENO, 100);
     ASSERT(fd2 == 100);
 
-    errno = 0;
-    ASSERT_ERR(dup2(STDIN_FILENO, -1));
-    ASSERT(errno == EBADF);
-
-    errno = 0;
-    ASSERT_ERR(dup3(-1, 101, 0));
-    ASSERT(errno == EBADF);
-
-    errno = 0;
-    ASSERT_ERR(dup3(STDIN_FILENO, -1, 0));
-    ASSERT(errno == EBADF);
+    ASSERT_ERRNO(dup2(STDIN_FILENO, -1), EBADF);
+    ASSERT_ERRNO(dup3(-1, 101, 0), EBADF);
+    ASSERT_ERRNO(dup3(STDIN_FILENO, -1, 0), EBADF);
 
     int fd3 = dup3(STDIN_FILENO, 101, O_CLOEXEC);
     ASSERT(fd3 == 101);

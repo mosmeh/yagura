@@ -27,24 +27,14 @@ int main(int argc, char** argv) {
         ASSERT_OK(close(101));
         ASSERT_OK(close(102));
 
-        errno = 0;
-        ASSERT_ERR(close(103));
-        ASSERT(errno == EBADF);
-
-        errno = 0;
-        ASSERT_ERR(close(104));
-        ASSERT(errno == EBADF);
-
-        errno = 0;
-        ASSERT_ERR(close(105));
-        ASSERT(errno == EBADF);
+        ASSERT_ERRNO(close(103), EBADF);
+        ASSERT_ERRNO(close(104), EBADF);
+        ASSERT_ERRNO(close(105), EBADF);
 
         return EXIT_SUCCESS;
     }
 
-    errno = 0;
-    ASSERT_ERR(execve(NULL, NULL, NULL));
-    ASSERT(errno == EFAULT);
+    ASSERT_ERRNO(execve(NULL, NULL, NULL), EFAULT);
 
     spawn(argv[0], NULL, NULL);
     spawn(argv[0], (char*[]){NULL}, NULL);

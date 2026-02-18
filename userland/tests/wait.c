@@ -26,13 +26,8 @@ int main(void) {
     ASSERT(WIFEXITED(status));
     ASSERT(WEXITSTATUS(status) == 42);
 
-    errno = 0;
-    ASSERT_ERR(waitpid(-1, NULL, WNOHANG));
-    ASSERT(errno == ECHILD);
-
-    errno = 0;
-    ASSERT_ERR(waitpid(-1, NULL, 0));
-    ASSERT(errno == ECHILD);
+    ASSERT_ERRNO(waitpid(-1, NULL, WNOHANG), ECHILD);
+    ASSERT_ERRNO(waitpid(-1, NULL, 0), ECHILD);
 
     pid = ASSERT_OK(fork());
     if (pid == 0)

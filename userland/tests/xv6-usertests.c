@@ -101,7 +101,7 @@ static void openiputtest(void) {
     ASSERT_OK(mkdir("oidir", 0755));
     pid = ASSERT_OK(fork());
     if (pid == 0) {
-        ASSERT_ERR(open("oidir", O_RDWR));
+        ASSERT_ERRNO(open("oidir", O_RDWR), EISDIR);
         exit(0);
     }
     sleep(1);
@@ -118,7 +118,7 @@ static void opentest(void) {
     printf("open test\n");
     fd = ASSERT_OK(open("/bin/echo", O_RDONLY));
     close(fd);
-    ASSERT_ERR(open("doesnotexist", O_RDONLY));
+    ASSERT_ERRNO(open("doesnotexist", O_RDONLY), ENOENT);
     printf("open test ok\n");
 }
 
@@ -549,18 +549,18 @@ static void linktest(void) {
     ASSERT_OK(link("lf1", "lf2"));
     unlink("lf1");
 
-    ASSERT_ERR(open("lf1", O_RDONLY));
+    ASSERT_ERRNO(open("lf1", O_RDONLY), ENOENT);
 
     fd = ASSERT_OK(open("lf2", O_RDONLY));
     ASSERT(read(fd, buf, sizeof(buf)) == 5);
     close(fd);
 
-    ASSERT_ERR(link("lf2", "lf2"));
+    ASSERT_ERRNO(link("lf2", "lf2"), EEXIST);
 
     unlink("lf2");
-    ASSERT_ERR(link("lf2", "lf1"));
+    ASSERT_ERRNO(link("lf2", "lf1"), ENOENT);
 
-    ASSERT_ERR(link(".", "lf1"));
+    ASSERT_ERRNO(link(".", "lf1"), EPERM);
 
     printf("linktest ok\n");
 }
@@ -710,7 +710,7 @@ static void subdir(void) {
     write(fd, "ff", 2);
     close(fd);
 
-    ASSERT_ERR(unlink("dd"));
+    ASSERT_ERRNO(unlink("dd"), EISDIR);
 
     ASSERT_OK(mkdir("/dd/dd", 0755));
 
@@ -726,7 +726,7 @@ static void subdir(void) {
     ASSERT_OK(link("dd/dd/ff", "dd/dd/ffff"));
 
     ASSERT_OK(unlink("dd/dd/ff"));
-    ASSERT_ERR(open("dd/dd/ff", O_RDONLY));
+    ASSERT_ERRNO(open("dd/dd/ff", O_RDONLY), ENOENT);
 
     ASSERT_OK(chdir("dd"));
     ASSERT_OK(chdir("dd/../../dd"));
@@ -737,27 +737,27 @@ static void subdir(void) {
     ASSERT(read(fd, buf, sizeof(buf)) == 2);
     close(fd);
 
-    ASSERT_ERR(open("dd/dd/ff", O_RDONLY));
+    ASSERT_ERRNO(open("dd/dd/ff", O_RDONLY), ENOENT);
 
-    ASSERT_ERR(open("dd/ff/ff", O_CREAT | O_RDWR, 0644));
-    ASSERT_ERR(open("dd/xx/ff", O_CREAT | O_RDWR, 0644));
-    ASSERT_ERR(open("dd", O_CREAT | O_EXCL, 0644));
-    ASSERT_ERR(open("dd", O_RDWR));
-    ASSERT_ERR(open("dd", O_WRONLY));
-    ASSERT_ERR(link("dd/ff/ff", "dd/dd/xx"));
-    ASSERT_ERR(link("dd/xx/ff", "dd/dd/xx"));
-    ASSERT_ERR(link("dd/ff", "dd/dd/ffff"));
-    ASSERT_ERR(mkdir("dd/ff/ff", 0755));
-    ASSERT_ERR(mkdir("dd/xx/ff", 0755));
-    ASSERT_ERR(mkdir("dd/dd/ffff", 0755));
-    ASSERT_ERR(unlink("dd/xx/ff"));
-    ASSERT_ERR(unlink("dd/ff/ff"));
-    ASSERT_ERR(chdir("dd/ff"));
-    ASSERT_ERR(chdir("dd/xx"));
+    ASSERT_ERRNO(open("dd/ff/ff", O_CREAT | O_RDWR, 0644), ENOTDIR);
+    ASSERT_ERRNO(open("dd/xx/ff", O_CREAT | O_RDWR, 0644), ENOENT);
+    ASSERT_ERRNO(open("dd", O_CREAT | O_EXCL, 0644), EEXIST);
+    ASSERT_ERRNO(open("dd", O_RDWR), EISDIR);
+    ASSERT_ERRNO(open("dd", O_WRONLY), EISDIR);
+    ASSERT_ERRNO(link("dd/ff/ff", "dd/dd/xx"), ENOTDIR);
+    ASSERT_ERRNO(link("dd/xx/ff", "dd/dd/xx"), ENOENT);
+    ASSERT_ERRNO(link("dd/ff", "dd/dd/ffff"), EEXIST);
+    ASSERT_ERRNO(mkdir("dd/ff/ff", 0755), ENOTDIR);
+    ASSERT_ERRNO(mkdir("dd/xx/ff", 0755), ENOENT);
+    ASSERT_ERRNO(mkdir("dd/dd/ffff", 0755), EEXIST);
+    ASSERT_ERRNO(unlink("dd/xx/ff"), ENOENT);
+    ASSERT_ERRNO(unlink("dd/ff/ff"), ENOTDIR);
+    ASSERT_ERRNO(chdir("dd/ff"), ENOTDIR);
+    ASSERT_ERRNO(chdir("dd/xx"), ENOENT);
 
     ASSERT_OK(unlink("dd/dd/ffff"));
     ASSERT_OK(unlink("dd/ff"));
-    ASSERT_ERR(rmdir("dd"));
+    ASSERT_ERRNO(rmdir("dd"), ENOTEMPTY);
     ASSERT_OK(rmdir("dd/dd"));
     ASSERT_OK(rmdir("dd"));
 
@@ -834,8 +834,8 @@ static void fourteen(void) {
         open("12345678901234/123456789012345/123456789012345", O_RDONLY));
     close(fd);
 
-    ASSERT_ERR(mkdir("12345678901234/123456789012345", 0755));
-    ASSERT_ERR(mkdir("123456789012345/12345678901234", 0755));
+    ASSERT_ERRNO(mkdir("12345678901234/123456789012345", 0755), EEXIST);
+    ASSERT_ERRNO(mkdir("123456789012345/12345678901234", 0755), ENOENT);
 
     printf("fourteen ok\n");
 }
@@ -844,11 +844,11 @@ static void rmdot(void) {
     printf("rmdot test\n");
     ASSERT_OK(mkdir("dots", 0755));
     ASSERT_OK(chdir("dots"));
-    // TODO: ASSERT_ERR(rmdir("."));
-    // TODO: ASSERT_ERR(rmdir(".."));
+    // TODO: ASSERT_ERRNO(rmdir("."), EINVAL);
+    // TODO: ASSERT_ERRNO(rmdir(".."), ENOTEMPTY);
     ASSERT_OK(chdir("/"));
-    // TODO: ASSERT_ERR(rmdir("dots/."));
-    // TODO: ASSERT_ERR(rmdir("dots/.."));
+    // TODO: ASSERT_ERRNO(rmdir("dots/."), ENOENT);
+    // TODO: ASSERT_ERRNO(rmdir("dots/.."),ENOENT);
     ASSERT_OK(rmdir("dots"));
     printf("rmdot ok\n");
 }
@@ -860,17 +860,17 @@ static void dirfile(void) {
 
     fd = ASSERT_OK(open("dirfile", O_CREAT, 0644));
     close(fd);
-    ASSERT_ERR(chdir("dirfile"));
-    ASSERT_ERR(open("dirfile/xx", O_RDONLY));
-    ASSERT_ERR(open("dirfile/xx", O_CREAT, 0644));
-    ASSERT_ERR(mkdir("dirfile/xx", 0755));
-    ASSERT_ERR(unlink("dirfile/xx"));
-    ASSERT_ERR(link("README", "dirfile/xx"));
+    ASSERT_ERRNO(chdir("dirfile"), ENOTDIR);
+    ASSERT_ERRNO(open("dirfile/xx", O_RDONLY), ENOTDIR);
+    ASSERT_ERRNO(open("dirfile/xx", O_CREAT, 0644), ENOTDIR);
+    ASSERT_ERRNO(mkdir("dirfile/xx", 0755), ENOTDIR);
+    ASSERT_ERRNO(unlink("dirfile/xx"), ENOTDIR);
+    ASSERT_ERRNO(link("README", "dirfile/xx"), ENOENT);
     ASSERT_OK(unlink("dirfile"));
 
-    ASSERT_ERR(open(".", O_RDWR));
+    ASSERT_ERRNO(open(".", O_RDWR), EISDIR);
     fd = open(".", O_RDONLY);
-    ASSERT_ERR(write(fd, "x", 1));
+    ASSERT_ERRNO(write(fd, "x", 1), EBADF);
     close(fd);
 
     printf("dir vs file OK\n");
@@ -923,7 +923,7 @@ static void forktest(void) {
     for (; n > 0; n--)
         ASSERT_OK(wait_success());
 
-    ASSERT_ERR(wait(NULL));
+    ASSERT_ERRNO(wait(NULL), ECHILD);
 
     printf("fork test OK\n");
 }

@@ -21,4 +21,14 @@
         __result;                                                              \
     })
 
+#define ASSERT_ERRNO(result, expected_errno)                                   \
+    __extension__({                                                            \
+        errno = 0;                                                             \
+        __typeof__(result) __result = ASSERT_ERR(result);                      \
+        if (errno != (expected_errno))                                         \
+            PANIC("Unexpected errno: " #result " returned %s, expected %s",    \
+                  strerrorname_np(errno), strerrorname_np(expected_errno));    \
+        __result;                                                              \
+    })
+
 const char* strerrorname_np(int errnum);

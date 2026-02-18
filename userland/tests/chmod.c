@@ -8,9 +8,7 @@
 int main(void) {
     unlink("/tmp/test-chmod");
 
-    errno = 0;
-    ASSERT_ERR(chmod("nonexistent-file", 0755));
-    ASSERT(errno == ENOENT);
+    ASSERT_ERRNO(chmod("nonexistent-file", 0755), ENOENT);
 
     int fd = ASSERT_OK(open("/tmp/test-chmod", O_CREAT | O_RDWR, 0644));
 

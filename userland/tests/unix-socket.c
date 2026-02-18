@@ -41,10 +41,9 @@ static _Noreturn void receiver(bool shut_rd) {
     ASSERT_OK(connect(sockfd, (const struct sockaddr*)&addr,
                       sizeof(struct sockaddr_un)));
 
-    errno = 0;
-    ASSERT_ERR(connect(sockfd, (const struct sockaddr*)&addr,
-                       sizeof(struct sockaddr_un)));
-    ASSERT(errno == EISCONN);
+    ASSERT_ERRNO(connect(sockfd, (const struct sockaddr*)&addr,
+                         sizeof(struct sockaddr_un)),
+                 EISCONN);
 
     ASSERT_OK(shutdown(sockfd, SHUT_WR));
 
@@ -93,47 +92,30 @@ int main(void) {
                    sizeof(struct sockaddr_un)));
     ASSERT_OK(listen(sockfd2, 1));
 
-    errno = 0;
-    ASSERT_ERR(listen(sockfd, 1));
-    ASSERT(errno == EINVAL);
-
-    errno = 0;
-    ASSERT_ERR(accept(sockfd, NULL, NULL));
-    ASSERT(errno == EINVAL);
+    ASSERT_ERRNO(listen(sockfd, 1), EINVAL);
+    ASSERT_ERRNO(accept(sockfd, NULL, NULL), EINVAL);
 
     ASSERT_OK(bind(sockfd, (const struct sockaddr*)&addr,
                    sizeof(struct sockaddr_un)));
 
-    errno = 0;
-    ASSERT_ERR(bind(sockfd, (const struct sockaddr*)&addr,
-                    sizeof(struct sockaddr_un)));
-    ASSERT(errno == EADDRINUSE);
-
-    errno = 0;
-    ASSERT_ERR(bind(sockfd, (const struct sockaddr*)&addr3,
-                    sizeof(struct sockaddr_un)));
-    ASSERT(errno == EINVAL);
-
-    errno = 0;
-    ASSERT_ERR(accept(sockfd, NULL, NULL));
-    ASSERT(errno == EINVAL);
+    ASSERT_ERRNO(
+        bind(sockfd, (const struct sockaddr*)&addr, sizeof(struct sockaddr_un)),
+        EADDRINUSE);
+    ASSERT_ERRNO(bind(sockfd, (const struct sockaddr*)&addr3,
+                      sizeof(struct sockaddr_un)),
+                 EINVAL);
+    ASSERT_ERRNO(accept(sockfd, NULL, NULL), EINVAL);
 
     ASSERT_OK(listen(sockfd, 1));
     ASSERT_OK(listen(sockfd, 2));
 
-    errno = 0;
-    ASSERT_ERR(connect(sockfd, (const struct sockaddr*)&addr2,
-                       sizeof(struct sockaddr_un)));
-    ASSERT(errno == EINVAL);
-
-    errno = 0;
-    ASSERT_ERR(read(sockfd, "x", 1));
-    ASSERT(errno == EINVAL);
+    ASSERT_ERRNO(connect(sockfd, (const struct sockaddr*)&addr2,
+                         sizeof(struct sockaddr_un)),
+                 EINVAL);
+    ASSERT_ERRNO(read(sockfd, "x", 1), EINVAL);
 
     char c = 'x';
-    errno = 0;
-    ASSERT_ERR(write(sockfd, &c, 1));
-    ASSERT(errno == ENOTCONN);
+    ASSERT_ERRNO(write(sockfd, &c, 1), ENOTCONN);
 
     pid_t pid1 = ASSERT_OK(fork());
     if (pid1 == 0)

@@ -23,9 +23,7 @@ int main(void) {
     ASSERT_OK(fstatat(fd, NULL, &st, AT_EMPTY_PATH));
     ASSERT(st.st_size == 5);
 
-    errno = 0;
-    ASSERT_ERR(fstatat(fd, "", &st, 0));
-    ASSERT(errno == ENOENT);
+    ASSERT_ERRNO(fstatat(fd, "", &st, 0), ENOENT);
 
     struct statx stx;
     ASSERT_OK(statx(fd, "", AT_EMPTY_PATH, STATX_BASIC_STATS, &stx));
@@ -35,9 +33,7 @@ int main(void) {
     ASSERT_OK(statx(fd, NULL, AT_EMPTY_PATH, STATX_BASIC_STATS, &stx));
     ASSERT(stx.stx_size == 5);
 
-    errno = 0;
-    ASSERT_ERR(statx(fd, "", 0, STATX_BASIC_STATS, &stx));
-    ASSERT(errno == ENOENT);
+    ASSERT_ERRNO(statx(fd, "", 0, STATX_BASIC_STATS, &stx), ENOENT);
 
     ASSERT_OK(close(fd));
 

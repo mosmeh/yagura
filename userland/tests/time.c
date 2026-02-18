@@ -15,9 +15,7 @@ int main(void) {
     struct timezone tz;
     tz.tz_minuteswest = 60 * 16;
     tz.tz_dsttime = original_tz.tz_dsttime;
-    errno = 0;
-    ASSERT_ERR(settimeofday(NULL, &tz));
-    ASSERT(errno == EINVAL);
+    ASSERT_ERRNO(settimeofday(NULL, &tz), EINVAL);
 
     tz.tz_minuteswest = 60;
     tz.tz_dsttime = 1;

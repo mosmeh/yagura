@@ -8,9 +8,7 @@
 int main(void) {
     unlink("/tmp/test-chown");
 
-    errno = 0;
-    ASSERT_ERR(chown("nonexistent-file", 1000, 1000));
-    ASSERT(errno == ENOENT);
+    ASSERT_ERRNO(chown("nonexistent-file", 1000, 1000), ENOENT);
 
     int fd = ASSERT_OK(open("/tmp/test-chown", O_CREAT | O_RDWR, 0644));
 

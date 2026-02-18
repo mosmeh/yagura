@@ -11,17 +11,13 @@ int main(void) {
 
     ASSERT_OK(mkdir("/tmp/test-open", 0755));
 
-    ASSERT_ERR(open("/tmp/test-open/foo", 0));
-    ASSERT(errno == ENOENT);
+    ASSERT_ERRNO(open("/tmp/test-open/foo", 0), ENOENT);
 
     ASSERT_OK(open("/tmp/test-open/foo", O_CREAT | O_EXCL, 0644));
     ASSERT_OK(open("/tmp/test-open/foo", O_CREAT, 0644));
 
-    ASSERT_ERR(open("/tmp/test-open/foo", O_CREAT | O_EXCL, 0644));
-    ASSERT(errno == EEXIST);
-
-    ASSERT_ERR(open("/tmp/test-open/foo/bar", 0));
-    ASSERT(errno == ENOTDIR);
+    ASSERT_ERRNO(open("/tmp/test-open/foo", O_CREAT | O_EXCL, 0644), EEXIST);
+    ASSERT_ERRNO(open("/tmp/test-open/foo/bar", 0), ENOTDIR);
 
     int fd = ASSERT_OK(open("/tmp/test-open/foo", O_RDONLY | O_CLOEXEC));
     int flags = ASSERT_OK(fcntl(fd, F_GETFL));

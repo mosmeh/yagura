@@ -64,21 +64,13 @@ int main(void) {
     {
         int fd = ASSERT_OK(open("/tmp/test-read-write", O_WRONLY));
         ASSERT(write(fd, "x", 1) == 1);
-
         char x;
-        errno = 0;
-        ASSERT_ERR(read(fd, &x, 1));
-        ASSERT(errno == EBADF);
-
+        ASSERT_ERRNO(read(fd, &x, 1), EBADF);
         ASSERT_OK(close(fd));
     }
     {
         int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDONLY));
-
-        errno = 0;
-        ASSERT_ERR(write(fd, "x", 1));
-        ASSERT(errno == EBADF);
-
+        ASSERT_ERRNO(write(fd, "x", 1), EBADF);
         char x;
         ASSERT(read(fd, &x, 1) == 1);
         ASSERT_OK(close(fd));
@@ -86,45 +78,26 @@ int main(void) {
     {
         ASSERT_OK(mkdir("/tmp/test-read-write-dir", 0755));
         int fd = ASSERT_OK(open("/tmp/test-read-write-dir", O_RDONLY));
-
-        errno = 0;
-        ASSERT_ERR(read(fd, NULL, 100));
-        ASSERT(errno == EISDIR);
-
-        errno = 0;
-        ASSERT_ERR(write(fd, NULL, 100));
-        ASSERT(errno == EBADF);
-
+        ASSERT_ERRNO(read(fd, NULL, 100), EISDIR);
+        ASSERT_ERRNO(write(fd, NULL, 100), EBADF);
         ASSERT_OK(close(fd));
     }
     {
         int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDWR));
 
-        errno = 0;
-        ASSERT_ERR(read(fd, NULL, 100));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(read(fd, NULL, 100), EFAULT);
 
         ASSERT(read(fd, NULL, 0) == 0);
         ASSERT(read(fd, (void*)1, 0) == 0);
 
-        errno = 0;
-        ASSERT_ERR(write(fd, NULL, 100));
-        ASSERT(errno == EFAULT);
-
-        errno = 0;
-        ASSERT_ERR(write(fd, (void*)1, 100));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(write(fd, NULL, 100), EFAULT);
+        ASSERT_ERRNO(write(fd, (void*)1, 100), EFAULT);
 
         ASSERT(write(fd, NULL, 0) == 0);
         ASSERT(write(fd, (void*)1, 0) == 0);
 
-        errno = 0;
-        ASSERT_ERR(readv(fd, NULL, 1));
-        ASSERT(errno == EFAULT);
-
-        errno = 0;
-        ASSERT_ERR(readv(fd, (struct iovec*)1, 1));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(readv(fd, NULL, 1), EFAULT);
+        ASSERT_ERRNO(readv(fd, (struct iovec*)1, 1), EFAULT);
 
         ASSERT(readv(fd, NULL, 0) == 0);
         ASSERT(readv(fd, (struct iovec*)1, 0) == 0);
@@ -133,15 +106,11 @@ int main(void) {
 
         iov.iov_base = NULL;
         iov.iov_len = 100;
-        errno = 0;
-        ASSERT_ERR(readv(fd, &iov, 1));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(readv(fd, &iov, 1), EFAULT);
 
         iov.iov_base = (void*)1;
         iov.iov_len = 100;
-        errno = 0;
-        ASSERT_ERR(readv(fd, &iov, 1));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(readv(fd, &iov, 1), EFAULT);
 
         iov.iov_base = NULL;
         iov.iov_len = 0;
@@ -151,28 +120,19 @@ int main(void) {
         iov.iov_len = 0;
         ASSERT(readv(fd, &iov, 1) == 0);
 
-        errno = 0;
-        ASSERT_ERR(writev(fd, NULL, 1));
-        ASSERT(errno == EFAULT);
-
-        errno = 0;
-        ASSERT_ERR(writev(fd, (struct iovec*)1, 1));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(writev(fd, NULL, 1), EFAULT);
+        ASSERT_ERRNO(writev(fd, (struct iovec*)1, 1), EFAULT);
 
         ASSERT(writev(fd, NULL, 0) == 0);
         ASSERT(writev(fd, (struct iovec*)1, 0) == 0);
 
         iov.iov_base = NULL;
         iov.iov_len = 100;
-        errno = 0;
-        ASSERT_ERR(writev(fd, &iov, 1));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(writev(fd, &iov, 1), EFAULT);
 
         iov.iov_base = (void*)1;
         iov.iov_len = 100;
-        errno = 0;
-        ASSERT_ERR(writev(fd, &iov, 1));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(writev(fd, &iov, 1), EFAULT);
 
         iov.iov_base = NULL;
         iov.iov_len = 0;

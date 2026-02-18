@@ -49,15 +49,12 @@ int main(void) {
             {none, 5000},
         };
 
-        errno = 0;
-        ASSERT_ERR(process_vm_readv(getpid(), local, ARRAY_SIZE(local), remote1,
-                                    ARRAY_SIZE(remote1), 0));
-        ASSERT(errno == EFAULT);
-
-        errno = 0;
-        ASSERT_ERR(process_vm_writev(getpid(), local, ARRAY_SIZE(local),
-                                     remote1, ARRAY_SIZE(remote1), 0));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(process_vm_readv(getpid(), local, ARRAY_SIZE(local),
+                                      remote1, ARRAY_SIZE(remote1), 0),
+                     EFAULT);
+        ASSERT_ERRNO(process_vm_writev(getpid(), local, ARRAY_SIZE(local),
+                                       remote1, ARRAY_SIZE(remote1), 0),
+                     EFAULT);
 
         void* read_only =
             mmap(NULL, 8192, PROT_READ, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
@@ -69,11 +66,9 @@ int main(void) {
 
         ASSERT(process_vm_readv(getpid(), local, ARRAY_SIZE(local), remote2,
                                 ARRAY_SIZE(remote2), 0) == 5000);
-
-        errno = 0;
-        ASSERT_ERR(process_vm_writev(getpid(), local, ARRAY_SIZE(local),
-                                     remote2, ARRAY_SIZE(remote2), 0));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(process_vm_writev(getpid(), local, ARRAY_SIZE(local),
+                                       remote2, ARRAY_SIZE(remote2), 0),
+                     EFAULT);
 
         void* write_only =
             mmap(NULL, 8192, PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
@@ -85,11 +80,9 @@ int main(void) {
 
         ASSERT(process_vm_writev(getpid(), local, ARRAY_SIZE(local), remote3,
                                  ARRAY_SIZE(remote3), 0) == 5000);
-
-        errno = 0;
-        ASSERT_ERR(process_vm_readv(getpid(), local, ARRAY_SIZE(local), remote3,
-                                    ARRAY_SIZE(remote3), 0));
-        ASSERT(errno == EFAULT);
+        ASSERT_ERRNO(process_vm_readv(getpid(), local, ARRAY_SIZE(local),
+                                      remote3, ARRAY_SIZE(remote3), 0),
+                     EFAULT);
     }
 
     {
@@ -114,9 +107,7 @@ int main(void) {
             exit(EXIT_SUCCESS);
         }
 
-        errno = 0;
-        ASSERT_ERR(process_vm_readv(pid, NULL, 0, NULL, 0, ~0));
-        ASSERT(errno == EINVAL);
+        ASSERT_ERRNO(process_vm_readv(pid, NULL, 0, NULL, 0, ~0), EINVAL);
 
         ASSERT(process_vm_readv(pid, NULL, 0, NULL, 0, 0) == 0);
 

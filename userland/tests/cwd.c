@@ -18,17 +18,9 @@ int main(void) {
     ASSERT(!getcwd(buf, 0));
     ASSERT(errno == EINVAL);
 
-    errno = 0;
-    ASSERT_ERR(syscall(SYS_getcwd, NULL, 0));
-    ASSERT(errno == ERANGE);
-
-    errno = 0;
-    ASSERT_ERR(syscall(SYS_getcwd, (void*)1, 0));
-    ASSERT(errno == ERANGE);
-
-    errno = 0;
-    ASSERT_ERR(syscall(SYS_getcwd, buf, 0));
-    ASSERT(errno == ERANGE);
+    ASSERT_ERRNO(syscall(SYS_getcwd, NULL, 0), ERANGE);
+    ASSERT_ERRNO(syscall(SYS_getcwd, (void*)1, 0), ERANGE);
+    ASSERT_ERRNO(syscall(SYS_getcwd, buf, 0), ERANGE);
 
     errno = 0;
     ASSERT(!getcwd(NULL, 1));

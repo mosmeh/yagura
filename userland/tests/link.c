@@ -33,13 +33,8 @@ int main(void) {
     unlink("/tmp/test-link-hard");
     unlink("/tmp/test-link-sym");
 
-    errno = 0;
-    ASSERT_ERR(link("", "/tmp/test-link-hard"));
-    ASSERT(errno == ENOENT);
-
-    errno = 0;
-    ASSERT_ERR(symlink("", "/tmp/test-link"));
-    ASSERT(errno == ENOENT);
+    ASSERT_ERRNO(link("", "/tmp/test-link-hard"), ENOENT);
+    ASSERT_ERRNO(symlink("", "/tmp/test-link"), ENOENT);
 
     int fd = ASSERT_OK(open("/tmp/test-link-target", O_CREAT | O_RDWR, 0644));
     ASSERT(write_all(fd, "xxx", 3) == 3);

@@ -23,21 +23,10 @@ int main(void) {
     ASSERT(!memcmp(buf.domainname, domainname, UTSNAME_LENGTH - 1));
     ASSERT(buf.domainname[UTSNAME_LENGTH - 1] == 0);
 
-    errno = 0;
-    ASSERT_ERR(sethostname(hostname, UTSNAME_LENGTH));
-    ASSERT(errno == EINVAL);
-
-    errno = 0;
-    ASSERT_ERR(setdomainname(domainname, UTSNAME_LENGTH));
-    ASSERT(errno == EINVAL);
-
-    errno = 0;
-    ASSERT_ERR(sethostname(NULL, 1));
-    ASSERT(errno == EFAULT);
-
-    errno = 0;
-    ASSERT_ERR(setdomainname(NULL, 1));
-    ASSERT(errno == EFAULT);
+    ASSERT_ERRNO(sethostname(hostname, UTSNAME_LENGTH), EINVAL);
+    ASSERT_ERRNO(setdomainname(domainname, UTSNAME_LENGTH), EINVAL);
+    ASSERT_ERRNO(sethostname(NULL, 1), EFAULT);
+    ASSERT_ERRNO(setdomainname(NULL, 1), EFAULT);
 
     ASSERT_OK(sethostname(NULL, 0));
     ASSERT_OK(setdomainname(NULL, 0));

@@ -46,9 +46,7 @@ static _Noreturn void peer(int send_fd, int recv_fd) {
     ASSERT_OK(fcntl(recv_fd, F_SETFL, flag | O_NONBLOCK));
 
     char c;
-    errno = 0;
-    ASSERT_ERR(read(recv_fd, &c, 1));
-    ASSERT(errno == EAGAIN);
+    ASSERT_ERRNO(read(recv_fd, &c, 1), EAGAIN);
 
     ASSERT(write_all(send_fd, "x", 1) == 1);
 
