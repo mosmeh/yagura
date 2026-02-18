@@ -2,11 +2,13 @@
 #include <fcntl.h>
 #include <panic.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <sys/uio.h>
 #include <unistd.h>
 
 int main(void) {
     unlink("/tmp/test-read-write");
+    rmdir("/tmp/test-read-write-dir");
 
     {
         int fd = ASSERT_OK(
@@ -57,6 +59,42 @@ int main(void) {
         for (int i = 0; i < 1000; ++i)
             ASSERT(buf[i] == i);
         ASSERT(read(fd, buf, 50000 * sizeof(int)) == 0);
+        ASSERT_OK(close(fd));
+    }
+    {
+        int fd = ASSERT_OK(open("/tmp/test-read-write", O_WRONLY));
+        ASSERT(write(fd, "x", 1) == 1);
+
+        char x;
+        errno = 0;
+        ASSERT_ERR(read(fd, &x, 1));
+        ASSERT(errno == EBADF);
+
+        ASSERT_OK(close(fd));
+    }
+    {
+        int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDONLY));
+
+        errno = 0;
+        ASSERT_ERR(write(fd, "x", 1));
+        ASSERT(errno == EBADF);
+
+        char x;
+        ASSERT(read(fd, &x, 1) == 1);
+        ASSERT_OK(close(fd));
+    }
+    {
+        ASSERT_OK(mkdir("/tmp/test-read-write-dir", 0755));
+        int fd = ASSERT_OK(open("/tmp/test-read-write-dir", O_RDONLY));
+
+        errno = 0;
+        ASSERT_ERR(read(fd, NULL, 100));
+        ASSERT(errno == EISDIR);
+
+        errno = 0;
+        ASSERT_ERR(write(fd, NULL, 100));
+        ASSERT(errno == EBADF);
+
         ASSERT_OK(close(fd));
     }
     {

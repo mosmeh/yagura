@@ -80,10 +80,10 @@ static ssize_t default_file_pread(struct file* file, void* user_buffer,
 
 ssize_t file_pread(struct file* file, void* user_buffer, size_t count,
                    uint64_t offset) {
-    if (S_ISDIR(file->inode->mode))
-        return -EISDIR;
     if ((file->flags & O_ACCMODE) == O_WRONLY)
         return -EBADF;
+    if (S_ISDIR(file->inode->mode))
+        return -EISDIR;
     if (count == 0)
         return 0;
     if (!is_user_range(user_buffer, count))
@@ -134,10 +134,10 @@ static ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
 
 ssize_t file_pwrite(struct file* file, const void* user_buffer, size_t count,
                     uint64_t offset) {
-    if (S_ISDIR(file->inode->mode))
-        return -EISDIR;
     if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EBADF;
+    if (S_ISDIR(file->inode->mode))
+        return -EISDIR;
     if (count == 0)
         return 0;
     if (!is_user_range(user_buffer, count))
