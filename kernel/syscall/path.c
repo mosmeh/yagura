@@ -203,8 +203,9 @@ NODISCARD static long link(struct inode* old_inode, const struct path* new_base,
     if (IS_ERR(len))
         return len;
 
-    struct path* new_path FREE(path) =
-        ASSERT(vfs_resolve_path_at(new_base, new_pathname, O_ALLOW_NOENT));
+    struct path* new_path FREE(path) = ASSERT(
+        vfs_resolve_path_at(new_base, new_pathname,
+                            O_ALLOW_NOENT | O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(new_path))
         return PTR_ERR(new_path);
     if (new_path->inode)
@@ -257,8 +258,8 @@ static long unlink(const struct path* base, const char* user_pathname) {
     if (IS_ERR(len))
         return len;
 
-    struct path* path FREE(path) =
-        ASSERT(vfs_resolve_path_at(base, pathname, 0));
+    struct path* path FREE(path) = ASSERT(
+        vfs_resolve_path_at(base, pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(path))
         return PTR_ERR(path);
     if (!path->parent)
@@ -281,8 +282,8 @@ static long rmdir(const struct path* base, const char* user_pathname) {
     if (IS_ERR(len))
         return len;
 
-    struct path* path FREE(path) =
-        ASSERT(vfs_resolve_path_at(base, pathname, 0));
+    struct path* path FREE(path) = ASSERT(
+        vfs_resolve_path_at(base, pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(path))
         return PTR_ERR(path);
     if (!path->parent)
@@ -323,15 +324,16 @@ static long rename(const struct path* old_base, const char* user_oldpath,
     if (IS_ERR(len))
         return len;
 
-    struct path* old_path FREE(path) =
-        ASSERT(vfs_resolve_path_at(old_base, old_pathname, 0));
+    struct path* old_path FREE(path) = ASSERT(vfs_resolve_path_at(
+        old_base, old_pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(old_path))
         return PTR_ERR(old_path);
     if (!old_path->parent)
         return -EPERM;
 
-    struct path* new_path FREE(path) =
-        ASSERT(vfs_resolve_path_at(new_base, new_pathname, O_ALLOW_NOENT));
+    struct path* new_path FREE(path) = ASSERT(
+        vfs_resolve_path_at(new_base, new_pathname,
+                            O_ALLOW_NOENT | O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(new_path))
         return PTR_ERR(new_path);
     if (!new_path->parent)
@@ -347,6 +349,8 @@ static long rename(const struct path* old_base, const char* user_oldpath,
             int rc = ensure_directory_is_empty(new_path->inode);
             if (IS_ERR(rc))
                 return rc;
+        } else if (S_ISDIR(old_path->inode->mode)) {
+            return -ENOTDIR;
         }
 
         int rc = inode_unlink(new_path->parent->inode, new_path->basename);

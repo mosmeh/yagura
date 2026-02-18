@@ -163,10 +163,14 @@ static struct path* follow_symlink(const struct path* parent,
     if (IS_ERR(file))
         return ERR_CAST(file);
 
-    char target[SYMLINK_MAX];
+    char target[SYMLINK_MAX + 1];
     ssize_t target_len = file_readlink(file, target, SYMLINK_MAX);
     if (IS_ERR(target_len))
         return ERR_PTR(target_len);
+    target[target_len] = '\0';
+
+    if (!rest_pathname[0])
+        return resolve_path_at(parent, target, flags, depth + 1);
 
     char* pathname FREE(kfree) =
         kmalloc(target_len + 1 + strlen(rest_pathname) + 1);
@@ -252,7 +256,7 @@ static struct path* resolve_path_at(const struct path* base,
             if (has_more_components || !(flags & O_NOFOLLOW)) {
                 const char* rest_pathname = strtok_r(NULL, "", &saved_ptr);
                 if (!rest_pathname)
-                    rest_pathname = ".";
+                    rest_pathname = "";
                 return follow_symlink(path, inode, rest_pathname, flags,
                                       symlink_depth);
             }
@@ -285,8 +289,11 @@ static struct path* create_at(const struct path* base, const char* pathname,
                               mode_t mode, bool exclusive) {
     ASSERT(mode & S_IFMT);
 
+    int flags = O_ALLOW_NOENT;
+    if (exclusive)
+        flags |= O_NOFOLLOW | O_NOFOLLOW_NOERROR;
     struct path* path FREE(path) =
-        ASSERT(vfs_resolve_path_at(base, pathname, O_ALLOW_NOENT));
+        ASSERT(vfs_resolve_path_at(base, pathname, flags));
     if (IS_ERR(path))
         return ERR_CAST(path);
 
