@@ -7,8 +7,8 @@
     __extension__({                                                            \
         __typeof__(result) __result = (result);                                \
         if (__result < 0)                                                      \
-            PANIC("Unexpected error: " #result " = %ld (error %d)",            \
-                  (long)__result, errno);                                      \
+            PANIC("Unexpected error: " #result " = %ld (errno=%s)",            \
+                  (long)__result, strerrorname_np(errno));                     \
         __result;                                                              \
     })
 
@@ -20,3 +20,5 @@
                   (long)__result);                                             \
         __result;                                                              \
     })
+
+const char* strerrorname_np(int errnum);
