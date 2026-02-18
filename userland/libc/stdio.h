@@ -3,8 +3,6 @@
 #include <common/stdio.h>
 #include <kernel/api/stdio.h>
 
-extern const char* const sys_errlist[];
-
 int putchar(int ch);
 int puts(const char* str);
 int printf(const char* format, ...) PRINTF_LIKE(1, 2);
