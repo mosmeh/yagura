@@ -107,17 +107,15 @@ void dump_stack_trace(uintptr_t ip, uintptr_t bp) {
     arch_walk_stack(bp, print_stack_frame, &walk);
 }
 
-void panic(const char* file, size_t line, const char* format, ...) {
+void panic(const char* format, ...) {
     arch_disable_interrupts();
 
-    kprint("PANIC: ");
     va_list args;
     va_start(args, format);
     kvprintf(format, args);
     va_end(args);
-    kprintf(" at %s:%zu\n"
-            "stack trace:\n",
-            file, line);
+
+    kprint("stack trace:\n");
     struct stack_walk walk = {0};
     uintptr_t bp = (uintptr_t)__builtin_frame_address(0);
     arch_walk_stack(bp, print_stack_frame, &walk);

@@ -315,15 +315,22 @@ static void parse_madt(const struct rsdp_descriptor* rsdp) {
     *io_apic = NULL;
     *interrupt_source_override = NULL;
 
+    size_t enabled_local_apics = 0;
     if (num_local_apics > 0) {
-        kprint("acpi: found CPUs ");
         for (const struct local_apic** p = acpi.local_apics; *p; ++p) {
-            if (!((*p)->flags &
-                  (ACPI_LOCAL_APIC_ENABLED | ACPI_LOCAL_APIC_ONLINE_CAPABLE)))
-                continue;
-            kprintf("%u ", (*p)->apic_id);
+            if ((*p)->flags & ACPI_LOCAL_APIC_ENABLED)
+                ++enabled_local_apics;
         }
-        kprint("\n");
+    }
+
+    if (num_local_apics > 0 || num_io_apics > 0 ||
+        num_interrupt_source_overrides > 0) {
+        kprintf("acpi: detected "
+                "%zu local APICs (%zu enabled), "
+                "%zu I/O APICs, "
+                "%zu interrupt source overrides\n",
+                num_local_apics, enabled_local_apics, num_io_apics,
+                num_interrupt_source_overrides);
     }
 }
 

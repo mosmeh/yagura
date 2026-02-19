@@ -4,6 +4,7 @@
 #include <kernel/drivers/serial.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>
+#include <kernel/time.h>
 
 int kprint(const char* str) {
     size_t len = strlen(str);
@@ -43,8 +44,7 @@ size_t kmsg_read(char* buf, size_t count) {
     return dest_index;
 }
 
-void kmsg_write(const char* buf, size_t count) {
-    SCOPED_LOCK(spinlock, &lock);
+static void write(const char* buf, size_t count) {
     for (size_t i = 0; i < count; ++i) {
         ring_buf[write_index] = buf[i];
         write_index = (write_index + 1) % RING_BUF_SIZE;
@@ -52,4 +52,32 @@ void kmsg_write(const char* buf, size_t count) {
             read_index = (read_index + 1) % RING_BUF_SIZE;
     }
     serial_write(0, buf, count);
+}
+
+static void log(unsigned long timestamp, const char* buf, size_t count) {
+    unsigned long secs = timestamp / CLK_TCK;
+    // Map [0, CLK_TCK) to [0, 1000)
+    unsigned long frac = (timestamp % CLK_TCK) * 1000 / CLK_TCK;
+
+    char timestamp_buf[32];
+    int len = sprintf(timestamp_buf, "[%5lu.%03lu] ", secs, frac);
+    write(timestamp_buf, len);
+    write(buf, count);
+}
+
+void kmsg_write(const char* buf, size_t count) {
+    unsigned long timestamp = uptime;
+    const char* buf_end = buf + count;
+
+    SCOPED_LOCK(spinlock, &lock);
+    for (const char* p = buf; p < buf_end;) {
+        const char* line_end = memchr(p, '\n', buf_end - p);
+        if (!line_end) {
+            log(timestamp, p, buf_end - p);
+            write("\n", 1);
+            break;
+        }
+        log(timestamp, p, line_end - p + 1);
+        p = line_end + 1;
+    }
 }

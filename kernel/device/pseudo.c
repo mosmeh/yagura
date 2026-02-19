@@ -131,18 +131,21 @@ static ssize_t kmsg_pwrite(struct file* file, const void* user_buffer,
     (void)file;
     (void)offset;
 
-    char buf[256];
-    const unsigned char* user_src = user_buffer;
-    size_t nwritten = 0;
-    while (nwritten < count) {
-        size_t to_write = MIN(count - nwritten, sizeof(buf));
-        if (copy_from_user(buf, user_src, to_write))
-            return -EFAULT;
-        kmsg_write(buf, to_write);
-        user_src += to_write;
-        nwritten += to_write;
+    if (count > KMSG_BUF_SIZE)
+        return -EINVAL;
+
+    if (count == 0) {
+        kmsg_write("", 0);
+        return 0;
     }
-    return nwritten;
+
+    char* buf FREE(kfree) = kmalloc(count);
+    if (!buf)
+        return -ENOMEM;
+    if (copy_from_user(buf, user_buffer, count))
+        return -EFAULT;
+    kmsg_write(buf, count);
+    return count;
 }
 
 static const struct file_ops kmsg_fops = {
