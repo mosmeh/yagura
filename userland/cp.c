@@ -1,3 +1,4 @@
+#include "io.h"
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,7 +34,7 @@ int main(int argc, char* argv[]) {
         }
         if (nread == 0)
             break;
-        if (write(dest_fd, buf, nread) < 0) {
+        if (write_all(dest_fd, buf, nread) < 0) {
             perror("write");
             close(src_fd);
             close(dest_fd);

@@ -24,6 +24,7 @@
     WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
+#include "../io.h"
 #include <dirent.h>
 #include <fcntl.h>
 #include <panic.h>
@@ -129,14 +130,13 @@ static void writetest(void) {
     printf("small file test\n");
     fd = ASSERT_OK(open("small", O_CREAT | O_RDWR, 0644));
     for (i = 0; i < 100; i++) {
-        ASSERT(write(fd, "aaaaaaaaaa", 10) == 10);
-        ASSERT(write(fd, "bbbbbbbbbb", 10) == 10);
+        ASSERT_OK(write_all(fd, "aaaaaaaaaa", 10));
+        ASSERT_OK(write_all(fd, "bbbbbbbbbb", 10));
     }
     printf("writes ok\n");
     close(fd);
     fd = ASSERT_OK(open("small", O_RDONLY));
-    i = read(fd, buf, 2000);
-    ASSERT(i == 2000);
+    i = ASSERT_OK(read_exact(fd, buf, 2000));
     close(fd);
 
     ASSERT_OK(unlink("small"));
@@ -153,14 +153,14 @@ static void writetest1(void) {
     fd = ASSERT_OK(open("big", O_CREAT | O_RDWR, 0644));
     for (i = 0; i < MAXFILE; i++) {
         ((int*)buf)[0] = i;
-        ASSERT(write(fd, buf, 512) == 512);
+        ASSERT_OK(write_all(fd, buf, 512));
     }
     close(fd);
 
     fd = ASSERT_OK(open("big", O_RDONLY));
     n = 0;
     for (;;) {
-        i = read(fd, buf, 512);
+        i = read_to_end(fd, buf, 512);
         if (i == 0) {
             ASSERT(n != MAXFILE - 1);
             break;
@@ -214,18 +214,6 @@ static void exectest(void) {
     ASSERT_OK(exec("/bin/echo", echoargv));
 }
 
-static ssize_t write_all(int fd, const void* buf, size_t count) {
-    unsigned char* chars = (unsigned char*)buf;
-    size_t total = 0;
-    while (total < count) {
-        ssize_t nwritten = write(fd, chars + total, count - total);
-        if (nwritten < 0)
-            return -1;
-        total += nwritten;
-    }
-    return total;
-}
-
 // simple fork and pipe read/write
 
 static void pipe1(void) {
@@ -245,7 +233,7 @@ static void pipe1(void) {
         for (n = 0; n < 5; n++) {
             for (i = 0; i < 1033; i++)
                 buf[i] = seq++;
-            ASSERT(write_all(fds[1], buf, 1033) == 1033);
+            ASSERT_OK(write_all(fds[1], buf, 1033));
         }
         exit(0);
     } else {
@@ -289,14 +277,14 @@ static void preempt(void) {
     pid3 = fork();
     if (pid3 == 0) {
         close(pfds[0]);
-        ASSERT(write(pfds[1], "x", 1) == 1);
+        ASSERT_OK(write_all(pfds[1], "x", 1));
         close(pfds[1]);
         for (;;)
             ;
     }
 
     close(pfds[1]);
-    ASSERT(read(pfds[0], buf, sizeof(buf)) == 1);
+    ASSERT(read_to_end(pfds[0], buf, sizeof(buf)) == 1);
     close(pfds[0]);
     printf("kill... ");
     kill(pid1, SIGKILL);
@@ -380,7 +368,7 @@ static void sharedfd(void) {
     pid = fork();
     memset(buf, pid == 0 ? 'c' : 'p', sizeof(buf));
     for (i = 0; i < 1000; i++)
-        ASSERT(write(fd, buf, sizeof(buf)) == sizeof(buf));
+        ASSERT_OK(write_all(fd, buf, sizeof(buf)));
     if (pid == 0)
         exit(0);
     else
@@ -426,7 +414,7 @@ static void fourfiles(void) {
 
             memset(buf, '0' + pi, 512);
             for (i = 0; i < 12; i++)
-                ASSERT((n = write(fd, buf, 500)) == 500);
+                n = ASSERT_OK(write_all(fd, buf, 500));
             exit(0);
         }
     }
@@ -516,19 +504,19 @@ static void unlinkread(void) {
 
     printf("unlinkread test\n");
     fd = ASSERT_OK(open("unlinkread", O_CREAT | O_RDWR, 0644));
-    write(fd, "hello", 5);
+    ASSERT_OK(write_all(fd, "hello", 5));
     close(fd);
 
     fd = ASSERT_OK(open("unlinkread", O_RDWR));
     ASSERT_OK(unlink("unlinkread"));
 
     fd1 = open("unlinkread", O_CREAT | O_RDWR, 0644);
-    write(fd1, "yyy", 3);
+    ASSERT_OK(write_all(fd1, "yyy", 3));
     close(fd1);
 
-    ASSERT(read(fd, buf, sizeof(buf)) == 5);
+    ASSERT(read_to_end(fd, buf, sizeof(buf)) == 5);
     ASSERT(buf[0] == 'h');
-    ASSERT(write(fd, buf, 10) == 10);
+    ASSERT_OK(write_all(fd, buf, 10));
     close(fd);
     unlink("unlinkread");
     printf("unlinkread ok\n");
@@ -543,7 +531,7 @@ static void linktest(void) {
     unlink("lf2");
 
     fd = ASSERT_OK(open("lf1", O_CREAT | O_RDWR, 0644));
-    ASSERT(write(fd, "hello", 5) == 5);
+    ASSERT_OK(write_all(fd, "hello", 5));
     close(fd);
 
     ASSERT_OK(link("lf1", "lf2"));
@@ -552,7 +540,7 @@ static void linktest(void) {
     ASSERT_ERRNO(open("lf1", O_RDONLY), ENOENT);
 
     fd = ASSERT_OK(open("lf2", O_RDONLY));
-    ASSERT(read(fd, buf, sizeof(buf)) == 5);
+    ASSERT(read_to_end(fd, buf, sizeof(buf)) == 5);
     close(fd);
 
     ASSERT_ERRNO(link("lf2", "lf2"), EEXIST);
@@ -707,7 +695,7 @@ static void subdir(void) {
     ASSERT_OK(mkdir("dd", 0755));
 
     fd = ASSERT_OK(open("dd/ff", O_CREAT | O_RDWR, 0644));
-    write(fd, "ff", 2);
+    ASSERT_OK(write_all(fd, "ff", 2));
     close(fd);
 
     ASSERT_ERRNO(unlink("dd"), EISDIR);
@@ -715,11 +703,11 @@ static void subdir(void) {
     ASSERT_OK(mkdir("/dd/dd", 0755));
 
     fd = ASSERT_OK(open("dd/dd/ff", O_CREAT | O_RDWR, 0644));
-    write(fd, "FF", 2);
+    ASSERT_OK(write_all(fd, "FF", 2));
     close(fd);
 
     fd = ASSERT_OK(open("dd/dd/../ff", O_RDONLY));
-    cc = read(fd, buf, sizeof(buf));
+    cc = read_to_end(fd, buf, sizeof(buf));
     ASSERT(cc == 2 && buf[0] == 'f');
     close(fd);
 
@@ -734,7 +722,7 @@ static void subdir(void) {
     ASSERT_OK(chdir("./.."));
 
     fd = ASSERT_OK(open("dd/dd/ffff", O_RDONLY));
-    ASSERT(read(fd, buf, sizeof(buf)) == 2);
+    ASSERT(read_to_end(fd, buf, sizeof(buf)) == 2);
     close(fd);
 
     ASSERT_ERRNO(open("dd/dd/ff", O_RDONLY), ENOENT);
@@ -775,10 +763,8 @@ static void bigwrite(void) {
     for (sz = 499; sz < 12 * 512; sz += 471) {
         fd = ASSERT_OK(open("bigwrite", O_CREAT | O_RDWR, 0644));
         int i;
-        for (i = 0; i < 2; i++) {
-            int cc = write(fd, buf, sz);
-            ASSERT(cc == sz);
-        }
+        for (i = 0; i < 2; i++)
+            ASSERT_OK(write_all(fd, buf, sz));
         close(fd);
         unlink("bigwrite");
     }
@@ -798,14 +784,14 @@ static void bigfile(void) {
     fd = ASSERT_OK(open("bigfile", O_CREAT | O_RDWR, 0644));
     for (i = 0; i < 20; i++) {
         memset(buf, i, 600);
-        ASSERT(write(fd, buf, 600) == 600);
+        ASSERT(write_all(fd, buf, 600) == 600);
     }
     close(fd);
 
     fd = ASSERT_OK(open("bigfile", O_RDONLY));
     total = 0;
     for (i = 0;; i++) {
-        cc = ASSERT_OK(read(fd, buf, 300));
+        cc = ASSERT_OK(read_to_end(fd, buf, 300));
         if (cc == 0)
             break;
         ASSERT(cc == 300);
@@ -993,8 +979,8 @@ MAYBE_UNUSED static void fsfull(void) {
         }
         int total = 0;
         while (1) {
-            int cc = write(fd, buf, 512);
-            if (cc < 512)
+            int cc = write_all(fd, buf, 512);
+            if (cc < 0)
                 break;
             total += cc;
         }

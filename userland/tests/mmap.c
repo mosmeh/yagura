@@ -1,3 +1,4 @@
+#include "../io.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <panic.h>
@@ -124,7 +125,7 @@ static void test_shared(void) {
         int fd = ASSERT_OK(open("/tmp/test-mmap-shared", O_RDWR));
         size = 50000 * sizeof(int);
         int* buf = ASSERT(malloc(size));
-        ASSERT((size_t)read(fd, buf, size) == size);
+        ASSERT_OK(read_exact(fd, buf, size));
         ASSERT_OK(close(fd));
         for (int i = 0; i < 30000; ++i)
             ASSERT(buf[i] == i);

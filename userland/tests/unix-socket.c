@@ -1,3 +1,4 @@
+#include "../io.h"
 #include <common/macros.h>
 #include <common/stdbool.h>
 #include <common/string.h>
@@ -9,30 +10,6 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-static size_t read_all(int fd, void* buf, size_t count) {
-    unsigned char* p = buf;
-    size_t total = 0;
-    while (total < count) {
-        size_t n = ASSERT_OK(read(fd, p + total, count - total));
-        if (n == 0)
-            break;
-        total += n;
-    }
-    return total;
-}
-
-static size_t write_all(int fd, const void* buf, size_t count) {
-    const unsigned char* p = buf;
-    size_t total = 0;
-    while (total < count) {
-        size_t n = ASSERT_OK(write(fd, p + total, count - total));
-        if (n == 0)
-            break;
-        total += n;
-    }
-    return total;
-}
 
 static struct sockaddr_un addr = {AF_UNIX, ""};
 
@@ -51,7 +28,7 @@ static _Noreturn void receiver(bool shut_rd) {
     size_t total = 0;
     for (size_t i = 0; i < 55000; i += 1024) {
         size_t s = MIN(1024, 55000 - i) * sizeof(unsigned);
-        ASSERT(read_all(sockfd, buf, s) == s);
+        ASSERT_OK(read_exact(sockfd, buf, s));
         for (size_t j = 0; j < s / sizeof(unsigned); ++j)
             ASSERT(buf[j] == total / sizeof(unsigned) + j);
         total += s;
@@ -61,7 +38,7 @@ static _Noreturn void receiver(bool shut_rd) {
         ASSERT_OK(shutdown(sockfd, SHUT_RD));
 
     char c;
-    ASSERT(read(sockfd, &c, 1) == 0);
+    ASSERT(read_to_end(sockfd, &c, 1) == 0);
 
     ASSERT_OK(close(sockfd));
     exit(0);
@@ -128,15 +105,15 @@ int main(void) {
     int peer_fd2 = ASSERT_OK(accept(sockfd, NULL, NULL));
 
     ASSERT_OK(shutdown(peer_fd1, SHUT_RD));
-    ASSERT(read(peer_fd1, &c, 1) == 0);
+    ASSERT(read_to_end(peer_fd1, &c, 1) == 0);
 
     static unsigned buf[10000];
     for (size_t j = 0; j < 10000; ++j)
         buf[j] = j;
     for (size_t i = 0; i < 55000; i += 10000) {
         size_t s = MIN(10000, 55000 - i) * sizeof(unsigned);
-        ASSERT(write_all(peer_fd1, buf, s) == s);
-        ASSERT(write_all(peer_fd2, buf, s) == s);
+        ASSERT_OK(write_all(peer_fd1, buf, s));
+        ASSERT_OK(write_all(peer_fd2, buf, s));
         for (size_t j = 0; j < 10000; ++j)
             buf[j] += 10000;
     }

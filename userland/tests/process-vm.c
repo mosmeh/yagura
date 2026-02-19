@@ -1,3 +1,4 @@
+#include "../io.h"
 #include <common/macros.h>
 #include <errno.h>
 #include <panic.h>
@@ -8,30 +9,6 @@
 #include <sys/uio.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-static size_t read_all(int fd, void* buf, size_t count) {
-    unsigned char* p = buf;
-    size_t total = 0;
-    while (total < count) {
-        size_t n = ASSERT_OK(read(fd, p + total, count - total));
-        if (n == 0)
-            break;
-        total += n;
-    }
-    return total;
-}
-
-static size_t write_all(int fd, const void* buf, size_t count) {
-    const unsigned char* p = buf;
-    size_t total = 0;
-    while (total < count) {
-        size_t n = ASSERT_OK(write(fd, p + total, count - total));
-        if (n == 0)
-            break;
-        total += n;
-    }
-    return total;
-}
 
 int main(void) {
     {
@@ -94,7 +71,7 @@ int main(void) {
             char* buffer = ASSERT(malloc(32));
             memset(buffer, 0xff, 32);
             strcpy(buffer, "Hello, world!");
-            write_all(pipes[1], &buffer, sizeof(void*));
+            ASSERT_OK(write_all(pipes[1], &buffer, sizeof(void*)));
 
             volatile char* p = buffer;
             for (size_t i = 0; i < 20; ++i) {
@@ -122,7 +99,7 @@ int main(void) {
         };
 
         void* ptr;
-        ASSERT(read_all(pipes[0], &ptr, sizeof(void*)) == sizeof(void*));
+        ASSERT_OK(read_exact(pipes[0], &ptr, sizeof(void*)));
 
         struct iovec remote[2] = {
             {NULL, 0},

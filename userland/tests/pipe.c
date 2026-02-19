@@ -1,3 +1,4 @@
+#include "../io.h"
 #include <common/macros.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -7,36 +8,12 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static size_t read_all(int fd, void* buf, size_t count) {
-    unsigned char* p = buf;
-    size_t total = 0;
-    while (total < count) {
-        size_t n = ASSERT_OK(read(fd, p + total, count - total));
-        if (n == 0)
-            break;
-        total += n;
-    }
-    return total;
-}
-
-static size_t write_all(int fd, const void* buf, size_t count) {
-    const unsigned char* p = buf;
-    size_t total = 0;
-    while (total < count) {
-        size_t n = ASSERT_OK(write(fd, p + total, count - total));
-        if (n == 0)
-            break;
-        total += n;
-    }
-    return total;
-}
-
 static _Noreturn void peer(int send_fd, int recv_fd) {
     static unsigned buf[1024];
     size_t total = 0;
     for (size_t i = 0; i < 10000; i += 1024) {
         size_t s = MIN(1024, 10000 - i) * sizeof(unsigned);
-        ASSERT(read_all(recv_fd, buf, s) == s);
+        ASSERT_OK(read_exact(recv_fd, buf, s));
         for (size_t j = 0; j < s / sizeof(unsigned); ++j)
             ASSERT(buf[j] == total / sizeof(unsigned) + j);
         total += s;
@@ -48,7 +25,7 @@ static _Noreturn void peer(int send_fd, int recv_fd) {
     char c;
     ASSERT_ERRNO(read(recv_fd, &c, 1), EAGAIN);
 
-    ASSERT(write_all(send_fd, "x", 1) == 1);
+    ASSERT_OK(write_all(send_fd, "x", 1));
 
     ASSERT_OK(close(send_fd));
     ASSERT_OK(close(recv_fd));
@@ -78,7 +55,7 @@ int main(void) {
     static unsigned buf[10000];
     for (size_t i = 0; i < 10000; ++i)
         buf[i] = i;
-    ASSERT(write_all(send_fds[1], buf, sizeof(buf)) == sizeof(buf));
+    ASSERT_OK(write_all(send_fds[1], buf, sizeof(buf)));
 
     int dummy_fds[2];
     ASSERT_OK(pipe(dummy_fds));

@@ -129,6 +129,11 @@ int main(void) {
         free(buf);
         return EXIT_FAILURE;
     }
+    if (font.data + (size_t)font.char_size * font.char_count > buf + nread) {
+        dprintf(STDERR_FILENO, "Font data is truncated\n");
+        free(buf);
+        return EXIT_FAILURE;
+    }
 
     size_t char_width = 32UL * DIV_CEIL(font.width, 8);
     size_t data_size =

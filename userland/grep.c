@@ -1,3 +1,4 @@
+#include "io.h"
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,17 +35,13 @@ int main(int argc, char* const argv[]) {
             goto done;
         }
 
-        size_t buf_len = 0;
-        ssize_t nread;
-        while ((nread = read(fd, buf + buf_len, st.st_size - buf_len)) > 0)
-            buf_len += nread;
-        if (nread < 0) {
+        if (read_exact(fd, buf, st.st_size) < 0) {
             perror("read");
             goto done;
         }
         close(fd);
         fd = -1;
-        buf[buf_len] = 0;
+        buf[st.st_size] = 0;
 
         static const char* const sep = "\n";
         char* saved_ptr;

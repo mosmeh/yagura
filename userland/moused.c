@@ -51,29 +51,34 @@ static int handle_new_connection(void) {
     return 0;
 }
 
+static unsigned char event_buf[3];
+static size_t event_buf_len = 0;
+
 static int broadcast_event(void) {
     for (;;) {
-        unsigned char buf[3];
-        ssize_t nread = read(mouse_fd, &buf, sizeof(buf));
-        if (nread < 0) {
-            if (errno == EAGAIN)
-                return 0;
-            perror("read");
-            return -1;
+        while (event_buf_len < sizeof(event_buf)) {
+            ssize_t n = read(mouse_fd, event_buf + event_buf_len,
+                             sizeof(event_buf) - event_buf_len);
+            if (n == 0)
+                return -1;
+            if (n < 0) {
+                if (errno == EAGAIN)
+                    return 0;
+                perror("read");
+                return -1;
+            }
+            event_buf_len += n;
         }
-        if (nread != sizeof(buf)) {
-            dprintf(STDERR_FILENO, "moused: short read from mouse device\n");
-            return -1;
-        }
+        event_buf_len = 0;
 
-        uint8_t buttons = buf[0] & 7;
-        int16_t dx = buf[1];
-        int16_t dy = buf[2];
-        if (dx && (buf[0] & 0x10))
+        uint8_t buttons = event_buf[0] & 7;
+        int16_t dx = event_buf[1];
+        int16_t dy = event_buf[2];
+        if (dx && (event_buf[0] & 0x10))
             dx -= 0x100;
-        if (dy && (buf[0] & 0x20))
+        if (dy && (event_buf[0] & 0x20))
             dy -= 0x100;
-        if (buf[0] & 0xc0)
+        if (event_buf[0] & 0xc0)
             dx = dy = 0;
         dy = -dy;
 
@@ -91,10 +96,24 @@ static int broadcast_event(void) {
             int* fd = &pollfds[2 + i].fd;
             if (*fd < 0)
                 continue;
-            ssize_t nwritten =
-                write(*fd, &moused_event, sizeof(struct moused_event));
-            if (nwritten < 0 && errno != EAGAIN)
-                *fd = -1;
+            for (size_t nwritten = 0; nwritten < sizeof(struct moused_event);) {
+                ssize_t n = write(*fd, (unsigned char*)&moused_event + nwritten,
+                                  sizeof(struct moused_event) - nwritten);
+                if (n == 0 || (n < 0 && errno != EAGAIN)) {
+                    *fd = -1;
+                    break;
+                }
+                if (n < 0) {
+                    // errno == EAGAIN
+                    if (nwritten > 0) {
+                        // Close the connection to avoid leaving the client with
+                        // a half-read event.
+                        *fd = -1;
+                    }
+                    break;
+                }
+                nwritten += n;
+            }
         }
     }
 }

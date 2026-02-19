@@ -1,3 +1,4 @@
+#include "io.h"
 #include <common/stdint.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -125,18 +126,13 @@ int main(int argc, char* const argv[]) {
         return EXIT_FAILURE;
     }
 
-    size_t total_nread = 0;
-    while (total_nread < num_bytes) {
-        ssize_t nread = read(input_fd, bytes, num_bytes);
-        if (nread < 0) {
-            perror("read");
-            close(input_fd);
-            free(bytes);
-            return EXIT_FAILURE;
-        }
-        total_nread += nread;
-    }
+    ssize_t nread = read_exact(input_fd, bytes, num_bytes);
     close(input_fd);
+    if (nread < 0) {
+        perror("read");
+        free(bytes);
+        return EXIT_FAILURE;
+    }
 
     if (strncmp((char*)bytes, "qoaf", 4) != 0) {
         dprintf(STDERR_FILENO, "Not a QOA file\n");
@@ -260,8 +256,11 @@ int main(int argc, char* const argv[]) {
             count = max_bytes_per_write;
         ssize_t nwritten =
             write(dsp_fd, (unsigned char*)samples + total_nwritten, count);
-        if (nwritten < 0) {
-            perror("write");
+        if (nwritten <= 0) {
+            if (nwritten < 0)
+                perror("write");
+            else
+                dprintf(STDERR_FILENO, "Output stream unexpectedly closed\n");
             close(dsp_fd);
             free(samples);
             return EXIT_FAILURE;

@@ -1,3 +1,4 @@
+#include "io.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/fb.h>
@@ -85,18 +86,13 @@ int main(int argc, char* const argv[]) {
         return EXIT_FAILURE;
     }
 
-    size_t total_nread = 0;
-    while (total_nread < num_bytes) {
-        ssize_t nread = read(img_fd, bytes, num_bytes);
-        if (nread < 0) {
-            perror("read");
-            close(img_fd);
-            free(bytes);
-            return EXIT_FAILURE;
-        }
-        total_nread += nread;
-    }
+    ssize_t nread = read_exact(img_fd, bytes, num_bytes);
     close(img_fd);
+    if (nread < 0) {
+        perror("read");
+        free(bytes);
+        return EXIT_FAILURE;
+    }
 
     struct qoi_header* header = (struct qoi_header*)bytes;
     if (strncmp(header->magic, "qoif", 4) != 0) {

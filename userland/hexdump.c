@@ -1,3 +1,4 @@
+#include "io.h"
 #include <common/stdbool.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -10,20 +11,14 @@ static int dump_file(int fd, bool canonical) {
     size_t offset = 0;
     for (;;) {
         uint8_t buf[16];
-        ssize_t nread;
-        size_t buf_len = 0;
-        while (buf_len < sizeof(buf)) {
-            nread = read(fd, (char*)buf + buf_len, sizeof(buf) - buf_len);
-            if (nread < 0) {
-                perror("read");
-                return -1;
-            }
-            if (nread == 0)
-                break;
-            buf_len += nread;
+        ssize_t nread = read_to_end(fd, buf, sizeof(buf));
+        if (nread < 0) {
+            perror("read");
+            return -1;
         }
-        if (buf_len == 0)
+        if (nread == 0)
             break;
+        size_t buf_len = (size_t)nread;
 
         printf("%08zx", offset);
         offset += 0x10;

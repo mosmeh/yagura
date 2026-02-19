@@ -144,9 +144,12 @@ ssize_t file_pwrite(struct file* file, const void* user_buffer, size_t count,
         return -EFAULT;
     if (offset + count < offset)
         return -EOVERFLOW;
-    if (file->fops->pwrite)
-        return file->fops->pwrite(file, user_buffer, count, offset);
-    return default_file_pwrite(file, user_buffer, count, offset);
+    ssize_t nwritten =
+        file->fops->pwrite
+            ? file->fops->pwrite(file, user_buffer, count, offset)
+            : default_file_pwrite(file, user_buffer, count, offset);
+    ASSERT(nwritten != 0);
+    return nwritten;
 }
 
 int file_truncate(struct file* file, uint64_t length) {

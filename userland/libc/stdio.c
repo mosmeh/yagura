@@ -1,23 +1,43 @@
+#include "../io.h"
 #include "private.h"
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 int putchar(int ch) {
     char c = ch;
-    if (write(STDOUT_FILENO, &c, 1) < 0)
-        return -1;
+    if (write_all(STDOUT_FILENO, &c, 1) < 0)
+        return EOF;
     return ch;
 }
 
 int puts(const char* str) {
-    int rc = write(STDOUT_FILENO, str, strlen(str));
-    if (rc < 0)
-        return -1;
-    if (write(STDOUT_FILENO, "\n", 1) < 0)
-        return -1;
-    return rc + 1;
+    size_t len = strlen(str);
+    struct iovec iovs[2] = {
+        {.iov_base = (void*)str, .iov_len = len},
+        {.iov_base = "\n", .iov_len = 1},
+    };
+    size_t nwritten = 0;
+    while (nwritten < len + 1) {
+        ssize_t n = writev(STDOUT_FILENO, iovs, 2);
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0)
+            return EOF;
+        nwritten += n;
+        if (nwritten >= len)
+            break;
+        iovs[0].iov_base = (char*)iovs[0].iov_base + n;
+        iovs[0].iov_len -= n;
+    }
+    if (nwritten < len + 1) {
+        if (write_all(STDOUT_FILENO, "\n", 1) < 0)
+            return EOF;
+        ++nwritten;
+    }
+    return nwritten;
 }
 
 int printf(const char* format, ...) {
@@ -43,7 +63,9 @@ int dprintf(int fd, const char* format, ...) {
 int vdprintf(int fd, const char* format, va_list ap) {
     char buf[1024];
     int len = vsnprintf(buf, 1024, format, ap);
-    return write(fd, buf, len);
+    if (write_all(fd, buf, len) < 0)
+        return -1;
+    return len;
 }
 
 void perror(const char* s) {
@@ -51,9 +73,9 @@ void perror(const char* s) {
 }
 
 int getchar(void) {
-    char c;
-    if (read(STDIN_FILENO, &c, 1) < 0)
-        return -1;
+    char c = EOF;
+    if (read_exact(STDIN_FILENO, &c, 1) < 0)
+        return EOF;
     return c;
 }
 

@@ -1,3 +1,4 @@
+#include "io.h"
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -84,18 +85,13 @@ int main(int argc, char* argv[]) {
         perror("malloc");
         goto fail;
     }
-    size_t total_nread = 0;
-    while (total_nread < num_bytes) {
-        ssize_t nread = read(fd, buf, num_bytes);
-        if (nread < 0) {
-            perror("read");
-            goto fail;
-        }
-        total_nread += nread;
+    if (read_exact(fd, buf, num_bytes) < 0) {
+        perror("read");
+        goto fail;
     }
     close(fd);
     fd = -1;
-    buf[total_nread] = 0;
+    buf[num_bytes] = 0;
 
     struct winsize winsize;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsize) < 0) {
@@ -136,7 +132,7 @@ int main(int argc, char* argv[]) {
 
     for (;;) {
         char c;
-        ssize_t nread = read(STDIN_FILENO, &c, 1);
+        ssize_t nread = read_to_end(STDIN_FILENO, &c, 1);
         if (nread < 0) {
             perror("read");
             goto fail;

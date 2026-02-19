@@ -133,8 +133,7 @@ NODISCARD static int writeback_page(struct filemap* filemap,
                 inode->iops->pwrite(inode, src, to_write, byte_offset);
             if (IS_ERR(nwritten))
                 return nwritten;
-            if (nwritten == 0)
-                break;
+            ASSERT(nwritten > 0);
             src += nwritten;
             to_write -= nwritten;
             byte_offset += nwritten;

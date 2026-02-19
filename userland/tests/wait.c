@@ -1,3 +1,4 @@
+#include "../io.h"
 #include <errno.h>
 #include <panic.h>
 #include <stdlib.h>
@@ -13,14 +14,14 @@ int main(void) {
     if (pid == 0) {
         close(pipe_fds[1]);
         char buf;
-        ASSERT(read(pipe_fds[0], &buf, 1) == 1);
+        ASSERT_OK(read_exact(pipe_fds[0], &buf, 1));
         exit(42);
     }
 
     ASSERT(waitpid(pid, NULL, WNOHANG) == 0);
 
     close(pipe_fds[0]);
-    ASSERT(write(pipe_fds[1], "x", 1) == 1);
+    ASSERT_OK(write_all(pipe_fds[1], "x", 1));
     int status;
     ASSERT(waitpid(pid, &status, 0) == pid);
     ASSERT(WIFEXITED(status));

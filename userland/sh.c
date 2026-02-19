@@ -1,3 +1,4 @@
+#include "io.h"
 #include <common/stdbool.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -382,7 +383,7 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
 
             if (cursor_x < terminal_width) {
                 size_t len = MIN(ed->input_len, terminal_width - prompt_len);
-                write(STDERR_FILENO, ed->input_buf, len);
+                len = write_all(STDERR_FILENO, ed->input_buf, len);
             } else {
                 const char* str = ed->input_buf + cursor_x - terminal_width + 1;
                 size_t len =
@@ -392,7 +393,7 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
                     clear_needed = true;
                 }
                 cursor_x = terminal_width;
-                write(STDERR_FILENO, str, len);
+                len = write_all(STDERR_FILENO, str, len);
             }
 
             if (clear_needed)
@@ -406,7 +407,7 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
         }
 
         char c;
-        ssize_t nread = read(STDIN_FILENO, &c, 1);
+        ssize_t nread = read_to_end(STDIN_FILENO, &c, 1);
         if (nread < 0) {
             perror("read");
             return NULL;
@@ -990,23 +991,18 @@ static int script_main(const char* path) {
     }
 
     static char input[BUF_SIZE + 1];
-    input[BUF_SIZE] = 0;
 
     int ret = EXIT_SUCCESS;
     ssize_t nread = -1;
     for (;;) {
         // Read unless we reached EOF in the previous iteration
         if (nread != 0) {
-            for (size_t cursor = 0; cursor < BUF_SIZE;) {
-                nread = read(fd, input + cursor, BUF_SIZE - cursor);
-                if (nread < 0) {
-                    perror("read");
-                    return EXIT_FAILURE;
-                }
-                if (nread == 0)
-                    break;
-                cursor += nread;
+            nread = read_to_end(fd, input, BUF_SIZE);
+            if (nread < 0) {
+                perror("read");
+                return EXIT_FAILURE;
             }
+            input[nread] = 0;
         }
 
         char* newline = strchr(input, '\n');

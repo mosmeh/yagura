@@ -1,3 +1,4 @@
+#include "../io.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <panic.h>
@@ -16,37 +17,37 @@ int main(void) {
         int* buf = ASSERT(malloc(50000 * sizeof(int)));
         for (int i = 0; i < 50000; ++i)
             buf[i] = i;
-        ASSERT(write(fd, buf, 1000 * sizeof(int)) == 1000 * sizeof(int));
-        ASSERT(write(fd, buf, 50000 * sizeof(int)) == 50000 * sizeof(int));
+        ASSERT_OK(write_all(fd, buf, 1000 * sizeof(int)));
+        ASSERT_OK(write_all(fd, buf, 50000 * sizeof(int)));
         free(buf);
         ASSERT_OK(close(fd));
     }
     {
         int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDWR));
         int* buf = ASSERT(malloc(50000 * sizeof(int)));
-        ASSERT(read(fd, buf, 1000 * sizeof(int)) == 1000 * sizeof(int));
+        ASSERT_OK(read_exact(fd, buf, 1000 * sizeof(int)));
         for (int i = 0; i < 1000; ++i)
             ASSERT(buf[i] == i);
-        ASSERT(read(fd, buf, 50000 * sizeof(int)) == 50000 * sizeof(int));
+        ASSERT_OK(read_exact(fd, buf, 50000 * sizeof(int)));
         for (int i = 0; i < 50000; ++i)
             ASSERT(buf[i] == i);
         ASSERT_OK(ftruncate(fd, 1000 * sizeof(int)));
         for (int i = 0; i < 1000; ++i)
             buf[i] = 5 * i;
-        ASSERT(write(fd, buf, 1000 * sizeof(int)) == 1000 * sizeof(int));
+        ASSERT_OK(write_all(fd, buf, 1000 * sizeof(int)));
         ASSERT_OK(close(fd));
         free(buf);
     }
     {
         int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDWR));
         int* buf = ASSERT(malloc(50000 * sizeof(int)));
-        ASSERT(read(fd, buf, 1000 * sizeof(int)) == 1000 * sizeof(int));
+        ASSERT_OK(read_exact(fd, buf, 1000 * sizeof(int)));
         for (int i = 0; i < 1000; ++i)
             ASSERT(buf[i] == i);
-        ASSERT(read(fd, buf, 50000 * sizeof(int)) == 50000 * sizeof(int));
+        ASSERT_OK(read_exact(fd, buf, 50000 * sizeof(int)));
         for (int i = 0; i < 50000; ++i)
             ASSERT(buf[i] == 0);
-        ASSERT(read(fd, buf, 1000 * sizeof(int)) == 1000 * sizeof(int));
+        ASSERT_OK(read_exact(fd, buf, 1000 * sizeof(int)));
         for (int i = 0; i < 1000; ++i)
             ASSERT(buf[i] == 5 * i);
         ASSERT_OK(ftruncate(fd, 1000 * sizeof(int)));
@@ -55,15 +56,15 @@ int main(void) {
     {
         int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDONLY));
         int* buf = ASSERT(malloc(50000 * sizeof(int)));
-        ASSERT(read(fd, buf, 1000 * sizeof(int)) == 1000 * sizeof(int));
+        ASSERT_OK(read_exact(fd, buf, 1000 * sizeof(int)));
         for (int i = 0; i < 1000; ++i)
             ASSERT(buf[i] == i);
-        ASSERT(read(fd, buf, 50000 * sizeof(int)) == 0);
+        ASSERT(read_to_end(fd, buf, 50000 * sizeof(int)) == 0);
         ASSERT_OK(close(fd));
     }
     {
         int fd = ASSERT_OK(open("/tmp/test-read-write", O_WRONLY));
-        ASSERT(write(fd, "x", 1) == 1);
+        ASSERT_OK(write_all(fd, "x", 1));
         char x;
         ASSERT_ERRNO(read(fd, &x, 1), EBADF);
         ASSERT_OK(close(fd));
@@ -72,7 +73,7 @@ int main(void) {
         int fd = ASSERT_OK(open("/tmp/test-read-write", O_RDONLY));
         ASSERT_ERRNO(write(fd, "x", 1), EBADF);
         char x;
-        ASSERT(read(fd, &x, 1) == 1);
+        ASSERT_OK(read_exact(fd, &x, 1));
         ASSERT_OK(close(fd));
     }
     {

@@ -1,3 +1,4 @@
+#include "io.h"
 #include <common/integer.h>
 #include <dirent.h>
 #include <errno.h>
@@ -39,18 +40,15 @@ int main(void) {
             return EXIT_FAILURE;
         }
         char comm[32];
-        ssize_t nread = read(fd, comm, sizeof(comm));
+        ssize_t nread = read_to_end(fd, comm, sizeof(comm) - 1);
         close(fd);
-
         if (nread < 0) {
             perror("read");
             closedir(dirp);
             return EXIT_FAILURE;
         }
-        if (nread == 0)
-            continue;
-
-        if (comm[nread - 1] == '\n')
+        comm[nread] = 0;
+        if (nread > 0 && comm[nread - 1] == '\n')
             comm[nread - 1] = 0;
 
         printf("%5d %s\n", pid, comm);

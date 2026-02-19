@@ -1,3 +1,4 @@
+#include "../io.h"
 #include <common/string.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -6,30 +7,6 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-static size_t read_all(int fd, void* buf, size_t count) {
-    unsigned char* p = buf;
-    size_t total = 0;
-    while (total < count) {
-        size_t n = ASSERT_OK(read(fd, p + total, count - total));
-        if (n == 0)
-            break;
-        total += n;
-    }
-    return total;
-}
-
-static size_t write_all(int fd, const void* buf, size_t count) {
-    const unsigned char* p = buf;
-    size_t total = 0;
-    while (total < count) {
-        size_t n = ASSERT_OK(write(fd, p + total, count - total));
-        if (n == 0)
-            break;
-        total += n;
-    }
-    return total;
-}
 
 int main(void) {
     unlink("/tmp/test-link-target");
@@ -55,7 +32,7 @@ int main(void) {
     {
         int fd = ASSERT_OK(
             open("/tmp/test-link-target", O_CREAT | O_RDWR | O_TRUNC, 0644));
-        ASSERT(write_all(fd, "xxx", 3) == 3);
+        ASSERT_OK(write_all(fd, "xxx", 3));
         ASSERT_OK(close(fd));
     }
 
@@ -90,13 +67,13 @@ int main(void) {
     char buf[4];
     {
         int fd = ASSERT_OK(open("/tmp/test-link-hard", O_RDONLY));
-        ASSERT(read_all(fd, buf, 3) == 3);
+        ASSERT_OK(read_exact(fd, buf, 3));
         ASSERT_OK(close(fd));
         ASSERT(memcmp(buf, "xxx", 3) == 0);
     }
     {
         int fd = ASSERT_OK(open("/tmp/test-link-sym", O_RDONLY));
-        ASSERT(read_all(fd, buf, 3) == 3);
+        ASSERT_OK(read_exact(fd, buf, 3));
         ASSERT_OK(close(fd));
         ASSERT(memcmp(buf, "xxx", 3) == 0);
     }
@@ -113,7 +90,7 @@ int main(void) {
     {
         int fd = ASSERT_OK(open("/tmp/test-link-rename-target",
                                 O_CREAT | O_RDWR | O_TRUNC, 0644));
-        ASSERT(write_all(fd, "yyy", 3) == 3);
+        ASSERT_OK(write_all(fd, "yyy", 3));
         ASSERT_OK(close(fd));
         ASSERT_OK(symlink("/tmp/test-link-target", "/tmp/test-link-sym2"));
         ASSERT_OK(
@@ -121,13 +98,13 @@ int main(void) {
     }
     {
         int fd = ASSERT_OK(open("/tmp/test-link-target", O_RDONLY));
-        ASSERT(read_all(fd, buf, 3) == 3);
+        ASSERT_OK(read_exact(fd, buf, 3));
         ASSERT_OK(close(fd));
         ASSERT(memcmp(buf, "xxx", 3) == 0);
     }
     {
         int fd = ASSERT_OK(open("/tmp/test-link-sym2", O_RDONLY));
-        ASSERT(read_all(fd, buf, 3) == 3);
+        ASSERT_OK(read_exact(fd, buf, 3));
         ASSERT_OK(close(fd));
         ASSERT(memcmp(buf, "yyy", 3) == 0);
     }
@@ -140,7 +117,7 @@ int main(void) {
     {
         int fd = ASSERT_OK(open("/tmp/test-link-rename-target2",
                                 O_CREAT | O_RDWR | O_TRUNC, 0644));
-        ASSERT(write_all(fd, "zzz", 3) == 3);
+        ASSERT_OK(write_all(fd, "zzz", 3));
         ASSERT_OK(close(fd));
     }
     ASSERT_OK(symlink("/tmp/test-link-rename-target2", "/tmp/test-link-sym4"));
@@ -149,7 +126,7 @@ int main(void) {
     ASSERT_OK(access("/tmp/test-link-rename-target2", F_OK));
     {
         int fd = ASSERT_OK(open("/tmp/test-link-sym5", O_RDONLY));
-        ASSERT(read_all(fd, buf, 3) == 3);
+        ASSERT_OK(read_exact(fd, buf, 3));
         ASSERT_OK(close(fd));
         ASSERT(memcmp(buf, "zzz", 3) == 0);
     }

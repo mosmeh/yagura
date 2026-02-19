@@ -70,8 +70,11 @@ NODISCARD static ssize_t readv(struct file* file, const struct iovec* user_iov,
                     return -ERESTARTSYS;
                 return nread;
             }
-            if (IS_ERR(n))
+            if (IS_ERR(n)) {
+                if (nread > 0)
+                    return nread;
                 return n;
+            }
             if (n == 0)
                 return nread;
             nread += n;
@@ -176,10 +179,11 @@ NODISCARD static ssize_t writev(struct file* file, const struct iovec* user_iov,
                     return -ERESTARTSYS;
                 return nwritten;
             }
-            if (IS_ERR(n))
+            if (IS_ERR(n)) {
+                if (nwritten > 0)
+                    return nwritten;
                 return n;
-            if (n == 0)
-                return nwritten;
+            }
             nwritten += n;
             user_src += n;
             offset += n;

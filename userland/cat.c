@@ -1,3 +1,4 @@
+#include "io.h"
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,25 +13,26 @@ static int dump_file(const char* filename) {
         perror("open");
         return -1;
     }
+    int ret = -1;
     for (;;) {
         static char buf[BUF_SIZE];
         ssize_t nread = read(fd, buf, BUF_SIZE);
         if (nread < 0) {
             perror("read");
-            if (fd != STDIN_FILENO)
-                close(fd);
-            return -1;
+            goto fail;
         }
         if (nread == 0)
             break;
-        if (write(STDOUT_FILENO, buf, nread) < 0) {
+        if (write_all(STDOUT_FILENO, buf, nread) < 0) {
             perror("write");
-            return -1;
+            goto fail;
         }
     }
+    ret = 0;
+fail:
     if (fd != STDIN_FILENO)
         close(fd);
-    return 0;
+    return ret;
 }
 
 int main(int argc, char* argv[]) {

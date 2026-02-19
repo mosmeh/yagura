@@ -3,6 +3,8 @@
 #include <common/stdio.h>
 #include <kernel/api/stdio.h>
 
+#define EOF (-1)
+
 int putchar(int ch);
 int puts(const char* str);
 int printf(const char* format, ...) PRINTF_LIKE(1, 2);

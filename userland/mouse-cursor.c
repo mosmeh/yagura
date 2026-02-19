@@ -1,3 +1,4 @@
+#include "io.h"
 #include "moused.h"
 #include <common/bytes.h>
 #include <errno.h>
@@ -145,13 +146,7 @@ int main(void) {
 
     struct moused_event event;
     for (;;) {
-        ssize_t nread = read(sockfd, &event, sizeof(struct moused_event));
-        if (nread == 0) {
-            close(sockfd);
-            return EXIT_FAILURE;
-        }
-        if (nread < 0) {
-            perror("read");
+        if (read_exact(sockfd, &event, sizeof(struct moused_event)) < 0) {
             close(sockfd);
             return EXIT_FAILURE;
         }

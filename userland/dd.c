@@ -1,3 +1,4 @@
+#include "io.h"
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -109,13 +110,11 @@ int main(int argc, char* argv[]) {
         if (partial_records_in + full_records_in <= skip)
             continue;
 
-        ssize_t nwritten = write(output_fd, buf, nread);
+        ssize_t nwritten = write_all(output_fd, buf, nread);
         if (nwritten < 0) {
             perror("write");
             goto fail;
         }
-        if (nwritten == 0)
-            break;
         if ((size_t)nwritten < block_size)
             ++partial_records_out;
         else
