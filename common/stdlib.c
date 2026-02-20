@@ -1,18 +1,30 @@
 #include <common/ctype.h>
+#include <common/stdbool.h>
 #include <common/stdlib.h>
 
 int atoi(const char* str) {
     if (!*str)
         return 0;
-    while (*str && isspace(*str))
+
+    while (isspace(*str))
         ++str;
-    if (*str == '-')
-        return -atoi(str + 1);
+
+    bool negative = false;
+    switch (*str) {
+    case '-':
+        negative = true;
+        // falls through
+    case '+':
+        ++str;
+    }
+
     int res = 0;
-    while ('0' <= *str && *str <= '9') {
+    while (isdigit(*str)) {
         res *= 10;
         res += *str++ - '0';
     }
+    if (negative)
+        res = -res;
     return res;
 }
 
