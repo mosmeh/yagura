@@ -38,33 +38,44 @@ int execve(const char* pathname, char* const argv[], char* const envp[]) {
 }
 
 int execvpe(const char* file, char* const argv[], char* const envp[]) {
-    if (strchr(file, '/'))
+    size_t filename_len = strlen(file);
+    if (filename_len == 0) {
+        errno = ENOENT;
+        return -1;
+    }
+    if (strnchr(file, filename_len, '/'))
         return execve(file, argv, envp);
 
     const char* path = getenv("PATH");
     if (!path)
         path = "/bin";
-    char* dup_path = strdup(path);
-    if (!dup_path)
-        return -1;
 
     int saved_errno = errno;
 
-    static const char* const sep = ":";
-    char* saved_ptr;
-    for (const char* part = strtok_r(dup_path, sep, &saved_ptr); part;
-         part = strtok_r(NULL, sep, &saved_ptr)) {
-        static char buf[1024];
-        ASSERT(sprintf(buf, "%s/%s", part, file) > 0);
-
-        ASSERT_ERR(execve(buf, argv, envp));
-        if (errno != ENOENT) {
-            free(dup_path);
-            return -1;
+    for (;;) {
+        const char* next = strchr(path, ':');
+        size_t len = next ? (size_t)(next - path) : strlen(path);
+        if (len == 0) {
+            ASSERT_ERR(execve(file, argv, envp));
+        } else {
+            if (len + 1 + filename_len > PATH_MAX) {
+                errno = ENAMETOOLONG;
+                return -1;
+            }
+            char full_path[PATH_MAX + 1];
+            memcpy(full_path, path, len);
+            full_path[len] = '/';
+            memcpy(full_path + len + 1, file, filename_len);
+            full_path[len + 1 + filename_len] = '\0';
+            ASSERT_ERR(execve(full_path, argv, envp));
         }
+        if (errno != ENOENT)
+            return -1;
         errno = saved_errno;
+        if (!next)
+            break;
+        path = next + 1;
     }
-    free(dup_path);
 
     errno = ENOENT;
     return -1;

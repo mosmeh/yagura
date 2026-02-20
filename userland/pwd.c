@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/limits.h>
 #include <unistd.h>
 
+static char buf[PATH_MAX + 1];
+
 int main(void) {
-    static char buf[1024];
-    if (!getcwd(buf, 1024)) {
+    if (!getcwd(buf, sizeof(buf))) {
         perror("getcwd");
         return EXIT_FAILURE;
     }

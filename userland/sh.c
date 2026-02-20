@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/limits.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <termios.h>
@@ -358,8 +359,8 @@ static char* read_input(struct line_editor* ed, size_t terminal_width) {
     ed->input_len = ed->cursor = 0;
     ed->dirty = true;
 
-    char cwd_buf[BUF_SIZE] = {0};
-    getcwd(cwd_buf, BUF_SIZE);
+    char cwd_buf[PATH_MAX + 1] = {0};
+    getcwd(cwd_buf, sizeof(cwd_buf));
 
     size_t prompt_len = strlen(cwd_buf) + 3;
 
