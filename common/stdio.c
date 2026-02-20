@@ -1,3 +1,4 @@
+#include <common/limits.h>
 #include <common/stdarg.h>
 #include <common/stdbool.h>
 #include <common/stddef.h>
@@ -8,7 +9,7 @@
 int sprintf(char* buffer, const char* format, ...) {
     va_list args;
     va_start(args, format);
-    int ret = vsnprintf(buffer, PTRDIFF_MAX, format, args);
+    int ret = vsnprintf(buffer, INT_MAX, format, args);
     va_end(args);
     return ret;
 }
@@ -22,7 +23,7 @@ int snprintf(char* buffer, size_t bufsz, const char* format, ...) {
 }
 
 int vsprintf(char* buffer, const char* format, va_list args) {
-    return vsnprintf(buffer, PTRDIFF_MAX, format, args);
+    return vsnprintf(buffer, INT_MAX, format, args);
 }
 
 static size_t utoa(unsigned long long value, char* str, unsigned radix) {
@@ -55,18 +56,15 @@ enum length_spec {
     LENGTH_LONG_LONG,
 };
 
-// NOLINTNEXTLINE(readability-non-const-parameter)
 int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
-    if (size == 0)
-        return 0;
-
     size_t idx = 0;
 
 #define PUT(c)                                                                 \
     do {                                                                       \
-        buffer[idx++] = (c);                                                   \
-        if (idx >= size)                                                       \
-            goto too_long;                                                     \
+        char __ch = (c);                                                       \
+        if (idx < size)                                                        \
+            buffer[idx] = __ch;                                                \
+        ++idx;                                                                 \
     } while (0)
 
     char ch;
@@ -234,7 +232,7 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
         }
     }
 
-too_long:
-    buffer[idx < size ? idx : size - 1] = '\0';
+    if (size > 0)
+        buffer[idx < size ? idx : size - 1] = '\0';
     return idx;
 }

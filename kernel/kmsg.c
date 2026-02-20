@@ -1,6 +1,7 @@
 #include <common/stdarg.h>
 #include <common/stdio.h>
 #include <common/string.h>
+#include <kernel/api/errno.h>
 #include <kernel/drivers/serial.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>
@@ -22,9 +23,14 @@ int kprintf(const char* format, ...) {
 
 int kvprintf(const char* format, va_list args) {
     char buf[1024];
-    int ret = vsnprintf(buf, sizeof(buf), format, args);
-    kprint(buf);
-    return ret;
+    int len = vsnprintf(buf, sizeof(buf), format, args);
+    if (len < 0)
+        return -EINVAL;
+    // Just truncate the message if it's too long, since we don't want
+    // kprintf to fail.
+    size_t count = (size_t)len < sizeof(buf) ? (size_t)len : sizeof(buf) - 1;
+    kmsg_write(buf, count);
+    return len;
 }
 
 #define RING_BUF_SIZE (KMSG_BUF_SIZE + 1) // +1 to distinguish full vs empty

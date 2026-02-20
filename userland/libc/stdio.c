@@ -2,6 +2,7 @@
 #include "private.h"
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -61,8 +62,28 @@ int dprintf(int fd, const char* format, ...) {
 }
 
 int vdprintf(int fd, const char* format, va_list ap) {
-    char buf[1024];
-    int len = vsnprintf(buf, 1024, format, ap);
+    static _Thread_local char* buf;
+    static _Thread_local size_t buf_size;
+
+    int len = 80; // Initial size of the buffer
+    for (;;) {
+        if (buf) {
+            va_list args_copy;
+            va_copy(args_copy, ap);
+            len = vsnprintf(buf, buf_size, format, args_copy);
+            va_end(args_copy);
+            if (len < 0)
+                return -1;
+            if ((size_t)len < buf_size)
+                break;
+        }
+        size_t new_size = (size_t)len + 1;
+        char* new_buf = realloc(buf, new_size);
+        if (!new_buf)
+            return -1;
+        buf = new_buf;
+        buf_size = new_size;
+    }
     if (write_all(fd, buf, len) < 0)
         return -1;
     return len;
