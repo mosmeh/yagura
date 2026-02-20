@@ -17,6 +17,7 @@ struct cell {
     char ch;
     uint8_t fg_color;
     uint8_t bg_color;
+    bool dirty;
 };
 
 #define VT_STOMP 0x1
@@ -56,33 +57,52 @@ struct vt {
     uint32_t palette[NUM_COLORS];
     uint8_t fg_color;
     uint8_t bg_color;
-
     struct font* font;
 
     struct cell* cells;
-    bool* line_is_dirty;
-
     unsigned flags;
 };
 
+static void invalidate_cell(struct vt* vt, size_t x, size_t y) {
+    ASSERT(x < vt->num_columns);
+    ASSERT(y < vt->num_rows);
+    vt->cells[x + y * vt->num_columns].dirty = true;
+}
+
 static void set_cursor(struct vt* vt, size_t x, size_t y) {
-    vt->line_is_dirty[vt->cursor_y] = true;
-    vt->line_is_dirty[y] = true;
+    ASSERT(x < vt->num_columns);
+    ASSERT(y < vt->num_rows);
+
+    // Even if the cursor position won't actually change, the cursor is
+    // logically "moved" by the command, so we need to clear the stomp flag.
+    vt->flags &= ~VT_STOMP;
+
+    if (vt->cursor_x == x && vt->cursor_y == y)
+        return;
+
+    invalidate_cell(vt, vt->cursor_x, vt->cursor_y);
+    invalidate_cell(vt, x, y);
     vt->cursor_x = x;
     vt->cursor_y = y;
-    vt->flags &= ~VT_STOMP;
     vt->flags |= VT_CURSOR_DIRTY;
 }
 
 static void clear_line_at(struct vt* vt, size_t x, size_t y, size_t length) {
+    ASSERT(x < vt->num_columns);
+    ASSERT(y < vt->num_rows);
+    ASSERT(x + length <= vt->num_columns);
+
     struct cell* cell = vt->cells + x + y * vt->num_columns;
-    for (size_t i = 0; i < length; ++i) {
+    for (size_t i = 0; i < length; ++i, ++cell) {
+        // VT_COLOR_REVERSED doesn't affect clearing.
+        if (cell->ch == ' ' && cell->fg_color == vt->fg_color &&
+            cell->bg_color == vt->bg_color)
+            continue;
         cell->ch = ' ';
         cell->fg_color = vt->fg_color;
         cell->bg_color = vt->bg_color;
-        ++cell;
+        cell->dirty = true;
     }
-    vt->line_is_dirty[y] = true;
 }
 
 static void clear_screen(struct vt* vt) {
@@ -92,22 +112,46 @@ static void clear_screen(struct vt* vt) {
 }
 
 static void write_char_at(struct vt* vt, size_t x, size_t y, char c) {
-    struct cell* cell = vt->cells + x + y * vt->num_columns;
-    cell->ch = c;
-    cell->fg_color =
+    ASSERT(x < vt->num_columns);
+    ASSERT(y < vt->num_rows);
+
+    uint8_t new_fg_color =
         ((vt->flags & VT_COLOR_REVERSED) ? vt->bg_color : vt->fg_color) |
         ((vt->flags & VT_BOLD) ? BRIGHTEN_COLOR : 0);
-    cell->bg_color =
+    uint8_t new_bg_color =
         (vt->flags & VT_COLOR_REVERSED) ? vt->fg_color : vt->bg_color;
-    vt->line_is_dirty[y] = true;
+
+    struct cell* cell = vt->cells + x + y * vt->num_columns;
+    if (cell->ch == c && cell->fg_color == new_fg_color &&
+        cell->bg_color == new_bg_color)
+        return;
+
+    cell->ch = c;
+    cell->fg_color = new_fg_color;
+    cell->bg_color = new_bg_color;
+    cell->dirty = true;
 }
 
-static void scroll_up(struct vt* vt) {
-    memmove(vt->cells, vt->cells + vt->num_columns,
-            vt->num_columns * (vt->num_rows - 1) * sizeof(struct cell));
-    for (size_t y = 0; y < vt->num_rows - 1; ++y)
-        vt->line_is_dirty[y] = true;
+static void advance_to_next_line(struct vt* vt) {
+    if (vt->cursor_y + 1 < vt->num_rows) {
+        set_cursor(vt, 0, vt->cursor_y + 1);
+        return;
+    }
+
+    // Scroll up by one line
+    const struct cell* src = vt->cells + vt->num_columns;
+    struct cell* dst = vt->cells;
+    for (size_t i = 0; i < vt->num_columns * (vt->num_rows - 1); ++i) {
+        if (dst->ch != src->ch || dst->fg_color != src->fg_color ||
+            dst->bg_color != src->bg_color) {
+            *dst = *src;
+            dst->dirty = true;
+        }
+        ++src;
+        ++dst;
+    }
     clear_line_at(vt, 0, vt->num_rows - 1, vt->num_columns);
+    set_cursor(vt, 0, vt->num_rows - 1);
 }
 
 void vt_flush(struct vt* vt) {
@@ -130,6 +174,7 @@ void vt_flush(struct vt* vt) {
     if (vt->flags & VT_WHOLE_SCREEN_DIRTY) {
         // Ensures to clear not only the portion covered by the cells
         // but also the margin area.
+        // VT_COLOR_REVERSED doesn't affect clearing.
         screen->clear(vt->bg_color);
     }
 
@@ -137,19 +182,14 @@ void vt_flush(struct vt* vt) {
         screen->set_cursor(vt->cursor_x, vt->cursor_y,
                            vt->flags & VT_CURSOR_VISIBLE);
 
-    struct cell* row_cells = vt->cells;
-    bool* dirty = vt->line_is_dirty;
+    struct cell* cell = vt->cells;
     for (size_t y = 0; y < vt->num_rows; ++y) {
-        if (*dirty || (vt->flags & VT_WHOLE_SCREEN_DIRTY)) {
-            struct cell* cell = row_cells;
-            for (size_t x = 0; x < vt->num_columns; ++x) {
+        for (size_t x = 0; x < vt->num_columns; ++x, ++cell) {
+            if (cell->dirty || (vt->flags & VT_WHOLE_SCREEN_DIRTY)) {
                 screen->put(x, y, cell->ch, cell->fg_color, cell->bg_color);
-                ++cell;
+                cell->dirty = false;
             }
-            *dirty = false;
         }
-        row_cells += vt->num_columns;
-        ++dirty;
     }
 
     vt->flags &= ~VT_ALL_DIRTY;
@@ -188,38 +228,34 @@ NODISCARD static enum state handle_ground(struct vt* vt, char c) {
     case '\n':
     case '\v':
     case '\f':
-        set_cursor(vt, 0, vt->cursor_y + 1);
-        if (vt->cursor_y >= vt->num_rows) {
-            scroll_up(vt);
-            set_cursor(vt, vt->cursor_x, vt->num_rows - 1);
-        }
+        advance_to_next_line(vt);
         break;
     case '\b':
         if (vt->cursor_x > 0)
             set_cursor(vt, vt->cursor_x - 1, vt->cursor_y);
         break;
     case '\t':
-        set_cursor(vt, ROUND_UP(vt->cursor_x + 1, TAB_STOP), vt->cursor_y);
+        if (vt->cursor_x + 1 < vt->num_columns) {
+            size_t x = vt->cursor_x + 1;
+            x = ROUND_UP(x, TAB_STOP);
+            x = MIN(x, vt->num_columns - 1);
+            set_cursor(vt, x, vt->cursor_y);
+        }
         break;
     default:
         if (!isascii(c))
             return STATE_GROUND;
         if (vt->flags & VT_STOMP)
-            set_cursor(vt, 0, vt->cursor_y + 1);
-        if (vt->cursor_y >= vt->num_rows) {
-            scroll_up(vt);
-            set_cursor(vt, vt->cursor_x, vt->num_rows - 1);
-        }
+            advance_to_next_line(vt);
         write_char_at(vt, vt->cursor_x, vt->cursor_y, c);
-        set_cursor(vt, vt->cursor_x + 1, vt->cursor_y);
+        if (vt->cursor_x + 1 < vt->num_columns) {
+            set_cursor(vt, vt->cursor_x + 1, vt->cursor_y);
+        } else {
+            // Even if we reach the end of the line, we don't immediately
+            // advance to the next line until the next character is printed.
+            vt->flags |= VT_STOMP;
+        }
         break;
-    }
-    if (vt->cursor_x >= vt->num_columns) {
-        set_cursor(vt, vt->num_columns - 1, vt->cursor_y);
-
-        // even if we reach at the right end of a screen, we don't proceed to
-        // the next line until we write the next character
-        vt->flags |= VT_STOMP;
     }
     return STATE_GROUND;
 }
@@ -462,12 +498,14 @@ static void handle_csi_dec_hl(struct vt* vt, bool enable) {
     for (size_t i = 0; i < vt->num_params; ++i) {
         switch (vt->params[i]) {
         case 25: // Text Cursor Enable Mode
+            if (enable != (bool)(vt->flags & VT_CURSOR_VISIBLE)) {
+                invalidate_cell(vt, vt->cursor_x, vt->cursor_y);
+                vt->flags |= VT_CURSOR_DIRTY;
+            }
             if (enable)
                 vt->flags |= VT_CURSOR_VISIBLE;
             else
                 vt->flags &= ~VT_CURSOR_VISIBLE;
-            vt->line_is_dirty[vt->cursor_y] = true;
-            vt->flags |= VT_CURSOR_DIRTY;
             break;
         }
     }
@@ -590,16 +628,18 @@ struct vt* vt_create(struct screen* screen) {
         .flags = VT_CURSOR_VISIBLE | VT_ALL_DIRTY,
     };
 
-    struct cell* cells FREE(kfree) =
-        kmalloc(num_columns * num_rows * sizeof(struct cell));
-    if (!cells)
-        return ERR_PTR(-ENOMEM);
-    bool* line_is_dirty FREE(kfree) = kmalloc(num_rows * sizeof(bool));
-    if (!line_is_dirty)
+    vt->cells = kmalloc(num_columns * num_rows * sizeof(struct cell));
+    if (!vt->cells)
         return ERR_PTR(-ENOMEM);
 
-    vt->cells = TAKE_PTR(cells);
-    vt->line_is_dirty = TAKE_PTR(line_is_dirty);
+    for (size_t i = 0; i < num_columns * num_rows; ++i) {
+        vt->cells[i] = (struct cell){
+            .ch = ' ',
+            .fg_color = DEFAULT_FG_COLOR,
+            .bg_color = DEFAULT_BG_COLOR,
+            .dirty = true,
+        };
+    }
 
     clear_screen(vt);
     vt_flush(vt);
