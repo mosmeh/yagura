@@ -30,10 +30,9 @@ struct line_editor {
     size_t cursor;
 
     enum { STATE_GROUND, STATE_ESC, STATE_CSI, STATE_ACCEPTED } state;
+    unsigned params[16];
+    size_t num_params;
     bool dirty;
-
-    char param_buf[BUF_SIZE];
-    size_t param_len;
 
     struct history_entry* history_head;
     struct history_entry* history_tail;
@@ -278,7 +277,8 @@ static void handle_ground(struct line_editor* ed, char c) {
 static void handle_state_esc(struct line_editor* ed, char c) {
     switch (c) {
     case '[':
-        ed->param_len = 0;
+        ed->num_params = 0;
+        memset(ed->params, 0, sizeof(ed->params));
         ed->state = STATE_CSI;
         return;
     }
@@ -287,8 +287,7 @@ static void handle_state_esc(struct line_editor* ed, char c) {
 }
 
 static void handle_csi_vt(struct line_editor* ed) {
-    int code = atoi(ed->param_buf);
-    switch (code) {
+    switch (ed->params[0]) {
     case 1:
     case 7:
         on_home(ed);
@@ -304,11 +303,17 @@ static void handle_csi_vt(struct line_editor* ed) {
 }
 
 static void handle_state_csi(struct line_editor* ed, char c) {
-    if (c < 0x40) {
-        ed->param_buf[ed->param_len++] = c;
+    if (c == ';') {
+        if (ed->num_params < ARRAY_SIZE(ed->params) - 1) {
+            ++ed->num_params;
+            return;
+        }
+    } else if (isdigit(c)) {
+        unsigned* p = &ed->params[ed->num_params];
+        *p = *p * 10 + (c - '0');
         return;
     }
-    ed->param_buf[ed->param_len] = '\0';
+    ++ed->num_params;
 
     switch (c) {
     case 'A':

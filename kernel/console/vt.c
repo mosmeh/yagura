@@ -21,7 +21,8 @@ struct cell {
 
 #define VT_STOMP 0x1
 #define VT_CURSOR_VISIBLE 0x2
-#define VT_COLOR_REVERSED 0x4
+#define VT_BOLD 0x4
+#define VT_COLOR_REVERSED 0x8
 
 #define VT_WHOLE_SCREEN_DIRTY 0x100
 #define VT_CURSOR_DIRTY 0x200
@@ -40,15 +41,17 @@ struct vt {
     size_t cursor_x;
     size_t cursor_y;
 
-    enum {
+    enum state {
         STATE_GROUND,
         STATE_ESC,
         STATE_CSI,
+        STATE_CSI_ECMA,
+        STATE_CSI_DEC,
         STATE_OSC,
         STATE_OSC_PALETTE,
     } state;
-    char param_buf[1024];
-    size_t param_buf_index;
+    unsigned params[16];
+    size_t num_params;
 
     uint32_t palette[NUM_COLORS];
     uint8_t fg_color;
@@ -92,7 +95,8 @@ static void write_char_at(struct vt* vt, size_t x, size_t y, char c) {
     struct cell* cell = vt->cells + x + y * vt->num_columns;
     cell->ch = c;
     cell->fg_color =
-        (vt->flags & VT_COLOR_REVERSED) ? vt->bg_color : vt->fg_color;
+        ((vt->flags & VT_COLOR_REVERSED) ? vt->bg_color : vt->fg_color) |
+        ((vt->flags & VT_BOLD) ? BRIGHTEN_COLOR : 0);
     cell->bg_color =
         (vt->flags & VT_COLOR_REVERSED) ? vt->fg_color : vt->bg_color;
     vt->line_is_dirty[y] = true;
@@ -156,7 +160,7 @@ void vt_set_palette(struct vt* vt, const uint32_t palette[NUM_COLORS]) {
     vt->flags |= VT_PALETTE_DIRTY;
 }
 
-struct font* vt_get_font(struct vt* vt) {
+struct font* vt_get_font(const struct vt* vt) {
     return vt->font ? font_ref(vt->font) : NULL;
 }
 
@@ -169,15 +173,21 @@ struct font* vt_swap_font(struct vt* vt, struct font* font) {
 
 void vt_invalidate_all(struct vt* vt) { vt->flags |= VT_ALL_DIRTY; }
 
-static void handle_ground(struct vt* vt, char c) {
+static void reset_params(struct vt* vt) {
+    vt->num_params = 0;
+    memset(vt->params, 0, sizeof(vt->params));
+}
+
+NODISCARD static enum state handle_ground(struct vt* vt, char c) {
     switch (c) {
     case '\x1b':
-        vt->state = STATE_ESC;
-        return;
+        return STATE_ESC;
     case '\r':
         set_cursor(vt, 0, vt->cursor_y);
         break;
     case '\n':
+    case '\v':
+    case '\f':
         set_cursor(vt, 0, vt->cursor_y + 1);
         if (vt->cursor_y >= vt->num_rows) {
             scroll_up(vt);
@@ -192,8 +202,8 @@ static void handle_ground(struct vt* vt, char c) {
         set_cursor(vt, ROUND_UP(vt->cursor_x + 1, TAB_STOP), vt->cursor_y);
         break;
     default:
-        if ((unsigned)c > 127)
-            return;
+        if (!isascii(c))
+            return STATE_GROUND;
         if (vt->flags & VT_STOMP)
             set_cursor(vt, 0, vt->cursor_y + 1);
         if (vt->cursor_y >= vt->num_rows) {
@@ -211,26 +221,24 @@ static void handle_ground(struct vt* vt, char c) {
         // the next line until we write the next character
         vt->flags |= VT_STOMP;
     }
+    return STATE_GROUND;
 }
 
-static void handle_state_esc(struct vt* vt, char c) {
+NODISCARD static enum state handle_state_esc(struct vt* vt, char c) {
     switch (c) {
     case '[':
-        vt->param_buf_index = 0;
-        vt->state = STATE_CSI;
-        return;
+        reset_params(vt);
+        return STATE_CSI;
     case ']':
-        vt->param_buf_index = 0;
-        vt->state = STATE_OSC;
-        return;
+        return STATE_OSC;
     }
     vt->state = STATE_GROUND;
-    handle_ground(vt, c);
+    return handle_ground(vt, c);
 }
 
 // Cursor Up
 static void handle_csi_cuu(struct vt* vt) {
-    unsigned dy = atoi(vt->param_buf);
+    unsigned dy = vt->params[0];
     if (dy == 0)
         dy = 1;
     if (dy > vt->cursor_y)
@@ -241,7 +249,7 @@ static void handle_csi_cuu(struct vt* vt) {
 
 // Cursor Down
 static void handle_csi_cud(struct vt* vt) {
-    unsigned dy = atoi(vt->param_buf);
+    unsigned dy = vt->params[0];
     if (dy == 0)
         dy = 1;
     if (dy + vt->cursor_y >= vt->num_rows)
@@ -252,7 +260,7 @@ static void handle_csi_cud(struct vt* vt) {
 
 // Cursor Forward
 static void handle_csi_cuf(struct vt* vt) {
-    unsigned dx = atoi(vt->param_buf);
+    unsigned dx = vt->params[0];
     if (dx == 0)
         dx = 1;
     if (dx + vt->cursor_x >= vt->num_columns)
@@ -263,7 +271,7 @@ static void handle_csi_cuf(struct vt* vt) {
 
 // Cursor Back
 static void handle_csi_cub(struct vt* vt) {
-    unsigned dx = atoi(vt->param_buf);
+    unsigned dx = vt->params[0];
     if (dx == 0)
         dx = 1;
     if (dx > vt->cursor_x)
@@ -274,7 +282,7 @@ static void handle_csi_cub(struct vt* vt) {
 
 // Cursor Next Line
 static void handle_csi_cnl(struct vt* vt) {
-    unsigned dy = atoi(vt->param_buf);
+    unsigned dy = vt->params[0];
     if (dy == 0)
         dy = 1;
     if (dy + vt->cursor_y >= vt->num_rows)
@@ -285,7 +293,7 @@ static void handle_csi_cnl(struct vt* vt) {
 
 // Cursor Previous Line
 static void handle_csi_cpl(struct vt* vt) {
-    unsigned dy = atoi(vt->param_buf);
+    unsigned dy = vt->params[0];
     if (dy == 0)
         dy = 1;
     if (dy > vt->cursor_y)
@@ -296,7 +304,7 @@ static void handle_csi_cpl(struct vt* vt) {
 
 // Cursor Horizontal Absolute
 static void handle_csi_cha(struct vt* vt) {
-    unsigned x = atoi(vt->param_buf);
+    unsigned x = vt->params[0];
     if (x > 0)
         --x;
     if (x >= vt->num_columns)
@@ -306,28 +314,12 @@ static void handle_csi_cha(struct vt* vt) {
 
 // Cursor Position
 static void handle_csi_cup(struct vt* vt) {
-    size_t x = 0;
-    size_t y = 0;
-
-    static const char* const sep = ";";
-    char* saved_ptr;
-    const char* param = strtok_r(vt->param_buf, sep, &saved_ptr);
-    for (size_t i = 0; param; ++i) {
-        switch (i) {
-        case 0:
-            y = atoi(param);
-            if (y > 0)
-                --y;
-            break;
-        case 1:
-            x = atoi(param);
-            if (x > 0)
-                --x;
-            break;
-        }
-        param = strtok_r(NULL, sep, &saved_ptr);
-    }
-
+    size_t x = vt->params[1];
+    size_t y = vt->params[0];
+    if (x > 0)
+        --x;
+    if (y > 0)
+        --y;
     if (x >= vt->num_columns)
         x = vt->num_columns - 1;
     if (y >= vt->num_rows)
@@ -337,7 +329,7 @@ static void handle_csi_cup(struct vt* vt) {
 
 // Erase in Display
 static void handle_csi_ed(struct vt* vt) {
-    switch (atoi(vt->param_buf)) {
+    switch (vt->params[0]) {
     case 0:
         clear_line_at(vt, vt->cursor_x, vt->cursor_y,
                       vt->num_columns - vt->cursor_x);
@@ -359,7 +351,7 @@ static void handle_csi_ed(struct vt* vt) {
 
 // Erase in Line
 static void handle_csi_el(struct vt* vt) {
-    switch (atoi(vt->param_buf)) {
+    switch (vt->params[0]) {
     case 0:
         clear_line_at(vt, vt->cursor_x, vt->cursor_y,
                       vt->num_columns - vt->cursor_x);
@@ -375,70 +367,57 @@ static void handle_csi_el(struct vt* vt) {
 
 // Select Graphic Rendition
 static void handle_csi_sgr(struct vt* vt) {
-    if (vt->param_buf[0] == '\0') {
-        vt->fg_color = DEFAULT_FG_COLOR;
-        vt->bg_color = DEFAULT_BG_COLOR;
-        return;
-    }
-
-    static const char* const sep = ";";
-    char* saved_ptr;
-    bool bold = false;
-    for (const char* param = strtok_r(vt->param_buf, sep, &saved_ptr); param;
-         param = strtok_r(NULL, sep, &saved_ptr)) {
-        int num = atoi(param);
-        if (num == 0) {
+    for (size_t i = 0; i < vt->num_params; ++i) {
+        unsigned p = vt->params[i];
+        if (p == 0) {
             vt->fg_color = DEFAULT_FG_COLOR;
             vt->bg_color = DEFAULT_BG_COLOR;
-            bold = false;
-        } else if (num == 1) {
-            bold = true;
-        } else if (num == 7) {
+            vt->flags &= ~(VT_BOLD | VT_COLOR_REVERSED);
+        } else if (p == 1) {
+            vt->flags |= VT_BOLD;
+        } else if (p == 7) {
             vt->flags |= VT_COLOR_REVERSED;
-        } else if (num == 22) {
-            bold = false;
-        } else if (num == 27) {
+        } else if (p == 22) {
+            vt->flags &= ~VT_BOLD;
+        } else if (p == 27) {
             vt->flags &= ~VT_COLOR_REVERSED;
-        } else if (30 <= num && num <= 37) {
-            vt->fg_color = (num - 30) | (bold ? BRIGHTEN_COLOR : 0);
-        } else if (num == 39) {
+        } else if (30 <= p && p <= 37) {
+            vt->fg_color = p - 30;
+        } else if (p == 39) {
             vt->fg_color = DEFAULT_FG_COLOR;
-        } else if (40 <= num && num <= 47) {
-            vt->bg_color = (num - 40) | (bold ? BRIGHTEN_COLOR : 0);
-        } else if (num == 49) {
+        } else if (40 <= p && p <= 47) {
+            vt->bg_color = p - 40;
+        } else if (p == 49) {
             vt->bg_color = DEFAULT_BG_COLOR;
-        } else if (90 <= num && num <= 97) {
-            vt->fg_color = (num - 90) | BRIGHTEN_COLOR;
-        } else if (100 <= num && num <= 107) {
-            vt->bg_color = (num - 100) | BRIGHTEN_COLOR;
+        } else if (90 <= p && p <= 97) {
+            vt->fg_color = (p - 90) | BRIGHTEN_COLOR;
+        } else if (100 <= p && p <= 107) {
+            // Linux does not support bright background colors
+            vt->bg_color = p - 100;
         }
     }
 }
 
-// Text Cursor Enable Mode
-static void handle_csi_dectcem(struct vt* vt, char c) {
-    if (strcmp(vt->param_buf, "?25") != 0)
-        return;
-    switch (c) {
-    case 'h':
-        vt->flags |= VT_CURSOR_VISIBLE;
-        break;
-    case 'l':
-        vt->flags &= ~VT_CURSOR_VISIBLE;
-        break;
-    default:
-        return;
+NODISCARD static bool parse_csi_param(struct vt* vt, char c) {
+    if (c == ';') {
+        if (vt->num_params < ARRAY_SIZE(vt->params) - 1) {
+            ++vt->num_params;
+            return true;
+        }
+    } else if (isdigit(c)) {
+        unsigned* p = &vt->params[vt->num_params];
+        *p = *p * 10 + (c - '0');
+        return true;
+    } else if (' ' <= c && c <= '?') {
+        return true;
     }
-    vt->line_is_dirty[vt->cursor_y] = true;
-    vt->flags |= VT_CURSOR_DIRTY;
+    ++vt->num_params;
+    return false;
 }
 
-static void handle_state_csi(struct vt* vt, char c) {
-    if (c < 0x40) {
-        vt->param_buf[vt->param_buf_index++] = c;
-        return;
-    }
-    vt->param_buf[vt->param_buf_index] = '\0';
+NODISCARD static enum state handle_state_csi_ecma(struct vt* vt, char c) {
+    if (parse_csi_param(vt, c))
+        return STATE_CSI_ECMA;
 
     switch (c) {
     case 'A':
@@ -474,23 +453,58 @@ static void handle_state_csi(struct vt* vt, char c) {
     case 'm':
         handle_csi_sgr(vt);
         break;
+    }
+
+    return STATE_GROUND;
+}
+
+static void handle_csi_dec_hl(struct vt* vt, bool enable) {
+    for (size_t i = 0; i < vt->num_params; ++i) {
+        switch (vt->params[i]) {
+        case 25: // Text Cursor Enable Mode
+            if (enable)
+                vt->flags |= VT_CURSOR_VISIBLE;
+            else
+                vt->flags &= ~VT_CURSOR_VISIBLE;
+            vt->line_is_dirty[vt->cursor_y] = true;
+            vt->flags |= VT_CURSOR_DIRTY;
+            break;
+        }
+    }
+}
+
+NODISCARD static enum state handle_state_csi_dec(struct vt* vt, char c) {
+    if (parse_csi_param(vt, c))
+        return STATE_CSI_DEC;
+
+    switch (c) {
     case 'h':
+        handle_csi_dec_hl(vt, true);
+        break;
     case 'l':
-        handle_csi_dectcem(vt, c);
+        handle_csi_dec_hl(vt, false);
         break;
     }
 
-    vt->state = STATE_GROUND;
+    return STATE_GROUND;
 }
 
-static void handle_state_osc(struct vt* vt, char c) {
+NODISCARD static enum state handle_state_csi(struct vt* vt, char c) {
+    switch (c) {
+    case '?':
+        return STATE_CSI_DEC;
+    }
+    vt->state = STATE_CSI_ECMA;
+    return handle_state_csi_ecma(vt, c);
+}
+
+NODISCARD static enum state handle_state_osc(struct vt* vt, char c) {
     switch (c) {
     case 'P':
-        vt->param_buf_index = 0;
-        vt->state = STATE_OSC_PALETTE;
-        return;
+        reset_params(vt);
+        return STATE_OSC_PALETTE;
     }
-    vt->state = STATE_GROUND;
+    return STATE_GROUND;
 }
 
 static unsigned char parse_hex_digit(char c) {
@@ -502,43 +516,47 @@ static unsigned char parse_hex_digit(char c) {
     return c - 'a' + 10;
 }
 
-static void handle_state_osc_palette(struct vt* vt, char c) {
-    if (!isxdigit(c)) {
-        vt->state = STATE_GROUND;
-        return;
-    }
-    vt->param_buf[vt->param_buf_index++] = c;
-    if (vt->param_buf_index < 7)
-        return;
-    unsigned char index = parse_hex_digit(vt->param_buf[0]);
-    uint32_t r = (parse_hex_digit(vt->param_buf[1]) << 4) |
-                 parse_hex_digit(vt->param_buf[2]);
-    uint32_t g = (parse_hex_digit(vt->param_buf[3]) << 4) |
-                 parse_hex_digit(vt->param_buf[4]);
-    uint32_t b = (parse_hex_digit(vt->param_buf[5]) << 4) |
-                 parse_hex_digit(vt->param_buf[6]);
+NODISCARD static enum state handle_state_osc_palette(struct vt* vt, char c) {
+    if (!isxdigit(c))
+        return STATE_GROUND;
+
+    vt->params[vt->num_params++] = parse_hex_digit(c);
+    if (vt->num_params < 7)
+        return STATE_OSC_PALETTE;
+
+    unsigned index = vt->params[0];
+    ASSERT(index < NUM_COLORS);
+    uint32_t r = (vt->params[1] << 4) | vt->params[2];
+    uint32_t g = (vt->params[3] << 4) | vt->params[4];
+    uint32_t b = (vt->params[5] << 4) | vt->params[6];
     uint32_t color = (r << 16) | (g << 8) | b;
     vt->palette[index] = color;
     vt->flags |= VT_PALETTE_DIRTY;
-    vt->state = STATE_GROUND;
+    return STATE_GROUND;
 }
 
 static void on_char(struct vt* vt, char c) {
     switch (vt->state) {
     case STATE_GROUND:
-        handle_ground(vt, c);
+        vt->state = handle_ground(vt, c);
         return;
     case STATE_ESC:
-        handle_state_esc(vt, c);
+        vt->state = handle_state_esc(vt, c);
         return;
     case STATE_CSI:
-        handle_state_csi(vt, c);
+        vt->state = handle_state_csi(vt, c);
+        return;
+    case STATE_CSI_ECMA:
+        vt->state = handle_state_csi_ecma(vt, c);
+        return;
+    case STATE_CSI_DEC:
+        vt->state = handle_state_csi_dec(vt, c);
         return;
     case STATE_OSC:
-        handle_state_osc(vt, c);
+        vt->state = handle_state_osc(vt, c);
         return;
     case STATE_OSC_PALETTE:
-        handle_state_osc_palette(vt, c);
+        vt->state = handle_state_osc_palette(vt, c);
         return;
     }
     UNREACHABLE();
