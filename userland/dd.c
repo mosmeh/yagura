@@ -128,8 +128,8 @@ int main(int argc, char* argv[]) {
             "%zu+%zu records in\n"
             "%zu+%zu records out\n"
             "%zu bytes copied\n",
-            partial_records_in, full_records_in, partial_records_out,
-            full_records_out, copied_bytes);
+            full_records_in, partial_records_in, full_records_out,
+            partial_records_out, copied_bytes);
 
     ret = EXIT_SUCCESS;
 fail:
