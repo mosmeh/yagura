@@ -14,4 +14,8 @@ The kernel command-line parameters are in the form of `key=value`, where the `=v
    - `timeout` = `poweroff`: Power off the system.
 - `console=<device>`: The device to use as the system console `/dev/console`. The default is `tty1`.
 - `nosmp`: Disables symmetric multiprocessing.
-- `ni_syscall_log`: Log a message when an unimplemented system call is invoked.
+- `syscall_log=<level>`: Logs system calls.
+   - `level` = `all`: Logs all system calls.
+   - `level` = `implemented`: Logs only implemented system calls.
+   - `level` = `unimplemented`: Logs only unimplemented system calls.
+   - If `level` is omitted, it defaults to `all`.

@@ -1,3 +1,4 @@
+#include <common/string.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/sys/syscall.h>
 #include <kernel/arch/interrupts.h>
@@ -8,6 +9,64 @@
 #include <kernel/task/signal.h>
 
 long sys_ni_syscall(void) { return -ENOSYS; }
+
+enum log_level {
+    LOG_UNINITIALIZED,
+    LOG_NONE,
+    LOG_ALL,
+    LOG_IMPLEMENTED,
+    LOG_UNIMPLEMENTED,
+};
+
+static enum log_level get_log_level(void) {
+    static const char* const cmdline_key = "syscall_log";
+    static _Atomic(enum log_level) cached_level = LOG_UNINITIALIZED;
+
+    if (cached_level != LOG_UNINITIALIZED)
+        return cached_level;
+
+    if (!cmdline_contains(cmdline_key)) {
+        cached_level = LOG_NONE;
+        return cached_level;
+    }
+
+    const char* level = cmdline_lookup(cmdline_key);
+    if (!level || level[0] == '\0' || !strcmp(level, "all"))
+        cached_level = LOG_ALL;
+    else if (!strcmp(level, "implemented"))
+        cached_level = LOG_IMPLEMENTED;
+    else if (!strcmp(level, "unimplemented"))
+        cached_level = LOG_UNIMPLEMENTED;
+    else
+        cached_level = LOG_NONE;
+    return cached_level;
+}
+
+static void log(const struct syscall* syscall, unsigned long args[6]) {
+    ASSERT_PTR(syscall->name);
+
+    bool is_implemented = syscall->handler != (uintptr_t)sys_ni_syscall;
+    switch (get_log_level()) {
+    case LOG_NONE:
+        return;
+    case LOG_ALL:
+        break;
+    case LOG_IMPLEMENTED:
+        if (!is_implemented)
+            return;
+        break;
+    case LOG_UNIMPLEMENTED:
+        if (is_implemented)
+            return;
+        break;
+    default:
+        UNREACHABLE();
+    }
+
+    kprintf("syscall: %s(%#lx, %#lx, %#lx, %#lx, %#lx, %#lx)%s\n",
+            syscall->name, args[0], args[1], args[2], args[3], args[4], args[5],
+            is_implemented ? "" : " (unimplemented)");
+}
 
 NODISCARD static long dispatch(const struct syscall_abi* abi,
                                struct registers* regs, unsigned* out_flags) {
@@ -28,13 +87,7 @@ NODISCARD static long dispatch(const struct syscall_abi* abi,
     if (out_flags)
         *out_flags = syscall->flags;
 
-    if (syscall->handler == (uintptr_t)sys_ni_syscall) {
-        if (cmdline_contains("ni_syscall_log"))
-            kprintf("syscall: unimplemented syscall %s"
-                    "(%#lx, %#lx, %#lx, %#lx, %#lx, %#lx)\n",
-                    syscall->name, args[0], args[1], args[2], args[3], args[4],
-                    args[5]);
-    }
+    log(syscall, args);
 
     typedef long (*regs_fn)(struct registers*, unsigned long, unsigned long,
                             unsigned long, unsigned long, unsigned long,
