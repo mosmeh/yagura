@@ -11,6 +11,8 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/task.h>
 
+#define USER_STACK_SIZE 0x20000
+
 static size_t count_strings_kernel(const char* const* strings) {
     size_t count = 0;
     for (const char* const* it = strings; *it; ++it)
@@ -127,17 +129,17 @@ NODISCARD static int loader_init_vm(struct loader* loader) {
 
     SCOPED_LOCK(vm, vm);
 
-    STATIC_ASSERT(STACK_SIZE % PAGE_SIZE == 0);
+    STATIC_ASSERT(USER_STACK_SIZE % PAGE_SIZE == 0);
 
-    size_t npages = 2 + (STACK_SIZE >> PAGE_SHIFT);
+    size_t npages = 2 + (USER_STACK_SIZE >> PAGE_SHIFT);
     unsigned char* guard_start = (void*)(USER_VIRT_END - npages * PAGE_SIZE);
     struct vm_region* region = ASSERT(vm_alloc_at(vm, guard_start, npages));
     if (IS_ERR(region))
         return PTR_ERR(region);
 
     // Split the region into three:
-    // guard (PAGE_SIZE), stack (STACK_SIZE), and guard (PAGE_SIZE)
-    int rc = vm_region_set_flags(region, 1, STACK_SIZE >> PAGE_SHIFT,
+    // guard (PAGE_SIZE), stack (USER_STACK_SIZE), and guard (PAGE_SIZE)
+    int rc = vm_region_set_flags(region, 1, USER_STACK_SIZE >> PAGE_SHIFT,
                                  VM_READ | VM_WRITE | VM_EXEC | VM_USER, ~0);
     if (IS_ERR(rc))
         return rc;
@@ -154,7 +156,7 @@ NODISCARD static int loader_init_vm(struct loader* loader) {
 
     loader->vm = TAKE_PTR(vm);
     loader->stack_base = stack_base;
-    loader->stack_ptr = stack_base + STACK_SIZE;
+    loader->stack_ptr = stack_base + USER_STACK_SIZE;
     return rc;
 }
 

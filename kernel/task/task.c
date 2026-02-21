@@ -55,12 +55,13 @@ struct task* task_clone(const struct task* task, unsigned flags) {
     if ((flags & CLONE_THREAD) && !(flags & CLONE_SIGHAND))
         return ERR_PTR(-EINVAL);
 
-    size_t task_struct_offset = ROUND_UP(STACK_SIZE, _Alignof(struct task));
+    size_t task_struct_offset =
+        ROUND_UP(KERNEL_STACK_SIZE, _Alignof(struct task));
     unsigned char* stack FREE(kfree) =
         kaligned_alloc(PAGE_SIZE, task_struct_offset + sizeof(struct task));
     if (!stack)
         return ERR_PTR(-ENOMEM);
-    void* stack_top = stack + STACK_SIZE;
+    void* stack_top = stack + KERNEL_STACK_SIZE;
 
     struct task* new_task = (void*)(stack + task_struct_offset);
     *new_task = (struct task){

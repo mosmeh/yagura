@@ -1,18 +1,14 @@
 #pragma once
 
-#ifndef YAGURA_VERSION
-#define YAGURA_VERSION "unknown"
-#endif
-
-#define STACK_SIZE 0x4000
-
-#ifndef __ASSEMBLER__
-
 #include <common/macros.h>
 #include <common/stdbool.h>
 #include <common/stddef.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/api/sys/utsname.h>
+
+#ifndef YAGURA_VERSION
+#define YAGURA_VERSION "unknown"
+#endif
 
 extern unsigned char init_end[];
 extern unsigned char initial_kernel_stack_base[];
@@ -51,5 +47,3 @@ _Noreturn void halt(void);
 void handle_sysrq(char);
 
 void dump_stack_trace(uintptr_t ip, uintptr_t bp);
-
-#endif

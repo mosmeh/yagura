@@ -3,7 +3,7 @@
 #include <kernel/arch/x86/msr.h>
 #include <kernel/arch/x86/smp.h>
 #include <kernel/memory/memory.h>
-#include <kernel/system.h>
+#include <kernel/task/task.h>
 
     .section .init_text, "ax", @progbits
     .globl _start
@@ -117,8 +117,8 @@ ap_long_mode:
     lock; xaddl %ebx, ap_id
 
     .extern ap_stack_top
-    # rsp = ap_stack_top - STACK_SIZE * rbx
-    movq $STACK_SIZE, %rax
+    # rsp = ap_stack_top - KERNEL_STACK_SIZE * rbx
+    movq $KERNEL_STACK_SIZE, %rax
     mulq %rbx
     movq ap_stack_top, %rsp
     subq %rax, %rsp
@@ -258,5 +258,5 @@ ap_trampoline_end:
     .globl initial_kernel_stack_base, initial_kernel_stack_top
     .align PAGE_SIZE
 initial_kernel_stack_base:
-    .skip STACK_SIZE
+    .skip KERNEL_STACK_SIZE
 initial_kernel_stack_top:

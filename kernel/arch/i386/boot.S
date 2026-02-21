@@ -2,7 +2,7 @@
 #include <kernel/arch/x86/memory/page_table.h>
 #include <kernel/arch/x86/smp.h>
 #include <kernel/memory/memory.h>
-#include <kernel/system.h>
+#include <kernel/task/task.h>
 
 #define PD_SHIFT 22
 
@@ -123,8 +123,8 @@ ap_trampoline_start32:
     lock; xaddl %ebx, (ap_id - ap_trampoline_start + AP_TRAMPOLINE_ADDR)
 
     .extern ap_stack_top
-    # esp = ap_stack_top - STACK_SIZE * ebx
-    movl $STACK_SIZE, %eax
+    # esp = ap_stack_top - KERNEL_STACK_SIZE * ebx
+    movl $KERNEL_STACK_SIZE, %eax
     mull %ebx
     movl ap_stack_top, %esp
     subl %eax, %esp
@@ -138,7 +138,7 @@ ap_trampoline_end:
     .globl initial_kernel_stack_base, initial_kernel_stack_top
     .align PAGE_SIZE
 initial_kernel_stack_base:
-    .skip STACK_SIZE
+    .skip KERNEL_STACK_SIZE
 initial_kernel_stack_top:
 
 ap_id:

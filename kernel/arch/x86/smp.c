@@ -12,7 +12,7 @@
 #include <kernel/kmsg.h>
 #include <kernel/memory/vm.h>
 #include <kernel/sched.h>
-#include <kernel/system.h>
+#include <kernel/task/task.h>
 
 extern unsigned char ap_trampoline_start[];
 extern unsigned char ap_trampoline_end[];
@@ -50,7 +50,7 @@ void smp_init(void) {
         kunmap(kaddr);
     }
 
-    size_t ap_stack_size = STACK_SIZE * (num_cpus - 1);
+    size_t ap_stack_size = KERNEL_STACK_SIZE * (num_cpus - 1);
     unsigned char* ap_stack = ASSERT_PTR(kmalloc(ap_stack_size));
     ap_stack_top = ap_stack + ap_stack_size;
 

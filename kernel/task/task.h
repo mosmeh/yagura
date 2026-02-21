@@ -1,5 +1,11 @@
 #pragma once
 
+#include <kernel/memory/memory.h>
+
+#define KERNEL_STACK_SIZE (PAGE_SIZE * 4)
+
+#ifndef __ASSEMBLER__
+
 #include <common/integer.h>
 #include <common/limits.h>
 #include <kernel/api/signal.h>
@@ -176,3 +182,5 @@ void task_set_blocked_signals(struct task*, const sigset_t*);
 NODISCARD int clone_user_task(struct registers* regs, unsigned long flags,
                               void* user_stack, pid_t* user_parent_tid,
                               pid_t* user_child_tid, void* user_tls);
+
+#endif
