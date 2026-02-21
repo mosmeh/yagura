@@ -41,10 +41,8 @@ static void lapic_init(void) {
     const struct acpi* acpi = ASSERT_PTR(acpi_get());
     ASSERT(acpi->lapic_addr);
 
-    unsigned char* addr =
+    lapic =
         ASSERT_PTR(phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE));
-    ASSERT_OK(vm_populate(addr, addr + PAGE_SIZE, VM_READ | VM_WRITE));
-    lapic = addr;
 }
 
 static uint32_t lapic_read(uint32_t reg) {

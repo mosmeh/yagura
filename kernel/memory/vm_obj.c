@@ -195,6 +195,13 @@ void* phys_map(phys_addr_t phys_addr, size_t size, unsigned vm_flags) {
         ASSERT(vm_obj_map(phys, 0, npages, vm_flags | VM_SHARED));
     if (IS_ERR(addr))
         return addr;
+
+    int rc = vm_populate(addr, addr + (npages << PAGE_SHIFT), vm_flags);
+    if (IS_ERR(rc)) {
+        vm_obj_unmap(addr);
+        return ERR_PTR(rc);
+    }
+
     return addr + (phys_addr - aligned_addr);
 }
 
