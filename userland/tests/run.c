@@ -5,6 +5,7 @@
 #include <libgen.h>
 #include <linux/major.h>
 #include <panic.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/limits.h>
@@ -16,6 +17,14 @@
 #include <unistd.h>
 
 static const char* const default_dir = "/bin/tests";
+
+// panic() calls abort(), which raises SIGABRT.
+// Signals can be sent to init process only when signal handlers are explicitly
+// installed, so we need to install a handler for SIGABRT when running as init.
+static void sigabrt_handler(int signum) {
+    (void)signum;
+    _exit(EXIT_FAILURE);
+}
 
 static void spawn(char* filename) {
     pid_t pid = ASSERT_OK(fork());
@@ -36,6 +45,7 @@ static void spawn(char* filename) {
 
 static void run(const char* dir_path) {
     DIR* dir = ASSERT(opendir(dir_path));
+    size_t num_tests_passed = 0;
     for (;;) {
         errno = 0;
         struct dirent* dent = readdir(dir);
@@ -51,8 +61,11 @@ static void run(const char* dir_path) {
         char path[PATH_MAX];
         (void)snprintf(path, sizeof(path), "%s/%s", dir_path, dent->d_name);
         spawn(path);
+        ++num_tests_passed;
     }
     closedir(dir);
+    ASSERT(num_tests_passed > 0);
+    puts("ALL TESTS PASSED");
 }
 
 int main(int argc, char** argv) {
@@ -63,6 +76,8 @@ int main(int argc, char** argv) {
             run(default_dir);
         return EXIT_SUCCESS;
     }
+
+    ASSERT(signal(SIGABRT, sigabrt_handler) == SIG_DFL);
 
     ASSERT_OK(mount("tmpfs", "/dev", "tmpfs", 0, NULL));
 

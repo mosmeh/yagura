@@ -54,7 +54,7 @@ static int exec(const char* filename, char* const argv[]) {
 
 static char buf[8192];
 static char name[3];
-static char* const echoargv[] = {"echo", "ALL", "TESTS", "PASSED", 0};
+static char* const echoargv[] = {"echo", "exec", "ok", NULL};
 
 // does chdir() call iput(p->cwd) in a transaction?
 static void iputtest(void) {
