@@ -149,6 +149,7 @@ static void unblock_tasks(void) {
         struct task* next = it->blocked_next;
         it->blocked_next = NULL;
         it->state = TASK_RUNNING;
+        it->exit_status = 0;
         enqueue_ready(it);
         task_unref(it);
         it = next;

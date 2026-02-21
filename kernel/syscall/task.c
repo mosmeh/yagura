@@ -83,53 +83,88 @@ long sys_vfork(struct registers* regs) {
                            NULL, NULL);
 }
 
-struct waitpid_blocker {
-    pid_t param_pid;
-    pid_t current_tgid, current_pgid;
-    struct task* waited_task;
+struct pid_waiter {
+    // Parameters
+    int options;
+    enum pid_type {
+        PIDTYPE_ANY,
+        PIDTYPE_TGID,
+        PIDTYPE_PGID,
+    } pid_type;
+    pid_t current_tgid, waited_pid;
+
+    // Results
+    struct task* task;
+    int status;
 };
 
 static bool unblock_waitpid(void* data) {
-    struct waitpid_blocker* blocker = data;
+    struct pid_waiter* waiter = data;
     SCOPED_LOCK(spinlock, &tasks_lock);
+    for (;;) {
+        struct task* prev = NULL;
+        struct task* task = tasks;
+        bool any_target_exists = false;
 
-    struct task* prev = NULL;
-    struct task* it = tasks;
-    bool any_target_exists = false;
-
-    while (it) {
-        struct thread_group* tg = it->thread_group;
-        bool is_child = tg->ppid == blocker->current_tgid;
-        if (is_child) {
+        while (task) {
+            struct thread_group* tg = task->thread_group;
             bool is_target = false;
-            if (blocker->param_pid < -1)
-                is_target |= tg->pgid == -blocker->param_pid;
-            else if (blocker->param_pid == -1)
-                is_target |= tg->ppid == blocker->current_tgid;
-            else if (blocker->param_pid == 0)
-                is_target |= tg->pgid == blocker->current_pgid;
-            else
-                is_target |= tg->tgid == blocker->param_pid;
-            any_target_exists |= is_target;
-            if (is_target && it->state == TASK_DEAD)
-                break;
+            if (tg->ppid == waiter->current_tgid) {
+                switch (waiter->pid_type) {
+                case PIDTYPE_ANY:
+                    is_target = true;
+                    break;
+                case PIDTYPE_TGID:
+                    is_target |= tg->tgid == waiter->waited_pid;
+                    break;
+                case PIDTYPE_PGID:
+                    is_target |= tg->pgid == waiter->waited_pid;
+                    break;
+                default:
+                    UNREACHABLE();
+                }
+            }
+
+            if (is_target) {
+                any_target_exists |= true;
+                if (task->state == TASK_DEAD)
+                    break;
+                if ((waiter->options & WUNTRACED) &&
+                    task->state == TASK_STOPPED && task->exit_status)
+                    break;
+            }
+
+            prev = task;
+            task = task->tasks_next;
+        }
+        if (!task) {
+            // Unblock if no more target children exist.
+            return !any_target_exists;
         }
 
-        prev = it;
-        it = it->tasks_next;
+        switch (task->state) {
+        case TASK_DEAD:
+            // Remove the task from the global tasks list
+            if (prev)
+                prev->tasks_next = task->tasks_next;
+            else
+                tasks = task->tasks_next;
+            waiter->task = task; // The caller will free the task
+            waiter->status = task->exit_status;
+            return true;
+        case TASK_STOPPED:
+            ASSERT(waiter->options & WUNTRACED);
+            // The task is still alive, so don't free it yet.
+            waiter->task = task_ref(task);
+            waiter->status = task->exit_status;
+            // Do not report the same stopped child twice.
+            task->exit_status = 0;
+            return true;
+        default:
+            // The task changed its state. Recheck the conditions.
+            break;
+        }
     }
-    if (!it) {
-        // Unblock if no more target children exist.
-        return !any_target_exists;
-    }
-
-    if (prev)
-        prev->tasks_next = it->tasks_next;
-    else
-        tasks = it->tasks_next;
-    blocker->waited_task = it;
-
-    return true;
 }
 
 static void ticks_to_timeval(size_t ticks, struct linux_timeval* out_tv) {
@@ -139,49 +174,58 @@ static void ticks_to_timeval(size_t ticks, struct linux_timeval* out_tv) {
 
 long sys_wait4(pid_t pid, int* user_wstatus, int options,
                struct rusage* user_rusage) {
-    if (options & ~WNOHANG)
+    if (options & ~(WNOHANG | WUNTRACED))
         return -EINVAL;
 
-    struct waitpid_blocker blocker = {
-        .param_pid = pid,
+    if (pid == INT_MIN) // -pid overflows
+        return -EINVAL;
+
+    struct pid_waiter waiter = {
+        .options = options,
         .current_tgid = current->thread_group->tgid,
-        .current_pgid = current->thread_group->pgid,
-        .waited_task = NULL,
+        .waited_pid = -1,
     };
+    if (pid < -1) {
+        waiter.pid_type = PIDTYPE_PGID;
+        waiter.waited_pid = -pid;
+    } else if (pid == -1) {
+        waiter.pid_type = PIDTYPE_ANY;
+    } else if (pid == 0) {
+        waiter.pid_type = PIDTYPE_PGID;
+        waiter.waited_pid = current->thread_group->pgid;
+    } else {
+        waiter.pid_type = PIDTYPE_TGID;
+        waiter.waited_pid = pid;
+    }
+
     if (options & WNOHANG) {
-        if (!unblock_waitpid(&blocker))
+        if (!unblock_waitpid(&waiter))
             return 0;
     } else {
-        int rc = sched_block(unblock_waitpid, &blocker, 0);
+        int rc = sched_block(unblock_waitpid, &waiter, 0);
         if (rc == -EINTR)
             return -ERESTARTSYS;
         if (IS_ERR(rc))
             return rc;
     }
 
-    struct task* waited_task = blocker.waited_task;
-    if (!waited_task)
+    struct task* task FREE(task) = waiter.task;
+    if (!task)
         return -ECHILD;
 
-    pid_t result = waited_task->tid;
-    int wstatus = waited_task->exit_status;
-
-    struct rusage rusage = {0};
-    ticks_to_timeval(waited_task->user_ticks, &rusage.ru_utime);
-    ticks_to_timeval(waited_task->kernel_ticks, &rusage.ru_stime);
-
-    task_unref(waited_task);
-
     if (user_wstatus) {
-        if (copy_to_user(user_wstatus, &wstatus, sizeof(int)))
+        if (copy_to_user(user_wstatus, &waiter.status, sizeof(int)))
             return -EFAULT;
     }
     if (user_rusage) {
+        struct rusage rusage = {0};
+        ticks_to_timeval(task->user_ticks, &rusage.ru_utime);
+        ticks_to_timeval(task->kernel_ticks, &rusage.ru_stime);
         if (copy_to_user(user_rusage, &rusage, sizeof(struct rusage)))
             return -EFAULT;
     }
 
-    return result;
+    return task->tid;
 }
 
 long sys_waitpid(pid_t pid, int* user_wstatus, int options) {

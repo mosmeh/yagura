@@ -2,6 +2,7 @@
 #include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/sched.h>
+#include <kernel/api/sys/wait.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/signal.h>
@@ -234,7 +235,7 @@ static _Noreturn void exit(int exit_status) {
     UNREACHABLE();
 }
 
-void task_exit(int status) { exit((status & 0xff) << 8); }
+void task_exit(int status) { exit(W_EXITCODE(status & 0xff, 0)); }
 
 static _Noreturn void do_exit_thread_group(int exit_status) {
     // Kill all tasks in the thread group except the current task.
@@ -245,7 +246,7 @@ static _Noreturn void do_exit_thread_group(int exit_status) {
 }
 
 void task_exit_thread_group(int status) {
-    do_exit_thread_group((status & 0xff) << 8);
+    do_exit_thread_group(W_EXITCODE(status & 0xff, 0));
 }
 
 void task_terminate(int signum) {

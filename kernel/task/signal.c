@@ -3,6 +3,7 @@
 #include <common/limits.h>
 #include <common/string.h>
 #include <kernel/api/signal.h>
+#include <kernel/api/sys/wait.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/task/signal.h>
@@ -257,6 +258,7 @@ int signal_pop(struct sigaction* out_action) {
 
             {
                 SCOPED_DISABLE_INTERRUPTS();
+                current->exit_status = W_STOPCODE(signum);
                 current->state = TASK_STOPPED;
                 sched_yield();
             }
