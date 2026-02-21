@@ -72,6 +72,7 @@ int chroot(const char* path);
 char* getcwd(char* buf, size_t size);
 int chdir(const char* path);
 
+int isatty(int fd);
 pid_t tcgetpgrp(int fd);
 int tcsetpgrp(int fd, pid_t pgrp);
 

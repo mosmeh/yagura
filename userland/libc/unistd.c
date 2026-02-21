@@ -268,6 +268,11 @@ char* getcwd(char* buf, size_t size) {
 
 int chdir(const char* path) { return __syscall_return(SYSCALL1(chdir, path)); }
 
+int isatty(int fd) {
+    struct winsize winsize;
+    return (ioctl(fd, TIOCGWINSZ, &winsize) < 0) ? 0 : 1;
+}
+
 pid_t tcgetpgrp(int fd) {
     pid_t pgrp;
     if (ioctl(fd, TIOCGPGRP, &pgrp) < 0)

@@ -2,6 +2,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <termios.h>
@@ -29,9 +30,9 @@ static void print_one_page(const char* buf, struct winsize winsize,
 
     // Print the page
 
-    printf("\x1b[?25l" // Hide cursor
-           "\x1b[1;1H" // Move cursor to top left
-           "\x1b[2K"); // Clear the first line
+    dprintf(STDERR_FILENO, "\x1b[?25l" // Hide cursor
+                           "\x1b[1;1H" // Move cursor to top left
+                           "\x1b[2K"); // Clear the first line
 
     for (size_t i = 0; i < height; ++i) {
         size_t j = 0;
@@ -40,61 +41,31 @@ static void print_one_page(const char* buf, struct winsize winsize,
                 goto out;
             if (*p == '\n')
                 break;
-            putchar(*p++);
-        }
-        if (*p == '\n') {
+            int rc = write_all(STDERR_FILENO, p, 1);
+            (void)rc;
             ++p;
-            printf("\x1b[1B"   // Move down one line
-                   "\x1b[G"    // Go to left end
-                   "\x1b[2K"); // Clear the line
         }
+        if (*p == '\n')
+            ++p;
+        dprintf(STDERR_FILENO,
+                "\x1b[1B"   // Move down one line
+                "\x1b[G"    // Go to left end
+                "\x1b[2K"); // Clear the line
     }
 
 out:
-    printf("\x1b[J"     // Clear the rest of the screen
-           "\x1b[%d;1H" // Go to the last line
-           "\x1b[?25h", // Show cursor
-           winsize.ws_row);
+    dprintf(STDERR_FILENO,
+            "\x1b[J"     // Clear the rest of the screen
+            "\x1b[%d;1H" // Go to the last line
+            "\x1b[?25h", // Show cursor
+            winsize.ws_row);
 }
 
-int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        dprintf(STDERR_FILENO, "Usage: less FILE\n");
-        return EXIT_FAILURE;
-    }
-
-    const char* filename = argv[1];
-    struct stat st;
-    int fd = -1;
-    char* buf = NULL;
-    int ret = EXIT_FAILURE;
-
-    if (stat(filename, &st) < 0) {
-        perror("stat");
-        goto fail;
-    }
-    size_t num_bytes = st.st_size * sizeof(unsigned char);
-
-    fd = open(filename, O_RDONLY);
-    if (fd < 0) {
-        perror("open");
-        goto fail;
-    }
-    buf = malloc(num_bytes + 1); // +1 for null terminator
-    if (!buf) {
-        perror("malloc");
-        goto fail;
-    }
-    if (read_exact(fd, buf, num_bytes) < 0) {
-        perror("read");
-        goto fail;
-    }
-    close(fd);
-    fd = -1;
-    buf[num_bytes] = 0;
+NODISCARD static int start_pager(const char* filename, const char* buf) {
+    int ret = -1;
 
     struct winsize winsize;
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsize) < 0) {
+    if (ioctl(STDERR_FILENO, TIOCGWINSZ, &winsize) < 0) {
         winsize.ws_col = 80;
         winsize.ws_row = 25;
     }
@@ -112,13 +83,13 @@ int main(int argc, char* argv[]) {
     }
 
     struct termios default_termios;
-    if (tcgetattr(STDIN_FILENO, &default_termios) < 0) {
+    if (tcgetattr(STDERR_FILENO, &default_termios) < 0) {
         perror("tcgetattr");
         goto fail;
     }
     struct termios termios = default_termios;
     termios.c_lflag &= ~(ICANON | ECHO);
-    if (tcsetattr(STDIN_FILENO, TCSANOW, &termios) < 0) {
+    if (tcsetattr(STDERR_FILENO, TCSANOW, &termios) < 0) {
         perror("tcsetattr");
         goto fail;
     }
@@ -132,7 +103,7 @@ int main(int argc, char* argv[]) {
 
     for (;;) {
         char c;
-        ssize_t nread = read_to_end(STDIN_FILENO, &c, 1);
+        ssize_t nread = read_to_end(STDERR_FILENO, &c, 1);
         if (nread < 0) {
             perror("read");
             goto fail;
@@ -189,12 +160,62 @@ int main(int argc, char* argv[]) {
     }
 
 done:
+    ret = 0;
+fail:
+    if (tcsetattr(STDERR_FILENO, TCSANOW, &default_termios) < 0)
+        perror("tcsetattr");
+    return ret;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc > 2) {
+        dprintf(STDERR_FILENO, "Usage: less [FILE]\n");
+        return EXIT_FAILURE;
+    }
+
+    const char* filename = argc > 1 ? argv[1] : "-";
+    int fd = strcmp(filename, "-") ? open(filename, O_RDONLY) : STDIN_FILENO;
+    if (fd < 0) {
+        perror("open");
+        return EXIT_FAILURE;
+    }
+
+    int ret = EXIT_FAILURE;
+    size_t buf_size = 1024;
+    char* buf = NULL;
+    size_t nread = 0;
+    for (;;) {
+        char* new_buf = realloc(buf, buf_size);
+        if (!new_buf) {
+            perror("realloc");
+            goto fail;
+        }
+        buf = new_buf;
+        ssize_t n = read(fd, buf + nread, buf_size - nread);
+        if (n < 0) {
+            perror("read");
+            goto fail;
+        }
+        if (n == 0)
+            break;
+        nread += n;
+        if (nread == buf_size)
+            buf_size *= 2;
+    }
+    buf[nread] = '\0';
+
+    if (isatty(STDOUT_FILENO)) {
+        if (start_pager(filename, buf) < 0)
+            goto fail;
+    } else if (write_all(STDOUT_FILENO, buf, nread) < 0) {
+        perror("write");
+        goto fail;
+    }
+
     ret = EXIT_SUCCESS;
 fail:
-    if (tcsetattr(STDIN_FILENO, TCSANOW, &default_termios) < 0)
-        perror("tcsetattr");
     free(buf);
-    if (fd >= 0)
+    if (fd != STDIN_FILENO)
         close(fd);
     return ret;
 }
