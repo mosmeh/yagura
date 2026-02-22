@@ -17,6 +17,11 @@
 
 char** environ;
 
+void _exit(int status) {
+    SYSCALL1(exit_group, status);
+    __builtin_unreachable();
+}
+
 pid_t getpid(void) { return __syscall_return(SYSCALL0(getpid)); }
 
 pid_t getppid(void) { return __syscall_return(SYSCALL0(getppid)); }

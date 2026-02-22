@@ -6,6 +6,8 @@
 
 extern char** environ;
 
+_Noreturn void _exit(int status);
+
 pid_t getpid(void);
 pid_t getppid(void);
 pid_t gettid(void);

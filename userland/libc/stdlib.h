@@ -9,6 +9,7 @@
 #define RAND_MAX 2147483647
 
 _Noreturn void exit(int status);
+_Noreturn void _Exit(int status);
 _Noreturn void abort(void);
 
 void* malloc(size_t size);

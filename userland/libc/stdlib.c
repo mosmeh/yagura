@@ -10,12 +10,11 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-_Noreturn void exit(int status) {
-    SYSCALL1(exit_group, status);
-    __builtin_unreachable();
-}
+void exit(int status) { _exit(status); }
 
-_Noreturn void abort(void) {
+void _Exit(int status) { _exit(status); }
+
+void abort(void) {
     sigset_t set;
     sigemptyset(&set);
     sigaddset(&set, SIGABRT);
