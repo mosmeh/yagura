@@ -23,6 +23,7 @@
 #define NODISCARD __attribute__((__warn_unused_result__))
 #define NOINLINE __attribute__((noinline))
 #define MAYBE_UNUSED __attribute__((unused))
+#define FALLTHROUGH __attribute__((fallthrough))
 #define CLEANUP(func) __attribute__((__cleanup__(func)))
 #define STATIC_ASSERT(x) _Static_assert(x, "Static assertion failed")
 

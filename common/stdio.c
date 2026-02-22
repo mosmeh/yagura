@@ -151,14 +151,14 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
                 pad_len = sizeof(void*) * 2;
             }
             length_spec = LENGTH_LONG;
-            // falls through
+            FALLTHROUGH;
         case 'x':
             if (alternative_form) {
                 PUT_NUM_PREFIX('0');
                 PUT_NUM_PREFIX('x');
             }
             radix = 16;
-            // falls through
+            FALLTHROUGH;
         case 'd':
         case 'i':
         case 'u': {

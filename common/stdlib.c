@@ -1,4 +1,5 @@
 #include <common/ctype.h>
+#include <common/macros.h>
 #include <common/stdbool.h>
 #include <common/stdlib.h>
 
@@ -13,7 +14,7 @@ int atoi(const char* str) {
     switch (*str) {
     case '-':
         negative = true;
-        // falls through
+        FALLTHROUGH;
     case '+':
         ++str;
     }

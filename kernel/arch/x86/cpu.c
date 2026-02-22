@@ -50,7 +50,7 @@ static void detect_features(struct cpu* cpu) {
     switch (arch->family) {
     case 0xf:
         arch->family += (eax >> 20) & 0xff;
-    // falls through
+        FALLTHROUGH;
     case 0x6:
         arch->model += ((eax >> 16) & 0xf) << 4;
     }
