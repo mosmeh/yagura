@@ -1,5 +1,27 @@
 # Gallery
 
+## Basic
+
+![](imgs/random.png)
+
+---
+
+![](imgs/font.png)
+
+---
+
+```sh
+less /proc/cpuinfo
+```
+
+![](imgs/cpuinfo.png)
+
+## Graphics
+
+![](imgs/eyes.png)
+
+---
+
 ```sh
 imgview kodim23.qoi
 ```
@@ -8,66 +30,31 @@ imgview kodim23.qoi
 
 ---
 
-
 ```sh
 mandelbrot
 ```
 
 ![](imgs/mandelbrot.png)
 
----
+## Linux binaries
 
-```sh
-eyes
-```
-
-![](imgs/eyes.png)
+Because of Linux ABI compatibility, you can copy the Linux binaries to the system and run them. No recompilation or modification is needed.
 
 ---
 
-```
-/root $ sleep 10 &
-/root $ ps
-  PID CMD
-    1 init
-    3 moused
-    5 sh
-    6 sh
-    7 sleep
-    8 ps
-/root $ kill 7
-```
+busybox's `vi`
+
+![](imgs/busybox-vi.png)
 
 ---
 
-```
-/root $ cat invictus.txt
-Out of the night that covers me,
-Black as the pit from pole to pole,
-I thank whatever gods may be
-For my unconquerable soul.
+Python and busybox's `sh`
 
-In the fell clutch of circumstance
-I have not winced nor cried aloud.
-Under the bludgeonings of chance
-My head is bloody, but unbowed.
-
-Beyond this place of wrath and tears
-Looms but the Horror of the shade,
-And yet the menace of the years
-Finds and shall find me unafraid.
-
-It matters not how strait the gate,
-How charged with punishments the scroll,
-I am the master of my fate,
-I am the captain of my soul.
-/root $ cat invictus.txt | wc
-     19     103     535
-```
+![](imgs/python.png)
 
 ---
 
-```
-/root $ play music.qoa
-[==========================================>                                  ]
-```
+[fbDOOM](https://github.com/maximevince/fbDOOM), a port of DOOM to the Linux framebuffer
+
+![](imgs/fbdoom.png)
+![](imgs/fbdoom2.png)
