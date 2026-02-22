@@ -44,9 +44,18 @@ static ssize_t write_to_full_disk(struct file* file, const void* user_buffer,
     return 0;
 }
 
+static loff_t seek_to_start(struct file* file, loff_t offset, int whence) {
+    (void)offset;
+    (void)whence;
+    SCOPED_LOCK(file, file);
+    file->offset = 0;
+    return 0;
+}
+
 static const struct file_ops null_fops = {
     .pread = read_nothing,
     .pwrite = write_to_bit_bucket,
+    .seek = seek_to_start,
 };
 static struct char_dev null = {
     .name = "null",
@@ -57,6 +66,7 @@ static struct char_dev null = {
 static const struct file_ops zero_fops = {
     .pread = read_zeros,
     .pwrite = write_to_bit_bucket,
+    .seek = seek_to_start,
 };
 static struct char_dev zero = {
     .name = "zero",
@@ -67,6 +77,7 @@ static struct char_dev zero = {
 static const struct file_ops full_fops = {
     .pread = read_zeros,
     .pwrite = write_to_full_disk,
+    .seek = seek_to_start,
 };
 static struct char_dev full = {
     .name = "full",

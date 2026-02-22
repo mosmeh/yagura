@@ -162,17 +162,8 @@ int file_sync(struct file* file, uint64_t offset, uint64_t nbytes) {
     return inode_sync(file->filemap->inode, offset, nbytes);
 }
 
-loff_t file_seek(struct file* file, loff_t offset, int whence) {
-    struct inode* inode = file->filemap->inode;
-    switch (inode->mode & S_IFMT) {
-    case S_IFREG:
-    case S_IFBLK:
-    case S_IFLNK:
-        break;
-    default:
-        return -ESPIPE;
-    }
-
+NODISCARD
+static loff_t default_file_seek(struct file* file, loff_t offset, int whence) {
     switch (whence) {
     case SEEK_SET: {
         if (offset < 0)
@@ -190,17 +181,36 @@ loff_t file_seek(struct file* file, loff_t offset, int whence) {
         return new_offset;
     }
     case SEEK_END: {
+        SCOPED_LOCK(file, file);
+        struct inode* inode = file->filemap->inode;
         SCOPED_LOCK(inode, inode);
         loff_t size = (loff_t)inode->size;
         loff_t new_offset = size + offset;
         if (size < 0 || new_offset < 0)
             return -EINVAL;
-        SCOPED_LOCK(file, file);
         file->offset = new_offset;
         return new_offset;
     }
     default:
         return -EINVAL;
+    }
+}
+
+loff_t file_seek(struct file* file, loff_t offset, int whence) {
+    switch (file->inode->mode & S_IFMT) {
+    case S_IFREG:
+    case S_IFDIR:
+    case S_IFBLK:
+        if (file->fops->seek)
+            return file->fops->seek(file, offset, whence);
+        return default_file_seek(file, offset, whence);
+    case S_IFCHR:
+        // For character devices, seeking is opt-in.
+        if (file->fops->seek)
+            return file->fops->seek(file, offset, whence);
+        FALLTHROUGH;
+    default:
+        return -ESPIPE;
     }
 }
 
