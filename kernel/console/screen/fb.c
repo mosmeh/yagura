@@ -108,7 +108,12 @@ struct screen* fb_screen_init(void) {
         return ERR_PTR(-ENOTSUP);
     }
 
-    struct vm_obj* vm_obj FREE(vm_obj) = ASSERT_PTR(fb_mmap());
+    struct vm_obj* vm_obj FREE(vm_obj) = ASSERT(fb_mmap());
+    if (IS_ERR(vm_obj)) {
+        kprint("fb_screen: failed to get framebuffer vm object\n");
+        return ERR_CAST(vm_obj);
+    }
+
     size_t npages = DIV_CEIL(fb_info.pitch * fb_info.height, PAGE_SIZE);
     fb = ASSERT(vm_obj_map(vm_obj, 0, npages, VM_WRITE | VM_SHARED));
     if (IS_ERR(fb)) {

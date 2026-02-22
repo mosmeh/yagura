@@ -61,3 +61,5 @@ NODISCARD struct vm_obj* file_mmap(struct file*);
 
 NODISCARD int file_block(struct file*, bool (*unblock)(struct file*),
                          int flags);
+
+NODISCARD loff_t default_file_seek(struct file*, loff_t offset, int whence);

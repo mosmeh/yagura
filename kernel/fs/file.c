@@ -162,8 +162,7 @@ int file_sync(struct file* file, uint64_t offset, uint64_t nbytes) {
     return inode_sync(file->filemap->inode, offset, nbytes);
 }
 
-NODISCARD
-static loff_t default_file_seek(struct file* file, loff_t offset, int whence) {
+loff_t default_file_seek(struct file* file, loff_t offset, int whence) {
     switch (whence) {
     case SEEK_SET: {
         if (offset < 0)
