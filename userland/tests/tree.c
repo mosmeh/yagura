@@ -89,7 +89,8 @@ int main(void) {
         remove_root,
         remove_random,
     };
-    for (size_t i = 0; i < ARRAY_SIZE(test_cases); ++i) {
+    for (size_t test_case_index = 0; test_case_index < ARRAY_SIZE(test_cases);
+         ++test_case_index) {
         struct tree tree = {0};
 
         for (size_t i = 0; i < NUM_NODES; ++i) {
@@ -116,7 +117,7 @@ int main(void) {
             tree_insert(&tree, parent, *new_node);
         }
 
-        test_cases[i](&tree);
+        test_cases[test_case_index](&tree);
     }
 
     return EXIT_SUCCESS;

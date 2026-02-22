@@ -80,7 +80,7 @@ static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
         return rc;
 
     for (;;) {
-        int rc = file_block(file, unblock_read, 0);
+        rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 

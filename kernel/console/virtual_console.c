@@ -450,9 +450,9 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
                 default_palette[c] = color;
             }
             for (i = 0; i < NUM_CONSOLES; ++i) {
-                struct virtual_console* console = consoles[i];
-                SCOPED_LOCK(tty, &console->tty);
-                vt_set_palette(console->vt, default_palette);
+                struct virtual_console* c = consoles[i];
+                SCOPED_LOCK(tty, &c->tty);
+                vt_set_palette(c->vt, default_palette);
             }
         }
 
@@ -469,8 +469,7 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
     case VT_WAITACTIVE: {
         if (arg == 0 || arg > NUM_CONSOLES)
             return -ENXIO;
-        struct virtual_console* console = consoles[arg - 1];
-        int rc = sched_block(unblock_waitactive, console, 0);
+        int rc = sched_block(unblock_waitactive, consoles[arg - 1], 0);
         if (IS_ERR(rc))
             return rc;
         break;

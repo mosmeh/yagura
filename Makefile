@@ -16,7 +16,7 @@ export CFLAGS := \
 	-fno-omit-frame-pointer \
 	-ffile-prefix-map=$(ROOT)/= \
 	-ftrivial-auto-var-init=pattern \
-	-Wall -Wextra -pedantic \
+	-Wall -Wextra -pedantic -Wshadow \
 	-O2 -g \
 	-DARCH_$(shell echo $(ARCH) | tr a-z A-Z) \
 	$(if $(GIT_HASH),-DYAGURA_VERSION=\"$(GIT_HASH)\") \

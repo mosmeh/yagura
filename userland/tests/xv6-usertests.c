@@ -52,8 +52,6 @@ static int exec(const char* filename, char* const argv[]) {
     return execve(filename, argv, envp);
 }
 
-static char buf[8192];
-static char name[3];
 static char* const echoargv[] = {"echo", "exec", "ok", NULL};
 
 // does chdir() call iput(p->cwd) in a transaction?
@@ -126,6 +124,7 @@ static void opentest(void) {
 static void writetest(void) {
     int fd;
     int i;
+    char buf[8192];
 
     printf("small file test\n");
     fd = ASSERT_OK(open("small", O_CREAT | O_RDWR, 0644));
@@ -147,6 +146,7 @@ static void writetest1(void) {
     int i;
     int fd;
     int n;
+    char buf[8192] = {0};
 
     printf("big files test\n");
 
@@ -180,6 +180,7 @@ static void createtest(void) {
 
     printf("many creates, followed by unlink test\n");
 
+    char name[3];
     name[0] = 'a';
     name[2] = '\0';
     for (i = 0; i < 52; i++) {
@@ -224,6 +225,7 @@ static void pipe1(void) {
     int n;
     size_t cc;
     int total;
+    char buf[8192];
 
     ASSERT_OK(pipe(fds));
     pid = ASSERT_OK(fork());
@@ -261,6 +263,7 @@ static void preempt(void) {
     int pid2;
     int pid3;
     int pfds[2];
+    char buf[8192];
 
     printf("preempt: ");
     pid1 = fork();
@@ -401,6 +404,7 @@ static void fourfiles(void) {
     int pi;
     const char* const names[] = {"f0", "f1", "f2", "f3"};
     const char* fname;
+    char buf[8192];
 
     printf("fourfiles test\n");
 
@@ -501,6 +505,7 @@ static void createdelete(void) {
 static void unlinkread(void) {
     int fd;
     int fd1;
+    char buf[8192] = {0};
 
     printf("unlinkread test\n");
     fd = ASSERT_OK(open("unlinkread", O_CREAT | O_RDWR, 0644));
@@ -524,6 +529,7 @@ static void unlinkread(void) {
 
 static void linktest(void) {
     int fd;
+    char buf[8192];
 
     printf("linktest\n");
 
@@ -688,6 +694,7 @@ static void bigdir(void) {
 static void subdir(void) {
     int fd;
     int cc;
+    char buf[8192];
 
     printf("subdir test\n");
 
@@ -756,6 +763,7 @@ static void subdir(void) {
 static void bigwrite(void) {
     int fd;
     int sz;
+    char buf[8192] = {0};
 
     printf("bigwrite test\n");
 
@@ -777,6 +785,7 @@ static void bigfile(void) {
     int i;
     int total;
     int cc;
+    char buf[8192] = {0};
 
     printf("bigfile test\n");
 
@@ -960,6 +969,7 @@ static void bigargtest(void) {
 // answer: balloc panics, so this test is not useful.
 MAYBE_UNUSED static void fsfull(void) {
     int nfiles;
+    char buf[8192] = {0};
 
     printf("fsfull test\n");
 

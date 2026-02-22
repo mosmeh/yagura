@@ -54,7 +54,7 @@ static void move_cursor_to(uint32_t x, uint32_t y) {
     // save framebuffer content to fb_buf
     uintptr_t row_addr = origin_addr;
     uint32_t* dest = fb_buf;
-    for (size_t y = 0; y < visible_height; ++y) {
+    for (size_t py = 0; py < visible_height; ++py) {
         memcpy32(dest, (uint32_t*)row_addr, visible_width);
         row_addr += fb_fix.line_length;
         dest += visible_width;
@@ -63,10 +63,10 @@ static void move_cursor_to(uint32_t x, uint32_t y) {
     // draw cursor
     row_addr = origin_addr;
     const char* row_mask = mask;
-    for (size_t y = 0; y < visible_height; ++y) {
+    for (size_t py = 0; py < visible_height; ++py) {
         uint32_t* pixel = (uint32_t*)row_addr;
         const char* mask_for_pixel = row_mask;
-        for (size_t x = 0; x < visible_width; ++x) {
+        for (size_t px = 0; px < visible_width; ++px) {
             if (*mask_for_pixel++ == 'x')
                 *pixel = CURSOR_COLOR;
             ++pixel;

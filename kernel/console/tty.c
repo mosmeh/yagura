@@ -102,7 +102,7 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
 
     struct tty* tty = tty_from_file(file);
     for (;;) {
-        int rc = file_block(file, unblock_read, 0);
+        rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 

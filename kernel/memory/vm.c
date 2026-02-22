@@ -474,8 +474,8 @@ struct vm_region* vm_alloc_at(struct vm* vm, void* virt_addr, size_t npages) {
     while (region && start < region->end) {
         struct vm_region* prev = vm_prev_region(region);
         size_t offset = MAX(start, region->start) - region->start;
-        size_t npages = MIN(end, region->end) - region->start - offset;
-        int rc = vm_region_free(region, offset, npages);
+        size_t overlap_npages = MIN(end, region->end) - region->start - offset;
+        int rc = vm_region_free(region, offset, overlap_npages);
         if (IS_ERR(rc)) {
             // The only case it fails is when the region encompasses
             // [start, end) and the region gets split into two regions.
