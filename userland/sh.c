@@ -977,7 +977,7 @@ static int parse_and_run(char* line) {
     }
 
     // reap previous background processes
-    while (waitpid(-1, NULL, WNOHANG) >= 0)
+    while (waitpid(-1, NULL, WNOHANG) > 0)
         ;
 
     struct run_context ctx = {.pgid = 0, .foreground = true};
