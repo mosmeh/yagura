@@ -2,7 +2,7 @@
 
 set -eo pipefail
 
-ARCH="${ARCH:-i386}"
+ARCH="${ARCH:-x86_64}"
 BUILD_DIR="${BUILD_DIR:-build/${ARCH}}"
 KERNEL="${KERNEL:-${BUILD_DIR}/kernel.elf}"
 INITRD="${INITRD:-${BUILD_DIR}/initrd.img}"

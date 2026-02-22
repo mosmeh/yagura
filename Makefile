@@ -3,7 +3,7 @@ SUBDIRS := kernel userland
 
 GIT_HASH := $(shell git describe --always --dirty --exclude '*' 2> /dev/null)
 
-export ARCH ?= i386
+export ARCH ?= x86_64
 
 export ROOT := $(abspath .)
 BUILD_ROOT := $(abspath build)
