@@ -24,9 +24,7 @@ static pid_t do_spawn(const char* filename, char* const argv[]) {
             perror("setpgid");
             abort();
         }
-
-        static char* const envp[] = {"PATH=/bin", "HOME=/root", NULL};
-        if (execve(filename, argv, envp) < 0) {
+        if (execve(filename, argv, environ) < 0) {
             perror("execve");
             abort();
         }
@@ -96,6 +94,9 @@ int main(void) {
 
     if (chdir("/root") < 0)
         perror("chdir");
+
+    if (setenv("HOME", "/root", 1) < 0)
+        perror("setenv");
 
     static const struct device_file device_files[] = {
         {"/dev/null", S_IFCHR | 0666, makedev(MEM_MAJOR, 3)},

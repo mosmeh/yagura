@@ -1095,6 +1095,11 @@ int main(int argc, char* const argv[]) {
         return EXIT_FAILURE;
     }
 
+    if (setenv("PATH", "/bin", 0) < 0) {
+        perror("setenv");
+        return EXIT_FAILURE;
+    }
+
     if (argc >= 2)
         return script_main(argv[1]);
     return repl_main();
