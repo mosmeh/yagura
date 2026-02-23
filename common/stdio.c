@@ -129,39 +129,22 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
             break;
         }
 
-        char num_buf[20];
-        size_t num_len = 0;
-        unsigned radix = 10;
-
-#define PUT_NUM_PREFIX(c)                                                      \
-    if (pad0) {                                                                \
-        PUT(c);                                                                \
-        --pad_len;                                                             \
-    } else {                                                                   \
-        num_buf[num_len++] = c;                                                \
-    }
-
         switch (ch) {
         case 'c':
             PUT((char)va_arg(args, int));
             break;
         case 'p':
+            length_spec = LENGTH_LONG;
             if (pad_len == 0) {
                 pad0 = true;
                 pad_len = sizeof(void*) * 2;
             }
-            length_spec = LENGTH_LONG;
-            FALLTHROUGH;
-        case 'x':
-            if (alternative_form) {
-                PUT_NUM_PREFIX('0');
-                PUT_NUM_PREFIX('x');
-            }
-            radix = 16;
             FALLTHROUGH;
         case 'd':
         case 'i':
-        case 'u': {
+        case 'u':
+        case 'x':
+        case 'o': {
             bool is_signed = ch == 'd' || ch == 'i';
             uintmax_t value;
             // NOLINTBEGIN(bugprone-branch-clone) int vs. long on 32-bit arch
@@ -188,6 +171,37 @@ int vsnprintf(char* buffer, size_t size, const char* format, va_list args) {
                 __builtin_unreachable();
             }
             // NOLINTEND(bugprone-branch-clone)
+
+            char num_buf[32];
+            size_t num_len = 0;
+            unsigned radix = 10;
+
+#define PUT_NUM_PREFIX(c)                                                      \
+    do {                                                                       \
+        if (pad0) {                                                            \
+            PUT(c);                                                            \
+            --pad_len;                                                         \
+        } else {                                                               \
+            num_buf[num_len++] = c;                                            \
+        }                                                                      \
+    } while (0)
+
+            switch (ch) {
+            case 'x':
+                if (alternative_form && value != 0) {
+                    PUT_NUM_PREFIX('0');
+                    PUT_NUM_PREFIX('x');
+                }
+                FALLTHROUGH;
+            case 'p':
+                radix = 16;
+                break;
+            case 'o':
+                if (alternative_form && value != 0)
+                    PUT_NUM_PREFIX('0');
+                radix = 8;
+                break;
+            }
 
             if (is_signed && value > INTMAX_MAX) {
                 PUT_NUM_PREFIX('-');
