@@ -1,5 +1,5 @@
-#include "private.h"
 #include <common/integer.h>
+#include <common/macros.h>
 #include <common/stddef.h>
 #include <errno.h>
 #include <panic.h>
@@ -124,15 +124,189 @@ void free(void* ptr) {
 }
 
 char* getenv(const char* name) {
+    if (!environ)
+        return NULL;
+    size_t name_len = strlen(name);
     for (char** env = environ; *env; ++env) {
         char* s = strchr(*env, '=');
         if (!s)
             continue;
         size_t len = s - *env;
-        if (len > 0 && !strncmp(*env, name, len))
+        if (len == name_len && !strncmp(*env, name, len))
             return s + 1;
     }
     return NULL;
+}
+
+static bool environ_is_malloced;
+static char** malloced_vars;
+static size_t malloced_vars_len;
+
+NODISCARD static bool register_malloced_var(char* string) {
+    for (size_t i = 0; i < malloced_vars_len; ++i) {
+        if (malloced_vars[i]) {
+            ASSERT(malloced_vars[i] != string);
+            continue;
+        }
+        malloced_vars[i] = string;
+        return true;
+    }
+
+    char** new_vars =
+        realloc(malloced_vars, (malloced_vars_len + 1) * sizeof(char*));
+    if (!new_vars)
+        return false;
+    malloced_vars = new_vars;
+    malloced_vars[malloced_vars_len++] = string;
+    return true;
+}
+
+static void free_var_if_needed(char* string) {
+    for (size_t i = 0; i < malloced_vars_len; ++i) {
+        if (malloced_vars[i] != string)
+            continue;
+        free(string);
+        malloced_vars[i] = NULL;
+        return;
+    }
+}
+
+int putenv(char* string) {
+    if (string[0] == '\0')
+        return 0;
+
+    char* eq = strchr(string, '=');
+    if (!eq) {
+        // glibc treats putenv("NAME") as unsetenv("NAME").
+        return unsetenv(string);
+    }
+
+    size_t num_vars = 0;
+    if (environ) {
+        size_t name_len = eq - string;
+        char** env = environ;
+        for (; *env; ++env) {
+            char* s = strchr(*env, '=');
+            if (!s)
+                continue;
+            size_t len = s - *env;
+            if (len != name_len || strncmp(*env, string, len) != 0)
+                continue;
+            if (*env == string)
+                return 0;
+            free_var_if_needed(*env);
+            *env = string;
+            return 0;
+        }
+        num_vars = env - environ;
+    }
+
+    size_t new_size = (num_vars + 2) * sizeof(char*);
+    char** new_environ;
+    if (environ_is_malloced) {
+        new_environ = realloc(environ, new_size);
+        if (!new_environ)
+            return -1;
+    } else {
+        new_environ = malloc(new_size);
+        if (!new_environ)
+            return -1;
+        if (environ)
+            memcpy(new_environ, environ, num_vars * sizeof(char*));
+        environ_is_malloced = true;
+    }
+    environ = new_environ;
+    environ[num_vars] = string;
+    environ[num_vars + 1] = NULL;
+
+    return 0;
+}
+
+int setenv(const char* name, const char* value, int overwrite) {
+    if (!name || name[0] == '\0' || strchr(name, '=')) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (!overwrite && getenv(name))
+        return 0;
+
+    size_t name_len = strlen(name);
+    size_t value_len = strlen(value);
+    char* string = malloc(name_len + 1 + value_len + 1);
+    if (!string)
+        return -1;
+    memcpy(string, name, name_len);
+    string[name_len] = '=';
+    memcpy(string + name_len + 1, value, value_len);
+    string[name_len + 1 + value_len] = '\0';
+
+    if (!register_malloced_var(string)) {
+        free(string);
+        return -1;
+    }
+
+    if (putenv(string) < 0) {
+        free_var_if_needed(string);
+        return -1;
+    }
+
+    return 0;
+}
+
+int unsetenv(const char* name) {
+    if (!name || name[0] == '\0' || strchr(name, '=')) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (!environ)
+        return 0;
+
+    size_t name_len = strlen(name);
+    size_t i = 0;
+    while (environ[i]) {
+        char* s = strchr(environ[i], '=');
+        if (!s) {
+            ++i;
+            continue;
+        }
+        size_t len = s - environ[i];
+        if (len != name_len || strncmp(environ[i], name, len) != 0) {
+            ++i;
+            continue;
+        }
+
+        free_var_if_needed(environ[i]);
+
+        // Shift remaining variables
+        size_t j = i;
+        for (; environ[j]; ++j)
+            environ[j] = environ[j + 1];
+        environ[j] = NULL;
+
+        // Next variable shifted to the i-th position, so don't increment i
+    }
+
+    return 0;
+}
+
+int clearenv(void) {
+    if (environ) {
+        for (char** env = environ; *env; ++env)
+            free_var_if_needed(*env);
+    }
+    free(malloced_vars);
+    malloced_vars = NULL;
+    malloced_vars_len = 0;
+
+    if (environ_is_malloced) {
+        free(environ);
+        environ_is_malloced = false;
+    }
+    environ = NULL;
+
+    return 0;
 }
 
 static int rand_state = 1;

@@ -19,6 +19,10 @@ void* realloc(void* ptr, size_t new_size);
 void free(void* ptr);
 
 char* getenv(const char* name);
+int putenv(char* string);
+int setenv(const char* name, const char* value, int overwrite);
+int unsetenv(const char* name);
+int clearenv(void);
 
 int rand(void);
 void srand(unsigned seed);

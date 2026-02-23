@@ -54,6 +54,7 @@ BIN_TARGET_NAMES := \
 	tests/chown \
 	tests/cwd \
 	tests/dup \
+	tests/env \
 	tests/execve \
 	tests/framebuffer \
 	tests/libgen \
