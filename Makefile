@@ -10,7 +10,6 @@ export BUILD_DIR := $(BUILD_ROOT)/$(ARCH)
 
 export CFLAGS := \
 	-std=c11 \
-	-static \
 	-nostdlib -nostdinc \
 	-fno-omit-frame-pointer \
 	-ffile-prefix-map=$(ROOT)/= \
@@ -22,6 +21,8 @@ export CFLAGS := \
 	$(EXTRA_CFLAGS)
 
 export LDFLAGS := \
+	-static \
+	-nostdlib \
 	-Wl,--build-id=none \
 	-Wl,-z,noexecstack
 
