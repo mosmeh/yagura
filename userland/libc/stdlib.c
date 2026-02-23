@@ -36,20 +36,29 @@ _Noreturn void abort(void) {
 
 struct malloc_header {
     uint32_t magic;
-    size_t size;
-    unsigned char data[];
+    size_t alloc_size;
+    size_t offset_to_data;
+    unsigned char header_end[];
+    // padding
+    // data (at start of the struct + offset_to_data)
 };
 
 void* aligned_alloc(size_t alignment, size_t size) {
+    if (alignment == 0 || !is_power_of_two(alignment) ||
+        alignment % sizeof(void*) != 0) {
+        errno = EINVAL;
+        return NULL;
+    }
     if (size == 0)
         return NULL;
 
-    ASSERT(alignment <= getauxval(AT_PAGESZ));
+    size_t page_size = getauxval(AT_PAGESZ);
+    ASSERT(page_size % alignment == 0);
 
-    size_t data_offset =
-        ROUND_UP(offsetof(struct malloc_header, data), alignment);
-    size_t real_size = data_offset + size;
-    void* addr = mmap(NULL, real_size, PROT_READ | PROT_WRITE,
+    size_t offset_to_data =
+        ROUND_UP(offsetof(struct malloc_header, header_end), alignment);
+    size_t alloc_size = ROUND_UP(offset_to_data + size, page_size);
+    void* addr = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE,
                       MAP_ANONYMOUS | MAP_PRIVATE, 0, 0);
     if (addr == MAP_FAILED) {
         errno = ENOMEM;
@@ -58,9 +67,10 @@ void* aligned_alloc(size_t alignment, size_t size) {
 
     struct malloc_header* header = (struct malloc_header*)addr;
     header->magic = MALLOC_MAGIC;
-    header->size = real_size;
+    header->alloc_size = alloc_size;
+    header->offset_to_data = offset_to_data;
 
-    return (void*)((uintptr_t)addr + data_offset);
+    return (void*)((uintptr_t)addr + offset_to_data);
 }
 
 void* malloc(size_t size) { return aligned_alloc(_Alignof(max_align_t), size); }
@@ -94,19 +104,16 @@ void* realloc(void* ptr, size_t new_size) {
     }
 
     struct malloc_header* old_header = header_from_ptr(ptr);
-    if (old_header->size >= new_size)
+    size_t old_usable_size =
+        old_header->alloc_size - old_header->offset_to_data;
+    if (old_usable_size >= new_size)
         return ptr;
 
     void* new_ptr = malloc(new_size);
     if (!new_ptr)
         return NULL;
-
-    struct malloc_header* new_header = header_from_ptr(new_ptr);
-    memcpy(new_header->data, old_header->data,
-           old_header->size - offsetof(struct malloc_header, data));
-
+    memcpy(new_ptr, ptr, old_usable_size);
     free(ptr);
-
     return new_ptr;
 }
 
@@ -114,7 +121,7 @@ void free(void* ptr) {
     if (!ptr)
         return;
     struct malloc_header* header = header_from_ptr(ptr);
-    ASSERT_OK(munmap(header, header->size));
+    ASSERT_OK(munmap(header, header->alloc_size));
 }
 
 char* getenv(const char* name) {
