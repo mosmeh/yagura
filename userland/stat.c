@@ -1,3 +1,4 @@
+#include "fs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/limits.h>
@@ -49,15 +50,22 @@ int main(int argc, char* argv[]) {
             putchar('\n');
         }
 
-        printf("  Size: %-10ld\t%s\n"
-               "Device: %d,%d\tLinks: %-5d",
-               buf.st_size, file_type(&buf), major(buf.st_dev),
-               minor(buf.st_dev), buf.st_nlink);
+        printf("  Size: %-10ld\tBlocks: %-10llu IO Block: %-6ld %s\n"
+               "Device: %xh/%ud\tInode: %-10lu  Links: %-5u",
+               buf.st_size, (unsigned long long)buf.st_blocks, buf.st_blksize,
+               file_type(&buf), buf.st_dev, buf.st_dev, buf.st_ino,
+               buf.st_nlink);
         if (S_ISCHR(buf.st_mode) || S_ISBLK(buf.st_mode)) {
-            printf("\tDevice type: %d,%d", major(buf.st_rdev),
+            printf("\tDevice type: %x,%x\n", major(buf.st_rdev),
                    minor(buf.st_rdev));
+        } else {
+            putchar('\n');
         }
-        putchar('\n');
+
+        char mode_str[11];
+        mode_to_string(buf.st_mode, mode_str);
+        printf("Access: (%04o/%s)  Uid: (%5u)   Gid: (%5u)\n",
+               buf.st_mode & ALLPERMS, mode_str, buf.st_uid, buf.st_gid);
     }
     return EXIT_SUCCESS;
 }

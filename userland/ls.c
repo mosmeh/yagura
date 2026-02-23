@@ -1,3 +1,4 @@
+#include "fs.h"
 #include <common/integer.h>
 #include <dirent.h>
 #include <errno.h>
@@ -37,26 +38,6 @@ static const char* get_format(const char* name, mode_t mode, size_t* out_len) {
             *out_len = strlen(name);
             return "%s";
         }
-    }
-}
-
-static char get_file_type_char(mode_t mode) {
-    switch (mode & S_IFMT) {
-    case S_IFDIR:
-        return 'd';
-    case S_IFCHR:
-        return 'c';
-    case S_IFBLK:
-        return 'b';
-    case S_IFIFO:
-        return 'p';
-    case S_IFLNK:
-        return 'l';
-    case S_IFSOCK:
-        return 's';
-    case S_IFREG:
-    default:
-        return '-';
     }
 }
 
@@ -105,11 +86,14 @@ static int list_dir(const char* path, size_t terminal_width, bool long_format) {
         size_t len;
         const char* format = get_format(dent->d_name, st.st_mode, &len);
         if (long_format) {
-            printf("%c %3u ", get_file_type_char(st.st_mode), st.st_nlink);
+            char mode_str[11];
+            mode_to_string(st.st_mode, mode_str);
+            printf("%s %4u %-8u %-8u ", mode_str, st.st_nlink, st.st_uid,
+                   st.st_gid);
             if (S_ISCHR(st.st_mode) || S_ISBLK(st.st_mode))
-                printf(" %4u,%4u ", major(st.st_rdev), minor(st.st_rdev));
+                printf("%4u, %3u ", major(st.st_rdev), minor(st.st_rdev));
             else
-                printf("%10lu ", st.st_size);
+                printf("%9ld ", st.st_size);
 
             printf(format, dent->d_name);
             if (S_ISLNK(st.st_mode)) {
