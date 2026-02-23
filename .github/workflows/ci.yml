@@ -14,6 +14,7 @@ jobs:
             CC: ${{ matrix.compiler }}
             ARCH: ${{ matrix.arch }}
             EXTRA_CFLAGS: -Werror
+            MAKEFLAGS: -j
         steps:
             - uses: actions/checkout@v4
             - run: sudo apt-get update && sudo apt-get install -y cpio qemu-system-x86 grub2 mtools xorriso
@@ -32,6 +33,7 @@ jobs:
             CC: gcc
             ARCH: ${{ matrix.arch }}
             EXTRA_CFLAGS: -Werror -fsanitize=undefined
+            MAKEFLAGS: -j
         steps:
             - uses: actions/checkout@v4
             - run: sudo apt-get update && sudo apt-get install -y cpio qemu-system-x86
@@ -47,6 +49,7 @@ jobs:
         env:
             CC: gcc
             ARCH: ${{ matrix.arch }}
+            MAKEFLAGS: -j
         steps:
             - uses: actions/checkout@v4
             - run: make userland

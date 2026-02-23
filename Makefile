@@ -1,4 +1,3 @@
-MAKEFLAGS += --jobs=32
 SUBDIRS := kernel userland
 
 GIT_HASH := $(shell git describe --always --dirty --exclude '*' 2> /dev/null)
