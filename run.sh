@@ -8,7 +8,11 @@ KERNEL="${KERNEL:-${BUILD_DIR}/kernel.elf}"
 INITRD="${INITRD:-${BUILD_DIR}/initrd.img}"
 NUM_CPUS="${NUM_CPUS:-1}"
 
-case "$1" in
+case "$CONSOLE" in
+    ''|'fb'|'framebuffer') # Framebuffer console
+        QEMU_EXTRA_ARGS+=(-display "sdl,gl=off,show-cursor=off")
+        CMDLINE+=(console=tty1)
+        ;;
     serial) # Serial console
         QEMU_EXTRA_ARGS+=(-display none -vga none)
         CMDLINE+=(console=ttyS0)
@@ -17,9 +21,9 @@ case "$1" in
         QEMU_EXTRA_ARGS+=(-display "sdl,gl=off" -vga cirrus)
         CMDLINE+=(console=tty1)
         ;;
-    *) # Framebuffer console
-        QEMU_EXTRA_ARGS+=(-display "sdl,gl=off,show-cursor=off")
-        CMDLINE+=(console=tty1)
+    *)
+        echo "Unknown CONSOLE: ${CONSOLE}" >&2
+        exit 1
         ;;
 esac
 

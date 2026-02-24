@@ -32,7 +32,7 @@ INITRD := $(BUILD_DIR)/initrd.img
 export KERNEL_BIN := $(BUILD_DIR)/kernel.elf
 export USERLAND_BIN_DIR := $(BASE_DIR)/bin
 
-.PHONY: all run clean $(SUBDIRS) $(BASE_DIR) disk_image
+.PHONY: all $(BASE_DIR) $(SUBDIRS) disk_image clean run test
 
 all: kernel $(INITRD)
 
@@ -61,12 +61,6 @@ clean:
 
 run: kernel $(INITRD)
 	./run.sh
-
-serial: kernel $(INITRD)
-	./run.sh serial
-
-text: kernel $(INITRD)
-	./run.sh text
 
 test: kernel $(INITRD)
 	./run_tests.sh

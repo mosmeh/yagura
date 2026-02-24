@@ -39,8 +39,8 @@ make run
 The following commands start the system with different options:
 
 ```sh
-make serial # run with a serial console
-make text # run in VGA text mode
+make run CONSOLE=serial # run with a serial console
+make run CONSOLE=text # run in VGA text mode
 make test # run self-test
 ```
 
