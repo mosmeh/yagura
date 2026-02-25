@@ -114,7 +114,8 @@ int main(void) {
 
     for (size_t i = 0; i < 64; ++i) {
         char pathname[16];
-        (void)sprintf(pathname, "/dev/tty%zu", i);
+        ASSERT((size_t)snprintf(pathname, sizeof(pathname), "/dev/tty%zu", i) <
+               sizeof(pathname));
         struct device_file file = {
             .pathname = pathname,
             .mode = S_IFCHR | 0620,

@@ -80,6 +80,8 @@ int vec_vsprintf(struct vec* vec, const char* format, va_list args) {
             va_copy(args_copy, args);
             int len = vsnprintf(dest, max_len, format, args_copy);
             va_end(args_copy);
+            if (len < 0)
+                return -EINVAL;
             if ((uint64_t)len < max_len) {
                 vec->size += len;
                 return len;

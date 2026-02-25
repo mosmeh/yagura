@@ -59,7 +59,8 @@ static void run(const char* dir_path) {
             continue;
         printf("[TEST] %s\n", dent->d_name);
         char path[PATH_MAX];
-        (void)snprintf(path, sizeof(path), "%s/%s", dir_path, dent->d_name);
+        ASSERT((size_t)snprintf(path, sizeof(path), "%s/%s", dir_path,
+                                dent->d_name) < sizeof(path));
         spawn(path);
         ++num_tests_passed;
     }

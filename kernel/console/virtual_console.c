@@ -497,7 +497,8 @@ static struct virtual_console* virtual_console_create(uint8_t tty_num,
     };
 
     struct tty* tty = &console->tty;
-    (void)snprintf(tty->name, sizeof(tty->name), "tty%u", tty_num);
+    ASSERT((size_t)snprintf(tty->name, sizeof(tty->name), "tty%u", tty_num) <
+           sizeof(tty->name));
     tty->dev = makedev(TTY_MAJOR, tty_num);
     tty->ops = &tty_ops;
     screen->get_size(&tty->num_columns, &tty->num_rows);

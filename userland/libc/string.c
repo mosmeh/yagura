@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <panic.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -189,10 +190,12 @@ char* strsignal(int signum) {
         desc = sys_siglist[signum];
     if (desc)
         return (char*)desc;
+    int len;
     if (SIGRTMIN <= signum && signum <= SIGRTMAX)
-        (void)snprintf(buf, sizeof(buf), "Real-time signal %d",
+        len = snprintf(buf, sizeof(buf), "Real-time signal %d",
                        signum - SIGRTMIN);
     else
-        (void)snprintf(buf, sizeof(buf), "Unknown signal %d", signum);
+        len = snprintf(buf, sizeof(buf), "Unknown signal %d", signum);
+    ASSERT((size_t)len < sizeof(buf));
     return buf;
 }

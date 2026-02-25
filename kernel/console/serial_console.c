@@ -42,7 +42,8 @@ static struct serial_console* serial_console_create(uint8_t index) {
     };
 
     struct tty* tty = &console->tty;
-    (void)snprintf(tty->name, sizeof(tty->name), "ttyS%u", index);
+    ASSERT((size_t)snprintf(tty->name, sizeof(tty->name), "ttyS%u", index) <
+           sizeof(tty->name));
     tty->dev = makedev(TTY_MAJOR, MINOR_BASE + index);
     tty->ops = &tty_ops;
 

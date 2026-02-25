@@ -3,6 +3,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <panic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -32,7 +33,8 @@ int main(void) {
         pid_t pid = atoi(dent->d_name);
 
         char pathname[32];
-        (void)snprintf(pathname, sizeof(pathname), "/proc/%d/comm", pid);
+        ASSERT((size_t)snprintf(pathname, sizeof(pathname), "/proc/%d/comm",
+                                pid) < sizeof(pathname));
         int fd = open(pathname, O_RDONLY);
         if (fd < 0) {
             perror("open");

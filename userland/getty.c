@@ -13,6 +13,10 @@ int main(int argc, char* const argv[]) {
     char tty_path[32];
     int len = snprintf(tty_path, sizeof(tty_path),
                        tty_name[0] == '/' ? "%s" : "/dev/%s", tty_name);
+    if (len < 0) {
+        dprintf(STDERR_FILENO, "Failed to format TTY path\n");
+        return EXIT_FAILURE;
+    }
     if ((size_t)len >= sizeof(tty_path)) {
         dprintf(STDERR_FILENO, "TTY name too long\n");
         return EXIT_FAILURE;

@@ -141,7 +141,8 @@ int proc_root_getdents(struct file* file, getdents_callback_fn callback,
 
     while (it) {
         char name[16];
-        (void)snprintf(name, sizeof(name), "%d", it->tid);
+        ASSERT((size_t)snprintf(name, sizeof(name), "%d", it->tid) <
+               sizeof(name));
 
         ino_t ino = it->tid << PROC_PID_INO_SHIFT;
 
