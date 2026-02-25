@@ -198,7 +198,7 @@ void phys_init(void) {
     }
 
     size_t zero_page_pfn = ASSERT_OK(page_alloc_raw());
-    void* kaddr = kmap(zero_page_pfn << PAGE_SHIFT);
+    void* kaddr = kmap(zero_page_pfn << PAGE_SHIFT, VM_WRITE);
     memset(kaddr, 0, PAGE_SIZE);
     kunmap(kaddr);
 
@@ -356,13 +356,13 @@ void page_free_raw(size_t pfn) {
 void page_fill(struct page* page, unsigned char value, size_t offset,
                size_t nbytes) {
     ASSERT(offset + nbytes <= PAGE_SIZE);
-    unsigned char* mapped_page = kmap_page(page);
+    unsigned char* mapped_page = kmap_page(page, VM_WRITE);
     memset(mapped_page + offset, value, nbytes);
     kunmap(mapped_page);
 }
 
 void page_copy(struct page* dest, struct page* src) {
-    void* src_mapped = kmap_page(src);
+    void* src_mapped = kmap_page(src, VM_READ);
     page_copy_from_buffer(dest, src_mapped, 0, PAGE_SIZE);
     kunmap(src_mapped);
 }
@@ -370,7 +370,7 @@ void page_copy(struct page* dest, struct page* src) {
 void page_copy_from_buffer(struct page* dest, const void* src, size_t offset,
                            size_t nbytes) {
     ASSERT(offset + nbytes <= PAGE_SIZE);
-    unsigned char* dest_mapped = kmap_page(dest);
+    unsigned char* dest_mapped = kmap_page(dest, VM_WRITE);
     memcpy(dest_mapped + offset, src, nbytes);
     kunmap(dest_mapped);
 }
@@ -378,7 +378,7 @@ void page_copy_from_buffer(struct page* dest, const void* src, size_t offset,
 void page_copy_to_buffer(struct page* src, void* dest, size_t offset,
                          size_t nbytes) {
     ASSERT(offset + nbytes <= PAGE_SIZE);
-    unsigned char* src_mapped = kmap_page(src);
+    unsigned char* src_mapped = kmap_page(src, VM_READ);
     memcpy(dest, src_mapped + offset, nbytes);
     kunmap(src_mapped);
 }

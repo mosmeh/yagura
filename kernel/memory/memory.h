@@ -93,9 +93,9 @@ struct kmap_ctrl {
 
 // Maps a physical page to the kernel virtual address space.
 // KMAP_MAX_NUM_PER_CPU pages can be mapped at the same time for each CPU.
-NODISCARD void* kmap(phys_addr_t phys_addr);
+NODISCARD void* kmap(phys_addr_t phys_addr, unsigned flags);
 
-NODISCARD void* kmap_page(struct page*);
+NODISCARD void* kmap_page(struct page*, unsigned flags);
 
 // Unmaps the kmapped virtual address.
 // kunmap must be called in the reverse order of kmap.

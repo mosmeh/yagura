@@ -273,7 +273,7 @@ int file_symlink(struct file* file, const char* target, size_t target_len) {
     if (IS_ERR(page))
         return PTR_ERR(page);
 
-    unsigned char* mapped_page = kmap_page(page);
+    unsigned char* mapped_page = kmap_page(page, VM_WRITE);
     memcpy(mapped_page, target, target_len);
     memset(mapped_page + target_len, 0, PAGE_SIZE - target_len);
     kunmap(mapped_page);

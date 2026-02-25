@@ -309,9 +309,16 @@ static void enable_features(struct cpu* cpu) {
         write_cr4(read_cr4() | X86_CR4_PGE);
 
     if (cpu_has_feature(cpu, X86_FEATURE_PAT)) {
-        uint64_t pat = rdmsr(MSR_IA32_CR_PAT);
-        pat &= ~((uint64_t)0x7 << 32); // Clear PAT4
-        pat |= (uint64_t)1 << 32;      // Set write-combining
+        uint64_t pat = 0;
+        //                                    PAT PCD PWT
+        pat |= (uint64_t)6 << (0 * 8); // WB: 0   0   0
+        pat |= (uint64_t)1 << (1 * 8); // WC: 0   0   1
+        pat |= (uint64_t)0 << (2 * 8); // UC: 0   1   0
+        pat |= (uint64_t)1 << (3 * 8); // WC: 0   1   1
+        pat |= (uint64_t)6 << (4 * 8); // WB: 1   0   0
+        pat |= (uint64_t)1 << (5 * 8); // WC: 1   0   1
+        pat |= (uint64_t)0 << (6 * 8); // UC: 1   1   0
+        pat |= (uint64_t)1 << (7 * 8); // WC: 1   1   1
         wrmsr(MSR_IA32_CR_PAT, pat);
     }
 

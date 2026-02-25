@@ -41,8 +41,8 @@ static void lapic_init(void) {
     const struct acpi* acpi = ASSERT_PTR(acpi_get());
     ASSERT(acpi->lapic_addr);
 
-    lapic =
-        ASSERT_PTR(phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE));
+    lapic = ASSERT_PTR(
+        phys_map(acpi->lapic_addr, PAGE_SIZE, VM_READ | VM_WRITE | VM_IO));
 }
 
 static uint32_t lapic_read(uint32_t reg) {
@@ -179,7 +179,8 @@ static void io_apic_init(void) {
     uint8_t apic_id = cpu_get_bsp()->arch.apic_id;
 
     for (const struct io_apic** p = acpi->io_apics; *p; ++p) {
-        volatile void* io_apic = ASSERT_PTR(kmap((*p)->io_apic_addr));
+        volatile void* io_apic =
+            ASSERT_PTR(kmap((*p)->io_apic_addr, VM_READ | VM_WRITE | VM_IO));
 
         size_t num_redirections =
             ((io_apic_read(io_apic, IO_APIC_REG_VER) >> 16) & 0xff) + 1;

@@ -19,8 +19,11 @@
 // vm_obj is shared with other regions
 #define VM_SHARED 0x10
 
+// Region is used for memory-mapped I/O
+#define VM_IO 0x20
+
 // Write-combining is enabled for the region
-#define VM_WC 0x20
+#define VM_WC 0x40
 
 struct vm_obj;
 

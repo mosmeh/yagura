@@ -9,8 +9,9 @@
 // Page may be accessed from userland
 #define PTE_USER 0x4
 
-// Page Attribute Table bit
-// Used to enable write-combining caching.
+// PAT, PCD, and PWT bits index into Page Attribute Table
+#define PTE_PWT 0x8
+#define PTE_PCD 0x10
 #define PTE_PAT 0x80
 
 // Page is global (not flushed from TLB on context switch)

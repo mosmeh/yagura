@@ -50,7 +50,7 @@ struct vm_obj* fb_mmap(void) {
         ASSERT(phys_create(fb.info.phys_addr, DIV_CEIL(BUF_SIZE, PAGE_SIZE)));
     if (IS_ERR(vm_obj))
         return vm_obj;
-    vm_obj->flags |= VM_WC;
+    vm_obj->flags |= VM_IO | VM_WC;
     fb.vm_obj = vm_obj;
 
     return vm_obj_ref(vm_obj);

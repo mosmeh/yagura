@@ -172,7 +172,7 @@ void* pci_map_bar(const struct pci_addr* pci_addr, uint8_t bar) {
     size &= ~0xf;
     size = (~size) + 1;
 
-    return phys_map(phys_addr, size, VM_READ | VM_WRITE);
+    return phys_map(phys_addr, size, VM_READ | VM_WRITE | VM_IO);
 }
 
 uint8_t pci_get_interrupt_line(const struct pci_addr* addr) {

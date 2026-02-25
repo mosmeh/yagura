@@ -4,9 +4,9 @@
 #include <kernel/memory/phys.h>
 #include <kernel/task/task.h>
 
-void* kmap_page(struct page* page) {
+void* kmap_page(struct page* page, unsigned flags) {
     ASSERT_PTR(page);
-    return kmap(page_to_pfn(page) << PAGE_SHIFT);
+    return kmap(page_to_pfn(page) << PAGE_SHIFT, flags);
 }
 
 static void flush_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,

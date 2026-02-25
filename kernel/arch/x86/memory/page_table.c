@@ -51,11 +51,36 @@ struct pagemap {
 
 STATIC_ASSERT(sizeof(struct pagemap) == PAGE_SIZE);
 
+static pte_t vm_flags_to_pte_flags(unsigned vm_flags) {
+    if (!(vm_flags & (VM_READ | VM_WRITE | VM_EXEC)))
+        return 0;
+
+    pte_t pte_flags = PTE_PRESENT;
+
+    if (vm_flags & VM_WRITE)
+        pte_flags |= PTE_WRITE;
+
+    if (vm_flags & VM_USER)
+        pte_flags |= PTE_USER;
+
+    if (vm_flags & VM_IO)
+        pte_flags |= PTE_PCD;
+
+    if ((vm_flags & VM_WC) && cpu_has_feature(cpu_get_bsp(), X86_FEATURE_PAT))
+        pte_flags |= PTE_PWT;
+
+    if (!(vm_flags & VM_EXEC) && cpu_has_feature(cpu_get_bsp(), X86_FEATURE_NX))
+        pte_flags |= PTE_NX;
+
+    return pte_flags;
+}
+
 static phys_addr_t get_page_table(struct pagemap* pagemap,
                                   uintptr_t virt_addr) {
     phys_addr_t phys_addr;
     for (int level = TOP_LEVEL; level > 0; --level) {
-        pte_t* table = level < TOP_LEVEL ? kmap(phys_addr) : pagemap->entries;
+        pte_t* table =
+            level < TOP_LEVEL ? kmap(phys_addr, VM_READ) : pagemap->entries;
         pte_t entry = table[LEVEL_INDEX(virt_addr, level)];
         if (level < TOP_LEVEL)
             kunmap(table);
@@ -71,7 +96,8 @@ static phys_addr_t ensure_page_table(struct pagemap* pagemap,
                                      uintptr_t virt_addr) {
     phys_addr_t phys_addr;
     for (int level = TOP_LEVEL; level > 0; --level) {
-        pte_t* table = level < TOP_LEVEL ? kmap(phys_addr) : pagemap->entries;
+        pte_t* table = level < TOP_LEVEL ? kmap(phys_addr, VM_READ | VM_WRITE)
+                                         : pagemap->entries;
         pte_t* entry = table + LEVEL_INDEX(virt_addr, level);
         if (*entry & PTE_PRESENT) {
             phys_addr = *entry & ~PAGE_TABLE_FLAGS_MASK;
@@ -83,7 +109,7 @@ static phys_addr_t ensure_page_table(struct pagemap* pagemap,
                 return pfn;
             }
             phys_addr = (phys_addr_t)pfn << PAGE_SHIFT;
-            void* new_table = kmap(phys_addr);
+            void* new_table = kmap(phys_addr, VM_WRITE);
             memset(new_table, 0, PAGE_SIZE);
             kunmap(new_table);
             *entry = phys_addr | PTE_PRESENT | PTE_WRITE | PTE_USER;
@@ -107,7 +133,7 @@ static uintptr_t kmap_addr(const struct cpu* cpu, size_t local_index) {
     return KMAP_START + (kmap_page_index(cpu, local_index) << PAGE_SHIFT);
 }
 
-void* kmap(phys_addr_t phys_addr) {
+void* kmap(phys_addr_t phys_addr, unsigned flags) {
     ASSERT(phys_addr);
     ASSERT(phys_addr % PAGE_SIZE == 0);
 
@@ -129,7 +155,7 @@ void* kmap(phys_addr_t phys_addr) {
 
     pte_t* pte = kmap_page_table + kmap_page_index(cpu, index);
     ASSERT(!(*pte & PTE_PRESENT));
-    *pte = phys_addr | PTE_PRESENT | PTE_WRITE;
+    *pte = phys_addr | vm_flags_to_pte_flags(flags);
 
     uintptr_t kaddr = kmap_addr(cpu, index);
     arch_flush_tlb_single(kaddr);
@@ -172,7 +198,7 @@ struct pagemap* kernel_pagemap =
 phys_addr_t virt_to_phys(void* virt_addr) {
     uintptr_t vaddr = (uintptr_t)virt_addr;
     phys_addr_t pt_phys_addr = ASSERT(get_page_table(kernel_pagemap, vaddr));
-    pte_t* page_table = kmap(pt_phys_addr);
+    pte_t* page_table = kmap(pt_phys_addr, VM_READ);
     pte_t entry = page_table[LEVEL_INDEX(vaddr, 0)];
     kunmap(page_table);
     ASSERT(entry & PTE_PRESENT);
@@ -220,7 +246,7 @@ static void free_table_recursive(const pte_t* table, int level) {
             continue;
         phys_addr_t phys_addr = entry & ~PAGE_TABLE_FLAGS_MASK;
         if (level > 1) {
-            pte_t* child_table = kmap(phys_addr);
+            pte_t* child_table = kmap(phys_addr, VM_READ);
             free_table_recursive(child_table, level - 1);
             kunmap(child_table);
         }
@@ -239,35 +265,21 @@ void pagemap_destroy(struct pagemap* pagemap) {
 
 void pagemap_switch(struct pagemap* to) { write_cr3(virt_to_phys(to)); }
 
-static pte_t vm_flags_to_pte_flags(unsigned vm_flags) {
-    if (!(vm_flags & (VM_READ | VM_WRITE | VM_EXEC)))
-        return 0;
-    pte_t pte_flags = PTE_PRESENT;
-    if (vm_flags & VM_WRITE)
-        pte_flags |= PTE_WRITE;
-    if (vm_flags & VM_USER)
-        pte_flags |= PTE_USER;
-    else
-        pte_flags |= PTE_GLOBAL;
-    if (vm_flags & VM_WC)
-        pte_flags |= PTE_PAT;
-    if (!(vm_flags & VM_EXEC) && cpu_has_feature(cpu_get_bsp(), X86_FEATURE_NX))
-        pte_flags |= PTE_NX;
-    return pte_flags;
-}
-
 int arch_map_page(struct pagemap* pagemap, uintptr_t virt_addr, size_t pfn,
                   unsigned flags) {
     ASSERT(virt_addr % PAGE_SIZE == 0);
-    ASSERT(!(flags & ~PAGE_TABLE_FLAGS_MASK));
+
+    pte_t new_value = (pte_t)pfn << PAGE_SHIFT;
+    new_value |= vm_flags_to_pte_flags(flags);
+    if (!(flags & VM_USER) && is_kernel_address((void*)virt_addr))
+        new_value |= PTE_GLOBAL;
 
     phys_addr_t pt_phys_addr = ensure_page_table(pagemap, virt_addr);
     if (IS_ERR(pt_phys_addr))
         return pt_phys_addr;
 
-    pte_t* page_table = kmap(pt_phys_addr);
-    page_table[LEVEL_INDEX(virt_addr, 0)] =
-        ((pte_t)pfn << PAGE_SHIFT) | vm_flags_to_pte_flags(flags);
+    pte_t* page_table = kmap(pt_phys_addr, VM_WRITE);
+    page_table[LEVEL_INDEX(virt_addr, 0)] = new_value;
     kunmap(page_table);
 
     return 0;
@@ -280,7 +292,7 @@ void arch_unmap_page(struct pagemap* pagemap, uintptr_t virt_addr) {
     if (!pt_phys_addr)
         return;
 
-    pte_t* page_table = kmap(pt_phys_addr);
+    pte_t* page_table = kmap(pt_phys_addr, VM_WRITE);
     page_table[LEVEL_INDEX(virt_addr, 0)] = 0;
     kunmap(page_table);
 }

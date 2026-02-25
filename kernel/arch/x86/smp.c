@@ -45,7 +45,7 @@ void smp_init(void) {
     ASSERT((uintptr_t)ap_trampoline_start % PAGE_SIZE == 0);
     size_t trampoline_size = ap_trampoline_end - ap_trampoline_start;
     for (size_t offset = 0; offset < trampoline_size; offset += PAGE_SIZE) {
-        void* kaddr = kmap(AP_TRAMPOLINE_ADDR + offset);
+        void* kaddr = kmap(AP_TRAMPOLINE_ADDR + offset, VM_WRITE);
         memcpy(kaddr, ap_trampoline_start + offset, PAGE_SIZE);
         kunmap(kaddr);
     }
