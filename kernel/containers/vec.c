@@ -76,7 +76,10 @@ int vec_vsprintf(struct vec* vec, const char* format, va_list args) {
         uint64_t max_len = vec->capacity - vec->size;
         if (max_len > 0) {
             char* dest = (char*)(vec->data + vec->size);
-            int len = vsnprintf(dest, max_len, format, args);
+            va_list args_copy;
+            va_copy(args_copy, args);
+            int len = vsnprintf(dest, max_len, format, args_copy);
+            va_end(args_copy);
             if ((uint64_t)len < max_len) {
                 vec->size += len;
                 return len;
