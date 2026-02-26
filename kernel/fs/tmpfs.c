@@ -133,13 +133,12 @@ static int tmpfs_getdents(struct file* file, getdents_callback_fn callback,
     struct tmpfs_inode* inode =
         CONTAINER_OF(vfs_inode, struct tmpfs_inode, vfs_inode);
 
+    SCOPED_LOCK(file, file);
     SCOPED_LOCK(inode, vfs_inode);
 
     struct tree_node* tree_node = tree_first(&inode->children);
     if (!tree_node)
         return 0;
-
-    SCOPED_LOCK(file, file);
 
     for (uint64_t i = 0; i < file->offset; ++i) {
         tree_node = tree_next(tree_node);
