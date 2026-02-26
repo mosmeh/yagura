@@ -11,8 +11,6 @@
 #include <sys/limits.h>
 #include <sys/mount.h>
 #include <sys/reboot.h>
-#include <sys/stat.h>
-#include <sys/sysmacros.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -80,9 +78,8 @@ int main(int argc, char** argv) {
 
     ASSERT(signal(SIGABRT, sigabrt_handler) == SIG_DFL);
 
-    ASSERT_OK(mount("tmpfs", "/dev", "tmpfs", 0, NULL));
+    ASSERT_OK(mount("devtmpfs", "/dev", "devtmpfs", 0, NULL));
 
-    ASSERT_OK(mknod("/dev/console", S_IFCHR | 0600, makedev(TTYAUX_MAJOR, 1)));
     int fd = open("/dev/console", O_RDWR);
     ASSERT(fd == STDIN_FILENO);
     ASSERT_OK(dup2(fd, STDOUT_FILENO));

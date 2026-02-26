@@ -61,6 +61,15 @@ struct mount* file_system_mount(const struct file_system* fs,
         *mount = (struct mount){0};
     }
 
+    SCOPED_LOCK(mutex, &mounts_lock);
+    SCOPED_LOCK(mount, mount);
+
+    if (mount->flags & MOUNT_READY) {
+        // The file system returned an existing mount, so skip the rest of
+        // the initialization.
+        return mount;
+    }
+
     mount->fs = fs;
 
     if (!mount->dev) {
@@ -69,9 +78,11 @@ struct mount* file_system_mount(const struct file_system* fs,
         mount->dev = makedev(UNNAMED_MAJOR, id);
     }
 
-    SCOPED_LOCK(mutex, &mounts_lock);
     mount->next = mounts;
     mounts = mount;
+
+    mount->flags |= MOUNT_READY;
+
     return mount;
 }
 

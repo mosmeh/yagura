@@ -18,8 +18,16 @@ int char_dev_register(struct char_dev* char_dev) {
     }
     char_dev->next = char_devices;
     char_devices = char_dev;
+
     kprintf("char_dev: registered %s %u,%u\n", char_dev->name,
             major(char_dev->dev), minor(char_dev->dev));
+
+    int rc = devtmpfs_mknod(char_dev->name, S_IFCHR, char_dev->dev);
+    if (IS_ERR(rc))
+        kprintf("char_dev: failed to create device node for %s in devtmpfs "
+                "(error %d)\n",
+                char_dev->name, rc);
+
     return 0;
 }
 
@@ -149,6 +157,12 @@ int block_dev_register(struct block_dev* block_dev) {
 
     kprintf("block_dev: registered %s %u,%u\n", block_dev->name,
             major(block_dev->dev), minor(block_dev->dev));
+
+    rc = devtmpfs_mknod(block_dev->name, S_IFBLK, block_dev->dev);
+    if (IS_ERR(rc))
+        kprintf("block_dev: failed to create device node for %s in devtmpfs "
+                "(error %d)\n",
+                block_dev->name, rc);
 
     block_dev_unref(block_dev);
     return 0;

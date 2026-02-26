@@ -101,11 +101,15 @@ struct kstat {
 
 NODISCARD int inode_stat(struct inode*, struct kstat* buf);
 
+// mount is fully initialized and ready to be used
+#define MOUNT_READY 0x1
+
 struct mount {
     const struct file_system* fs;
     dev_t dev;
     struct inode* root;
     struct inode* inodes; // inode cache
+    unsigned flags;
     struct mount* next;
     struct mutex lock;
 };
@@ -184,6 +188,8 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
 NODISCARD int vfs_sync(void);
 
 void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size);
+
+NODISCARD int devtmpfs_mknod(const char* name, mode_t mode, dev_t dev);
 
 struct inode* pipe_create(void);
 

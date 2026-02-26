@@ -255,14 +255,48 @@ static struct mount* tmpfs_mount(const char* source) {
     return vfs_mount;
 }
 
+static struct file_system tmpfs = {
+    .name = "tmpfs",
+    .mount = tmpfs_mount,
+    .create_inode = tmpfs_create_inode,
+};
+
+static struct mount* devtmpfs_singleton;
+
+static struct mount* devtmpfs_mount(const char* source) {
+    if (devtmpfs_singleton)
+        return ASSERT_PTR(devtmpfs_singleton);
+    return tmpfs_mount(source);
+}
+
+static struct file_system devtmpfs = {
+    .name = "devtmpfs",
+    .mount = devtmpfs_mount,
+    .create_inode = tmpfs_create_inode,
+};
+
+int devtmpfs_mknod(const char* name, mode_t mode, dev_t dev) {
+    struct mount* mount = ASSERT_PTR(devtmpfs_singleton);
+    struct inode* root = ASSERT_PTR(mount->root);
+
+    ASSERT(mode & S_IFMT);
+    if (!(mode & ALLPERMS))
+        mode |= 0600;
+
+    struct inode* inode FREE(inode) = ASSERT(mount_create_inode(mount, mode));
+    if (IS_ERR(inode))
+        return PTR_ERR(inode);
+    inode->rdev = dev;
+
+    return inode_link(root, name, inode);
+}
+
 void tmpfs_init(void) {
     slab_init(&tmpfs_inode_slab, "tmpfs_inode", sizeof(struct tmpfs_inode));
     slab_init(&tmpfs_dentry_slab, "tmpfs_dentry", sizeof(struct tmpfs_dentry));
 
-    static struct file_system fs = {
-        .name = "tmpfs",
-        .mount = tmpfs_mount,
-        .create_inode = tmpfs_create_inode,
-    };
-    ASSERT_OK(file_system_register(&fs));
+    ASSERT_OK(file_system_register(&tmpfs));
+
+    devtmpfs_singleton = ASSERT_PTR(file_system_mount(&devtmpfs, "devtmpfs"));
+    ASSERT_OK(file_system_register(&devtmpfs));
 }

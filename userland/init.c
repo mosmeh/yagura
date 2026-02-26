@@ -1,5 +1,5 @@
 #include <common/stdbool.h>
-#include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <linux/kd.h>
 #include <linux/major.h>
@@ -7,13 +7,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
+#include <sys/limits.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-static pid_t do_spawn(const char* filename, char* const argv[]) {
+static pid_t spawn(const char* filename, char* const argv[]) {
     pid_t pid = fork();
     if (pid < 0) {
         perror("fork");
@@ -32,41 +33,8 @@ static pid_t do_spawn(const char* filename, char* const argv[]) {
     return pid;
 }
 
-static pid_t spawn(char* filename) {
-    return do_spawn(filename, (char*[]){filename, NULL});
-}
-
-static pid_t spawn_getty(char* tty) {
-    static char* const filename = "/bin/getty";
-    return do_spawn(filename, (char*[]){filename, tty, NULL});
-}
-
-struct device_file {
-    const char* pathname;
-    mode_t mode;
-    dev_t dev;
-};
-
-static bool try_mknod(const struct device_file* file) {
-    if (mknod(file->pathname, file->mode | 0777, file->dev) < 0) {
-        perror("mknod");
-        return false;
-    }
-
-    int fd = open(file->pathname, 0);
-    if (fd >= 0) {
-        if (fchmod(fd, file->mode) < 0)
-            perror("fchmod");
-        close(fd);
-        return true;
-    }
-    if (errno != ENODEV) {
-        perror("open");
-        return false;
-    }
-    if (unlink(file->pathname) < 0)
-        perror("unlink");
-    return false;
+static pid_t spawn_no_arg(char* filename) {
+    return spawn(filename, (char* const[]){filename, NULL});
 }
 
 static int set_console_palette(int fd) {
@@ -82,9 +50,8 @@ static int set_console_palette(int fd) {
 int main(void) {
     ASSERT(getpid() == 1);
 
-    ASSERT_OK(mount("tmpfs", "/dev", "tmpfs", 0, NULL));
+    ASSERT_OK(mount("devtmpfs", "/dev", "devtmpfs", 0, NULL));
 
-    ASSERT_OK(mknod("/dev/console", S_IFCHR | 0600, makedev(TTYAUX_MAJOR, 1)));
     int fd = open("/dev/console", O_RDWR);
     ASSERT(fd == STDIN_FILENO);
     ASSERT_OK(dup2(fd, STDOUT_FILENO));
@@ -98,60 +65,31 @@ int main(void) {
     if (setenv("HOME", "/root", 1) < 0)
         perror("setenv");
 
-    static const struct device_file device_files[] = {
-        {"/dev/null", S_IFCHR | 0666, makedev(MEM_MAJOR, 3)},
-        {"/dev/zero", S_IFCHR | 0666, makedev(MEM_MAJOR, 5)},
-        {"/dev/full", S_IFCHR | 0666, makedev(MEM_MAJOR, 7)},
-        {"/dev/random", S_IFCHR | 0666, makedev(MEM_MAJOR, 8)},
-        {"/dev/urandom", S_IFCHR | 0666, makedev(MEM_MAJOR, 9)},
-        {"/dev/kmsg", S_IFCHR | 0644, makedev(MEM_MAJOR, 11)},
-        {"/dev/psaux", S_IFCHR | 0660, makedev(MISC_MAJOR, 1)},
-        {"/dev/dsp", S_IFCHR | 0660, makedev(SOUND_MAJOR, 3)},
-        {"/dev/fb0", S_IFCHR | 0660, makedev(FB_MAJOR, 0)},
-    };
-    for (size_t i = 0; i < ARRAY_SIZE(device_files); ++i)
-        try_mknod(&device_files[i]);
+    DIR* dev_dir = ASSERT(opendir("/dev"));
+    for (;;) {
+        struct dirent* entry = readdir(dev_dir);
+        if (!entry)
+            break;
+        if (entry->d_type != DT_CHR)
+            continue;
 
-    for (size_t i = 0; i < 64; ++i) {
-        char pathname[16];
-        ASSERT((size_t)snprintf(pathname, sizeof(pathname), "/dev/tty%zu", i) <
-               sizeof(pathname));
-        struct device_file file = {
-            .pathname = pathname,
-            .mode = S_IFCHR | 0620,
-            .dev = makedev(TTY_MAJOR, i),
-        };
-        if (try_mknod(&file))
-            spawn_getty(pathname);
-    }
+        char tty[PATH_MAX];
+        ASSERT((size_t)snprintf(tty, sizeof(tty), "/dev/%s", entry->d_name) <
+               sizeof(tty));
 
-    for (size_t i = 0; i < 4; ++i) {
-        char pathname[16] = "/dev/ttyS";
-        pathname[9] = '0' + i;
-        struct device_file file = {
-            .pathname = pathname,
-            .mode = S_IFCHR | 0660,
-            .dev = makedev(TTY_MAJOR, 64 + i),
-        };
-        if (try_mknod(&file))
-            spawn_getty(pathname);
-    }
-
-    for (size_t i = 0; i < 256; ++i) {
-        char pathname[16] = "/dev/vd";
-        if (i < 26) {
-            pathname[7] = 'a' + i;
-        } else {
-            pathname[7] = 'a' + i / 26 - 1;
-            pathname[8] = 'a' + i % 26;
+        struct stat st;
+        if (stat(tty, &st) < 0) {
+            perror("stat");
+            continue;
         }
-        struct device_file file = {
-            .pathname = pathname,
-            .mode = S_IFBLK | 0660,
-            .dev = makedev(254, i),
-        };
-        try_mknod(&file);
+        if (!S_ISCHR(st.st_mode) || major(st.st_rdev) != TTY_MAJOR ||
+            minor(st.st_rdev) == 0)
+            continue;
+
+        static char* const getty = "/bin/getty";
+        spawn(getty, (char* const[]){getty, tty, NULL});
     }
+    closedir(dev_dir);
 
     if (mount("tmpfs", "/tmp", "tmpfs", 0, NULL) < 0)
         perror("mount");
@@ -164,10 +102,10 @@ int main(void) {
     if (mount("proc", "/proc", "proc", 0, NULL) < 0)
         perror("mount");
 
-    pid_t pid = spawn("/bin/moused");
+    pid_t pid = spawn_no_arg("/bin/moused");
     if (pid > 0) {
         waitpid(pid, NULL, 0);
-        spawn("/bin/mouse-cursor");
+        spawn_no_arg("/bin/mouse-cursor");
     }
 
     for (;;)
