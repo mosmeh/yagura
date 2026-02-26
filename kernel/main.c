@@ -51,10 +51,7 @@ static _Noreturn void userland_init(void) {
     }
 
     static const char* const default_init_paths[] = {
-        "/sbin/init",
-        "/etc/init",
-        "/bin/init",
-        "/bin/sh",
+        "/init", "/sbin/init", "/etc/init", "/bin/init", "/bin/sh",
     };
     for (size_t i = 0; i < ARRAY_SIZE(default_init_paths); ++i) {
         const char* path = default_init_paths[i];
