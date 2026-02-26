@@ -42,19 +42,24 @@ void vm_obj_unmap(void* virt_addr) {
 int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
                                size_t npages) {
     ASSERT(vm_obj_is_locked_by_current(obj));
+    size_t end = offset + npages;
+    if (end < offset)
+        return -EOVERFLOW;
     for (const struct vm_region* region = obj->shared_regions; region;
          region = region->shared_next) {
-        if (region->offset + (region->end - region->start) <= offset)
-            continue;
-        if (region->offset >= offset + npages)
-            continue;
-
-        size_t region_offset = offset - region->offset;
-        size_t region_npages =
-            MIN(npages, region->end - region->start - region_offset);
-
         SCOPED_LOCK(vm, region->vm);
-        int rc = vm_region_invalidate(region, region_offset, region_npages);
+
+        size_t region_end = region->offset + (region->end - region->start);
+        if (region_end <= offset || end <= region->offset)
+            continue;
+
+        size_t overlap_start = MAX(offset, region->offset);
+        size_t overlap_offset = overlap_start - region->offset;
+        size_t overlap_npages = MIN(end, region_end) - overlap_start;
+        if (overlap_npages == 0)
+            continue;
+
+        int rc = vm_region_invalidate(region, overlap_offset, overlap_npages);
         if (IS_ERR(rc))
             return rc;
     }

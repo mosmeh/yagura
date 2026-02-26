@@ -221,7 +221,7 @@ NODISCARD int filemap_truncate(struct filemap* filemap, uint64_t length) {
     }
 
     if (truncated)
-        return vm_obj_invalidate_mappings(&inode->vm_obj, end, SIZE_MAX);
+        return vm_obj_invalidate_mappings(&inode->vm_obj, end, SIZE_MAX - end);
 
     return 0;
 }
