@@ -103,9 +103,9 @@ void phys_range_add_reserved(const char* type, phys_addr_t start, size_t size) {
             continue;
         if (r->pfn_start <= pfn_start && pfn_end <= r->pfn_end) {
             // Overlaps in the middle
+            size_t right_size = (r->pfn_end - pfn_end) << PAGE_SHIFT;
             r->pfn_end = pfn_start;
-            phys_range_add_available(pfn_end << PAGE_SHIFT,
-                                     (r->pfn_end - pfn_end) << PAGE_SHIFT);
+            phys_range_add_available(pfn_end << PAGE_SHIFT, right_size);
         } else if (pfn_start <= r->pfn_start && r->pfn_end <= pfn_end) {
             // The entire range is reserved
             r->pfn_end = r->pfn_start; // Mark as unused
