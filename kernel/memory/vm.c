@@ -203,34 +203,22 @@ bool vm_handle_page_fault(void* virt_addr, unsigned flags) {
     return IS_OK(map_page(vm, virt_addr, request));
 }
 
-int vm_populate(void* virt_start_addr, void* virt_end_addr, unsigned request) {
+int vm_populate(struct vm* vm, void* virt_start_addr, void* virt_end_addr,
+                unsigned request) {
     uintptr_t start = ROUND_DOWN((uintptr_t)virt_start_addr, PAGE_SIZE);
     uintptr_t end = ROUND_UP((uintptr_t)virt_end_addr, PAGE_SIZE);
     if (start >= end)
         return -EINVAL;
+    if (!vm_contains(vm, (void*)start) || !vm_contains(vm, (void*)(end - 1)))
+        return -EFAULT;
 
-    int rc = 0;
-    struct vm* prev_vm = NULL;
+    SCOPED_LOCK(vm, vm);
     for (uintptr_t addr = start; addr < end; addr += PAGE_SIZE) {
-        struct vm* vm = virt_addr_to_vm((void*)addr);
-        if (!vm) {
-            rc = -EFAULT;
-            break;
-        }
-        if (vm != prev_vm) {
-            if (prev_vm)
-                vm_unlock(prev_vm);
-            vm_lock(vm);
-            prev_vm = vm;
-        }
-        rc = map_page(vm, (void*)addr, request);
+        int rc = map_page(vm, (void*)addr, request);
         if (IS_ERR(rc))
-            break;
+            return rc;
     }
-    if (prev_vm)
-        vm_unlock(prev_vm);
-
-    return rc;
+    return 0;
 }
 
 struct page* vm_get_page(struct vm* vm, void* virt_addr, unsigned request) {

@@ -201,7 +201,8 @@ void* phys_map(phys_addr_t phys_addr, size_t size, unsigned vm_flags) {
     if (IS_ERR(addr))
         return addr;
 
-    int rc = vm_populate(addr, addr + (npages << PAGE_SHIFT), vm_flags);
+    int rc =
+        vm_populate(kernel_vm, addr, addr + (npages << PAGE_SHIFT), vm_flags);
     if (IS_ERR(rc)) {
         vm_obj_unmap(addr);
         return ERR_PTR(rc);

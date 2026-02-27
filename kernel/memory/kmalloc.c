@@ -15,8 +15,8 @@ void* kmalloc(size_t size) {
     if (IS_ERR(addr))
         return NULL;
 
-    int rc =
-        vm_populate(addr, addr + (npages << PAGE_SHIFT), VM_READ | VM_WRITE);
+    int rc = vm_populate(kernel_vm, addr, addr + (npages << PAGE_SHIFT),
+                         VM_READ | VM_WRITE);
     if (IS_ERR(rc)) {
         vm_obj_unmap(addr);
         return NULL;
@@ -51,7 +51,7 @@ void* krealloc(void* ptr, size_t new_size) {
         return NULL;
 
     void* end = (unsigned char*)ptr + (new_npages << PAGE_SHIFT);
-    rc = vm_populate(ptr, end, region->flags);
+    rc = vm_populate(kernel_vm, ptr, end, region->flags);
     if (IS_ERR(rc))
         return NULL;
 

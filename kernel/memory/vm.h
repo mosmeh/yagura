@@ -127,8 +127,8 @@ NODISCARD bool vm_handle_page_fault(void* virt_addr, unsigned flags);
 // Populates (prefaults) the page tables for the given virtual address range
 // without the actual memory access.
 // `request` is a combination of VM_* flags that the pages should satisfy.
-NODISCARD int vm_populate(void* virt_start_addr, void* virt_end_addr,
-                          unsigned request);
+NODISCARD int vm_populate(struct vm*, void* virt_start_addr,
+                          void* virt_end_addr, unsigned request);
 
 // Returns the page corresponding to the given virtual address.
 // `request` is a combination of VM_* flags that the page should satisfy.
