@@ -285,13 +285,15 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
         if (copy_from_user(&entry, (const void*)arg, sizeof(struct kbentry)))
             return -EFAULT;
         if (!entry.kb_index && entry.kb_value == K_NOSUCHMAP) {
+            // Free outside the spinlock to avoid sleeping with the lock held
+            unsigned short* key_map_to_free FREE(kfree) = NULL;
             if (entry.kb_table) {
                 SCOPED_LOCK(spinlock, &key_map_lock);
                 unsigned short* key_map = key_maps[entry.kb_table];
                 if (key_map) {
                     key_maps[entry.kb_table] = NULL;
                     if (key_map[0] == U(K_ALLOCATED))
-                        kfree(key_map);
+                        key_map_to_free = key_map;
                 }
             }
         } else {
@@ -300,7 +302,8 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
             if (!entry.kb_index)
                 return -EINVAL;
 
-            // Allocate before disabling the interrupts
+            // Allocate outside the spinlock to avoid sleeping
+            // with the lock held
             unsigned short* new_key_map FREE(kfree) =
                 kmalloc(sizeof(unsigned short) * NR_KEYS);
 
