@@ -93,41 +93,45 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
                          uint64_t offset) {
     (void)offset;
 
-    char* user_dest = user_buf;
-
-    // Ensure no page faults occur while spinlock is held
-    int rc = vm_populate(user_dest, user_dest + count, VM_WRITE);
-    if (IS_ERR(rc))
-        return rc;
+    unsigned char buf[PAGE_SIZE];
+    count = MIN(count, sizeof(buf));
 
     struct tty* tty = tty_from_file(file);
     for (;;) {
-        rc = file_block(file, unblock_read, 0);
+        int rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 
-        SCOPED_LOCK(tty, tty);
-        if (!can_read(tty))
+        size_t nread = 0;
+        bool eol = false;
+        {
+            SCOPED_LOCK(tty, tty);
+            if (!can_read(tty))
+                continue;
+
+            while (count) {
+                struct attr_char ac;
+                ssize_t n = ring_buf_read(tty->input_buf, &ac, sizeof(ac));
+                if (IS_ERR(n))
+                    return n;
+                if (!n)
+                    break;
+                ASSERT(n == sizeof(ac));
+                if (ac.ch) {
+                    buf[nread++] = ac.ch;
+                    --count;
+                }
+                if (ac.eol) {
+                    eol = true;
+                    break;
+                }
+            }
+        }
+        if (nread == 0 && !eol)
             continue;
 
-        size_t nread = 0;
-        while (count) {
-            struct attr_char ac;
-            ssize_t n = ring_buf_read(tty->input_buf, &ac, sizeof(ac));
-            if (IS_ERR(n))
-                return n;
-            if (!n)
-                break;
-            if (ac.ch) {
-                if (copy_to_user(user_dest, &ac.ch, sizeof(char)))
-                    return -EFAULT;
-                ++user_dest;
-                ++nread;
-                --count;
-            }
-            if (ac.eol)
-                break;
-        }
+        if (nread > 0 && copy_to_user(user_buf, buf, nread))
+            return -EFAULT;
         return nread;
     }
 }
@@ -163,28 +167,15 @@ static ssize_t tty_pwrite(struct file* file, const void* user_buf, size_t count,
                           uint64_t offset) {
     (void)offset;
 
-    const unsigned char* user_src = user_buf;
-
-    // Ensure no page faults occur while spinlock is held
-    int rc = vm_populate((void*)user_src, (void*)(user_src + count), VM_READ);
-    if (IS_ERR(rc))
-        return rc;
+    char buf[PAGE_SIZE];
+    count = MIN(count, sizeof(buf));
+    if (copy_from_user(buf, user_buf, count))
+        return -EFAULT;
 
     struct tty* tty = tty_from_file(file);
     SCOPED_LOCK(tty, tty);
-
-    char buf[256];
-    size_t nwritten = 0;
-    while (nwritten < count) {
-        size_t to_write = MIN(count - nwritten, sizeof(buf));
-        if (copy_from_user(buf, user_src, to_write))
-            return -EFAULT;
-        processed_echo(tty, buf, to_write);
-        user_src += to_write;
-        nwritten += to_write;
-    }
-
-    return nwritten;
+    processed_echo(tty, buf, count);
+    return count;
 }
 
 static int tty_ioctl(struct file* file, unsigned cmd, unsigned long arg) {

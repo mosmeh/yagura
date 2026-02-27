@@ -17,10 +17,11 @@ static void write_mouse(uint8_t data) {
         kprintf("ps2_mouse: expected ACK, got %#x\n", response);
 }
 
-static unsigned char buf[3];
+static unsigned char packet_buf[3];
 static size_t state = 0;
 
-#define QUEUE_SIZE (sizeof(buf) * 16 + 1) // +1 to distinguish full vs empty
+#define QUEUE_SIZE                                                             \
+    (sizeof(packet_buf) * 16 + 1) // +1 to distinguish full vs empty
 
 static unsigned char queue[QUEUE_SIZE];
 static size_t read_index = 0;
@@ -31,7 +32,7 @@ static void irq_handler(struct registers* reg) {
     (void)reg;
 
     uint8_t data = in8(PS2_DATA);
-    buf[state] = data;
+    packet_buf[state] = data;
     switch (state) {
     case 0:
         if (!(data & 8)) {
@@ -45,8 +46,8 @@ static void irq_handler(struct registers* reg) {
         return;
     case 2: {
         SCOPED_LOCK(spinlock, &queue_lock);
-        for (size_t i = 0; i < sizeof(buf); ++i) {
-            queue[write_index] = buf[i];
+        for (size_t i = 0; i < sizeof(packet_buf); ++i) {
+            queue[write_index] = packet_buf[i];
             write_index = (write_index + 1) % QUEUE_SIZE;
             if (write_index == read_index)
                 read_index = (read_index + 1) % QUEUE_SIZE;
@@ -72,34 +73,30 @@ static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
                                size_t count, uint64_t offset) {
     (void)offset;
 
-    unsigned char* user_out = user_buffer;
-
-    // Ensure no page faults occur while spinlock is held
-    int rc = vm_populate(user_out, user_out + count, VM_WRITE);
-    if (IS_ERR(rc))
-        return rc;
+    char buf[QUEUE_SIZE];
+    count = MIN(count, sizeof(buf));
 
     for (;;) {
-        rc = file_block(file, unblock_read, 0);
+        int rc = file_block(file, unblock_read, 0);
         if (IS_ERR(rc))
             return rc;
 
-        SCOPED_LOCK(spinlock, &queue_lock);
-
         size_t nread = 0;
-        while (nread < count) {
-            if (read_index == write_index)
-                break;
-            if (copy_to_user(user_out, &queue[read_index],
-                             sizeof(unsigned char)))
-                return -EFAULT;
-            ++nread;
-            ++user_out;
-            read_index = (read_index + 1) % QUEUE_SIZE;
+        {
+            SCOPED_LOCK(spinlock, &queue_lock);
+            while (nread < count) {
+                if (read_index == write_index)
+                    break;
+                buf[nread++] = queue[read_index];
+                read_index = (read_index + 1) % QUEUE_SIZE;
+            }
         }
+        if (nread == 0)
+            continue;
 
-        if (nread > 0)
-            return nread;
+        if (copy_to_user(user_buffer, buf, nread))
+            return -EFAULT;
+        return nread;
     }
 }
 

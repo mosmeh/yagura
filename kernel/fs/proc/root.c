@@ -129,28 +129,32 @@ int proc_root_getdents(struct file* file, getdents_callback_fn callback,
     if (file->offset < ARRAY_SIZE(entries))
         return 0;
 
-    SCOPED_LOCK(spinlock, &tasks_lock);
-
-    pid_t offset_pid = (pid_t)(file->offset - ARRAY_SIZE(entries));
-    struct task* it = tasks;
-    while (it->tid <= offset_pid) {
-        it = it->tasks_next;
-        if (!it)
-            break;
+    pid_t tids[256];
+    size_t ntids = 0;
+    {
+        SCOPED_LOCK(spinlock, &tasks_lock);
+        pid_t offset_pid = (pid_t)(file->offset - ARRAY_SIZE(entries));
+        struct task* task = tasks;
+        while (task->tid <= offset_pid) {
+            task = task->tasks_next;
+            if (!task)
+                break;
+        }
+        for (; task && ntids < ARRAY_SIZE(tids); task = task->tasks_next) {
+            tids[ntids++] = task->tid;
+        }
     }
 
-    while (it) {
+    for (size_t i = 0; i < ntids; ++i) {
+        pid_t tid = tids[i];
+
         char name[16];
-        ASSERT((size_t)snprintf(name, sizeof(name), "%d", it->tid) <
-               sizeof(name));
-
-        ino_t ino = it->tid << PROC_PID_INO_SHIFT;
-
+        ASSERT((size_t)snprintf(name, sizeof(name), "%d", tid) < sizeof(name));
+        ino_t ino = tid << PROC_PID_INO_SHIFT;
         if (!callback(name, ino, DT_DIR, ctx))
             break;
 
-        file->offset = it->tid + ARRAY_SIZE(entries);
-        it = it->tasks_next;
+        file->offset = tid + ARRAY_SIZE(entries);
     }
 
     return 0;
