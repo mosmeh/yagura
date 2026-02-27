@@ -65,6 +65,9 @@ NODISCARD int tty_register(struct tty*);
 // Inputs the given string into the tty.
 ssize_t tty_emit(struct tty*, const char* buf, size_t count);
 
+// Returns the tty corresponding to the given device number.
+struct tty* tty_get(dev_t);
+
 // Creates a virtual terminal with the given screen as the backend.
 struct vt* vt_create(struct screen*);
 
@@ -90,3 +93,10 @@ void vt_invalidate_all(struct vt*);
 
 // Flushes the updates to the screen.
 void vt_flush(struct vt*);
+
+// Returns the currently active virtual console's tty.
+struct tty* virtual_console_active(void);
+
+// Returns the tty that serves as the system console, or NULL if the system
+// console is not available.
+struct tty* system_console_get(void);

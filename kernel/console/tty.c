@@ -68,11 +68,32 @@ int tty_register(struct tty* tty) {
     return 0;
 }
 
-static int tty_open(struct file* file) {
-    struct char_dev* char_dev = char_dev_get(file->inode->rdev);
+struct tty* tty_get(dev_t rdev) {
+    // These devices point to different ttys depending on
+    // the active virtual console and the kernel command line.
+    switch (rdev) {
+    case makedev(TTY_MAJOR, 0):
+        return virtual_console_active();
+    case makedev(TTYAUX_MAJOR, 1):
+        return system_console_get();
+    }
+
+    struct char_dev* char_dev = char_dev_get(rdev);
     if (!char_dev)
+        return NULL;
+
+    switch (major(char_dev->dev)) {
+    case TTY_MAJOR:
+    case TTYAUX_MAJOR:
+        return CONTAINER_OF(char_dev, struct tty, char_dev);
+    }
+    return NULL;
+}
+
+static int tty_open(struct file* file) {
+    struct tty* tty = tty_get(file->inode->rdev);
+    if (!tty)
         return -ENODEV;
-    struct tty* tty = CONTAINER_OF(char_dev, struct tty, char_dev);
     file->private_data = tty;
     return 0;
 }

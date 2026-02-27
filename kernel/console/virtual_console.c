@@ -34,6 +34,12 @@ static _Atomic(struct virtual_console*) active_console;
 // Protects the underlying screen, which is shared by all virtual_consoles
 static struct spinlock screen_lock;
 
+struct tty* virtual_console_active(void) {
+    struct virtual_console* console = active_console;
+    ASSERT_PTR(console);
+    return &console->tty;
+}
+
 static void activate_console(size_t index) {
     if (index >= NUM_CONSOLES)
         return;
@@ -516,6 +522,13 @@ void virtual_console_init(struct screen* screen) {
         consoles[i] = ASSERT_PTR(virtual_console_create(tty_num, screen));
     }
     activate_console(0);
+
+    static struct char_dev tty0 = {
+        .name = "tty0",
+        .dev = makedev(TTY_MAJOR, 0),
+        .fops = &tty_fops,
+    };
+    ASSERT_OK(char_dev_register(&tty0));
 
     keyboard_set_event_handlers(&event_handlers);
 }

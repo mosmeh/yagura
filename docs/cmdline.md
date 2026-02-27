@@ -12,7 +12,7 @@ The kernel command-line parameters are in the form of `key=value`, where the `=v
    - `timeout` = `0`: Halt the system.
    - `timeout` < `0`: Reboot the system.
    - `timeout` = `poweroff`: Power off the system.
-- `console=<device>`: The device to use as the system console `/dev/console`. The default is `tty1`.
+- `console=<device>`: The device to use as the system console `/dev/console`. The default is `tty0`.
 - `nosmp`: Disables symmetric multiprocessing.
 - `syscall_log=<level>`: Logs system calls.
    - `level` = `all`: Logs all system calls.

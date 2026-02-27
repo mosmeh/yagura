@@ -11,7 +11,7 @@ NUM_CPUS="${NUM_CPUS:-1}"
 case "$CONSOLE" in
     ''|'fb'|'framebuffer') # Framebuffer console
         QEMU_EXTRA_ARGS+=(-display "sdl,gl=off,show-cursor=off")
-        CMDLINE+=(console=tty1)
+        CMDLINE+=(console=tty0)
         ;;
     serial) # Serial console
         QEMU_EXTRA_ARGS+=(-display none -vga none)
@@ -19,7 +19,7 @@ case "$CONSOLE" in
         ;;
     text) # VGA text mode
         QEMU_EXTRA_ARGS+=(-display "sdl,gl=off" -vga cirrus)
-        CMDLINE+=(console=tty1)
+        CMDLINE+=(console=tty0)
         ;;
     *)
         echo "Unknown CONSOLE: ${CONSOLE}" >&2
