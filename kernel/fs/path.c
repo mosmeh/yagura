@@ -18,23 +18,16 @@ struct path* path_create_root(struct inode* root) {
     return path;
 }
 
-char* path_to_string(const struct path* path) {
+char* path_to_string(const struct path* path, const struct path* root) {
     if (!path->parent) // Root directory of the VFS
         return kstrdup(ROOT_DIR);
 
-    struct inode* root_inode FREE(inode) = NULL;
-    {
-        struct fs* fs = current->fs;
-        SCOPED_LOCK(fs, fs);
-        root_inode = inode_ref(fs->root->inode);
-    }
-
-    if (path->inode == root_inode) // Root directory of the chroot
+    if (path->inode == root->inode) // Root directory of the chroot
         return kstrdup(ROOT_DIR);
 
     size_t len = 1; // For the null terminator
     for (const struct path* it = path; it; it = it->parent) {
-        if (it->inode == root_inode)
+        if (it->inode == root->inode)
             break;
         if (it->basename)
             len += strlen(it->basename) + 1; // +1 for the '/'
@@ -47,7 +40,7 @@ char* path_to_string(const struct path* path) {
     char* p = s + len - 1;
     *p = 0;
     for (const struct path* it = path; it; it = it->parent) {
-        if (it->inode == root_inode)
+        if (it->inode == root->inode)
             break;
         if (!it->basename) {
             ASSERT(it->parent == NULL); // Root directory of the VFS

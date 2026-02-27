@@ -142,10 +142,11 @@ int vfs_mount_at(const struct file_system* fs, const struct path* base,
 
 int proc_print_mounts(struct file* file, struct vec* vec) {
     (void)file;
+    SCOPED_LOCK(fs, current->fs);
     SCOPED_LOCK(mutex, &mounts_lock);
     for (struct mount_point* it = mount_points; it; it = it->next) {
         const struct file_system* fs = it->guest->fs;
-        char* path FREE(kfree) = path_to_string(it->path);
+        char* path FREE(kfree) = path_to_string(it->path, current->fs->root);
         if (!path)
             return -ENOMEM;
         int rc = vec_printf(vec, "%s %s %s rw 0 0\n", fs->name, path, fs->name);

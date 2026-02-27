@@ -271,8 +271,9 @@ long sys_getcwd(char* user_buf, size_t size) {
 
     char* cwd_str FREE(kfree) = NULL;
     {
-        SCOPED_LOCK(fs, current->fs);
-        cwd_str = path_to_string(current->fs->cwd);
+        struct fs* fs = current->fs;
+        SCOPED_LOCK(fs, fs);
+        cwd_str = path_to_string(fs->cwd, fs->root);
     }
     if (!cwd_str)
         return -ENOMEM;

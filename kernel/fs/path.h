@@ -18,10 +18,10 @@ struct path {
 // Creates a path representing the root directory.
 struct path* path_create_root(struct inode* root);
 
-// Returns a string representation of the path.
+// Returns a string representation of the path relative to the given root.
 // The string representation is an absolute path within the current chroot.
 // The caller is responsible for kfree()ing the returned string.
-char* path_to_string(const struct path*);
+char* path_to_string(const struct path* path, const struct path* root);
 
 // Returns a clone of the path.
 struct path* path_dup(const struct path*);

@@ -81,8 +81,9 @@ static int print_cwd(struct file* file, struct vec* vec) {
     char* cwd FREE(kfree) = NULL;
     {
         SCOPED_LOCK(task, task);
-        SCOPED_LOCK(fs, task->fs);
-        cwd = path_to_string(task->fs->cwd);
+        struct fs* fs = task->fs;
+        SCOPED_LOCK(fs, fs);
+        cwd = path_to_string(fs->cwd, fs->root);
     }
     if (!cwd)
         return -ENOMEM;
