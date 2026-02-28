@@ -1,9 +1,9 @@
 #include <kernel/arch/io.h>
 #include <kernel/console/console.h>
 #include <kernel/drivers/serial.h>
-#include <kernel/fs/fs.h>
 #include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
+#include <kernel/lock.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
 

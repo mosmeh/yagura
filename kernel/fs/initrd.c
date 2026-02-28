@@ -3,7 +3,8 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/fs/file.h>
-#include <kernel/fs/fs.h>
+#include <kernel/fs/inode.h>
+#include <kernel/fs/vfs.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>

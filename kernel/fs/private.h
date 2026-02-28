@@ -1,14 +1,17 @@
 #pragma once
 
-#include <kernel/fs/fs.h>
+#include <common/macros.h>
+#include <common/tree.h>
 
-struct vec;
+struct inode;
 
 void file_init(void);
 void path_init(void);
 void filemap_init(void);
 void vfs_init(void);
 void pipe_init(void);
+void tmpfs_init(void);
+void proc_init(void);
 
 struct file* file_create(struct inode*, int flags);
 
@@ -32,5 +35,3 @@ NODISCARD int filemap_sync(struct filemap*, size_t start, size_t end);
 
 // Truncates the filemap to the given length.
 NODISCARD int filemap_truncate(struct filemap*, uint64_t length);
-
-int proc_print_mounts(struct file*, struct vec*);

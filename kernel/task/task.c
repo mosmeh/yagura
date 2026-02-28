@@ -5,6 +5,7 @@
 #include <kernel/api/sys/wait.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/memory/vm.h>
 #include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 

@@ -50,6 +50,8 @@ SRCS := \
 	kernel/fs/filemap.c \
 	kernel/fs/fs.c \
 	kernel/fs/initrd.c \
+	kernel/fs/inode.c \
+	kernel/fs/mount.c \
 	kernel/fs/path.c \
 	kernel/fs/pipe.c \
 	kernel/fs/proc/pid.c \

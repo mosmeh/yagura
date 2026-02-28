@@ -1,6 +1,8 @@
 #pragma once
 
-#include <kernel/fs/fs.h>
+#include <common/macros.h>
+
+struct file;
 
 void socket_init(void);
 

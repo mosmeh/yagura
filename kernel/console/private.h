@@ -4,7 +4,6 @@
 #include <kernel/console/screen/screen.h>
 #include <kernel/containers/ring_buf.h>
 #include <kernel/device/device.h>
-#include <kernel/fs/fs.h>
 
 struct screen;
 struct tty;

@@ -1,5 +1,6 @@
 #include <kernel/api/fcntl.h>
 #include <kernel/fs/file.h>
+#include <kernel/fs/vfs.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>

@@ -4,7 +4,7 @@
 #include <kernel/arch/io.h>
 #include <kernel/arch/system.h>
 #include <kernel/cpu.h>
-#include <kernel/fs/fs.h>
+#include <kernel/fs/vfs.h>
 #include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>

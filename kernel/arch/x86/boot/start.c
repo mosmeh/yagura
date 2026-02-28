@@ -6,7 +6,7 @@
 #include <kernel/arch/x86/syscall/syscall.h>
 #include <kernel/cpu.h>
 #include <kernel/drivers/serial.h>
-#include <kernel/fs/fs.h>
+#include <kernel/fs/vfs.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/phys.h>
 #include <kernel/system.h>

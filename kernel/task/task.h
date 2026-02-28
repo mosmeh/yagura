@@ -12,7 +12,6 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/arch/context.h>
 #include <kernel/cpu.h>
-#include <kernel/fs/fs.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>
 

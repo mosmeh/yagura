@@ -2,6 +2,10 @@
 
 #include <kernel/resource.h>
 
+#define PATH_SEPARATOR '/'
+#define PATH_SEPARATOR_STR "/"
+#define ROOT_DIR PATH_SEPARATOR_STR
+
 struct path {
     // The inode associated with the path.
     // NULL if vfs_resolve_path was called with O_ALLOW_NOENT and

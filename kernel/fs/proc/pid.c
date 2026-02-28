@@ -3,9 +3,11 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
+#include <kernel/fs/inode.h>
 #include <kernel/fs/path.h>
 #include <kernel/memory/phys.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 #include <kernel/task/task.h>
 

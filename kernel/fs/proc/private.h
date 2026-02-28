@@ -6,6 +6,9 @@
 #define PROC_ROOT_INO 1
 #define PROC_PID_INO_SHIFT 10
 
+struct mount;
+struct vec;
+
 typedef int (*proc_print_fn)(struct file*, struct vec*);
 
 struct proc_entry {

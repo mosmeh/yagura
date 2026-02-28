@@ -7,9 +7,11 @@
 #include <kernel/api/sys/syscall.h>
 #include <kernel/api/sys/uio.h>
 #include <kernel/fs/file.h>
+#include <kernel/fs/inode.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/phys.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <kernel/api/sys/types.h>
-#include <kernel/fs/fs.h>
+#include <kernel/fs/inode.h>
 
 void device_init(void);
 

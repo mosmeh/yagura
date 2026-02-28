@@ -1,3 +1,4 @@
+#include "private.h"
 #include <common/string.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/linux/major.h>
@@ -5,15 +6,16 @@
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
 #include <kernel/fs/file.h>
-#include <kernel/fs/fs.h>
+#include <kernel/fs/inode.h>
 #include <kernel/fs/path.h>
+#include <kernel/fs/vfs.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/task/task.h>
 
-struct file_system* file_systems;
+static struct file_system* file_systems;
 
 int file_system_register(struct file_system* fs) {
     ASSERT(!fs->next);
@@ -34,6 +36,16 @@ const struct file_system* file_system_find(const char* name) {
             return it;
     }
     return NULL;
+}
+
+int proc_print_filesystems(struct file* file, struct vec* vec) {
+    (void)file;
+    for (struct file_system* fs = file_systems; fs; fs = fs->next) {
+        int rc = vec_printf(vec, "%s\n", fs->name);
+        if (IS_ERR(rc))
+            return rc;
+    }
+    return 0;
 }
 
 struct mount_point {
@@ -411,9 +423,6 @@ int vfs_sync(void) {
     }
     return 0;
 }
-
-void tmpfs_init(void);
-void proc_init(void);
 
 void vfs_init(void) {
     tmpfs_init();

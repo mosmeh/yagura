@@ -7,6 +7,8 @@
 #include <kernel/drivers/serial.h>
 #include <kernel/exec/exec.h>
 #include <kernel/fs/file.h>
+#include <kernel/fs/fs.h>
+#include <kernel/fs/vfs.h>
 #include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>

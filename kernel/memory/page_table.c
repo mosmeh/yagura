@@ -2,6 +2,7 @@
 #include <kernel/cpu.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/phys.h>
+#include <kernel/memory/vm.h>
 #include <kernel/task/task.h>
 
 void* kmap_page(struct page* page, unsigned flags) {

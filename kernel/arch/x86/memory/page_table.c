@@ -5,6 +5,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/phys.h>
+#include <kernel/memory/vm.h>
 #include <kernel/task/task.h>
 
 #ifdef ARCH_I386

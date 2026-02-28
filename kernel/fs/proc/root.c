@@ -7,6 +7,7 @@
 #include <kernel/containers/vec.h>
 #include <kernel/cpu.h>
 #include <kernel/device/device.h>
+#include <kernel/fs/vfs.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
 #include <kernel/task/task.h>
@@ -15,16 +16,6 @@
 static int print_cmdline(struct file* file, struct vec* vec) {
     (void)file;
     return vec_printf(vec, "%s\n", cmdline_get_raw());
-}
-
-static int print_filesystems(struct file* file, struct vec* vec) {
-    (void)file;
-    for (struct file_system* fs = file_systems; fs; fs = fs->next) {
-        int rc = vec_printf(vec, "%s\n", fs->name);
-        if (IS_ERR(rc))
-            return rc;
-    }
-    return 0;
 }
 
 static int print_kallsyms(struct file* file, struct vec* vec) {
@@ -98,7 +89,7 @@ static int print_version(struct file* file, struct vec* vec) {
 static const struct proc_entry entries[] = {
     {"cmdline", S_IFREG, print_cmdline},
     {"cpuinfo", S_IFREG, proc_print_cpuinfo},
-    {"filesystems", S_IFREG, print_filesystems},
+    {"filesystems", S_IFREG, proc_print_filesystems},
     {"kallsyms", S_IFREG, print_kallsyms},
     {"meminfo", S_IFREG, print_meminfo},
     {"mounts", S_IFREG, proc_print_mounts},

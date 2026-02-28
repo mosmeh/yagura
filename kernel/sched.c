@@ -3,6 +3,7 @@
 #include <kernel/cpu.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/memory.h>
+#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>

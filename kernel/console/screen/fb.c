@@ -4,6 +4,7 @@
 #include <kernel/console/screen/screen.h>
 #include <kernel/drivers/graphics/graphics.h>
 #include <kernel/kmsg.h>
+#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 #include <kernel/task/task.h>
 
