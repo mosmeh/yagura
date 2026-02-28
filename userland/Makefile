@@ -50,6 +50,7 @@ BIN_TARGET_NAMES := \
 	sleep \
 	stat \
 	stty \
+	sync \
 	tests/chmod \
 	tests/chown \
 	tests/cwd \
