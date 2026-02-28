@@ -5,11 +5,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
 #include <time.h>
 #include <unistd.h>
 
-#define NUM_SYSCALLS 1025
+#define NUM_SYSCALLS (SYS_dbgprint + 1)
 
 static const int denylist[] = {
     SYS_exit,          SYS_exit_group, SYS_pause,
@@ -33,8 +34,10 @@ static void random_init(long seed) {
     random_state[3] = b >> 32;
 }
 
-static uint32_t random_next(void) {
-    return xoshiro128plusplus_next(random_state);
+static uint64_t random_next(void) {
+    uint32_t a = xoshiro128plusplus_next(random_state);
+    uint32_t b = xoshiro128plusplus_next(random_state);
+    return ((uint64_t)a << 32) | b;
 }
 
 int main(int argc, char** argv) {
@@ -43,20 +46,36 @@ int main(int argc, char** argv) {
     printf("%s %d %ld\n", argv[0], num_iterations, seed);
 
     static const char* const str = "Hello, World!";
-    int page_size = sysconf(_SC_PAGESIZE);
+
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size < 0) {
+        perror("sysconf");
+        return EXIT_FAILURE;
+    }
+
+    void* mapped = mmap(NULL, page_size, PROT_READ | PROT_WRITE,
+                        MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    if (mapped == MAP_FAILED) {
+        perror("mmap");
+        return EXIT_FAILURE;
+    }
 
     unsigned long patterns[] = {
         0, // Generate random value
         0,
         1,
+        -1,
         (unsigned long)str,
         strlen(str),
         strlen(str) - 1,
         strlen(str) + 1,
         page_size,
+        (unsigned long)mapped,
+        (unsigned long)mapped + page_size,
+        (unsigned long)mapped + page_size + 1,
         0xc0000000,
         0xc0000000 - page_size,
-        0xffffffff,
+        UINTPTR_MAX,
     };
 
     bool allowed[NUM_SYSCALLS];
@@ -85,6 +104,7 @@ int main(int argc, char** argv) {
 
         printf("syscall(%d, %#lx, %#lx, %#lx, %#lx, %#lx, %#lx)\n", num,
                args[0], args[1], args[2], args[3], args[4], args[5]);
+        errno = 0;
         long rc =
             syscall(num, args[0], args[1], args[2], args[3], args[4], args[5]);
         if (rc < 0 && errno == ENOSYS) {
