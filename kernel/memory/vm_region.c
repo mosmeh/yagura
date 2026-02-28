@@ -70,15 +70,20 @@ struct vm_region* vm_region_clone(struct vm* new_vm,
         .flags = region->flags,
     };
 
-    for (struct page* page = pages_first(&region->private_pages); page;
-         page = pages_next(page)) {
-        struct page* new_page =
-            ASSERT(pages_alloc_at(&cloned->private_pages, page->index));
-        if (IS_ERR(new_page)) {
-            vm_region_destroy(cloned);
-            return ERR_CAST(new_page);
+    {
+        struct page* page FREE(page) = pages_first(&region->private_pages);
+        while (page) {
+            struct page* new_page FREE(page) =
+                ASSERT(pages_alloc_at(&cloned->private_pages, page->index));
+            if (IS_ERR(new_page)) {
+                vm_region_destroy(cloned);
+                return ERR_CAST(new_page);
+            }
+            page_copy(new_page, page);
+            struct page* next_page = pages_next(page);
+            page_unref(page);
+            page = next_page;
         }
-        page_copy(new_page, page);
     }
 
     struct vm_obj* obj = region->obj;
@@ -129,22 +134,22 @@ struct page* vm_region_get_page(struct vm_region* region, size_t index,
             else if (index > page->index)
                 new_node = &parent->right;
             else
-                return page;
+                return page_ref(page);
         }
     }
 
     const struct vm_ops* vm_ops = ASSERT_PTR(obj->vm_ops);
+    ASSERT_PTR(vm_ops->get_page);
 
     SCOPED_LOCK(vm_obj, obj);
 
-    ASSERT_PTR(vm_ops->get_page);
-    struct page* shared_page = ASSERT(
+    struct page* shared_page FREE(page) = ASSERT(
         vm_ops->get_page(obj, region->offset + index, request & VM_WRITE));
     if (IS_ERR(shared_page))
         return shared_page;
 
     if (!(request & VM_WRITE) || (flags & VM_SHARED))
-        return shared_page;
+        return TAKE_PTR(shared_page);
 
     // Copy on write
     struct page* private_page = ASSERT(page_alloc());
@@ -152,6 +157,7 @@ struct page* vm_region_get_page(struct vm_region* region, size_t index,
         return private_page;
     private_page->index = index;
     *new_node = &private_page->tree_node;
+    page_ref(private_page);
     tree_insert(&region->private_pages, parent, *new_node);
 
     page_copy(private_page, shared_page);

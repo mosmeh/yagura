@@ -168,8 +168,6 @@ static struct page* pages;
 static size_t total_pages;
 static _Atomic(size_t) free_pages;
 
-struct page* zero_page;
-
 void phys_init(void) {
     ASSERT(KERNEL_IMAGE_START < (uintptr_t)kernel_end);
     ASSERT((uintptr_t)kernel_end <= KERNEL_IMAGE_END);
@@ -278,19 +276,54 @@ void phys_init(void) {
         }
 
         for (size_t pfn = pfn_start; pfn < r->pfn_end; ++pfn)
-            *page_get(pfn) = (struct page){0};
+            pages[pfn] = (struct page){0};
     }
 
     total_pages = free_pages;
     kprintf("phys: %zu pages (%zu MiB) available\n", total_pages,
             (total_pages << PAGE_SHIFT) / 0x100000);
+}
 
-    zero_page = page_get(zero_page_pfn);
+static bool pfn_is_refcounted(size_t pfn) {
+    for (size_t i = 0; i < num_phys_ranges; ++i) {
+        struct phys_range* r = &phys_ranges[i];
+        if (pfn < r->pfn_start)
+            break;
+        if (r->pfn_start <= pfn && pfn < r->pfn_end)
+            return r->is_available;
+    }
+    return false;
+}
+
+struct page* page_ref(struct page* page) {
+    ASSERT_PTR(page);
+    if (pfn_is_refcounted(page_to_pfn(page)))
+        refcount_inc(&page->refcount);
+    return page;
+}
+
+void page_unref(struct page* page) {
+    if (!page)
+        return;
+
+    size_t pfn = page_to_pfn(page);
+    if (!pfn_is_refcounted(pfn))
+        return;
+
+    if (refcount_dec(&page->refcount))
+        return;
+
+    ASSERT(page->flags & PAGE_ALLOCATED);
+    *page = (struct page){0};
+    page_free_raw(pfn);
 }
 
 struct page* page_get(size_t pfn) {
     struct page* page = pages + pfn;
+    ASSERT(page >= pages);
     ASSERT(page < (const struct page*)PAGE_ATLAS_END);
+    if (pfn_is_refcounted(pfn) && !refcount_inc_not_zero(&page->refcount))
+        return NULL;
     return page;
 }
 
@@ -305,10 +338,15 @@ struct page* page_alloc(void) {
     ssize_t pfn = page_alloc_raw();
     if (IS_ERR(pfn))
         return ERR_PTR(pfn);
-    struct page* page = page_get(pfn);
+
+    struct page* page = pages + pfn;
+    ASSERT(page >= pages);
+    ASSERT(page < (const struct page*)PAGE_ATLAS_END);
     ASSERT(!page->flags);
+    ASSERT(refcount_get(&page->refcount) == 0);
     *page = (struct page){
         .flags = PAGE_ALLOCATED,
+        .refcount = REFCOUNT_INIT_ONE,
     };
     return page;
 }
@@ -338,14 +376,6 @@ ssize_t page_alloc_raw(void) {
         }
     }
     UNREACHABLE();
-}
-
-void page_free(struct page* page) {
-    if (!page)
-        return;
-    ASSERT(page->flags & PAGE_ALLOCATED);
-    *page = (struct page){0};
-    page_free_raw(page_to_pfn(page));
 }
 
 void page_free_raw(size_t pfn) {
@@ -387,14 +417,16 @@ struct page* pages_first(const struct tree* tree) {
     struct tree_node* node = tree_first(tree);
     if (!node)
         return NULL;
-    return CONTAINER_OF(node, struct page, tree_node);
+    struct page* page = CONTAINER_OF(node, struct page, tree_node);
+    return page_ref(page);
 }
 
 struct page* pages_next(const struct page* page) {
     struct tree_node* node = tree_next(&page->tree_node);
     if (!node)
         return NULL;
-    return CONTAINER_OF(node, struct page, tree_node);
+    struct page* next = CONTAINER_OF(node, struct page, tree_node);
+    return page_ref(next);
 }
 
 struct page* pages_get(const struct tree* tree, size_t index) {
@@ -406,7 +438,7 @@ struct page* pages_get(const struct tree* tree, size_t index) {
         else if (index > page->index)
             node = node->right;
         else
-            return page;
+            return page_ref(page);
     }
     return NULL;
 }
@@ -431,6 +463,7 @@ struct page* pages_alloc_at(struct tree* tree, size_t index) {
     page->index = index;
 
     *new_node = &page->tree_node;
+    page_ref(page);
     tree_insert(tree, parent, *new_node);
 
     return page;
@@ -475,7 +508,7 @@ bool pages_truncate(struct tree* tree, size_t index) {
         if (page->index < index)
             break;
         tree_remove(tree, node);
-        page_free(page);
+        page_unref(page);
         truncated = true;
     }
     return truncated;
@@ -488,7 +521,7 @@ void pages_clear(struct tree* tree) {
             break;
         tree_remove(tree, node);
         struct page* page = CONTAINER_OF(node, struct page, tree_node);
-        page_free(page);
+        page_unref(page);
     }
 }
 

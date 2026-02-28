@@ -79,6 +79,8 @@ static void anon_destroy(struct vm_obj* obj) {
     slab_free(&anon_slab, obj);
 }
 
+static struct page* zero_page; // The page filled with zeros
+
 static struct page* anon_get_page(struct vm_obj* obj, size_t index,
                                   bool write) {
     ASSERT(vm_obj_is_locked_by_current(obj));
@@ -94,11 +96,11 @@ static struct page* anon_get_page(struct vm_obj* obj, size_t index,
         else if (index > page->index)
             new_node = &parent->right;
         else
-            return page;
+            return page_ref(page);
     }
 
     if (!write)
-        return zero_page;
+        return page_ref(zero_page);
 
     // Invalidate mappings to zero_page
     int rc = vm_obj_invalidate_mappings(obj, index, 1);
@@ -112,6 +114,7 @@ static struct page* anon_get_page(struct vm_obj* obj, size_t index,
     page_fill(page, 0, 0, PAGE_SIZE);
 
     *new_node = &page->tree_node;
+    page_ref(page);
     tree_insert(&anon->shared_pages, parent, *new_node);
 
     return page;
@@ -157,7 +160,10 @@ static struct page* phys_get_page(struct vm_obj* obj, size_t index,
     size_t pfn = phys->start + index;
     if (phys->end <= pfn)
         return ERR_PTR(-EFAULT);
-    return page_get(pfn);
+    struct page* page = page_get(pfn);
+    if (!page)
+        return ERR_PTR(-EFAULT);
+    return page;
 }
 
 static const struct vm_ops phys_vm_ops = {
@@ -216,4 +222,7 @@ void phys_unmap(void* virt_addr) { vm_obj_unmap(virt_addr); }
 void vm_obj_init(void) {
     slab_init(&anon_slab, "anon", sizeof(struct anon));
     slab_init(&phys_slab, "phys", sizeof(struct phys));
+
+    zero_page = ASSERT_PTR(page_alloc());
+    page_fill(zero_page, 0, 0, PAGE_SIZE);
 }

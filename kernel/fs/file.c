@@ -57,7 +57,8 @@ static ssize_t default_file_pread(struct file* file, void* user_buffer,
     size_t page_index = offset >> PAGE_SHIFT;
     size_t page_offset = offset % PAGE_SIZE;
     while (nread < count) {
-        struct page* page = filemap_ensure_page(filemap, page_index, false);
+        struct page* page FREE(page) =
+            filemap_ensure_page(filemap, page_index, false);
         if (IS_ERR(page))
             return PTR_ERR(page);
         if (!page)
@@ -109,7 +110,7 @@ static ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
     size_t page_offset = offset % PAGE_SIZE;
     SCOPED_LOCK(inode, inode);
     while (nwritten < count) {
-        struct page* page =
+        struct page* page FREE(page) =
             ASSERT(filemap_ensure_page(filemap, page_index, true));
         if (IS_ERR(page))
             return PTR_ERR(page);
@@ -224,7 +225,7 @@ NODISCARD static ssize_t default_file_readlink(struct file* file, char* buffer,
 
         SCOPED_LOCK(inode, inode);
 
-        struct page* page = filemap_ensure_page(filemap, 0, false);
+        struct page* page FREE(page) = filemap_ensure_page(filemap, 0, false);
         if (IS_ERR(page))
             return PTR_ERR(page);
         if (!page)
@@ -269,7 +270,8 @@ int file_symlink(struct file* file, const char* target, size_t target_len) {
 
     SCOPED_LOCK(inode, inode);
 
-    struct page* page = ASSERT(filemap_ensure_page(filemap, 0, false));
+    struct page* page FREE(page) =
+        ASSERT(filemap_ensure_page(filemap, 0, false));
     if (IS_ERR(page))
         return PTR_ERR(page);
 

@@ -3,6 +3,7 @@
 #include <common/tree.h>
 #include <kernel/api/sys/types.h>
 #include <kernel/arch/memory.h>
+#include <kernel/resource.h>
 
 void phys_range_add_available(phys_addr_t start, size_t size);
 void phys_range_add_reserved(const char* type, phys_addr_t start, size_t size);
@@ -14,10 +15,13 @@ struct page {
     size_t index;
     unsigned flags; // PAGE_*
     struct tree_node tree_node;
+    refcount_t refcount;
 };
 
-// The page filled with zeros.
-extern struct page* zero_page;
+struct page* page_ref(struct page*);
+void page_unref(struct page*);
+
+DEFINE_FREE(page, struct page*, page_unref)
 
 struct page* page_get(size_t pfn);
 size_t page_to_pfn(const struct page*);
@@ -26,8 +30,6 @@ struct page* page_alloc(void);
 
 // Returns the page frame number of the allocated page.
 ssize_t page_alloc_raw(void);
-
-void page_free(struct page*);
 void page_free_raw(size_t pfn);
 
 void page_fill(struct page*, unsigned char value, size_t offset, size_t nbytes);

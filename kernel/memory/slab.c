@@ -36,14 +36,15 @@ NODISCARD static int ensure_cache(struct slab* slab) {
         if (IS_ERR(start))
             return start;
 
-        ssize_t pfn = page_alloc_raw();
-        if (IS_ERR(pfn))
-            return pfn;
+        struct page* page = page_alloc();
+        if (IS_ERR(page))
+            return PTR_ERR(page);
 
         start_addr = (uintptr_t)start << PAGE_SHIFT;
-        int ret = pagemap_map(kernel_pagemap, start_addr, pfn, 1, VM_WRITE);
+        int ret = pagemap_map(kernel_pagemap, start_addr, page_to_pfn(page), 1,
+                              VM_WRITE);
         if (IS_ERR(ret)) {
-            page_free_raw(pfn);
+            page_unref(page);
             return ret;
         }
 

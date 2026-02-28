@@ -255,7 +255,7 @@ static long process_vm_rw(pid_t pid, const struct iovec* user_local_iov,
                 return -EFAULT;
         }
 
-        struct page* page =
+        struct page* page FREE(page) =
             vm_get_page(vm, remote_iov.iov_base, write ? VM_WRITE : VM_READ);
         if (IS_ERR(page))
             return PTR_ERR(page);

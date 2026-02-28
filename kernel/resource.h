@@ -54,27 +54,44 @@ static inline size_t refcount_get(const refcount_t* refcount) {
     return atomic_load(&refcount->count);
 }
 
-// Returns the new reference count.
-static inline size_t refcount_inc(refcount_t* refcount) {
+// Increments the reference count if it's not zero and returns the new count.
+// If the count was zero, does nothing and returns zero.
+static inline size_t refcount_inc_not_zero(refcount_t* refcount) {
     ASSERT_PTR(refcount);
-    size_t c = atomic_fetch_add(&refcount->count, 1);
-    ASSERT(c > 0);
-    return c + 1;
+    size_t c = atomic_load(&refcount->count);
+    for (;;) {
+        if (c == 0)
+            return 0;
+        if (atomic_compare_exchange_weak(&refcount->count, &c, c + 1))
+            return c + 1;
+    }
 }
 
-// Returns the new reference count.
+// Increments the reference count and returns the new count.
+// Panics if the count was zero.
+static inline size_t refcount_inc(refcount_t* refcount) {
+    ASSERT_PTR(refcount);
+    size_t c = refcount_inc_not_zero(refcount);
+    ASSERT(c > 0);
+    return c;
+}
+
+// Increments the reference count even if it's zero and returns the new count.
 static inline size_t refcount_inc_allowing_zero(refcount_t* refcount) {
     ASSERT_PTR(refcount);
     return atomic_fetch_add(&refcount->count, 1) + 1;
 }
 
-// Returns the new reference count.
+// Decrements the reference count and returns the new count.
+// Panics if the count was zero.
 static inline size_t refcount_dec(refcount_t* refcount) {
     ASSERT_PTR(refcount);
-    ASSERT(refcount_get(refcount) > 0);
-    size_t c = atomic_fetch_sub(&refcount->count, 1);
-    ASSERT(c > 0);
-    return c - 1;
+    size_t c = atomic_load(&refcount->count);
+    for (;;) {
+        ASSERT(c > 0);
+        if (atomic_compare_exchange_weak(&refcount->count, &c, c - 1))
+            return c - 1;
+    }
 }
 
 // Reference counting helper macros

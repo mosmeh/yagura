@@ -41,7 +41,8 @@ static int copy_from_kernel_to_remote_vm(struct vm* vm, void* user_dest,
     size_t offset = 0;
     while (offset < size) {
         uintptr_t curr_addr = (uintptr_t)user_dest + offset;
-        struct page* page = vm_get_page(vm, (void*)curr_addr, VM_WRITE);
+        struct page* page FREE(page) =
+            vm_get_page(vm, (void*)curr_addr, VM_WRITE);
         if (IS_ERR(page))
             return PTR_ERR(page);
         if (!page)
@@ -62,7 +63,8 @@ static int copy_from_user_to_remote_vm(struct vm* vm, void* user_dest,
     size_t offset = 0;
     while (offset < size) {
         uintptr_t curr_addr = (uintptr_t)user_dest + offset;
-        struct page* page = vm_get_page(vm, (void*)curr_addr, VM_WRITE);
+        struct page* page FREE(page) =
+            vm_get_page(vm, (void*)curr_addr, VM_WRITE);
         if (IS_ERR(page))
             return PTR_ERR(page);
         if (!page)
