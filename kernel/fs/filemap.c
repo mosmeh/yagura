@@ -27,37 +27,10 @@ void filemap_destroy(struct filemap* filemap) {
     slab_free(&filemap_slab, filemap);
 }
 
-NODISCARD static int populate_page(struct filemap* filemap, struct page* page) {
+struct page* filemap_ensure_page(struct filemap* filemap, size_t index) {
     struct inode* inode = filemap->inode;
     ASSERT(inode_is_locked_by_current(inode));
-    ASSERT_PTR(inode->iops->pread);
-
-    uint64_t byte_offset = (uint64_t)page->index << PAGE_SHIFT;
-
-    unsigned char buf[PAGE_SIZE];
-    unsigned char* dest = buf;
-    size_t to_read = MIN(PAGE_SIZE, inode->size - byte_offset);
-    while (to_read > 0) {
-        ssize_t nread = inode->iops->pread(inode, dest, to_read, byte_offset);
-        if (IS_ERR(nread))
-            return nread;
-        if (nread == 0) {
-            memset(dest, 0, to_read);
-            break;
-        }
-        dest += nread;
-        to_read -= nread;
-        byte_offset += nread;
-    }
-    page_copy_from_buffer(page, buf, 0, PAGE_SIZE);
-
-    return 0;
-}
-
-struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
-                                 bool extend) {
-    struct inode* inode = filemap->inode;
-    ASSERT(inode_is_locked_by_current(inode));
+    ASSERT_PTR(inode->iops->read);
 
     struct tree_node** new_node = &filemap->pages.root;
     struct tree_node* parent = NULL;
@@ -72,30 +45,18 @@ struct page* filemap_ensure_page(struct filemap* filemap, size_t index,
             return page_ref(page);
     }
 
-    uint64_t byte_offset = (uint64_t)index << PAGE_SHIFT;
-    if (byte_offset >= inode->size) {
-        if (extend) {
-            struct page* page = ASSERT(page_alloc());
-            if (IS_ERR(page))
-                return page;
-            page->index = index;
-            page_fill(page, 0, 0, PAGE_SIZE);
-            *new_node = &page->tree_node;
-            page_ref(page);
-            tree_insert(&filemap->pages, parent, *new_node);
-            return page;
-        }
-        return NULL;
-    }
-
     struct page* page FREE(page) = ASSERT(page_alloc());
     if (IS_ERR(page))
         return page;
     page->index = index;
 
-    int rc = populate_page(filemap, page);
-    if (IS_ERR(rc))
-        return ERR_PTR(rc);
+    if (((uint64_t)index << PAGE_SHIFT) < inode->size) {
+        int rc = inode->iops->read(inode, page, index);
+        if (IS_ERR(rc))
+            return ERR_PTR(rc);
+    } else {
+        page_fill(page, 0, 0, PAGE_SIZE);
+    }
 
     *new_node = &page->tree_node;
     page_ref(page);
@@ -108,10 +69,11 @@ NODISCARD static int writeback_page(struct filemap* filemap,
                                     struct page* page) {
     struct inode* inode = filemap->inode;
     ASSERT(inode_is_locked_by_current(inode));
+    ASSERT(((uint64_t)page->index << PAGE_SHIFT) < inode->size);
+    ASSERT_PTR(inode->iops->write);
+
     if (!(page->flags & PAGE_DIRTY))
         return 0;
-
-    ASSERT_PTR(inode->iops->pwrite);
 
     // Invalidate the mappings to detect writes to the page again.
     // If another task attempts to write to this page during the writeback,
@@ -121,25 +83,9 @@ NODISCARD static int writeback_page(struct filemap* filemap,
     if (IS_ERR(rc))
         return rc;
 
-    uint64_t byte_offset = (uint64_t)page->index << PAGE_SHIFT;
-    if (inode->size > byte_offset) {
-        size_t to_write = MIN(PAGE_SIZE, inode->size - byte_offset);
-
-        unsigned char page_buf[PAGE_SIZE];
-        page_copy_to_buffer(page, page_buf, 0, to_write);
-
-        const unsigned char* src = page_buf;
-        while (to_write > 0) {
-            ssize_t nwritten =
-                inode->iops->pwrite(inode, src, to_write, byte_offset);
-            if (IS_ERR(nwritten))
-                return nwritten;
-            ASSERT(nwritten > 0);
-            src += nwritten;
-            to_write -= nwritten;
-            byte_offset += nwritten;
-        }
-    }
+    rc = inode->iops->write(inode, page, page->index);
+    if (IS_ERR(rc))
+        return rc;
 
     page->flags &= ~PAGE_DIRTY;
     return 0;
@@ -163,7 +109,7 @@ static struct page* find_page_with_lower_bound(const struct filemap* filemap,
     return result ? page_ref(result) : NULL;
 }
 
-NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
+int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
     struct inode* inode = filemap->inode;
     ASSERT(inode_is_locked_by_current(inode));
     if (start > end)
@@ -172,9 +118,12 @@ NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
         return 0;
     if (!(inode->flags & INODE_DIRTY))
         return 0;
+    if (!inode->iops->write)
+        return -EINVAL;
+
+    end = MIN(end, DIV_CEIL(inode->size, PAGE_SIZE));
 
     int rc = 0;
-    size_t num_successful = 0;
     {
         struct page* page FREE(page) =
             find_page_with_lower_bound(filemap, start);
@@ -187,39 +136,34 @@ NODISCARD int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
             rc = writeback_page(filemap, page);
             if (IS_ERR(rc))
                 break;
-            ++num_successful;
             struct page* next = pages_next(page);
             page_unref(page);
             page = next;
         }
     }
-
-    if (num_successful > 0 && inode->iops->sync) {
+    if (inode->iops->sync) {
         int fsync_rc = inode->iops->sync(inode);
         if (IS_OK(rc))
             rc = fsync_rc;
     }
+    if (IS_ERR(rc))
+        return rc;
 
-    bool has_any_dirty_pages = false;
     {
         struct page* page FREE(page) = pages_first(&filemap->pages);
         while (page) {
-            if (page->flags & PAGE_DIRTY) {
-                has_any_dirty_pages = true;
-                break;
-            }
+            if (page->flags & PAGE_DIRTY)
+                return 0;
             struct page* next = pages_next(page);
             page_unref(page);
             page = next;
         }
     }
-    if (!has_any_dirty_pages)
-        inode->flags &= ~INODE_DIRTY;
-
-    return rc;
+    inode->flags &= ~INODE_DIRTY;
+    return 0;
 }
 
-NODISCARD int filemap_truncate(struct filemap* filemap, uint64_t length) {
+int filemap_truncate(struct filemap* filemap, uint64_t length) {
     struct inode* inode = filemap->inode;
     ASSERT(inode_is_locked_by_current(inode));
 
@@ -229,8 +173,10 @@ NODISCARD int filemap_truncate(struct filemap* filemap, uint64_t length) {
     size_t page_offset = length % PAGE_SIZE;
     if (page_offset > 0) {
         struct page* page FREE(page) = pages_get(&filemap->pages, end - 1);
-        if (page)
+        if (page) {
             page_fill(page, 0, page_offset, PAGE_SIZE - page_offset);
+            page->flags |= PAGE_DIRTY;
+        }
     }
 
     if (truncated)

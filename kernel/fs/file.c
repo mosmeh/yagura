@@ -38,12 +38,11 @@ void __file_destroy(struct file* file) {
     inode_unref(inode);
 }
 
-NODISCARD
-static ssize_t default_file_pread(struct file* file, void* user_buffer,
-                                  size_t count, uint64_t offset) {
+ssize_t default_file_pread(struct file* file, void* user_buffer, size_t count,
+                           uint64_t offset) {
     struct filemap* filemap = file->filemap;
     struct inode* inode = filemap->inode;
-    if (!inode->iops->pread)
+    if (!inode->iops->read)
         return -EINVAL;
 
     SCOPED_LOCK(inode, inode);
@@ -59,11 +58,9 @@ static ssize_t default_file_pread(struct file* file, void* user_buffer,
     size_t page_offset = offset % PAGE_SIZE;
     while (nread < count) {
         struct page* page FREE(page) =
-            filemap_ensure_page(filemap, page_index, false);
+            ASSERT(filemap_ensure_page(filemap, page_index));
         if (IS_ERR(page))
             return PTR_ERR(page);
-        if (!page)
-            break;
 
         unsigned char page_buf[PAGE_SIZE];
         size_t to_read = MIN(count - nread, PAGE_SIZE - page_offset);
@@ -97,12 +94,11 @@ ssize_t file_pread(struct file* file, void* user_buffer, size_t count,
     return default_file_pread(file, user_buffer, count, offset);
 }
 
-NODISCARD
-static ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
-                                   size_t count, uint64_t offset) {
+ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
+                            size_t count, uint64_t offset) {
     struct filemap* filemap = file->filemap;
     struct inode* inode = filemap->inode;
-    if (!inode->iops->pwrite)
+    if (!inode->iops->write)
         return -EINVAL;
 
     const unsigned char* user_src = user_buffer;
@@ -112,7 +108,7 @@ static ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
     SCOPED_LOCK(inode, inode);
     while (nwritten < count) {
         struct page* page FREE(page) =
-            ASSERT(filemap_ensure_page(filemap, page_index, true));
+            ASSERT(filemap_ensure_page(filemap, page_index));
         if (IS_ERR(page))
             return PTR_ERR(page);
 
@@ -226,11 +222,9 @@ NODISCARD static ssize_t default_file_readlink(struct file* file, char* buffer,
 
         SCOPED_LOCK(inode, inode);
 
-        struct page* page FREE(page) = filemap_ensure_page(filemap, 0, false);
+        struct page* page FREE(page) = ASSERT(filemap_ensure_page(filemap, 0));
         if (IS_ERR(page))
             return PTR_ERR(page);
-        if (!page)
-            return -EINVAL;
 
         page_copy_to_buffer(page, page_buf, 0, bufsiz);
     }
@@ -271,8 +265,7 @@ int file_symlink(struct file* file, const char* target, size_t target_len) {
 
     SCOPED_LOCK(inode, inode);
 
-    struct page* page FREE(page) =
-        ASSERT(filemap_ensure_page(filemap, 0, false));
+    struct page* page FREE(page) = ASSERT(filemap_ensure_page(filemap, 0));
     if (IS_ERR(page))
         return PTR_ERR(page);
 

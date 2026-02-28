@@ -5,6 +5,7 @@
 #include <kernel/fs/file.h>
 #include <kernel/fs/vfs.h>
 #include <kernel/kmsg.h>
+#include <kernel/memory/phys.h>
 #include <kernel/panic.h>
 
 static struct char_dev* char_devices;
@@ -66,39 +67,50 @@ static struct block_dev* block_dev_from_inode(struct inode* inode) {
     return CONTAINER_OF(inode, struct block_dev, vfs_inode);
 }
 
-static size_t get_block_size(const struct block_dev* block_dev) {
-    return 1 << block_dev->block_bits;
-}
-
-static ssize_t bdev_pread(struct inode* inode, void* buffer, size_t count,
-                          uint64_t offset) {
+static int bdev_read(struct inode* inode, struct page* page,
+                     size_t page_index) {
     struct block_dev* block_dev = block_dev_from_inode(inode);
     ASSERT_PTR(block_dev->bops->read);
-    size_t block_size = get_block_size(block_dev);
-    if (offset % block_size != 0 || count % block_size != 0)
-        return -EINVAL;
-    size_t index = offset / block_size;
-    size_t nblocks = count / block_size;
-    int rc = block_dev->bops->read(block_dev, buffer, index, nblocks);
+
+    ASSERT(PAGE_SHIFT >= block_dev->block_bits);
+    size_t nblocks_per_page = 1UL << (PAGE_SHIFT - block_dev->block_bits);
+
+    uint64_t block_index = (uint64_t)page_index * nblocks_per_page;
+    ASSERT(block_index < block_dev->num_blocks);
+
+    size_t nblocks_to_read =
+        MIN(nblocks_per_page, block_dev->num_blocks - block_index);
+
+    int rc = block_dev->bops->read(block_dev, page_to_phys(page), block_index,
+                                   nblocks_to_read);
     if (IS_ERR(rc))
         return rc;
-    return count;
+
+    if (nblocks_to_read < nblocks_per_page) {
+        size_t offset = nblocks_to_read << block_dev->block_bits;
+        page_fill(page, 0, offset, PAGE_SIZE - offset);
+    }
+
+    return 0;
 }
 
-static ssize_t bdev_pwrite(struct inode* inode, const void* buffer,
-                           size_t count, uint64_t offset) {
+static int bdev_write(struct inode* inode, struct page* page,
+                      size_t page_index) {
     struct block_dev* block_dev = block_dev_from_inode(inode);
     if (!block_dev->bops->write)
         return -EPERM;
-    size_t block_size = get_block_size(block_dev);
-    if (offset % block_size != 0 || count % block_size != 0)
-        return -EINVAL;
-    size_t index = offset / block_size;
-    size_t nblocks = count / block_size;
-    int rc = block_dev->bops->write(block_dev, buffer, index, nblocks);
-    if (IS_ERR(rc))
-        return rc;
-    return count;
+
+    ASSERT(PAGE_SHIFT >= block_dev->block_bits);
+    size_t nblocks_per_page = 1UL << (PAGE_SHIFT - block_dev->block_bits);
+
+    uint64_t block_index = (uint64_t)page_index * nblocks_per_page;
+    ASSERT(block_index < block_dev->num_blocks);
+
+    size_t nblocks_to_write =
+        MIN(nblocks_per_page, block_dev->num_blocks - block_index);
+
+    return block_dev->bops->write(block_dev, page_to_phys(page), block_index,
+                                  nblocks_to_write);
 }
 
 static int bdev_sync(struct inode* inode) {
@@ -109,8 +121,8 @@ static int bdev_sync(struct inode* inode) {
 }
 
 static const struct inode_ops bdev_iops = {
-    .pread = bdev_pread,
-    .pwrite = bdev_pwrite,
+    .read = bdev_read,
+    .write = bdev_write,
     .sync = bdev_sync,
 };
 static const struct file_ops bdev_fops = {0};
@@ -143,12 +155,9 @@ int block_dev_register(struct block_dev* block_dev) {
     inode->mode = S_IFBLK;
 
     inode->block_bits = block_dev->block_bits;
-
-    inode->blocks = block_dev->num_blocks;
-    if (block_dev->block_bits < PAGE_SHIFT)
-        inode->blocks >>= (PAGE_SHIFT - block_dev->block_bits);
-
-    inode->size = (uint64_t)block_dev->num_blocks << block_dev->block_bits;
+    inode->blocks =
+        block_dev->num_blocks >> (PAGE_SHIFT - block_dev->block_bits);
+    inode->size = block_dev->num_blocks << block_dev->block_bits;
 
     int rc = mount_commit_inode(bdev_mount, inode);
     if (IS_ERR(rc)) {
@@ -170,31 +179,43 @@ int block_dev_register(struct block_dev* block_dev) {
 }
 
 static int block_dev_open(struct file* file) {
-    if (file->inode->mount == bdev_mount) {
-        // Opening the block device inode itself
-        return 0;
-    }
-
-    // Opening a block device file
     struct block_dev* block_dev = block_dev_get(file->inode->rdev);
     if (!block_dev)
         return -ENODEV;
+    file->private_data = block_dev;
     file->filemap = block_dev->vfs_inode.filemap;
     return 0;
 }
 
 static int block_dev_close(struct file* file) {
-    if (file->private_data) {
-        ASSERT(file->inode->mount != bdev_mount);
-        struct block_dev* block_dev = file->private_data;
-        inode_unref(&block_dev->vfs_inode);
-    }
+    block_dev_unref(file->private_data);
+    file->private_data = NULL;
     return 0;
+}
+
+static ssize_t block_dev_pwrite(struct file* file, const void* user_buffer,
+                                size_t count, uint64_t offset) {
+    if (count == 0)
+        return 0;
+
+    struct inode* inode = file->filemap->inode;
+    struct block_dev* block_dev = block_dev_from_inode(inode);
+    if (!block_dev->bops->write)
+        return -EPERM;
+
+    SCOPED_LOCK(inode, inode);
+
+    if (offset >= inode->size)
+        return -ENOSPC;
+
+    count = MIN(count, inode->size - offset);
+    return default_file_pwrite(file, user_buffer, count, offset);
 }
 
 const struct file_ops block_dev_fops = {
     .open = block_dev_open,
     .close = block_dev_close,
+    .pwrite = block_dev_pwrite,
 };
 
 struct block_dev* block_dev_get(dev_t rdev) {

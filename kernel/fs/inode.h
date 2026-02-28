@@ -49,10 +49,8 @@ struct inode_ops {
     int (*link)(struct inode* parent, const char* name, struct inode* child);
     int (*unlink)(struct inode* parent, const char* name);
 
-    ssize_t (*pread)(struct inode*, void* buffer, size_t count,
-                     uint64_t offset);
-    ssize_t (*pwrite)(struct inode*, const void* buffer, size_t count,
-                      uint64_t offset);
+    int (*read)(struct inode*, struct page*, size_t page_index);
+    int (*write)(struct inode*, struct page*, size_t page_index);
 
     int (*truncate)(struct inode*, uint64_t length);
     int (*sync)(struct inode*);
@@ -113,3 +111,8 @@ static inline unsigned mode_to_dirent_type(mode_t mode) {
     }
     UNREACHABLE();
 }
+
+struct filemap {
+    struct inode* inode;
+    struct tree pages;
+};

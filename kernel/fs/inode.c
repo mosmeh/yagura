@@ -18,16 +18,23 @@ static void inode_destroy(struct vm_obj* obj) {
 
 static struct page* inode_get_page(struct vm_obj* obj, size_t index,
                                    bool write) {
-    ASSERT(vm_obj_is_locked_by_current(obj));
     struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
-    struct page* page =
-        ASSERT(filemap_ensure_page(inode->filemap, index, true));
+    if (write && !inode->iops->write)
+        return ERR_PTR(-EINVAL);
+
+    SCOPED_LOCK(inode, inode);
+
+    if (((uint64_t)index << PAGE_SHIFT) >= inode->size)
+        return ERR_PTR(-EFAULT);
+
+    struct page* page = ASSERT(filemap_ensure_page(inode->filemap, index));
     if (IS_ERR(page))
         return page;
     if (write) {
         page->flags |= PAGE_DIRTY;
         inode->flags |= INODE_DIRTY;
     }
+
     return page;
 }
 
@@ -90,6 +97,7 @@ int inode_truncate(struct inode* inode, uint64_t length) {
         return rc;
 
     inode->size = length;
+    inode->flags |= INODE_DIRTY;
 
     if (length < old_size)
         return filemap_truncate(inode->filemap, length);

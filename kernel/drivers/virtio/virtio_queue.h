@@ -4,6 +4,7 @@
 #include <common/stdbool.h>
 #include <common/stddef.h>
 #include <common/stdint.h>
+#include <kernel/memory/phys.h>
 
 struct virtq_desc {
     /* Address (guest-physical). */
@@ -77,6 +78,6 @@ struct virtq_desc_chain {
 
 NODISCARD bool virtq_desc_chain_init(struct virtq_desc_chain*, struct virtq*,
                                      size_t num_descriptors);
-void virtq_desc_chain_push_buf(struct virtq_desc_chain*, void* buf, size_t len,
-                               bool device_writable);
+void virtq_desc_chain_push_buf(struct virtq_desc_chain*, phys_addr_t phys_addr,
+                               size_t len, bool device_writable);
 NODISCARD int virtq_desc_chain_submit(struct virtq_desc_chain*);

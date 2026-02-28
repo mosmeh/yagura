@@ -29,14 +29,14 @@ struct block_dev {
     dev_t dev;
     const struct block_ops* bops;
     uint8_t block_bits; // Block size as 2^block_bits
-    size_t num_blocks;
+    uint64_t num_blocks;
 };
 
 struct block_ops {
-    int (*read)(struct block_dev*, void* buffer, uint64_t index,
-                uint64_t nblocks);
-    int (*write)(struct block_dev*, const void* buffer, uint64_t index,
-                 uint64_t nblocks);
+    int (*read)(struct block_dev*, phys_addr_t buffer, uint64_t index,
+                size_t nblocks);
+    int (*write)(struct block_dev*, phys_addr_t buffer, uint64_t index,
+                 size_t nblocks);
     int (*flush)(struct block_dev*);
 };
 

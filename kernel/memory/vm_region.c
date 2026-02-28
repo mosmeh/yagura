@@ -112,6 +112,8 @@ void vm_region_set_obj(struct vm_region* region, struct vm_obj* obj,
 
 struct page* vm_region_get_page(struct vm_region* region, size_t index,
                                 unsigned request) {
+    ASSERT(vm_is_locked_by_current(region->vm));
+
     struct vm_obj* obj = region->obj;
     if (!obj)
         return ERR_PTR(-EFAULT);
@@ -140,8 +142,6 @@ struct page* vm_region_get_page(struct vm_region* region, size_t index,
 
     const struct vm_ops* vm_ops = ASSERT_PTR(obj->vm_ops);
     ASSERT_PTR(vm_ops->get_page);
-
-    SCOPED_LOCK(vm_obj, obj);
 
     struct page* shared_page FREE(page) = ASSERT(
         vm_ops->get_page(obj, region->offset + index, request & VM_WRITE));

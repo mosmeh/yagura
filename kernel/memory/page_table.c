@@ -7,7 +7,7 @@
 
 void* kmap_page(struct page* page, unsigned flags) {
     ASSERT_PTR(page);
-    return kmap(page_to_pfn(page) << PAGE_SHIFT, flags);
+    return kmap(page_to_phys(page), flags);
 }
 
 static void flush_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,

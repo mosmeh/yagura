@@ -191,6 +191,9 @@ void phys_init(void) {
         if (!r->is_available)
             continue;
 
+        // Reserve PFN 0 so that we can use PFN 0 to represent an invalid page.
+        r->pfn_start = MAX(1, r->pfn_start);
+
         available_pfn_end = MAX(available_pfn_end, r->pfn_end);
         free_pages += r->pfn_end - r->pfn_start;
     }
@@ -332,6 +335,10 @@ size_t page_to_pfn(const struct page* page) {
     ASSERT(page >= pages);
     ASSERT(page < (const struct page*)PAGE_ATLAS_END);
     return page - pages;
+}
+
+phys_addr_t page_to_phys(const struct page* page) {
+    return (phys_addr_t)page_to_pfn(page) << PAGE_SHIFT;
 }
 
 struct page* page_alloc(void) {

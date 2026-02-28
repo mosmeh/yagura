@@ -25,6 +25,7 @@ DEFINE_FREE(page, struct page*, page_unref)
 
 struct page* page_get(size_t pfn);
 size_t page_to_pfn(const struct page*);
+phys_addr_t page_to_phys(const struct page*);
 
 struct page* page_alloc(void);
 

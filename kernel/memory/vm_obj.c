@@ -83,7 +83,7 @@ static struct page* zero_page; // The page filled with zeros
 
 static struct page* anon_get_page(struct vm_obj* obj, size_t index,
                                   bool write) {
-    ASSERT(vm_obj_is_locked_by_current(obj));
+    SCOPED_LOCK(vm_obj, obj);
     struct anon* anon = CONTAINER_OF(obj, struct anon, vm_obj);
 
     struct tree_node** new_node = &anon->shared_pages.root;
@@ -155,7 +155,6 @@ static void phys_destroy(struct vm_obj* obj) {
 static struct page* phys_get_page(struct vm_obj* obj, size_t index,
                                   bool write) {
     (void)write;
-    ASSERT(vm_obj_is_locked_by_current(obj));
     struct phys* phys = CONTAINER_OF(obj, struct phys, vm_obj);
     size_t pfn = phys->start + index;
     if (phys->end <= pfn)

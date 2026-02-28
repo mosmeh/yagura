@@ -17,18 +17,11 @@ struct file* file_create(struct inode*, int flags);
 
 extern const struct file_ops pipe_fops;
 
-struct filemap {
-    struct inode* inode;
-    struct tree pages;
-};
-
 struct filemap* filemap_create(struct inode*);
 void filemap_destroy(struct filemap*);
 
 // Ensures that the page at the given index exists in the filemap.
-// If `extend` is true, the page is created even if it's outside the current
-// size of the file.
-struct page* filemap_ensure_page(struct filemap*, size_t index, bool extend);
+struct page* filemap_ensure_page(struct filemap*, size_t index);
 
 // Writes back all dirty pages in the given range of indices.
 NODISCARD int filemap_sync(struct filemap*, size_t start, size_t end);

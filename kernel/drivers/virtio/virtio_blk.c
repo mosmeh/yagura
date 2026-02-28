@@ -28,8 +28,9 @@ static bool unblock_request(void* raw_ctx) {
     return ctx->virtq->num_free_descs >= ctx->num_descriptors;
 }
 
-static int submit_request(struct block_dev* block_dev, void* buffer,
-                          uint64_t sector, uint64_t nsectors, uint32_t type,
+NODISCARD
+static int submit_request(struct block_dev* block_dev, phys_addr_t buffer,
+                          uint64_t sector, size_t nsectors, uint32_t type,
                           bool device_writable) {
     struct virtio_blk* blk = blk_from_block_dev(block_dev);
     struct virtq* virtq = blk->virtio->virtqs[0];
@@ -59,10 +60,12 @@ static int submit_request(struct block_dev* block_dev, void* buffer,
         struct virtq_desc_chain chain;
         if (!virtq_desc_chain_init(&chain, virtq, num_descriptors))
             continue;
-        virtq_desc_chain_push_buf(&chain, &header, sizeof(header), false);
+        virtq_desc_chain_push_buf(&chain, virt_to_phys(&header), sizeof(header),
+                                  false);
         if (buffer)
             virtq_desc_chain_push_buf(&chain, buffer, count, device_writable);
-        virtq_desc_chain_push_buf(&chain, &footer, sizeof(footer), true);
+        virtq_desc_chain_push_buf(&chain, virt_to_phys(&footer), sizeof(footer),
+                                  true);
         rc = virtq_desc_chain_submit(&chain);
         if (IS_ERR(rc))
             return rc;
@@ -79,20 +82,20 @@ static int submit_request(struct block_dev* block_dev, void* buffer,
     }
 }
 
-static int virtio_blk_read(struct block_dev* block_dev, void* buffer,
-                           uint64_t index, uint64_t nblocks) {
+static int virtio_blk_read(struct block_dev* block_dev, phys_addr_t buffer,
+                           uint64_t index, size_t nblocks) {
     return submit_request(block_dev, buffer, index, nblocks, VIRTIO_BLK_T_IN,
                           true);
 }
 
-static int virtio_blk_write(struct block_dev* block_dev, const void* buffer,
-                            uint64_t index, uint64_t nblocks) {
-    return submit_request(block_dev, (void*)buffer, index, nblocks,
-                          VIRTIO_BLK_T_OUT, false);
+static int virtio_blk_write(struct block_dev* block_dev, phys_addr_t buffer,
+                            uint64_t index, size_t nblocks) {
+    return submit_request(block_dev, buffer, index, nblocks, VIRTIO_BLK_T_OUT,
+                          false);
 }
 
 static int virtio_blk_flush(struct block_dev* block_dev) {
-    return submit_request(block_dev, NULL, 1, 0, VIRTIO_BLK_T_FLUSH, false);
+    return submit_request(block_dev, 0, 0, 0, VIRTIO_BLK_T_FLUSH, false);
 }
 
 static void init_device(const struct pci_addr* addr) {
