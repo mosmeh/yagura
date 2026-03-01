@@ -6,9 +6,7 @@
 
 static struct slab filemap_slab;
 
-void filemap_init(void) {
-    slab_init(&filemap_slab, "filemap", sizeof(struct filemap));
-}
+void filemap_init(void) { SLAB_INIT(&filemap_slab, "filemap", struct filemap); }
 
 struct filemap* filemap_create(struct inode* inode) {
     struct filemap* filemap = ASSERT(slab_alloc(&filemap_slab));

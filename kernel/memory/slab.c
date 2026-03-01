@@ -1,5 +1,6 @@
 #include "private.h"
 #include <common/integer.h>
+#include <common/string.h>
 #include <kernel/containers/vec.h>
 #include <kernel/memory/phys.h>
 #include <kernel/memory/vm.h>
@@ -9,21 +10,34 @@ DEFINE_LOCKED(slab, struct slab*, mutex, lock)
 
 static struct slab* slabs;
 
-void slab_init(struct slab* slab, const char* name, size_t obj_size) {
-    // Ensure that the slab fits in a single page
-    ASSERT(sizeof(struct vm_region) + obj_size <= PAGE_SIZE);
+struct slab_obj {
+    struct slab_obj* next;
+};
+
+void __slab_init(struct slab* slab, const char* name, size_t obj_alignment,
+                 size_t obj_size) {
+    obj_alignment = MAX(obj_alignment, _Alignof(struct slab_obj));
+    ASSERT(PAGE_SIZE % obj_alignment == 0);
+
+    // Ensure that the object size is large enough to hold slab metadata
+    ASSERT(obj_size >= sizeof(struct slab_obj));
+
+    size_t objs_per_slab = 0;
+    for (size_t offset = ROUND_UP(sizeof(struct vm_region), obj_alignment);
+         offset + obj_size <= PAGE_SIZE;
+         offset = ROUND_UP(offset + obj_size, obj_alignment))
+        ++objs_per_slab;
+    ASSERT(objs_per_slab > 0);
 
     *slab = (struct slab){
         .name = name,
         .obj_size = obj_size,
+        .obj_alignment = obj_alignment,
+        .objs_per_slab = objs_per_slab,
         .next = slabs,
     };
     slabs = slab;
 }
-
-struct slab_obj {
-    struct slab_obj* next;
-};
 
 NODISCARD static int ensure_cache(struct slab* slab) {
     if (slab->free_list)
@@ -48,6 +62,8 @@ NODISCARD static int ensure_cache(struct slab* slab) {
             return ret;
         }
 
+        STATIC_ASSERT(PAGE_SIZE % _Alignof(struct vm_region) == 0);
+
         struct vm_region* region = (struct vm_region*)start_addr;
         *region = (struct vm_region){
             .vm = kernel_vm,
@@ -61,13 +77,13 @@ NODISCARD static int ensure_cache(struct slab* slab) {
     }
 
     uintptr_t end_addr = start_addr + PAGE_SIZE;
-    struct slab_obj* obj =
-        (struct slab_obj*)ROUND_UP(body_addr, slab->obj_size);
+    struct slab_obj* obj = (void*)ROUND_UP(body_addr, slab->obj_alignment);
     while ((uintptr_t)obj + slab->obj_size <= end_addr) {
         obj->next = slab->free_list;
         slab->free_list = obj;
         ++slab->total_objs;
-        obj = (struct slab_obj*)((uintptr_t)obj + slab->obj_size);
+        obj = (void*)(ROUND_UP((uintptr_t)obj + slab->obj_size,
+                               slab->obj_alignment));
     }
 
     return 0;
@@ -95,8 +111,9 @@ void* slab_alloc(struct slab* slab) {
 void slab_free(struct slab* slab, void* obj) {
     if (!obj)
         return;
+    memset(obj, 0xfe, slab->obj_size); // Poison the freed object
     SCOPED_LOCK(slab, slab);
-    ((struct slab_obj*)obj)->next = slab->free_list;
+    *(struct slab_obj*)obj = (struct slab_obj){.next = slab->free_list};
     slab->free_list = obj;
     --slab->num_active_objs;
 }
@@ -112,12 +129,10 @@ int proc_print_slabinfo(struct file* file, struct vec* vec) {
     if (IS_ERR(rc))
         return rc;
     for (struct slab* slab = slabs; slab; slab = slab->next) {
-        size_t obj_offset = ROUND_UP(sizeof(struct vm_region), slab->obj_size);
-        size_t objs_per_slab = (PAGE_SIZE - obj_offset) / slab->obj_size;
         size_t pages_per_slab = 1;
         rc = vec_printf(vec, "%-17s %6zu %6zu %6zu %4zu %4zu\n", slab->name,
                         slab->num_active_objs, slab->total_objs, slab->obj_size,
-                        objs_per_slab, pages_per_slab);
+                        slab->objs_per_slab, pages_per_slab);
         if (IS_ERR(rc))
             return rc;
     }

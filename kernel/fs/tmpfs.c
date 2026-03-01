@@ -293,8 +293,8 @@ int devtmpfs_mknod(const char* name, mode_t mode, dev_t dev) {
 }
 
 void tmpfs_init(void) {
-    slab_init(&tmpfs_inode_slab, "tmpfs_inode", sizeof(struct tmpfs_inode));
-    slab_init(&tmpfs_dentry_slab, "tmpfs_dentry", sizeof(struct tmpfs_dentry));
+    SLAB_INIT(&tmpfs_inode_slab, "tmpfs_inode", struct tmpfs_inode);
+    SLAB_INIT(&tmpfs_dentry_slab, "tmpfs_dentry", struct tmpfs_dentry);
 
     ASSERT_OK(file_system_register(&tmpfs));
 

@@ -8,7 +8,7 @@
 
 static struct slab fs_slab;
 
-void task_fs_init(void) { slab_init(&fs_slab, "fs", sizeof(struct fs)); }
+void task_fs_init(void) { SLAB_INIT(&fs_slab, "fs", struct fs); }
 
 struct fs* fs_create(void) {
     struct fs* fs = ASSERT(slab_alloc(&fs_slab));

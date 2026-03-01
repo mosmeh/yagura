@@ -22,7 +22,7 @@ void vm_init(void) {
     };
     current->vm = kernel_vm;
 
-    slab_init(&vm_slab, "vm", sizeof(struct vm));
+    SLAB_INIT(&vm_slab, "vm", struct vm);
 }
 
 struct vm* vm_create(void* start, void* end) {

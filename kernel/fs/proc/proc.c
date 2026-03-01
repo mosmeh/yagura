@@ -209,8 +209,8 @@ static struct mount* proc_mount(const char* source) {
 }
 
 void proc_init(void) {
-    slab_init(&proc_inode_slab, "proc_inode", sizeof(struct proc_inode));
-    slab_init(&vec_slab, "proc_vec", sizeof(struct vec));
+    SLAB_INIT(&proc_inode_slab, "proc_inode", struct proc_inode);
+    SLAB_INIT(&vec_slab, "proc_vec", struct vec);
 
     static struct file_system fs = {
         .name = "proc",

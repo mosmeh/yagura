@@ -8,7 +8,7 @@
 
 static struct slab path_slab;
 
-void path_init(void) { slab_init(&path_slab, "path", sizeof(struct path)); }
+void path_init(void) { SLAB_INIT(&path_slab, "path", struct path); }
 
 struct path* path_create_root(struct inode* root) {
     struct path* path = ASSERT(slab_alloc(&path_slab));

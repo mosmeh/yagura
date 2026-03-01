@@ -12,7 +12,7 @@
 static struct slab sighand_slab;
 
 void task_signal_init(void) {
-    slab_init(&sighand_slab, "sighand", sizeof(struct sighand));
+    SLAB_INIT(&sighand_slab, "sighand", struct sighand);
 }
 
 struct sighand* sighand_create(void) {

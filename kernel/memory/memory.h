@@ -103,7 +103,9 @@ void kunmap(void* virt_addr);
 
 struct slab {
     const char* name;
-    size_t obj_size;                 // Size of each object in bytes
+    size_t obj_size;      // Size of each object in bytes
+    size_t obj_alignment; // Alignment of each object in bytes
+    size_t objs_per_slab; // Number of objects that can fit in a single slab
     _Atomic(size_t) total_objs;      // Total number of allocated objects
     _Atomic(size_t) num_active_objs; // Number of objects currently in use
     struct slab_obj* free_list;
@@ -111,7 +113,12 @@ struct slab {
     struct slab* next;
 };
 
-void slab_init(struct slab*, const char* name, size_t obj_size);
+#define SLAB_INIT(slab, name, type)                                            \
+    __slab_init(slab, name, _Alignof(type), sizeof(type))
+
+void __slab_init(struct slab*, const char* name, size_t obj_alignment,
+                 size_t obj_size);
+
 void* slab_alloc(struct slab*);
 void slab_free(struct slab*, void*);
 

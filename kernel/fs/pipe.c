@@ -24,7 +24,7 @@ static struct slab pipe_slab;
 static struct mount* pipe_mount;
 
 void pipe_init(void) {
-    slab_init(&pipe_slab, "pipe", sizeof(struct pipe));
+    SLAB_INIT(&pipe_slab, "pipe", struct pipe);
 
     static struct file_system pipe_fs = {
         .name = "pipefs",
