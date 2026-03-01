@@ -107,10 +107,7 @@ static struct char_dev urandom = {
     .fops = &random_fops,
 };
 
-static int kmsg_close(struct file* file) {
-    kfree(file->private_data);
-    return 0;
-}
+static void kmsg_close(struct file* file) { kfree(file->private_data); }
 
 static ssize_t kmsg_pread(struct file* file, void* user_buffer, size_t count,
                           uint64_t offset) {

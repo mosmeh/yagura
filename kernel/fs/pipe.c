@@ -112,7 +112,7 @@ static int pipe_open(struct file* file) {
     return 0;
 }
 
-static int pipe_close(struct file* file) {
+static void pipe_close(struct file* file) {
     struct pipe* pipe = pipe_from_file(file);
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
@@ -125,7 +125,6 @@ static int pipe_close(struct file* file) {
         UNREACHABLE();
     }
     inode_unref(&pipe->vfs_inode);
-    return 0;
 }
 
 static bool unblock_read(struct file* file) {

@@ -19,7 +19,8 @@ struct attr_char {
 
 struct tty_ops {
     void (*echo)(struct tty*, const char* buf, size_t size);
-    int (*ioctl)(struct tty*, struct file*, unsigned cmd, unsigned long arg);
+    NODISCARD int (*ioctl)(struct tty*, struct file*, unsigned cmd,
+                           unsigned long arg);
 };
 
 struct ktermios {

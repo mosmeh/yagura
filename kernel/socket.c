@@ -71,11 +71,10 @@ static void unix_socket_destroy(struct inode* inode) {
     slab_free(&unix_socket_slab, socket);
 }
 
-static int unix_socket_close(struct file* file) {
+static void unix_socket_close(struct file* file) {
     struct unix_socket* socket = unix_socket_from_file(file);
     socket->is_open_for_writing_to_connector = false;
     socket->is_open_for_writing_to_acceptor = false;
-    return 0;
 }
 
 static bool is_connector(struct file* file) {

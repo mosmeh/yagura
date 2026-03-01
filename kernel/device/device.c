@@ -187,10 +187,9 @@ static int block_dev_open(struct file* file) {
     return 0;
 }
 
-static int block_dev_close(struct file* file) {
+static void block_dev_close(struct file* file) {
     block_dev_unref(file->private_data);
     file->private_data = NULL;
-    return 0;
 }
 
 static ssize_t block_dev_pwrite(struct file* file, const void* user_buffer,

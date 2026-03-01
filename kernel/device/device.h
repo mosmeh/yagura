@@ -33,11 +33,11 @@ struct block_dev {
 };
 
 struct block_ops {
-    int (*read)(struct block_dev*, phys_addr_t buffer, uint64_t index,
-                size_t nblocks);
-    int (*write)(struct block_dev*, phys_addr_t buffer, uint64_t index,
-                 size_t nblocks);
-    int (*flush)(struct block_dev*);
+    NODISCARD int (*read)(struct block_dev*, phys_addr_t buffer, uint64_t index,
+                          size_t nblocks);
+    NODISCARD int (*write)(struct block_dev*, phys_addr_t buffer,
+                           uint64_t index, size_t nblocks);
+    NODISCARD int (*flush)(struct block_dev*);
 };
 
 DEFINE_LOCKED(block_dev, struct block_dev*, inode, vfs_inode)

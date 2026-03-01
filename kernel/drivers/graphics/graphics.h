@@ -13,8 +13,8 @@ struct fb_info {
 };
 
 struct fb {
-    int (*get_info)(struct fb_info* out_info);
-    int (*set_info)(struct fb_info* inout_info);
+    NODISCARD int (*get_info)(struct fb_info* out_info);
+    NODISCARD int (*set_info)(struct fb_info* inout_info);
 };
 
 struct fb* fb_get(void);

@@ -44,11 +44,10 @@ static struct vec* vec_from_file(struct file* file) {
     return file->private_data;
 }
 
-static int proc_close(struct file* file) {
+static void proc_close(struct file* file) {
     struct vec* vec = vec_from_file(file);
     vec_deinit(vec);
     slab_free(&vec_slab, vec);
-    return 0;
 }
 
 static ssize_t proc_pread(struct file* file, void* user_buffer, size_t count,

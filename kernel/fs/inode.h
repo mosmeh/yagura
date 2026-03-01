@@ -45,15 +45,16 @@ struct inode {
 struct inode_ops {
     void (*destroy)(struct inode*);
 
-    struct inode* (*lookup)(struct inode* parent, const char* name);
-    int (*link)(struct inode* parent, const char* name, struct inode* child);
-    int (*unlink)(struct inode* parent, const char* name);
+    NODISCARD struct inode* (*lookup)(struct inode* parent, const char* name);
+    NODISCARD int (*link)(struct inode* parent, const char* name,
+                          struct inode* child);
+    NODISCARD int (*unlink)(struct inode* parent, const char* name);
 
-    int (*read)(struct inode*, struct page*, size_t page_index);
-    int (*write)(struct inode*, struct page*, size_t page_index);
+    NODISCARD int (*read)(struct inode*, struct page*, size_t page_index);
+    NODISCARD int (*write)(struct inode*, struct page*, size_t page_index);
 
-    int (*truncate)(struct inode*, uint64_t length);
-    int (*sync)(struct inode*);
+    NODISCARD int (*truncate)(struct inode*, uint64_t length);
+    NODISCARD int (*sync)(struct inode*);
 };
 
 DEFINE_LOCKED(inode, struct inode*, vm_obj, vm_obj)

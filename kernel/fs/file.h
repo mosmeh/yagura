@@ -22,18 +22,18 @@ typedef bool (*getdents_callback_fn)(const char* name, ino_t,
                                      unsigned char type, void* ctx);
 
 struct file_ops {
-    int (*open)(struct file*);
-    int (*close)(struct file*);
-    ssize_t (*pread)(struct file*, void* user_buffer, size_t count,
-                     uint64_t offset);
-    ssize_t (*pwrite)(struct file*, const void* user_buffer, size_t count,
-                      uint64_t offset);
-    loff_t (*seek)(struct file*, loff_t offset, int whence);
-    ssize_t (*readlink)(struct file*, char* buffer, size_t bufsiz);
-    int (*ioctl)(struct file*, unsigned cmd, unsigned long arg);
-    int (*getdents)(struct file*, getdents_callback_fn, void* ctx);
-    short (*poll)(struct file*, short events);
-    struct vm_obj* (*mmap)(struct file*);
+    NODISCARD int (*open)(struct file*);
+    void (*close)(struct file*);
+    NODISCARD ssize_t (*pread)(struct file*, void* user_buffer, size_t count,
+                               uint64_t offset);
+    NODISCARD ssize_t (*pwrite)(struct file*, const void* user_buffer,
+                                size_t count, uint64_t offset);
+    NODISCARD loff_t (*seek)(struct file*, loff_t offset, int whence);
+    NODISCARD ssize_t (*readlink)(struct file*, char* buffer, size_t bufsiz);
+    NODISCARD int (*ioctl)(struct file*, unsigned cmd, unsigned long arg);
+    NODISCARD int (*getdents)(struct file*, getdents_callback_fn, void* ctx);
+    NODISCARD short (*poll)(struct file*, short events);
+    NODISCARD struct vm_obj* (*mmap)(struct file*);
 };
 
 DEFINE_LOCKED(file, struct file*, mutex, lock)
