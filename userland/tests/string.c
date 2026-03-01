@@ -1,7 +1,7 @@
-#include <common/string.h>
-#include <common/strings.h>
 #include <panic.h>
 #include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 
 int main(void) {
     ASSERT(strcmp("ABC", "ABC") == 0);

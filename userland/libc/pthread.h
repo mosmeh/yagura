@@ -1,7 +1,7 @@
 #pragma once
 
-#include <common/stddef.h>
 #include <signal.h>
+#include <stddef.h>
 
 #define PTHREAD_STACK_MIN 16384
 

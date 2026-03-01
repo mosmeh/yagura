@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common/stddef.h>
+#include <stddef.h>
 #include <sys/stat.h>
 
 static inline void mode_to_string(mode_t mode, char out_buf[static 11]) {

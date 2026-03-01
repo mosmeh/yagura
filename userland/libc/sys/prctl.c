@@ -1,5 +1,5 @@
 #include "../private.h"
-#include <common/stdarg.h>
+#include <stdarg.h>
 #include <sys/prctl.h>
 
 int prctl(int op, ...) {

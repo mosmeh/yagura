@@ -1,7 +1,7 @@
 #include <common/random.h>
-#include <common/stdbool.h>
 #include <errno.h>
 #include <panic.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

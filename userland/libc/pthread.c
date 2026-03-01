@@ -1,9 +1,9 @@
 #include "private.h"
-#include <common/stdatomic.h>
 #include <err.h>
 #include <panic.h>
 #include <pthread.h>
 #include <sched.h>
+#include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/auxv.h>

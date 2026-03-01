@@ -1,6 +1,5 @@
 #pragma once
 
-#include <common/stddef.h>
 #include <kernel/api/dirent.h>
 #include <sys/types.h>
 

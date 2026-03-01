@@ -1,5 +1,5 @@
-#include <common/stdint.h>
 #include <panic.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 

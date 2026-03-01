@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common/stddef.h>
+#include <stddef.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 

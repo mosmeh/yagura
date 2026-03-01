@@ -1,6 +1,6 @@
 #pragma once
 
-#include <common/stdint.h>
+#include <stdint.h>
 
 #define MOUSE_BUTTON_LEFT 0x1
 #define MOUSE_BUTTON_RIGHT 0x2

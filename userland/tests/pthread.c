@@ -1,7 +1,7 @@
-#include <common/stdbool.h>
 #include <errno.h>
 #include <panic.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
 

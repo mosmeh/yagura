@@ -1,9 +1,9 @@
-#include <common/stdbool.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <linux/kd.h>
 #include <linux/major.h>
 #include <panic.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <common/stddef.h>
 #include <common/stdlib.h>
+#include <stddef.h>
 
 #define EXIT_SUCCESS 0
 #define EXIT_FAILURE 1

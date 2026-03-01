@@ -1,9 +1,9 @@
 #include <common/integer.h>
 #include <common/macros.h>
-#include <common/stddef.h>
 #include <errno.h>
 #include <panic.h>
 #include <signal.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/auxv.h>
