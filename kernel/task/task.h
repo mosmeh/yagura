@@ -27,7 +27,7 @@ struct task {
     pid_t tid;
 
     _Atomic(unsigned int) state;
-    int exit_status;
+    _Atomic(int) exit_status;
 
     char comm[16];
 

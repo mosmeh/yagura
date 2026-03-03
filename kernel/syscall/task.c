@@ -156,12 +156,17 @@ static bool unblock_waitpid(void* data) {
             return true;
         case TASK_STOPPED:
             ASSERT(waiter->options & WUNTRACED);
-            // The task is still alive, so don't free it yet.
-            waiter->task = task_ref(task);
-            waiter->status = task->exit_status;
-            // Do not report the same stopped child twice.
-            task->exit_status = 0;
-            return true;
+            int status = task->exit_status;
+            if (status) {
+                // The task is still alive, so don't free it yet.
+                waiter->task = task_ref(task);
+                waiter->status = status;
+                // Do not report the same stopped child twice.
+                task->exit_status = 0;
+                return true;
+            }
+            // The task changed its exit status. Recheck the conditions.
+            break;
         default:
             // The task changed its state. Recheck the conditions.
             break;
