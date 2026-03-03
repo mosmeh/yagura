@@ -26,7 +26,7 @@ struct unix_socket {
     struct unix_socket* next; // pending queue
 
     _Atomic(bool) is_connected;
-    struct file* connector_file;
+    _Atomic(struct file*) connector_file;
 
     struct ring_buf* to_connector_buf;
     struct ring_buf* to_acceptor_buf;
