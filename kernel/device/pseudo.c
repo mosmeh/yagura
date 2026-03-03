@@ -116,13 +116,17 @@ static ssize_t kmsg_pread(struct file* file, void* user_buffer, size_t count,
         size_t size;
     };
 
-    struct kmsg* kmsg = file->private_data;
-    if (!kmsg) {
-        kmsg = kmalloc(sizeof(struct kmsg));
-        if (!kmsg)
-            return -ENOMEM;
-        kmsg->size = kmsg_read(kmsg->data, KMSG_BUF_SIZE);
-        file->private_data = kmsg;
+    struct kmsg* kmsg = NULL;
+    {
+        SCOPED_LOCK(file, file);
+        kmsg = file->private_data;
+        if (!kmsg) {
+            kmsg = kmalloc(sizeof(struct kmsg));
+            if (!kmsg)
+                return -ENOMEM;
+            kmsg->size = kmsg_read(kmsg->data, KMSG_BUF_SIZE);
+            file->private_data = kmsg;
+        }
     }
 
     if (offset >= kmsg->size)
