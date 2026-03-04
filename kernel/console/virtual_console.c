@@ -57,6 +57,15 @@ static void activate_console(size_t index) {
     active_console = console;
 }
 
+static void flush_if_active(struct virtual_console* console) {
+    if (active_console != console)
+        return;
+    SCOPED_LOCK(tty, &console->tty);
+    SCOPED_LOCK(spinlock, &screen_lock);
+    if (active_console == console)
+        vt_flush(console->vt);
+}
+
 static void on_raw(unsigned char scancode) {
     struct virtual_console* console = active_console;
     struct tty* tty = &console->tty;
@@ -67,7 +76,7 @@ static void on_raw(unsigned char scancode) {
     }
 }
 
-static unsigned char modifiers;
+static _Atomic(unsigned char) modifiers;
 extern unsigned short* key_maps[MAX_NR_KEYMAPS];
 extern char* func_table[MAX_NR_FUNC];
 static struct spinlock key_map_lock;
@@ -181,10 +190,7 @@ static void virtual_console_echo(struct tty* tty, const char* buf,
     struct virtual_console* console =
         CONTAINER_OF(tty, struct virtual_console, tty);
     vt_write(console->vt, buf, count);
-    if (active_console == console) {
-        SCOPED_LOCK(spinlock, &screen_lock);
-        vt_flush(console->vt);
-    }
+    flush_if_active(console);
 }
 
 // ANSI escape code color palette
@@ -209,17 +215,11 @@ static uint32_t default_palette[NUM_COLORS] = {
 static struct spinlock default_palette_lock;
 
 static void set_font(struct virtual_console* console, struct font* font) {
-    struct font* old_font;
-    {
-        SCOPED_LOCK(tty, &console->tty);
-        old_font = vt_swap_font(console->vt, font);
-    }
-    font_unref(old_font);
-
-    if (active_console == console) {
-        SCOPED_LOCK(spinlock, &screen_lock);
-        vt_flush(console->vt);
-    }
+    // Free outside the spinlock to avoid sleeping with the lock held
+    struct font* old_font FREE(font) = NULL;
+    SCOPED_LOCK(tty, &console->tty);
+    old_font = vt_swap_font(console->vt, font);
+    flush_if_active(console);
 }
 
 static bool unblock_waitactive(void* ctx) {
@@ -379,7 +379,11 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
         }
         case KD_FONT_OP_GET:
         case KD_FONT_OP_GET_TALL: {
-            struct font* font FREE(font) = vt_get_font(console->vt);
+            struct font* font FREE(font) = NULL;
+            {
+                SCOPED_LOCK(tty, &console->tty);
+                font = vt_get_font(console->vt);
+            }
             if (!font)
                 return -EINVAL;
 
@@ -465,8 +469,7 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
             }
         }
 
-        SCOPED_LOCK(spinlock, &screen_lock);
-        vt_flush(active_console->vt);
+        flush_if_active(active_console);
         break;
     }
     case VT_ACTIVATE: {
