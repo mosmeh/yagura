@@ -30,13 +30,15 @@ static void init_port(uint8_t index) {
 
 void serial_early_init(void) { init_port(0); }
 
-static void (*input_handler)(uint8_t, char);
+typedef void (*input_handler_fn)(uint8_t, char);
+
+static _Atomic(input_handler_fn) input_handler;
 
 void serial_set_input_handler(void (*handler)(uint8_t, char)) {
     input_handler = handler;
 }
 
-static bool sysrq = false;
+static _Atomic(bool) sysrq = false;
 
 static bool read_and_report(uint8_t index) {
     uint16_t port = ports[index];
@@ -45,8 +47,9 @@ static bool read_and_report(uint8_t index) {
         char ch = in8(port);
         if (sysrq)
             handle_sysrq(ch);
-        if (input_handler)
-            input_handler(index, ch);
+        input_handler_fn handler = input_handler;
+        if (handler)
+            handler(index, ch);
         sysrq = status & 0x10; // Break
         return true;
     }

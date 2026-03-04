@@ -34,15 +34,17 @@ static const unsigned char keycodes[256] = {
     0x0,  0x0,  0x0,  0x0,
 };
 
-static bool received_e0 = false;
+static _Atomic(bool) received_e0 = false;
 
 static void irq_handler(struct registers* reg) {
     (void)reg;
 
+    const struct keyboard_events* handlers = event_handlers;
+
     uint8_t data = in8(PS2_DATA);
 
-    if (event_handlers->raw)
-        event_handlers->raw(data);
+    if (handlers->raw)
+        handlers->raw(data);
 
     if (data == 0xe0) {
         received_e0 = true;
@@ -55,8 +57,8 @@ static void irq_handler(struct registers* reg) {
     unsigned char code = ch;
     if (received_e0)
         code |= 0x80;
-    if (event_handlers->key)
-        event_handlers->key(keycodes[code], !up);
+    if (handlers->key)
+        handlers->key(keycodes[code], !up);
 
     received_e0 = false;
 }

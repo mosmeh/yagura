@@ -17,8 +17,8 @@ static void write_mouse(uint8_t data) {
         kprintf("ps2_mouse: expected ACK, got %#x\n", response);
 }
 
-static unsigned char packet_buf[3];
-static size_t state = 0;
+static _Atomic(unsigned char) packet_buf[3];
+static _Atomic(size_t) state = 0;
 
 #define QUEUE_SIZE                                                             \
     (sizeof(packet_buf) * 16 + 1) // +1 to distinguish full vs empty
