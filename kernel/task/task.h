@@ -31,7 +31,7 @@ struct task {
 
     char comm[16];
 
-    _Atomic(struct vm*) vm;
+    struct vm* vm;
     uintptr_t kernel_stack_base, kernel_stack_top;
     uintptr_t arg_start, arg_end, env_start, env_end;
 

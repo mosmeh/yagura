@@ -14,7 +14,7 @@
 #define PTE_PCD 0x10
 #define PTE_PAT 0x80
 
-// Page is global (not flushed from TLB on context switch)
+// Page is global (TLB entry is not invalidated on context switch)
 #define PTE_GLOBAL 0x100
 
 // Disable execution of code on this page

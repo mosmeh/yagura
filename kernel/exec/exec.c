@@ -311,7 +311,7 @@ _Noreturn static void loader_commit(struct loader* loader) {
     ASSERT_PTR(loader->env_start);
     ASSERT_PTR(loader->env_end);
 
-    exec_image_unload(&loader->image);
+    loader_deinit(loader);
 
     // Point of no return
 
@@ -357,7 +357,8 @@ NODISCARD static int loader_load(struct loader* loader) {
 
     ASSERT(IS_ERR(rc));
     vm_unlock(loader->vm);
-    vm_enter(prev_vm);
+    vm_unref(vm_enter(prev_vm));
+    vm_unref(prev_vm);
     return rc;
 }
 

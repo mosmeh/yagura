@@ -84,10 +84,10 @@ void smp_init(void) {
 
     kprint("smp: all APs started\n");
 
+    smp_active = true;
+
     // Remove the identity mapping
     pagemap_unmap(kernel_pagemap, 0, init_npages);
-
-    smp_active = true;
 }
 
 _Noreturn void ap_start(void) {
@@ -100,7 +100,6 @@ _Noreturn void ap_start(void) {
     ++num_ready_cpus;
     while (!smp_active)
         arch_cpu_relax();
-    arch_flush_tlb_all();
 
     sched_start();
 }

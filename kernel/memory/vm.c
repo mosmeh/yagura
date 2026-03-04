@@ -4,13 +4,11 @@
 #include <kernel/memory/vm.h>
 #include <kernel/task/task.h>
 
-struct vm* kernel_vm;
+static struct vm __kernel_vm;
+struct vm* kernel_vm = &__kernel_vm;
 static struct slab vm_slab;
 
 void vm_init(void) {
-    static struct vm vm;
-    kernel_vm = &vm;
-
     size_t start = DIV_CEIL(KERNEL_VM_START, PAGE_SIZE);
     size_t end = KERNEL_VM_END >> PAGE_SHIFT;
     ASSERT(start < end);
@@ -21,6 +19,7 @@ void vm_init(void) {
         .refcount = REFCOUNT_INIT_ONE,
     };
     current->vm = kernel_vm;
+    pagemap_switch(kernel_pagemap);
 
     SLAB_INIT(&vm_slab, "vm", struct vm);
 }
@@ -66,11 +65,12 @@ void __vm_destroy(struct vm* vm) {
 struct vm* vm_enter(struct vm* vm) {
     if (vm == current->vm)
         return vm;
-    // current->vm needs to be updated BEFORE pagemap_switch().
-    // Otherwise, when we are preempted between the two lines,
-    // current->vm->pagemap will get out of sync with the actual
-    // active page directory.
-    struct vm* prev_vm = atomic_exchange(&current->vm, vm);
+    struct vm* prev_vm = NULL;
+    {
+        SCOPED_LOCK(task, current);
+        prev_vm = current->vm;
+        current->vm = vm_ref(vm);
+    }
     pagemap_switch(vm->pagemap);
     return prev_vm;
 }

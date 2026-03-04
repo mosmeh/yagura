@@ -11,6 +11,8 @@ struct cpu {
     unsigned long id;
 
     _Atomic(struct task*) current_task;
+    _Atomic(struct pagemap*) active_pagemap;
+
     struct task* idle_task;
 
     struct mpsc* queued_msgs;
@@ -43,16 +45,15 @@ struct cpu* cpu_add(void);
 void cpu_relax(void);
 
 #define IPI_MESSAGE_HALT 0x1
-#define IPI_MESSAGE_FLUSH_TLB 0x2
-#define IPI_MESSAGE_FLUSH_TLB_RANGE 0x4
+#define IPI_MESSAGE_INVALIDATE_TLB_RANGE 0x2
 
 struct ipi_message {
     unsigned type;
     refcount_t refcount;
     struct {
         uintptr_t virt_addr;
-        size_t size;
-    } flush_tlb_range;
+        size_t npages;
+    } invalidate_tlb_range;
 };
 
 struct ipi_message* cpu_alloc_message(void);

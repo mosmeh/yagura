@@ -210,7 +210,7 @@ void phys_init(void) {
     // Initialize the bitmap to all zero (reserved).
     for (size_t i = 0; i < bitmap_npages; ++i) {
         uintptr_t virt_addr = PAGE_ATLAS_START + (i << PAGE_SHIFT);
-        ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, zero_page_pfn,
+        ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, zero_page_pfn, 1,
                                     VM_READ));
     }
 
@@ -229,7 +229,7 @@ void phys_init(void) {
         for (uintptr_t virt_addr = start_addr; virt_addr < end_addr;
              virt_addr += PAGE_SIZE) {
             size_t pfn = ASSERT_OK(page_alloc_raw());
-            ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, pfn,
+            ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, pfn, 1,
                                         VM_READ | VM_WRITE));
         }
 
@@ -274,7 +274,7 @@ void phys_init(void) {
         for (uintptr_t virt_addr = start_addr; virt_addr < end_addr;
              virt_addr += PAGE_SIZE) {
             size_t pfn = ASSERT_OK(page_alloc_raw());
-            ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, pfn,
+            ASSERT_OK(pagemap_map_local(kernel_pagemap, virt_addr, pfn, 1,
                                         VM_READ | VM_WRITE));
         }
 

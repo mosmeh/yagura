@@ -171,6 +171,7 @@ void sched_start(void) {
     } else {
         UNREACHABLE();
     }
+    pagemap_switch(cpu->current_task->vm->pagemap);
     arch_enable_interrupts();
     sched_yield();
     do_idle();

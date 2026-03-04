@@ -49,6 +49,8 @@ struct task* task_create(const char* comm, void (*entry_point)(void)) {
 }
 
 struct task* task_clone(const struct task* task, unsigned flags) {
+    ASSERT(!task || task == current || task_is_locked_by_current(task));
+
     if (!task && flags)
         return ERR_PTR(-EINVAL);
     if ((flags & CLONE_SIGHAND) && !(flags & CLONE_VM))

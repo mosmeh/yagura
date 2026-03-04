@@ -116,23 +116,17 @@ static void handle_halt(struct ipi_message* msg) {
     arch_cpu_halt();
 }
 
-static void handle_flush_tlb(struct ipi_message* msg) {
-    (void)msg;
-    arch_flush_tlb_all();
-}
-
-static void handle_flush_tlb_range(struct ipi_message* msg) {
+static void handle_invalidate_tlb_range(struct ipi_message* msg) {
     ASSERT_PTR(msg);
-    size_t virt_addr = msg->flush_tlb_range.virt_addr;
-    size_t size = msg->flush_tlb_range.size;
-    for (uintptr_t addr = virt_addr; addr < virt_addr + size; addr += PAGE_SIZE)
-        arch_flush_tlb_single(addr);
+    size_t virt_addr = msg->invalidate_tlb_range.virt_addr;
+    size_t npages = msg->invalidate_tlb_range.npages;
+    for (size_t i = 0; i < npages; ++i)
+        arch_invalidate_tlb_page(virt_addr + (i << PAGE_SHIFT));
 }
 
 static void (*const message_handlers[])(struct ipi_message*) = {
     [IPI_MESSAGE_HALT] = handle_halt,
-    [IPI_MESSAGE_FLUSH_TLB] = handle_flush_tlb,
-    [IPI_MESSAGE_FLUSH_TLB_RANGE] = handle_flush_tlb_range,
+    [IPI_MESSAGE_INVALIDATE_TLB_RANGE] = handle_invalidate_tlb_range,
 };
 
 void cpu_process_messages(void) {

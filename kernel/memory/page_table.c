@@ -10,14 +10,27 @@ void* kmap_page(struct page* page, unsigned flags) {
     return kmap(page_to_phys(page), flags);
 }
 
-static void flush_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,
-                             size_t size) {
+static void invalidate_tlb_local(struct pagemap* pagemap, uintptr_t virt_addr,
+                                 size_t npages) {
+    ASSERT(virt_addr % PAGE_SIZE == 0);
+    if (npages == 0)
+        return;
+    if (is_user_address((void*)virt_addr)) {
+        SCOPED_DISABLE_INTERRUPTS();
+        if (cpu_get_current()->active_pagemap != pagemap)
+            return;
+    }
+    for (size_t i = 0; i < npages; ++i)
+        arch_invalidate_tlb_page(virt_addr + (i << PAGE_SHIFT));
+}
+
+static void invalidate_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,
+                                  size_t npages) {
     ASSERT((virt_addr % PAGE_SIZE) == 0);
-    ASSERT((size % PAGE_SIZE) == 0);
-    if (size == 0)
+    if (npages == 0)
         return;
 
-    bool is_user = is_user_range((void*)virt_addr, size);
+    bool is_user = is_user_range((void*)virt_addr, npages << PAGE_SHIFT);
 
     struct ipi_message* msg = NULL;
     if (arch_smp_active()) {
@@ -26,17 +39,13 @@ static void flush_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,
             if (i == current_cpu_id)
                 continue;
             struct cpu* cpu = cpus[i];
-            struct task* task = cpu->current_task;
-            if (task && is_user && task->vm->pagemap != pagemap) {
-                // This CPU does not share the same page directory with us.
-                continue;
-            }
-            if (task == cpu->idle_task) {
-                // Idle task does not do anything that requires TLB consistency.
-                // Just schedule a TLB flush before its next task switch.
-                cpu_unicast_message_coalesced(cpu, IPI_MESSAGE_FLUSH_TLB,
-                                              false);
-                continue;
+            if (is_user) {
+                struct pagemap* active_pagemap = cpu->active_pagemap;
+                if (active_pagemap && active_pagemap != pagemap) {
+                    // This CPU does not share the same page table with the
+                    // current CPU.
+                    continue;
+                }
             }
             if (msg) {
                 // Allows the reference count to be zero here because
@@ -45,35 +54,25 @@ static void flush_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,
             } else {
                 msg = cpu_alloc_message();
                 *msg = (struct ipi_message){
-                    .type = IPI_MESSAGE_FLUSH_TLB_RANGE,
+                    .type = IPI_MESSAGE_INVALIDATE_TLB_RANGE,
                     .refcount = REFCOUNT_INIT_ONE,
-                    .flush_tlb_range = {.virt_addr = virt_addr, .size = size},
+                    .invalidate_tlb_range = {.virt_addr = virt_addr,
+                                             .npages = npages},
                 };
             }
             cpu_unicast_message_queued(cpu, msg, true);
         }
     }
 
-    if (!is_user || pagemap == current->vm->pagemap) {
-        // Flush this CPU's TLB while other CPUs are flushing theirs
-        for (uintptr_t addr = virt_addr; addr < virt_addr + size;
-             addr += PAGE_SIZE)
-            arch_flush_tlb_single(addr);
-    }
+    // Invalidate this CPU's TLB while other CPUs are invalidating theirs
+    invalidate_tlb_local(pagemap, virt_addr, npages);
 
     if (msg) {
-        // Wait for other CPUs to finish processing FLUSH_TLB_RANGE
+        // Wait for other CPUs to finish processing INVALIDATE_TLB_RANGE
         while (refcount_get(&msg->refcount) > 0)
             cpu_relax();
         cpu_free_message(msg);
     }
-}
-
-static void flush_tlb_local(struct pagemap* pagemap, uintptr_t virt_addr) {
-    ASSERT(virt_addr % PAGE_SIZE == 0);
-    bool is_user = is_user_address((void*)virt_addr);
-    if (!is_user || pagemap == current->vm->pagemap)
-        arch_flush_tlb_single(virt_addr);
 }
 
 int pagemap_map(struct pagemap* pagemap, uintptr_t virt_addr, size_t pfn,
@@ -89,30 +88,48 @@ int pagemap_map(struct pagemap* pagemap, uintptr_t virt_addr, size_t pfn,
         if (IS_ERR(rc))
             break;
     }
-    flush_tlb_global(pagemap, virt_addr, i << PAGE_SHIFT);
+    invalidate_tlb_global(pagemap, virt_addr, i);
     return rc;
 }
 
 int pagemap_map_local(struct pagemap* pagemap, uintptr_t virt_addr, size_t pfn,
-                      unsigned flags) {
-    int rc = arch_map_page(pagemap, virt_addr, pfn, flags);
-    if (IS_ERR(rc))
-        return rc;
-    flush_tlb_local(pagemap, virt_addr);
-    return 0;
+                      size_t npages, unsigned flags) {
+    ASSERT(virt_addr % PAGE_SIZE == 0);
+    if (npages == 0)
+        return 0;
+    int rc = 0;
+    size_t i = 0;
+    for (; i < npages; ++i) {
+        rc = arch_map_page(pagemap, virt_addr + (i << PAGE_SHIFT), pfn + i,
+                           flags);
+        if (IS_ERR(rc))
+            break;
+    }
+    invalidate_tlb_local(pagemap, virt_addr, i);
+    return rc;
+}
+
+static void unmap_pages(struct pagemap* pagemap, uintptr_t virt_addr,
+                        size_t npages) {
+    ASSERT(virt_addr % PAGE_SIZE == 0);
+    for (size_t i = 0; i < npages; ++i)
+        arch_unmap_page(pagemap, virt_addr + (i << PAGE_SHIFT));
 }
 
 void pagemap_unmap(struct pagemap* pagemap, uintptr_t virt_addr,
                    size_t npages) {
-    ASSERT(virt_addr % PAGE_SIZE == 0);
-    if (npages == 0)
-        return;
-    for (size_t i = 0; i < npages; ++i)
-        arch_unmap_page(pagemap, virt_addr + (i << PAGE_SHIFT));
-    flush_tlb_global(pagemap, virt_addr, npages << PAGE_SHIFT);
+    unmap_pages(pagemap, virt_addr, npages);
+    invalidate_tlb_global(pagemap, virt_addr, npages);
 }
 
-void pagemap_unmap_local(struct pagemap* pagemap, uintptr_t virt_addr) {
-    arch_unmap_page(pagemap, virt_addr);
-    flush_tlb_local(pagemap, virt_addr);
+void pagemap_unmap_local(struct pagemap* pagemap, uintptr_t virt_addr,
+                         size_t npages) {
+    unmap_pages(pagemap, virt_addr, npages);
+    invalidate_tlb_local(pagemap, virt_addr, npages);
+}
+
+void pagemap_switch(struct pagemap* pagemap) {
+    SCOPED_DISABLE_INTERRUPTS();
+    cpu_get_current()->active_pagemap = pagemap;
+    arch_switch_pagemap(pagemap);
 }

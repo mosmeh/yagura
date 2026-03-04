@@ -225,8 +225,11 @@ static long process_vm_rw(pid_t pid, const struct iovec* user_local_iov,
     if (!task)
         return -ESRCH;
 
-    struct vm* vm = task->vm;
-    SCOPED_LOCK(vm, vm);
+    struct vm* vm FREE(vm) = NULL;
+    {
+        SCOPED_LOCK(task, task);
+        vm = vm_ref(task->vm);
+    }
 
     size_t total_copied = 0;
     unsigned long local_iov_index = 0;
@@ -257,8 +260,12 @@ static long process_vm_rw(pid_t pid, const struct iovec* user_local_iov,
                 return -EFAULT;
         }
 
-        struct page* page FREE(page) =
-            vm_get_page(vm, remote_iov.iov_base, write ? VM_WRITE : VM_READ);
+        struct page* page FREE(page) = NULL;
+        {
+            SCOPED_LOCK(vm, vm);
+            page = vm_get_page(vm, remote_iov.iov_base,
+                               write ? VM_WRITE : VM_READ);
+        }
         if (IS_ERR(page))
             return PTR_ERR(page);
         if (!page)

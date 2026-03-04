@@ -70,16 +70,16 @@ NODISCARD int pagemap_map(struct pagemap*, uintptr_t virt_addr, size_t pfn,
                           size_t npages, unsigned flags);
 
 // Maps the page to the virtual address. Only the TLB of the current CPU is
-// flushed.
+// invalidated.
 NODISCARD int pagemap_map_local(struct pagemap*, uintptr_t virt_addr,
-                                size_t pfn, unsigned flags);
+                                size_t pfn, size_t npages, unsigned flags);
 
 // Unmaps the pages at the virtual address.
 void pagemap_unmap(struct pagemap*, uintptr_t virt_addr, size_t npages);
 
-// Unmaps the page at the virtual address. Only the TLB of the current CPU is
-// flushed.
-void pagemap_unmap_local(struct pagemap*, uintptr_t virt_addr);
+// Unmaps the pages at the virtual address. Only the TLB of the current CPU is
+// invalidated.
+void pagemap_unmap_local(struct pagemap*, uintptr_t virt_addr, size_t npages);
 
 void pagemap_switch(struct pagemap*);
 

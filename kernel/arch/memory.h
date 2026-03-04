@@ -14,9 +14,9 @@ struct registers;
 NODISCARD int arch_map_page(struct pagemap*, uintptr_t virt_addr, size_t pfn,
                             unsigned flags);
 void arch_unmap_page(struct pagemap*, uintptr_t virt_addr);
+void arch_switch_pagemap(struct pagemap*);
 
-void arch_flush_tlb_all(void);
-void arch_flush_tlb_single(uintptr_t virt_addr);
+void arch_invalidate_tlb_page(uintptr_t virt_addr);
 
 void arch_full_memory_barrier(void);
 
