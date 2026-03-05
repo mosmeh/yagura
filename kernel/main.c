@@ -70,14 +70,9 @@ static _Noreturn void userland_init(void) {
     PANIC("No working init found");
 }
 
-static _Noreturn void ksyncd(void) {
-    static const struct timespec interval = {.tv_sec = 5};
-    for (;;) {
-        int rc = vfs_sync();
-        if (IS_ERR(rc))
-            kprintf("ksyncd: sync failed (error %d)\n", rc);
-        sched_sleep(&interval);
-    }
+static _Noreturn void kworker(void) {
+    for (;;)
+        workqueue_dispatch(global_wq);
 }
 
 static _Noreturn void kernel_init(void) {
@@ -92,7 +87,7 @@ static _Noreturn void kernel_init(void) {
     arch_late_init();
     kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
-    ASSERT_OK(task_spawn("ksyncd", ksyncd));
+    ASSERT_OK(task_spawn("kworker", kworker));
 
     userland_init(); // Become the userland init process
 }

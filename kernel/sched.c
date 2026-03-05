@@ -9,7 +9,6 @@
 #include <kernel/system.h>
 #include <kernel/task/signal.h>
 #include <kernel/task/task.h>
-#include <kernel/time.h>
 
 static _Noreturn void do_idle(void) {
     for (;;) {
@@ -272,18 +271,4 @@ int sched_block(unblock_fn unblock, void* data, int flags) {
     sched_yield();
 
     return current->interrupted ? -EINTR : 0;
-}
-
-static bool unblock_sleep(void* data) {
-    const struct timespec* deadline = data;
-    struct timespec now;
-    ASSERT_OK(time_now(CLOCK_MONOTONIC, &now));
-    return timespec_compare(&now, deadline) >= 0;
-}
-
-void sched_sleep(const struct timespec* duration) {
-    struct timespec deadline;
-    ASSERT_OK(time_now(CLOCK_MONOTONIC, &deadline));
-    timespec_add(&deadline, duration);
-    ASSERT_OK(sched_block(unblock_sleep, &deadline, BLOCK_UNINTERRUPTIBLE));
 }

@@ -14,6 +14,7 @@
 #include <kernel/cpu.h>
 #include <kernel/sched.h>
 #include <kernel/system.h>
+#include <kernel/task/workqueue.h>
 
 enum {
     TASK_RUNNING,
@@ -56,6 +57,8 @@ struct task {
     struct task* blocked_next;
 
     struct arch_task arch;
+
+    struct work destroy_work;
 
     struct mutex lock;
     refcount_t refcount;

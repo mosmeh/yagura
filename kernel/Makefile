@@ -91,6 +91,7 @@ SRCS := \
 	kernel/syscall/time.c \
 	kernel/system.c \
 	kernel/task/fs.c \
+	kernel/task/workqueue.c \
 	kernel/task/signal.c \
 	kernel/task/task.c \
 	kernel/time.c
