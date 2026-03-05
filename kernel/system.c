@@ -9,6 +9,7 @@
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/system.h>
+#include <kernel/task/task.h>
 
 static struct utsname utsname = {
     .sysname = "yagura",
@@ -139,10 +140,26 @@ static void sysrq_reboot(void) { reboot(NULL); }
 
 static void sysrq_crash(void) { PANIC("sysrq triggered crash"); }
 
+static _Atomic(size_t) pending_syncs;
+
+static void sync(struct work* work) {
+    (void)work;
+    for (;;) {
+        ASSERT(pending_syncs > 0);
+
+        int rc = vfs_sync();
+        (void)rc;
+        kprint("Emergency Sync complete\n");
+
+        if (--pending_syncs == 0)
+            break;
+    }
+}
+
 static void sysrq_sync(void) {
-    int rc = vfs_sync();
-    (void)rc;
-    kprint("Emergency Sync complete\n");
+    static struct work work;
+    if (pending_syncs++ == 0)
+        workqueue_submit(global_workqueue, &work, sync);
 }
 
 struct sysrq {

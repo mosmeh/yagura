@@ -424,10 +424,7 @@ int vfs_sync(void) {
     return 0;
 }
 
-void vfs_init(void) {
-    tmpfs_init();
-    proc_init();
-
+static void mount_root(void) {
     kprint("vfs: mounting root filesystem\n");
     const struct file_system* fs = ASSERT_PTR(file_system_find("tmpfs"));
     struct mount* mount = ASSERT_PTR(file_system_mount(fs, "tmpfs"));
@@ -436,4 +433,27 @@ void vfs_init(void) {
     SCOPED_LOCK(fs, current->fs);
     ASSERT_OK(fs_chroot(current->fs, root));
     ASSERT_OK(fs_chdir(current->fs, root));
+}
+
+static void schedule_sync(void);
+
+static void sync(struct work* work) {
+    (void)work;
+    int rc = vfs_sync();
+    if (IS_ERR(rc))
+        kprintf("vfs: sync failed (error %d)\n", rc);
+    schedule_sync();
+}
+
+static void schedule_sync(void) {
+    static struct work work;
+    static const struct timespec sync_interval = {.tv_sec = 5};
+    workqueue_submit_delayed(global_workqueue, &work, sync, &sync_interval);
+}
+
+void vfs_init(void) {
+    tmpfs_init();
+    proc_init();
+    mount_root();
+    schedule_sync();
 }

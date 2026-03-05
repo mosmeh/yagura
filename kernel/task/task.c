@@ -1,4 +1,5 @@
 #include "private.h"
+#include <arch/interrupts.h>
 #include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/sched.h>
@@ -165,17 +166,21 @@ pid_t task_spawn(const char* comm, void (*entry_point)(void)) {
     return task->tid;
 }
 
-void __task_destroy(struct task* task) {
-    ASSERT(task->tid > 0); // The initial task should never exit.
-    ASSERT(task != current);
-
+static void destroy(struct work* work) {
+    struct task* task = CONTAINER_OF(work, struct task, destroy_work);
     thread_group_unref(task->thread_group);
     sighand_unref(task->sighand);
     files_unref(task->files);
     fs_unref(task->fs);
     vm_unref(task->vm);
-
     kfree((void*)task->kernel_stack_base);
+}
+
+void __task_destroy(struct task* task) {
+    ASSERT(task->tid > 0); // The initial task should never exit.
+    ASSERT(task != current);
+    workqueue_submit_or_execute(global_workqueue, &task->destroy_work, destroy,
+                                arch_interrupts_enabled());
 }
 
 pid_t task_generate_next_tid(void) { return atomic_fetch_add(&next_tid, 1); }
