@@ -135,21 +135,34 @@ void panic(const char* format, ...) {
     halt();
 }
 
+static void sysrq_reboot(void) { reboot(NULL); }
+
+static void sysrq_crash(void) { PANIC("sysrq triggered crash"); }
+
+static void sysrq_sync(void) {
+    int rc = vfs_sync();
+    (void)rc;
+    kprint("Emergency Sync complete\n");
+}
+
+struct sysrq {
+    const char* msg;
+    void (*handler)(void);
+};
+
+static const struct sysrq sysrq_ops[] = {
+    ['b'] = {"Resetting", sysrq_reboot},
+    ['c'] = {"Trigger a crash", sysrq_crash},
+    ['o'] = {"Power Off", poweroff},
+    ['s'] = {"Emergency Sync", sysrq_sync},
+};
+
 void handle_sysrq(char ch) {
-    switch (ch) {
-    case 'b':
-        kprint("sysrq: Resetting\n");
-        reboot(NULL);
-        break;
-    case 'c':
-        kprint("sysrq: Trigger a crash\n");
-        PANIC("sysrq triggered crash");
-        break;
-    case 's':
-        kprint("sysrq: Emergency Sync\n");
-        int rc = vfs_sync();
-        (void)rc;
-        kprint("Emergency Sync complete\n");
-        break;
+    if (ch < 0 || ARRAY_SIZE(sysrq_ops) <= (size_t)ch)
+        return;
+    const struct sysrq* op = &sysrq_ops[(size_t)ch];
+    if (op->handler) {
+        kprintf("sysrq: %s\n", op->msg);
+        op->handler();
     }
 }
