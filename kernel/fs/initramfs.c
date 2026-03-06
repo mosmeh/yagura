@@ -48,17 +48,17 @@ static size_t parse_hex(const char* s, size_t len) {
 
 #define PARSE_FIELD(field) parse_hex(field, sizeof(field))
 
-void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
-    kprint("initrd: populating root file system\n");
+void initramfs_populate_root_fs(phys_addr_t phys_addr, size_t size) {
+    kprint("initramfs: populating root file system\n");
 
-    void* initrd FREE(phys) = ASSERT_PTR(phys_map(phys_addr, size, VM_READ));
+    void* image FREE(phys) = ASSERT_PTR(phys_map(phys_addr, size, VM_READ));
 
-    const unsigned char* cursor = initrd;
+    const unsigned char* cursor = image;
     const unsigned char* end = cursor + size;
     while (cursor < end) {
         const struct cpio_header* header = (const void*)cursor;
         if (strncmp(header->c_magic, "070701", sizeof(header->c_magic)) != 0) {
-            kprint("initrd: invalid cpio magic\n");
+            kprint("initramfs: invalid cpio magic\n");
             return;
         }
 
@@ -66,7 +66,7 @@ void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
         const char* filename =
             (const char*)(cursor + sizeof(struct cpio_header));
         if (filename[name_size - 1] != '\0') {
-            kprint("initrd: filename not null-terminated\n");
+            kprint("initramfs: filename not null-terminated\n");
             return;
         }
         if (!strncmp(filename, CPIO_FOOTER_MAGIC, sizeof(CPIO_FOOTER_MAGIC)))
@@ -126,5 +126,5 @@ void initrd_populate_root_fs(phys_addr_t phys_addr, size_t size) {
                               PARSE_FIELD(header->c_rdevminor));
     }
 
-    kprint("initrd: premature end of archive\n");
+    kprint("initramfs: premature end of archive\n");
 }

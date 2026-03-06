@@ -27,16 +27,16 @@ export LDFLAGS := \
 	-Wl,-z,noexecstack
 
 BASE_DIR := $(BUILD_DIR)/base
-INITRD := $(BUILD_DIR)/initrd.img
 
-export KERNEL_BIN := $(BUILD_DIR)/kernel.elf
+export KERNEL := $(BUILD_DIR)/kernel.elf
+export INITRAMFS := $(BUILD_DIR)/initramfs.cpio
 export USERLAND_BIN_DIR := $(BASE_DIR)/bin
 
 .PHONY: all $(BASE_DIR) $(SUBDIRS) disk_image clean run test
 
-all: kernel $(INITRD)
+all: kernel $(INITRAMFS)
 
-$(INITRD): $(BASE_DIR)
+$(INITRAMFS): $(BASE_DIR)
 	@echo "[CPIO] $(patsubst $(ROOT)/%,%,$@)"
 	@cd $(BASE_DIR) && find . ! -name '.gitkeep' | cpio -o -H newc > $@
 
@@ -49,9 +49,9 @@ $(BASE_DIR): base/* userland
 $(SUBDIRS):
 	$(MAKE) -C $@ all
 
-$(BUILD_DIR)/disk_image: kernel $(INITRD)
+$(BUILD_DIR)/disk_image: kernel $(INITRAMFS)
 	cp -r disk $(BUILD_DIR)/disk
-	cp $(KERNEL_BIN) $(INITRD) $(BUILD_DIR)/disk/boot/
+	cp $(KERNEL) $(INITRAMFS) $(BUILD_DIR)/disk/boot/
 	grub-mkrescue -o '$@' $(BUILD_DIR)/disk -d /usr/lib/grub/i386-pc
 
 disk_image: $(BUILD_DIR)/disk_image
@@ -59,8 +59,8 @@ disk_image: $(BUILD_DIR)/disk_image
 clean:
 	$(RM) -r $(BUILD_ROOT)
 
-run: kernel $(INITRD)
+run: kernel $(INITRAMFS)
 	./run.sh
 
-test: kernel $(INITRD)
+test: kernel $(INITRAMFS)
 	./run_tests.sh
