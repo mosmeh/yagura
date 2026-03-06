@@ -5,11 +5,11 @@ set -eo pipefail
 ARCH="${ARCH:-x86_64}"
 BUILD_DIR="${BUILD_DIR:-build/${ARCH}}"
 KERNEL="${KERNEL:-${BUILD_DIR}/kernel.elf}"
-INITRD="${INITRD:-${BUILD_DIR}/initrd.img}"
+INITRAMFS="${INITRAMFS:-${BUILD_DIR}/initramfs.cpio}"
 
 "qemu-system-${ARCH}" \
     -kernel "${KERNEL}" \
-    -initrd "${INITRD}" \
+    -initrd "${INITRAMFS}" \
     -append 'panic=poweroff init=/bin/tests/run console=ttyS0' \
     -d guest_errors \
     -no-reboot \

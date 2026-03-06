@@ -5,7 +5,7 @@ set -eo pipefail
 ARCH="${ARCH:-x86_64}"
 BUILD_DIR="${BUILD_DIR:-build/${ARCH}}"
 KERNEL="${KERNEL:-${BUILD_DIR}/kernel.elf}"
-INITRD="${INITRD:-${BUILD_DIR}/initrd.img}"
+INITRAMFS="${INITRAMFS:-${BUILD_DIR}/initramfs.cpio}"
 NUM_CPUS="${NUM_CPUS:-1}"
 
 case "$CONSOLE" in
@@ -37,7 +37,7 @@ if command -v wslpath >/dev/null; then
     QEMU_BINARY_SUFFIX='.exe'
     QEMU_EXTRA_ARGS+=(-accel "whpx,kernel-irqchip=off" -accel tcg)
     KERNEL=$(wslpath -w "${KERNEL}")
-    INITRD=$(wslpath -w "${INITRD}")
+    INITRAMFS=$(wslpath -w "${INITRAMFS}")
 else
     # NOTE: -cpu max results in "Unexpected VP exit code 4" error when used with WHPX
     QEMU_EXTRA_ARGS+=(-cpu max)
@@ -51,7 +51,7 @@ fi
 QEMU_BIN="${QEMU_BINARY_PREFIX}qemu-system-${ARCH}${QEMU_BINARY_SUFFIX}"
 "${QEMU_BIN}" \
     -kernel "${KERNEL}" \
-    -initrd "${INITRD}" \
+    -initrd "${INITRAMFS}" \
     -append "${CMDLINE[*]}" \
     -d guest_errors \
     -device ac97 \
