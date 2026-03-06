@@ -9,6 +9,7 @@ struct inode;
 void file_init(void);
 void path_init(void);
 void filemap_init(void);
+void block_init(void);
 void vfs_init(void);
 void pipe_init(void);
 void tmpfs_init(void);
