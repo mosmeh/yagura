@@ -226,6 +226,47 @@ struct block_dev* block_dev_get(dev_t rdev) {
     return block_dev;
 }
 
+int block_dev_read(struct block_dev* block_dev, struct page* page,
+                   size_t block_index) {
+    ASSERT_PTR(block_dev->bops->read);
+    ASSERT(block_index < block_dev->num_blocks);
+
+    ASSERT(PAGE_SHIFT >= block_dev->block_bits);
+    size_t nblocks_per_page = 1UL << (PAGE_SHIFT - block_dev->block_bits);
+
+    size_t nblocks_to_read =
+        MIN(nblocks_per_page, block_dev->num_blocks - block_index);
+
+    int rc = block_dev->bops->read(block_dev, page_to_phys(page), block_index,
+                                   nblocks_to_read);
+    if (IS_ERR(rc))
+        return rc;
+
+    if (nblocks_to_read < nblocks_per_page) {
+        size_t offset = nblocks_to_read << block_dev->block_bits;
+        page_fill(page, 0, offset, PAGE_SIZE - offset);
+    }
+
+    return 0;
+}
+
+int block_dev_write(struct block_dev* block_dev, struct page* page,
+                    size_t block_index) {
+    if (!block_dev->bops->write)
+        return -EPERM;
+
+    ASSERT(block_index < block_dev->num_blocks);
+
+    ASSERT(PAGE_SHIFT >= block_dev->block_bits);
+    size_t nblocks_per_page = 1UL << (PAGE_SHIFT - block_dev->block_bits);
+
+    size_t nblocks_to_write =
+        MIN(nblocks_per_page, block_dev->num_blocks - block_index);
+
+    return block_dev->bops->write(block_dev, page_to_phys(page), block_index,
+                                  nblocks_to_write);
+}
+
 void pseudo_devices_init(void);
 
 void device_init(void) {
