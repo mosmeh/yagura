@@ -22,13 +22,20 @@
 static void open_console(void) {
     struct file* file FREE(file) = ASSERT(vfs_open("/dev/console", O_RDWR, 0));
     if (IS_ERR(file)) {
-        kprint("userland_init: unable to open an initial console\n");
+        kprint("userland_init: warning: unable to open an initial console\n");
         return;
     }
     int rc;
     for (int i = 0; i < 3; ++i)
         rc = files_alloc_fd(current->files, 0, file, 0);
     (void)rc;
+}
+
+NODISCARD static int run_init(const char* path) {
+    const char* argv[] = {path, NULL};
+    static const char* const envp[] = {"HOME=/", "TERM=linux", NULL};
+    kprintf("userland_init: run %s as init process\n", path);
+    return execve_kernel(path, argv, envp);
 }
 
 static _Noreturn void userland_init(void) {
@@ -39,17 +46,11 @@ static _Noreturn void userland_init(void) {
 
     open_console();
 
-    static const char* const envp[] = {"HOME=/", "TERM=linux", NULL};
-
     const char* init_path = cmdline_lookup("init");
     if (init_path) {
-        const char* argv[] = {init_path, NULL};
-        kprintf("userland_init: run %s as init process\n", init_path);
-        int rc = execve_kernel(init_path, argv, envp);
-        if (IS_ERR(rc)) {
-            kprintf("userland_init: requested init %s failed (error %d)\n",
-                    init_path, rc);
-        }
+        int rc = run_init(init_path);
+        if (IS_ERR(rc))
+            PANIC("Requested init %s failed (error %d)", init_path, rc);
     }
 
     static const char* const default_init_paths[] = {
@@ -57,17 +58,15 @@ static _Noreturn void userland_init(void) {
     };
     for (size_t i = 0; i < ARRAY_SIZE(default_init_paths); ++i) {
         const char* path = default_init_paths[i];
-        const char* argv[] = {path, NULL};
-        kprintf("userland_init: run %s as init process\n", path);
-        int rc = execve_kernel(path, argv, envp);
+        int rc = run_init(path);
         if (rc != -ENOENT) {
-            kprintf(
-                "userland_init: %s exists but couldn't execute it (error %d)\n",
-                path, rc);
+            kprintf("userland_init: starting init: "
+                    "%s exists but couldn't execute it (error %d)\n",
+                    path, rc);
         }
     }
 
-    PANIC("No working init found");
+    PANIC("No working init found. Try passing init= option to kernel.");
 }
 
 static _Noreturn void kworker(void) {
@@ -85,7 +84,6 @@ static _Noreturn void kernel_init(void) {
     socket_init();
     time_init();
     arch_late_init();
-    kprint("\x1b[32mkernel initialization done\x1b[m\n");
 
     ASSERT_OK(task_spawn("kworker", kworker));
 
