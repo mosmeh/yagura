@@ -12,7 +12,7 @@
 #include <kernel/system.h>
 
 struct boot_params boot_params;
-static multiboot_module_t initrd_mod;
+static multiboot_module_t initramfs_mod;
 
 static void* low_phys_to_virt(phys_addr_t phys_addr) {
     return (void*)((uintptr_t)phys_addr + KERNEL_IMAGE_START);
@@ -34,7 +34,7 @@ _Noreturn void start(uint32_t mb_magic, phys_addr_t mb_info_phys_addr) {
     if (mb->flags & MULTIBOOT_INFO_MODS) {
         const multiboot_module_t* mod = low_phys_to_virt(mb->mods_addr);
         if (mb->mods_count > 0)
-            initrd_mod = *mod;
+            initramfs_mod = *mod;
         for (uint32_t i = 0; i < mb->mods_count; ++i, ++mod)
             phys_range_add_reserved("module", mod->mod_start,
                                     mod->mod_end - mod->mod_start);
@@ -97,9 +97,10 @@ _Noreturn void start(uint32_t mb_magic, phys_addr_t mb_info_phys_addr) {
 }
 
 void arch_late_init(void) {
-    if (initrd_mod.mod_start < initrd_mod.mod_end)
-        initrd_populate_root_fs(initrd_mod.mod_start,
-                                initrd_mod.mod_end - initrd_mod.mod_start);
+    if (initramfs_mod.mod_start < initramfs_mod.mod_end)
+        initramfs_populate_root_fs(initramfs_mod.mod_start,
+                                   initramfs_mod.mod_end -
+                                       initramfs_mod.mod_start);
 
     apic_init();
     syscall_init();

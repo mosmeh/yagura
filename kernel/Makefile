@@ -49,7 +49,7 @@ SRCS := \
 	kernel/fs/file.c \
 	kernel/fs/filemap.c \
 	kernel/fs/fs.c \
-	kernel/fs/initrd.c \
+	kernel/fs/initramfs.c \
 	kernel/fs/inode.c \
 	kernel/fs/mount.c \
 	kernel/fs/path.c \
@@ -170,7 +170,7 @@ OBJ_DIRS := $(sort $(dir $(OBJS)))
 
 .PHONY: all clean
 
-all: $(KERNEL_BIN)
+all: $(KERNEL)
 
 $(OUT_DIR):
 	@mkdir -p $@
@@ -194,7 +194,7 @@ $(OUT_DIR)/stage3: $(OUT_DIR)/stage2.ksyms.o $(OBJS) $(LINKER_SCRIPT)
 	@echo "[LD] $(patsubst $(ROOT)/%,%,$@)"
 	@$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
 
-$(KERNEL_BIN): $(OUT_DIR)/stage3
+$(KERNEL): $(OUT_DIR)/stage3
 	@echo "[OBJCOPY] $(patsubst $(ROOT)/%,%,$@)"
 	@objcopy -O $(KERNEL_BIN_FORMAT) $< $@
 
