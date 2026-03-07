@@ -7,6 +7,8 @@
 struct timespec;
 
 struct boot_params {
+    phys_addr_t initramfs_addr;
+    size_t initramfs_size;
     struct fb_info fb_info;
 };
 

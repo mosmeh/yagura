@@ -2,6 +2,7 @@
 
 #include <common/macros.h>
 #include <common/tree.h>
+#include <kernel/memory/phys.h>
 
 struct inode;
 
@@ -28,3 +29,5 @@ NODISCARD int filemap_sync(struct filemap*, size_t start, size_t end);
 
 // Truncates the filemap to the given length.
 NODISCARD int filemap_truncate(struct filemap*, uint64_t length);
+
+void initramfs_populate_root_fs(phys_addr_t phys_addr, size_t size);
