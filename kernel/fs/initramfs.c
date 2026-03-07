@@ -49,6 +49,9 @@ static size_t parse_hex(const char* s, size_t len) {
 #define PARSE_FIELD(field) parse_hex(field, sizeof(field))
 
 void initramfs_populate_root_fs(phys_addr_t phys_addr, size_t size) {
+    if (size < sizeof(struct cpio_header))
+        return;
+
     kprint("initramfs: populating root file system\n");
 
     void* image FREE(phys) = ASSERT_PTR(phys_map(phys_addr, size, VM_READ));

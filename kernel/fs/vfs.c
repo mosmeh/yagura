@@ -4,6 +4,7 @@
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/sysmacros.h>
+#include <kernel/arch/system.h>
 #include <kernel/containers/vec.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/inode.h>
@@ -455,5 +456,7 @@ void vfs_init(void) {
     tmpfs_init();
     proc_init();
     mount_root();
+    initramfs_populate_root_fs(boot_params.initramfs_addr,
+                               boot_params.initramfs_size);
     schedule_sync();
 }
