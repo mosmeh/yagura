@@ -1,7 +1,7 @@
 #include "io.h"
 #include <errno.h>
 #include <fcntl.h>
-#include <sound.h>
+#include <linux/soundcard.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +13,7 @@
 // parses and plays audio files in the Quite OK Audio Format
 // https://github.com/phoboslab/qoa
 
-#define NUM_CHANNELS 2
+#define MAX_NUM_CHANNELS 2
 
 #define QOA_MIN_FILESIZE 16
 #define QOA_LMS_LEN 4
@@ -119,25 +119,27 @@ int main(int argc, char* const argv[]) {
         return EXIT_FAILURE;
     }
 
+    int ret = EXIT_FAILURE;
+    int16_t* samples = NULL;
+    int dsp_fd = -1;
+
     unsigned char* bytes = malloc(num_bytes);
     if (!bytes) {
         perror("malloc");
-        close(input_fd);
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     ssize_t nread = read_exact(input_fd, bytes, num_bytes);
-    close(input_fd);
     if (nread < 0) {
         perror("read");
-        free(bytes);
-        return EXIT_FAILURE;
+        goto fail;
     }
+    close(input_fd);
+    input_fd = -1;
 
     if (strncmp((char*)bytes, "qoaf", 4) != 0) {
         dprintf(STDERR_FILENO, "Not a QOA file\n");
-        free(bytes);
-        return EXIT_FAILURE;
+        goto fail;
     }
 
     size_t header_pos = 0;
@@ -147,22 +149,23 @@ int main(int argc, char* const argv[]) {
     uint32_t sample_rate = (first_header >> 32) & 0xffffff;
     if (num_samples == 0 || num_channels == 0 || sample_rate == 0) {
         dprintf(STDERR_FILENO, "Invalid format\n");
-        free(bytes);
-        return EXIT_FAILURE;
+        goto fail;
     }
-    if (num_channels != NUM_CHANNELS || sample_rate > UINT16_MAX) {
+    printf("Channels: %u\nSample rate: %u Hz\nDuration: %u.%02u seconds\n",
+           num_channels, sample_rate, num_samples / sample_rate,
+           (num_samples % sample_rate) * 100 / sample_rate);
+    if (num_channels > MAX_NUM_CHANNELS || sample_rate > UINT16_MAX) {
         dprintf(STDERR_FILENO,
                 "Unsupported number of channels or sample rate\n");
-        free(bytes);
-        return EXIT_FAILURE;
+        goto fail;
     }
 
-    size_t total_samples = num_samples * num_channels;
+    size_t total_samples = (size_t)num_samples * num_channels;
     size_t num_sample_bytes = total_samples * sizeof(int16_t);
-    int16_t* samples = malloc(num_sample_bytes);
+    samples = malloc(num_sample_bytes);
     if (!samples) {
-        free(bytes);
-        return EXIT_FAILURE;
+        perror("malloc");
+        goto fail;
     }
 
     size_t pos = 8; // skip file header
@@ -171,12 +174,10 @@ int main(int argc, char* const argv[]) {
         if (((header >> 56) & 0xff) != num_channels ||
             ((header >> 32) & 0xffffff) != sample_rate) {
             dprintf(STDERR_FILENO, "Invalid format\n");
-            free(bytes);
-            free(samples);
-            return EXIT_FAILURE;
+            goto fail;
         }
 
-        qoa_lms_t lms[NUM_CHANNELS];
+        qoa_lms_t lms[MAX_NUM_CHANNELS];
         for (int c = 0; c < num_channels; ++c) {
             uint64_t history = read_u64(bytes, &pos);
             uint64_t weights = read_u64(bytes, &pos);
@@ -214,32 +215,52 @@ int main(int argc, char* const argv[]) {
             }
         }
 
-        sample_idx += num_samples_in_frame * num_channels;
+        sample_idx += (size_t)num_samples_in_frame * num_channels;
     }
     free(bytes);
+    bytes = NULL;
 
-    int dsp_fd = open("/dev/dsp", O_WRONLY);
+    dsp_fd = open("/dev/dsp", O_WRONLY);
     if (dsp_fd < 0) {
         if (errno == ENOENT)
             dprintf(STDERR_FILENO, "Audio device is not available\n");
         else
             perror("open");
-        free(samples);
-        return EXIT_FAILURE;
+        goto fail;
     }
 
-    uint16_t inout_sample_rate = sample_rate;
-    if (ioctl(dsp_fd, SOUND_SET_SAMPLE_RATE, &inout_sample_rate) < 0) {
+    int format = AFMT_S16_LE;
+    if (ioctl(dsp_fd, SOUND_PCM_SETFMT, &format) < 0) {
         perror("ioctl");
-        close(dsp_fd);
-        free(samples);
-        return EXIT_FAILURE;
+        goto fail;
     }
-    if (inout_sample_rate != sample_rate) {
-        dprintf(STDERR_FILENO, "Failed to set sample rate\n");
-        close(dsp_fd);
-        free(samples);
-        return EXIT_FAILURE;
+    if (format != AFMT_S16_LE) {
+        dprintf(STDERR_FILENO,
+                "Audio device does not support the required format\n");
+        goto fail;
+    }
+
+    int inout_channels = num_channels;
+    if (ioctl(dsp_fd, SOUND_PCM_WRITE_CHANNELS, &inout_channels) < 0) {
+        perror("ioctl");
+        goto fail;
+    }
+    if (inout_channels != num_channels) {
+        dprintf(
+            STDERR_FILENO,
+            "Audio device does not support the required number of channels\n");
+        goto fail;
+    }
+
+    int inout_sample_rate = sample_rate;
+    if (ioctl(dsp_fd, SOUND_PCM_WRITE_RATE, &inout_sample_rate) < 0) {
+        perror("ioctl");
+        goto fail;
+    }
+    if (inout_sample_rate != (int)sample_rate) {
+        dprintf(STDERR_FILENO,
+                "Audio device does not support the required sample rate\n");
+        goto fail;
     }
 
     struct winsize winsize;
@@ -261,17 +282,20 @@ int main(int argc, char* const argv[]) {
                 perror("write");
             else
                 dprintf(STDERR_FILENO, "Output stream unexpectedly closed\n");
-            close(dsp_fd);
-            free(samples);
-            return EXIT_FAILURE;
+            goto fail;
         }
         total_nwritten += nwritten;
     }
     print_progress_bar(winsize.ws_col, num_sample_bytes, num_sample_bytes);
     putchar('\n');
 
-    close(dsp_fd);
+    ret = EXIT_SUCCESS;
+fail:
     free(samples);
-
-    return EXIT_SUCCESS;
+    free(bytes);
+    if (dsp_fd >= 0)
+        close(dsp_fd);
+    if (input_fd >= 0)
+        close(input_fd);
+    return ret;
 }

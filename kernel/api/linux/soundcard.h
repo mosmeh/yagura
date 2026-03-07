@@ -1,0 +1,63 @@
+#pragma once
+
+#include <kernel/api/linux/ioctl.h>
+
+#define _SIO _IO
+#define _SIOR _IOR
+#define _SIOW _IOW
+#define _SIOWR _IOWR
+
+#define SNDCTL_DSP_RESET _SIO('P', 0)
+#define SNDCTL_DSP_SYNC _SIO('P', 1)
+#define SNDCTL_DSP_SPEED _SIOWR('P', 2, int)
+#define SNDCTL_DSP_STEREO _SIOWR('P', 3, int)
+#define SNDCTL_DSP_CHANNELS _SIOWR('P', 6, int)
+#define SOUND_PCM_WRITE_CHANNELS SNDCTL_DSP_CHANNELS
+
+#define SNDCTL_DSP_GETFMTS _SIOR('P', 11, int) // Returns a mask
+#define SNDCTL_DSP_SETFMT _SIOWR('P', 5, int)  // Selects ONE fmt
+#define AFMT_QUERY 0x00000000
+#define AFMT_S16_LE 0x00000010 // Little endian signed 16
+
+#define SOUND_PCM_READ_RATE _SIOR('P', 2, int)
+#define SOUND_PCM_READ_CHANNELS _SIOR('P', 6, int)
+#define SOUND_PCM_READ_BITS _SIOR('P', 5, int)
+
+#define SOUND_PCM_WRITE_BITS SNDCTL_DSP_SETFMT
+#define SOUND_PCM_WRITE_RATE SNDCTL_DSP_SPEED
+#define SOUND_PCM_RESET SNDCTL_DSP_RESET
+#define SOUND_PCM_SYNC SNDCTL_DSP_SYNC
+#define SOUND_PCM_GETFMTS SNDCTL_DSP_GETFMTS
+#define SOUND_PCM_SETFMT SNDCTL_DSP_SETFMT
+
+#define SOUND_MIXER_VOLUME 0
+#define SOUND_MIXER_PCM 4
+
+// Arg contains a bit for each recording source
+#define SOUND_MIXER_RECSRC 0xff
+
+// Arg contains a bit for each supported device
+#define SOUND_MIXER_DEVMASK 0xfe
+
+// Arg contains a bit for each supported recording source
+#define SOUND_MIXER_RECMASK 0xfd
+
+#define SOUND_MIXER_CAPS 0xfc
+#define SOUND_MIXER_STEREODEVS 0xfb // Mixer channels supporting stereo
+
+#define SOUND_MASK_VOLUME (1 << SOUND_MIXER_VOLUME)
+#define SOUND_MASK_PCM (1 << SOUND_MIXER_PCM)
+
+#define MIXER_READ(dev) _SIOR('M', dev, int)
+#define SOUND_MIXER_READ_VOLUME MIXER_READ(SOUND_MIXER_VOLUME)
+#define SOUND_MIXER_READ_PCM MIXER_READ(SOUND_MIXER_PCM)
+
+#define SOUND_MIXER_READ_RECSRC MIXER_READ(SOUND_MIXER_RECSRC)
+#define SOUND_MIXER_READ_DEVMASK MIXER_READ(SOUND_MIXER_DEVMASK)
+#define SOUND_MIXER_READ_RECMASK MIXER_READ(SOUND_MIXER_RECMASK)
+#define SOUND_MIXER_READ_STEREODEVS MIXER_READ(SOUND_MIXER_STEREODEVS)
+#define SOUND_MIXER_READ_CAPS MIXER_READ(SOUND_MIXER_CAPS)
+
+#define MIXER_WRITE(dev) _SIOWR('M', dev, int)
+#define SOUND_MIXER_WRITE_VOLUME MIXER_WRITE(SOUND_MIXER_VOLUME)
+#define SOUND_MIXER_WRITE_PCM MIXER_WRITE(SOUND_MIXER_PCM)
