@@ -196,7 +196,7 @@ $(OUT_DIR)/stage3: $(OUT_DIR)/stage2.ksyms.o $(OBJS) $(LINKER_SCRIPT)
 
 $(KERNEL): $(OUT_DIR)/stage3
 	@echo "[OBJCOPY] $(patsubst $(ROOT)/%,%,$@)"
-	@objcopy -O $(KERNEL_BIN_FORMAT) $< $@
+	@$(OBJCOPY) -O $(KERNEL_BIN_FORMAT) $< $@
 
 $(OUT_DIR)/%.ksyms.o: ksyms.S $(OUT_DIR)/%.ksyms
 	@echo "[AS] $<"
@@ -204,7 +204,7 @@ $(OUT_DIR)/%.ksyms.o: ksyms.S $(OUT_DIR)/%.ksyms
 
 %.ksyms: % | $(OUT_DIR)
 	@echo "[KSYMS] $(patsubst $(ROOT)/%,%,$<)"
-	@nm -n $< > $@
+	@$(NM) -n $< > $@
 
 $(OBJ_DIRS):
 	@mkdir -p $@

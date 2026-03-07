@@ -2,6 +2,18 @@ SUBDIRS := kernel userland
 
 GIT_HASH := $(shell git describe --always --dirty --exclude '*' 2> /dev/null)
 
+ifeq ($(CROSS_COMPILE),)
+export CC ?= cc
+export AR ?= ar
+export OBJCOPY ?= objcopy
+export NM ?= nm
+else
+export CC := $(CROSS_COMPILE)gcc
+export AR := $(CROSS_COMPILE)ar
+export OBJCOPY := $(CROSS_COMPILE)objcopy
+export NM := $(CROSS_COMPILE)nm
+endif
+
 export ARCH ?= x86_64
 
 export ROOT := $(abspath .)
