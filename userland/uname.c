@@ -11,6 +11,7 @@ static void usage(void) {
 
 int main(int argc, char* const argv[]) {
     bool all = false;
+    bool sysname = false;
     bool nodename = false;
     bool release = false;
     bool version = false;
@@ -24,6 +25,7 @@ int main(int argc, char* const argv[]) {
             all = true;
             break;
         case 's':
+            sysname = true;
             break;
         case 'n':
             nodename = true;
@@ -41,6 +43,8 @@ int main(int argc, char* const argv[]) {
             usage();
         }
     }
+    if (argc < 2)
+        sysname = true;
 
     struct utsname buf;
     if (uname(&buf) < 0) {
@@ -48,7 +52,8 @@ int main(int argc, char* const argv[]) {
         return EXIT_FAILURE;
     }
 
-    printf("%s ", buf.sysname);
+    if (all || sysname)
+        printf("%s ", buf.sysname);
     if (all || nodename)
         printf("%s ", buf.nodename);
     if (all || release)
