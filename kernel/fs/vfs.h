@@ -2,7 +2,6 @@
 
 #include <kernel/api/time.h>
 #include <kernel/lock.h>
-#include <kernel/memory/phys.h>
 
 struct path;
 struct kstat;
@@ -91,8 +90,6 @@ struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
 
 // Writes back all dirty inodes.
 NODISCARD int vfs_sync(void);
-
-void initramfs_populate_root_fs(phys_addr_t phys_addr, size_t size);
 
 NODISCARD int devtmpfs_mknod(const char* name, mode_t mode, dev_t dev);
 
