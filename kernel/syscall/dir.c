@@ -165,6 +165,6 @@ static ssize_t fill_dir64(void* user_buf, size_t buf_size, const char* name,
     return rec_len;
 }
 
-long sys_getdents64(int fd, struct linux_dirent* user_dirp, size_t count) {
+long sys_getdents64(int fd, struct linux_dirent64* user_dirp, size_t count) {
     return getdents(fd, user_dirp, count, fill_dir64);
 }

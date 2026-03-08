@@ -18,6 +18,7 @@ struct timezone;
 struct tms;
 struct utsname;
 struct linux_dirent;
+struct linux_dirent64;
 struct linux_old_dirent;
 struct linux_old_stat;
 struct linux_old_utsname;
@@ -91,7 +92,7 @@ long sys_fchown(int fd, uid_t owner, gid_t group);
 long sys_openat(int dirfd, const char* pathname, int flags, mode_t mode);
 long sys_close(int fd);
 long sys_pipe2(int pipefd[2], int flags);
-long sys_getdents64(int fd, struct linux_dirent* dirp, size_t count);
+long sys_getdents64(int fd, struct linux_dirent64* dirp, size_t count);
 long sys_llseek(unsigned int fd, unsigned long offset_high,
                 unsigned long offset_low, loff_t* result, unsigned int whence);
 long sys_lseek(int fd, off_t offset, int whence);
