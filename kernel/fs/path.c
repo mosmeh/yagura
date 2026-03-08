@@ -19,6 +19,9 @@ struct path* path_create_root(struct inode* root) {
 }
 
 char* path_to_string(const struct path* path, const struct path* root) {
+    ASSERT_PTR(path);
+    ASSERT_PTR(root);
+
     if (!path->parent) // Root directory of the VFS
         return kstrdup(ROOT_DIR);
 

@@ -77,21 +77,36 @@ static int print_comm(struct file* file, struct vec* vec) {
 
 static int print_cwd(struct file* file, struct vec* vec) {
     pid_t pid = pid_from_ino(file->inode->ino);
-    struct task* task FREE(task) = task_find_by_tid(pid);
-    if (!task)
-        return -ENOENT;
 
-    char* cwd FREE(kfree) = NULL;
+    char* cwd_str FREE(kfree) = NULL;
     {
-        SCOPED_LOCK(task, task);
-        struct fs* fs = task->fs;
-        SCOPED_LOCK(fs, fs);
-        cwd = path_to_string(fs->cwd, fs->root);
-    }
-    if (!cwd)
-        return -ENOMEM;
+        struct task* task FREE(task) = task_find_by_tid(pid);
+        if (!task)
+            return -ENOENT;
 
-    return vec_printf(vec, "%s", cwd);
+        struct path* cwd FREE(path) = NULL;
+        {
+            SCOPED_LOCK(task, task);
+            SCOPED_LOCK(fs, task->fs);
+            cwd = path_dup(task->fs->cwd);
+        }
+        if (IS_ERR(cwd))
+            return PTR_ERR(cwd);
+
+        struct path* root FREE(path) = NULL;
+        {
+            SCOPED_LOCK(fs, current->fs);
+            root = path_dup(current->fs->root);
+        }
+        if (IS_ERR(root))
+            return PTR_ERR(root);
+
+        cwd_str = path_to_string(cwd, root);
+        if (!cwd_str)
+            return -ENOMEM;
+    }
+
+    return vec_printf(vec, "%s", cwd_str);
 }
 
 static int print_environ(struct file* file, struct vec* vec) {
