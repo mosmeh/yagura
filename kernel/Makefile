@@ -57,7 +57,7 @@ SRCS := \
 	kernel/fs/proc/pid.c \
 	kernel/fs/proc/proc.c \
 	kernel/fs/proc/root.c \
-	kernel/fs/tmpfs.c \
+	kernel/fs/ramfs.c \
 	kernel/fs/vfs.c \
 	kernel/kmsg.c \
 	kernel/ksyms.c \

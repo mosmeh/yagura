@@ -453,7 +453,7 @@ static void schedule_sync(void) {
 }
 
 void vfs_init(void) {
-    tmpfs_init();
+    ramfs_init();
     proc_init();
     mount_root();
     initramfs_populate_root_fs(boot_params.initramfs_addr,
