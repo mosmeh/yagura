@@ -3,6 +3,7 @@
 #include <common/libgen.h>
 #include <common/string.h>
 #include <kernel/api/fcntl.h>
+#include <kernel/api/sched.h>
 #include <kernel/exec/exec.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/inode.h>
@@ -273,13 +274,9 @@ NODISCARD static int finalize_exec(struct loader* loader) {
     struct task* task = current;
     SCOPED_LOCK(task, task);
 
-    if (refcount_get(&task->files->refcount) > 1) {
-        struct files* new_files = ASSERT(files_clone(task->files));
-        if (IS_ERR(new_files))
-            return PTR_ERR(new_files);
-        files_unref(task->files);
-        task->files = new_files;
-    }
+    int rc = task_unshare(CLONE_FILES);
+    if (IS_ERR(rc))
+        return rc;
 
     if (refcount_get(&task->sighand->refcount) > 1) {
         struct sighand* new_sighand = ASSERT(sighand_clone(task->sighand));
@@ -294,7 +291,7 @@ NODISCARD static int finalize_exec(struct loader* loader) {
         sighand_unref(old_sighand);
     }
 
-    int rc = files_close_on_exec(task->files);
+    rc = files_close_on_exec(task->files);
     if (IS_ERR(rc))
         return rc;
 

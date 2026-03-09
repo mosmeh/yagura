@@ -1,4 +1,5 @@
 #include <kernel/api/fcntl.h>
+#include <kernel/api/sched.h>
 #include <kernel/arch/system.h>
 #include <kernel/console/console.h>
 #include <kernel/cpu.h>
@@ -43,6 +44,8 @@ static _Noreturn void userland_init(void) {
     ASSERT(current->thread_group->tgid == 1);
     ASSERT(current->thread_group->pgid == 0);
     ASSERT(current->thread_group->ppid == 0);
+
+    ASSERT_OK(task_unshare(CLONE_FS | CLONE_FILES));
 
     open_console();
 
@@ -93,12 +96,10 @@ static _Noreturn void kernel_init(void) {
 _Noreturn void kernel_main(void) {
     kprint("version: " YAGURA_VERSION "\n");
 
-    task_init();
+    task_early_init();
     memory_init();
-
-    // Allow memory allocation that expects interrupts to be enabled
-    arch_enable_interrupts();
-
+    arch_enable_interrupts(); // Allow sleeping for memory allocation
+    task_late_init();
     ASSERT_OK(task_spawn("init", kernel_init));
     sched_start();
 }

@@ -67,7 +67,8 @@ struct task {
 extern struct task* tasks;
 extern struct spinlock tasks_lock;
 
-void task_init(void);
+void task_early_init(void);
+void task_late_init(void);
 
 #define current task_get_current()
 
@@ -76,13 +77,16 @@ static inline struct task* task_get_current(void) {
 }
 
 struct task* task_create(const char* comm, void (*entry_point)(void));
-struct task* task_clone(const struct task*, unsigned flags);
 NODISCARD pid_t task_spawn(const char* comm, void (*entry_point)(void));
 
 DEFINE_LOCKED(task, struct task*, mutex, lock)
 
 void __task_destroy(struct task*);
 DEFINE_REFCOUNTED_BASE(task, struct task*, refcount, __task_destroy)
+
+// Ensures that the current task has its own copy of the resources specified
+// by `flags` (`CLONE_*`).
+NODISCARD int task_unshare(unsigned long flags);
 
 pid_t task_generate_next_tid(void);
 struct task* task_find_by_tid(pid_t);

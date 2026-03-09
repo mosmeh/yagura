@@ -25,7 +25,7 @@ static struct task init_task = {
 
 static struct slab thread_group_slab;
 
-void task_init(void) {
+void task_early_init(void) {
     struct cpu* cpu = cpu_get_bsp();
     cpu->current_task = cpu->idle_task = task_ref(&init_task);
 
@@ -35,25 +35,23 @@ void task_init(void) {
     task_signal_init();
 }
 
-struct task* task_create(const char* comm, void (*entry_point)(void)) {
-    struct task* task FREE(task) = ASSERT(task_clone(NULL, 0));
-    if (IS_ERR(task))
-        return task;
+void task_late_init(void) {
+    ASSERT(current == &init_task);
 
-    strlcpy(task->comm, comm, sizeof(task->comm));
+    ASSERT(!init_task.fs);
+    init_task.fs = ASSERT_PTR(fs_create());
 
-    int rc = arch_init_task(task, entry_point);
-    if (IS_ERR(rc))
-        return ERR_PTR(rc);
+    ASSERT(!init_task.files);
+    init_task.files = ASSERT_PTR(files_create());
 
-    return TAKE_PTR(task);
+    ASSERT(!init_task.sighand);
+    init_task.sighand = ASSERT_PTR(sighand_create());
+
+    ASSERT(!init_task.thread_group);
+    init_task.thread_group = ASSERT_PTR(thread_group_create());
 }
 
-struct task* task_clone(const struct task* task, unsigned flags) {
-    ASSERT(!task || task == current || task_is_locked_by_current(task));
-
-    if (!task && flags)
-        return ERR_PTR(-EINVAL);
+static struct task* task_clone(unsigned flags) {
     if ((flags & CLONE_SIGHAND) && !(flags & CLONE_VM))
         return ERR_PTR(-EINVAL);
     if ((flags & CLONE_THREAD) && !(flags & CLONE_SIGHAND))
@@ -72,78 +70,60 @@ struct task* task_clone(const struct task* task, unsigned flags) {
         .state = TASK_RUNNING,
         .kernel_stack_base = (uintptr_t)stack,
         .kernel_stack_top = (uintptr_t)stack_top,
+        .arg_start = current->arg_start,
+        .arg_end = current->arg_end,
+        .env_start = current->env_start,
+        .env_end = current->env_end,
+        .blocked_signals = current->blocked_signals,
         .refcount = REFCOUNT_INIT_ONE,
     };
-
-    if (task) {
-        strlcpy(new_task->comm, task->comm, sizeof(new_task->comm));
-
-        new_task->arg_start = task->arg_start;
-        new_task->arg_end = task->arg_end;
-        new_task->env_start = task->env_start;
-        new_task->env_end = task->env_end;
-
-        new_task->blocked_signals = task->blocked_signals;
-
-        new_task->user_ticks = task->user_ticks;
-        new_task->kernel_ticks = task->kernel_ticks;
-    }
+    strlcpy(new_task->comm, current->comm, sizeof(new_task->comm));
 
     struct vm* vm FREE(vm) = NULL;
-    if (!task)
-        vm = vm_ref(kernel_vm);
-    else if (flags & CLONE_VM)
-        vm = vm_ref(task->vm);
-    else
-        vm = vm_clone(task->vm);
-    ASSERT(vm);
-    if (IS_ERR(vm))
-        return ERR_CAST(vm);
+    if (flags & CLONE_VM) {
+        vm = vm_ref(current->vm);
+    } else {
+        vm = ASSERT(vm_clone(current->vm));
+        if (IS_ERR(vm))
+            return ERR_CAST(vm);
+    }
 
     struct fs* fs FREE(fs) = NULL;
-    if (!task)
-        fs = fs_create();
-    else if (flags & CLONE_FS)
-        fs = fs_ref(task->fs);
-    else
-        fs = fs_clone(task->fs);
-    ASSERT(fs);
-    if (IS_ERR(fs))
-        return ERR_CAST(fs);
+    if (flags & CLONE_FS) {
+        fs = fs_ref(current->fs);
+    } else {
+        fs = ASSERT(fs_clone(current->fs));
+        if (IS_ERR(fs))
+            return ERR_CAST(fs);
+    }
 
     struct files* files FREE(files) = NULL;
-    if (!task)
-        files = files_create();
-    else if (flags & CLONE_FILES)
-        files = files_ref(task->files);
-    else
-        files = files_clone(task->files);
-    ASSERT(files);
-    if (IS_ERR(files))
-        return ERR_CAST(files);
+    if (flags & CLONE_FILES) {
+        files = files_ref(current->files);
+    } else {
+        files = ASSERT(files_clone(current->files));
+        if (IS_ERR(files))
+            return ERR_CAST(files);
+    }
 
     struct sighand* sighand FREE(sighand) = NULL;
-    if (!task)
-        sighand = sighand_create();
-    else if (flags & CLONE_SIGHAND)
-        sighand = sighand_ref(task->sighand);
-    else
-        sighand = sighand_clone(task->sighand);
-    ASSERT(sighand);
-    if (IS_ERR(sighand))
-        return ERR_CAST(sighand);
+    if (flags & CLONE_SIGHAND) {
+        sighand = sighand_ref(current->sighand);
+    } else {
+        sighand = ASSERT(sighand_clone(current->sighand));
+        if (IS_ERR(sighand))
+            return ERR_CAST(sighand);
+    }
 
     struct thread_group* thread_group FREE(thread_group) = NULL;
-    if (task && (flags & CLONE_THREAD)) {
-        thread_group = thread_group_ref(task->thread_group);
+    if (flags & CLONE_THREAD) {
+        thread_group = thread_group_ref(current->thread_group);
     } else {
         thread_group = ASSERT(thread_group_create());
         if (IS_ERR(thread_group))
             return ERR_CAST(thread_group);
-        if (task) {
-            thread_group->pgid = task->thread_group->pgid;
-            thread_group->ppid = task->thread_group->tgid;
-        }
+        thread_group->pgid = current->thread_group->pgid;
+        thread_group->ppid = current->thread_group->tgid;
         thread_group->exit_signal = flags & 0xff;
     }
 
@@ -155,6 +135,24 @@ struct task* task_clone(const struct task* task, unsigned flags) {
     new_task->thread_group = TAKE_PTR(thread_group);
 
     return new_task;
+}
+
+struct task* task_create(const char* comm, void (*entry_point)(void)) {
+    struct task* task FREE(task) =
+        ASSERT(task_clone(CLONE_VM | CLONE_FS | CLONE_FILES));
+    if (IS_ERR(task))
+        return task;
+
+    strlcpy(task->comm, comm, sizeof(task->comm));
+
+    // Kernel tasks should not have a parent.
+    task->thread_group->pgid = task->thread_group->ppid = 0;
+
+    int rc = arch_init_task(task, entry_point);
+    if (IS_ERR(rc))
+        return ERR_PTR(rc);
+
+    return TAKE_PTR(task);
 }
 
 pid_t task_spawn(const char* comm, void (*entry_point)(void)) {
@@ -181,6 +179,40 @@ void __task_destroy(struct task* task) {
     ASSERT(task != current);
     workqueue_submit_or_execute(global_workqueue, &task->destroy_work, destroy,
                                 arch_interrupts_enabled());
+}
+
+int task_unshare(unsigned long flags) {
+    if (flags & ~(CLONE_FS | CLONE_FILES))
+        return -EINVAL;
+
+    SCOPED_LOCK(task, current);
+
+    struct fs* new_fs FREE(fs) = NULL;
+    if ((flags & CLONE_FS) && refcount_get(&current->fs->refcount) > 1) {
+        new_fs = ASSERT(fs_clone(current->fs));
+        if (IS_ERR(new_fs))
+            return PTR_ERR(new_fs);
+    }
+
+    struct files* new_files FREE(files) = NULL;
+    if ((flags & CLONE_FILES) && refcount_get(&current->files->refcount) > 1) {
+        new_files = ASSERT(files_clone(current->files));
+        if (IS_ERR(new_files))
+            return PTR_ERR(new_files);
+    }
+
+    if (new_fs) {
+        struct fs* old_fs = current->fs;
+        current->fs = TAKE_PTR(new_fs);
+        fs_unref(old_fs);
+    }
+    if (new_files) {
+        struct files* old_files = current->files;
+        current->files = TAKE_PTR(new_files);
+        files_unref(old_files);
+    }
+
+    return 0;
 }
 
 pid_t task_generate_next_tid(void) { return atomic_fetch_add(&next_tid, 1); }
@@ -293,7 +325,7 @@ int clone_user_task(struct registers* regs, unsigned long flags,
     // NOLINTEND(readability-non-const-parameter)
     (void)user_child_tid;
 
-    struct task* task FREE(task) = ASSERT(task_clone(current, flags));
+    struct task* task FREE(task) = ASSERT(task_clone(flags));
     if (IS_ERR(task))
         return PTR_ERR(task);
 
