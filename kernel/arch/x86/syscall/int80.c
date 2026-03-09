@@ -318,7 +318,7 @@
     F(faccessat, sys_faccessat, 0)                                             \
     F(pselect6, sys_pselect6_time32, 0)                                        \
     F(ppoll, sys_ppoll_time32, 0)                                              \
-    F(unshare, sys_ni_syscall, 0)                                              \
+    F(unshare, sys_unshare, 0)                                                 \
     F(set_robust_list, sys_ni_syscall, 0)                                      \
     F(get_robust_list, sys_ni_syscall, 0)                                      \
     F(splice, sys_ni_syscall, 0)                                               \

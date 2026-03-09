@@ -23,6 +23,8 @@ int clone(int (*fn)(void*), void* stack, int flags, void* arg, ...) {
         __clone(fn, stack, flags, arg, parent_tid, NULL, tls));
 }
 
+int unshare(int flags) { return __syscall_return(SYSCALL1(unshare, flags)); }
+
 int sched_yield(void) { return __syscall_return(SYSCALL0(sched_yield)); }
 
 int getcpu(unsigned int* cpu, unsigned int* node) {

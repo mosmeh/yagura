@@ -251,6 +251,8 @@ long sys_times(struct tms* user_buf) {
     return uptime;
 }
 
+long sys_unshare(unsigned long flags) { return task_unshare(flags); }
+
 long sys_umask(mode_t mask) {
     return atomic_exchange(&current->fs->umask, mask & ACCESSPERMS);
 }

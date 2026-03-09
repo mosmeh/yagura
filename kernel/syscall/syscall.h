@@ -129,6 +129,7 @@ long sys_fsync(int fd);
 long sys_fdatasync(int fd);
 long sys_exit(int status);
 long sys_exit_group(int status);
+long sys_unshare(unsigned long flags);
 long sys_nanosleep_time32(const struct timespec32* duration,
                           struct timespec32* rem);
 long sys_nanosleep(const struct timespec* duration, struct timespec* rem);
