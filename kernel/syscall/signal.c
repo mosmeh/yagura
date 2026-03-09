@@ -164,7 +164,7 @@ long sys_ssetmask(long newmask) {
     sigset_t new_mask;
     sigemptyset(&new_mask);
     sigaddsetmask(&new_mask, newmask);
-    task_set_blocked_signals(current, &new_mask);
+    task_set_blocked_signals(&new_mask);
     return old_mask;
 }
 
@@ -187,7 +187,7 @@ NODISCARD static int sigprocmask(int how, const sigset_t* set,
         default:
             return -EINVAL;
         }
-        task_set_blocked_signals(current, &new_set);
+        task_set_blocked_signals(&new_set);
     }
     return 0;
 }
@@ -238,9 +238,9 @@ long sys_pause(void) { return sched_block(NULL, NULL, 0); }
 
 NODISCARD static int sigsuspend(const sigset_t* mask) {
     sigset_t old_mask = current->blocked_signals;
-    task_set_blocked_signals(current, mask);
+    task_set_blocked_signals(mask);
     int rc = sys_pause();
-    task_set_blocked_signals(current, &old_mask);
+    task_set_blocked_signals(&old_mask);
     return rc;
 }
 

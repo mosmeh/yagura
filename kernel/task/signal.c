@@ -36,18 +36,28 @@ void __sighand_destroy(struct sighand* sighand) {
     slab_free(&sighand_slab, sighand);
 }
 
+static struct sighand* get_sighand(struct task* task) {
+    // Ensure task->sighand is not changed by execve() while we are using it.
+    ASSERT(task == current ||
+           // execve() takes tasks_lock when changing task->sighand
+           spinlock_is_locked_by_current(&tasks_lock));
+    return task->sighand;
+}
+
 void task_get_pending_signals(struct task* task, sigset_t* out_set) {
-    SCOPED_LOCK(sighand, task->sighand);
+    struct sighand* sighand = get_sighand(task);
+    SCOPED_LOCK(sighand, sighand);
     for (size_t i = 0; i < ARRAY_SIZE(out_set->sig); ++i)
         out_set->sig[i] = (task->pending_signals.sig[i] |
                            task->thread_group->pending_signals.sig[i]) &
                           ~task->blocked_signals.sig[i];
 }
 
-void task_set_blocked_signals(struct task* task, const sigset_t* sigset) {
-    SCOPED_LOCK(sighand, task->sighand);
-    task->blocked_signals = *sigset;
-    sigdelsetmask(&task->blocked_signals, sigmask(SIGKILL) | sigmask(SIGSTOP));
+void task_set_blocked_signals(const sigset_t* sigset) {
+    SCOPED_LOCK(sighand, current->sighand);
+    current->blocked_signals = *sigset;
+    sigdelsetmask(&current->blocked_signals,
+                  sigmask(SIGKILL) | sigmask(SIGSTOP));
 }
 
 __extension__ static enum {
@@ -78,7 +88,8 @@ __extension__ static enum {
 STATIC_ASSERT(ARRAY_SIZE(default_dispositions) == NSIG);
 
 static void clear_pending_signal(struct task* task, int signum) {
-    ASSERT(sighand_is_locked_by_current(task->sighand));
+    struct sighand* sighand = get_sighand(task);
+    ASSERT(sighand_is_locked_by_current(sighand));
 
     sigset_t set;
     sigemptyset(&set);
@@ -92,7 +103,8 @@ static void clear_pending_signal(struct task* task, int signum) {
 
 static void send_signal_to_task(struct task* task, int signum,
                                 bool process_directed) {
-    SCOPED_LOCK(sighand, task->sighand);
+    struct sighand* sighand = get_sighand(task);
+    SCOPED_LOCK(sighand, sighand);
 
     int default_disposition = default_dispositions[signum];
 
@@ -116,7 +128,6 @@ static void send_signal_to_task(struct task* task, int signum,
         // Signal handlers may be changed while the signal is blocked,
         // so this signal should not be ignored.
     } else {
-        struct sighand* sighand = task->sighand;
         sighandler_t handler = sighand->actions[signum - 1].sa_handler;
         if (task->thread_group->tgid == 1 && handler == SIG_DFL) {
             // Signals can be sent to the init process only when
@@ -290,7 +301,7 @@ void signal_handle(struct registers* regs, int signum,
     sigorsets(&new_blocked, &current->blocked_signals, &action->sa_mask);
     if (!(action->sa_flags & SA_NODEFER))
         sigaddset(&new_blocked, signum);
-    task_set_blocked_signals(current, &new_blocked);
+    task_set_blocked_signals(&new_blocked);
 }
 
 void sigemptyset(sigset_t* set) {

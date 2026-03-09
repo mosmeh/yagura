@@ -285,8 +285,13 @@ NODISCARD static int finalize_exec(struct loader* loader) {
         struct sighand* new_sighand = ASSERT(sighand_clone(task->sighand));
         if (IS_ERR(new_sighand))
             return PTR_ERR(new_sighand);
-        sighand_unref(task->sighand);
-        task->sighand = new_sighand;
+        struct sighand* old_sighand = NULL;
+        {
+            SCOPED_LOCK(spinlock, &tasks_lock);
+            old_sighand = task->sighand;
+            task->sighand = new_sighand;
+        }
+        sighand_unref(old_sighand);
     }
 
     int rc = files_close_on_exec(task->files);

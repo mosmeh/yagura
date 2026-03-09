@@ -160,7 +160,7 @@ long sys_sigreturn(struct registers* regs) {
 
     regs->flags = (regs->flags & ~FIX_EFLAGS) | (ctx.regs.flags & FIX_EFLAGS);
 
-    task_set_blocked_signals(current, &ctx.blocked_signals);
+    task_set_blocked_signals(&ctx.blocked_signals);
 
     return ctx.regs.ax;
 }

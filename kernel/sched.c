@@ -105,55 +105,64 @@ static void add_blocked(struct task* task) {
     blocked_tasks = task_ref(task);
 }
 
+static void get_pending_signals(struct task* task, sigset_t* out_set) {
+    SCOPED_LOCK(spinlock, &tasks_lock);
+    task_get_pending_signals(task, out_set);
+}
+
 static void unblock_tasks(void) {
     SCOPED_LOCK(spinlock, &blocked_tasks_lock);
 
     struct task* prev = NULL;
-    for (struct task* it = blocked_tasks; it;) {
-        sigset_t signals;
-        task_get_pending_signals(it, &signals);
-
+    for (struct task* task = blocked_tasks; task;) {
         bool ready = false;
-        switch (it->state) {
+        switch (task->state) {
         case TASK_UNINTERRUPTIBLE:
         case TASK_INTERRUPTIBLE: {
-            ASSERT_PTR(it->unblock);
-            bool interrupted =
-                it->state == TASK_INTERRUPTIBLE && !sigisemptyset(&signals);
-            if (interrupted || it->unblock(it->block_data)) {
-                it->unblock = NULL;
-                it->block_data = NULL;
-                it->interrupted = interrupted;
+            ASSERT_PTR(task->unblock);
+            bool interrupted = false;
+            if (task->state == TASK_INTERRUPTIBLE) {
+                sigset_t signals;
+                get_pending_signals(task, &signals);
+                interrupted = !sigisemptyset(&signals);
+            }
+            if (interrupted || task->unblock(task->block_data)) {
+                task->unblock = NULL;
+                task->block_data = NULL;
+                task->interrupted = interrupted;
                 ready = true;
             }
             break;
         }
-        case TASK_STOPPED:
+        case TASK_STOPPED: {
+            sigset_t signals;
+            get_pending_signals(task, &signals);
             if (sigismember(&signals, SIGCONT))
                 ready = true;
             break;
+        }
         default:
             UNREACHABLE();
         }
 
         if (!ready) {
-            prev = it;
-            it = it->blocked_next;
+            prev = task;
+            task = task->blocked_next;
             continue;
         }
 
         if (prev)
-            prev->blocked_next = it->blocked_next;
+            prev->blocked_next = task->blocked_next;
         else
-            blocked_tasks = it->blocked_next;
+            blocked_tasks = task->blocked_next;
 
-        struct task* next = it->blocked_next;
-        it->blocked_next = NULL;
-        it->state = TASK_RUNNING;
-        it->exit_status = 0;
-        enqueue_ready(it);
-        task_unref(it);
-        it = next;
+        struct task* next = task->blocked_next;
+        task->blocked_next = NULL;
+        task->state = TASK_RUNNING;
+        task->exit_status = 0;
+        enqueue_ready(task);
+        task_unref(task);
+        task = next;
     }
 }
 
