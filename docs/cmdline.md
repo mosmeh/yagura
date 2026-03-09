@@ -19,3 +19,4 @@ The kernel command-line parameters are in the form of `key=value`, where the `=v
    - `level` = `implemented`: Logs only implemented system calls.
    - `level` = `unimplemented`: Logs only unimplemented system calls.
    - If `level` is omitted, it defaults to `all`.
+- `uname_compat`: Makes `uname` and `/proc/version` report the system as Linux.

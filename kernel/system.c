@@ -11,37 +11,49 @@
 #include <kernel/system.h>
 #include <kernel/task/task.h>
 
-static struct utsname utsname = {
-    .sysname = "yagura",
-    .nodename = "(none)",
-    .release = "dev",
-    .version = YAGURA_VERSION,
-    .machine = ARCH_UTS_MACHINE,
-    .domainname = "(none)",
-};
-
-static struct mutex utsname_lock;
+static char uts_nodename[SIZEOF_FIELD(struct utsname, nodename)] = "(none)";
+static char uts_domainname[SIZEOF_FIELD(struct utsname, domainname)] = "(none)";
+static struct mutex uts_lock;
 
 void utsname_get(struct utsname* buf) {
-    SCOPED_LOCK(mutex, &utsname_lock);
+    struct utsname utsname;
+    if (cmdline_contains("uname_compat")) {
+        utsname = (struct utsname){
+            .sysname = "Linux",
+            .release = "5.1.21",
+            .version = "#1 SMP PREEMPT yagura " YAGURA_VERSION,
+        };
+    } else {
+        utsname = (struct utsname){
+            .sysname = "yagura",
+            .release = "dev",
+            .version = YAGURA_VERSION,
+        };
+    }
+    strlcpy(utsname.machine, ARCH_UTS_MACHINE, sizeof(utsname.machine));
+    {
+        SCOPED_LOCK(mutex, &uts_lock);
+        memcpy(utsname.nodename, uts_nodename, sizeof(uts_nodename));
+        memcpy(utsname.domainname, uts_domainname, sizeof(uts_domainname));
+    }
     *buf = utsname;
 }
 
 int utsname_set_hostname(const char* hostname, size_t len) {
-    if (len >= sizeof(utsname.nodename))
+    if (len >= sizeof(uts_nodename))
         return -EINVAL;
-    SCOPED_LOCK(mutex, &utsname_lock);
-    memcpy(utsname.nodename, hostname, len);
-    memset(utsname.nodename + len, 0, sizeof(utsname.nodename) - len);
+    SCOPED_LOCK(mutex, &uts_lock);
+    memcpy(uts_nodename, hostname, len);
+    memset(uts_nodename + len, 0, sizeof(uts_nodename) - len);
     return 0;
 }
 
 int utsname_set_domainname(const char* domainname, size_t len) {
-    if (len >= sizeof(utsname.domainname))
+    if (len >= sizeof(uts_domainname))
         return -EINVAL;
-    SCOPED_LOCK(mutex, &utsname_lock);
-    memcpy(utsname.domainname, domainname, len);
-    memset(utsname.domainname + len, 0, sizeof(utsname.domainname) - len);
+    SCOPED_LOCK(mutex, &uts_lock);
+    memcpy(uts_domainname, domainname, len);
+    memset(uts_domainname + len, 0, sizeof(uts_domainname) - len);
     return 0;
 }
 
