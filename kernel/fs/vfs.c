@@ -469,6 +469,8 @@ static void schedule_sync(void) {
 
 void vfs_init(void) {
     ramfs_init();
+    ext2_init();
+    minix_init();
     proc_init();
     mount_root();
     initramfs_populate_root_fs(boot_params.initramfs_addr,

@@ -14,6 +14,9 @@ extern const struct vm_ops inode_vm_ops;
 // inode has been modified since the last writeback
 #define INODE_DIRTY 0x2
 
+// Don't evict this inode's pages from the page cache
+#define INODE_UNEVICTABLE 0x4
+
 #define INODE_INIT                                                             \
     {                                                                          \
         .vm_obj = {.vm_ops = &inode_vm_ops, .refcount = REFCOUNT_INIT_ONE }    \

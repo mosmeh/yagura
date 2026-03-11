@@ -226,6 +226,7 @@ static struct inode* ramfs_create_inode(struct mount* vfs_mount, mode_t mode) {
     vfs_inode->iops = S_ISDIR(mode) ? &dir_iops : &file_iops;
     vfs_inode->fops = S_ISDIR(mode) ? &dir_fops : &file_fops;
     vfs_inode->mode = mode;
+    vfs_inode->flags |= INODE_UNEVICTABLE;
     return vfs_inode;
 }
 

@@ -109,7 +109,20 @@ static struct page* find_page_with_lower_bound(const struct filemap* filemap,
     return result ? page_ref(result) : NULL;
 }
 
-int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
+static void update_dirtiness(struct filemap* filemap) {
+    struct page* page FREE(page) = pages_first(&filemap->pages);
+    while (page) {
+        if (page->flags & PAGE_DIRTY)
+            return;
+        struct page* next = pages_next(page);
+        page_unref(page);
+        page = next;
+    }
+    filemap->inode->flags &= ~INODE_DIRTY;
+}
+
+NODISCARD static ssize_t sync(struct filemap* filemap, size_t start, size_t end,
+                              bool purge) {
     struct inode* inode = filemap->inode;
     ASSERT(inode_is_locked_by_current(inode));
     if (start > end)
@@ -121,9 +134,13 @@ int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
     if (!inode->iops->write)
         return -EINVAL;
 
+    if (inode->flags & INODE_UNEVICTABLE)
+        purge = false;
+
     end = MIN(end, DIV_CEIL(inode->size, PAGE_SIZE));
 
     int rc = 0;
+    size_t evicted = 0;
     {
         struct page* page FREE(page) =
             find_page_with_lower_bound(filemap, start);
@@ -137,30 +154,35 @@ int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
             if (IS_ERR(rc))
                 break;
             struct page* next = pages_next(page);
+            size_t refcount = refcount_get(&page->refcount);
+            ASSERT(refcount >= 2); // ref from filemap and local variable
+            if (purge && refcount == 2) {
+                tree_remove(&filemap->pages, &page->tree_node);
+                page_unref(page);
+                ++evicted;
+            }
             page_unref(page);
             page = next;
         }
     }
     if (inode->iops->sync) {
-        int fsync_rc = inode->iops->sync(inode);
+        int sync_rc = inode->iops->sync(inode);
         if (IS_OK(rc))
-            rc = fsync_rc;
+            rc = sync_rc;
     }
     if (IS_ERR(rc))
         return rc;
 
-    {
-        struct page* page FREE(page) = pages_first(&filemap->pages);
-        while (page) {
-            if (page->flags & PAGE_DIRTY)
-                return 0;
-            struct page* next = pages_next(page);
-            page_unref(page);
-            page = next;
-        }
-    }
-    inode->flags &= ~INODE_DIRTY;
-    return 0;
+    update_dirtiness(filemap);
+    return evicted;
+}
+
+int filemap_sync(struct filemap* filemap, size_t start, size_t end) {
+    return sync(filemap, start, end, false);
+}
+
+ssize_t filemap_evict(struct filemap* filemap, size_t start, size_t end) {
+    return sync(filemap, start, end, true);
 }
 
 int filemap_truncate(struct filemap* filemap, uint64_t length) {

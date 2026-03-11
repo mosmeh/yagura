@@ -47,11 +47,14 @@ SRCS := \
 	kernel/exec/elf.c \
 	kernel/exec/exec.c \
 	kernel/exec/shebang.c \
+	kernel/fs/block.c \
+	kernel/fs/ext2.c \
 	kernel/fs/file.c \
 	kernel/fs/filemap.c \
 	kernel/fs/fs.c \
 	kernel/fs/initramfs.c \
 	kernel/fs/inode.c \
+	kernel/fs/minix.c \
 	kernel/fs/mount.c \
 	kernel/fs/path.c \
 	kernel/fs/pipe.c \

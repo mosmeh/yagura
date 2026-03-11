@@ -77,7 +77,7 @@ int inode_sync(struct inode* inode, uint64_t offset, uint64_t nbytes) {
     }
 
     SCOPED_LOCK(inode, inode);
-    return filemap_sync(inode->filemap, start, end);
+    return filemap_evict(inode->filemap, start, end);
 }
 
 int inode_truncate(struct inode* inode, uint64_t length) {
