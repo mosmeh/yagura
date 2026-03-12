@@ -12,7 +12,6 @@ struct phys_range {
     size_t pfn_end;
     const char* type;
     bool is_available;
-    size_t num_bump_allocated_pages;
 };
 
 static int phys_range_cmp(const void* a, const void* b) {
@@ -243,9 +242,7 @@ void phys_init(void) {
         if (r->pfn_start >= r->pfn_end || !r->is_available)
             continue;
 
-        // Bump-allocated pages are kept marked as allocated in the bitmap.
-        size_t pfn_start = r->pfn_start + r->num_bump_allocated_pages;
-        for (size_t pfn = pfn_start; pfn < r->pfn_end; ++pfn)
+        for (size_t pfn = r->pfn_start; pfn < r->pfn_end; ++pfn)
             ASSERT(!bitmap_set(pfn));
     }
 
@@ -261,10 +258,8 @@ void phys_init(void) {
         if (r->pfn_start >= r->pfn_end || !r->is_available)
             continue;
 
-        size_t pfn_start = r->pfn_start + r->num_bump_allocated_pages;
-
         size_t start_offset =
-            ROUND_DOWN(pfn_start * sizeof(struct page), PAGE_SIZE);
+            ROUND_DOWN(r->pfn_start * sizeof(struct page), PAGE_SIZE);
         size_t end_offset =
             ROUND_UP(r->pfn_end * sizeof(struct page), PAGE_SIZE);
 
@@ -278,7 +273,7 @@ void phys_init(void) {
                                         VM_READ | VM_WRITE));
         }
 
-        for (size_t pfn = pfn_start; pfn < r->pfn_end; ++pfn)
+        for (size_t pfn = r->pfn_start; pfn < r->pfn_end; ++pfn)
             pages[pfn] = (struct page){0};
     }
 
@@ -373,14 +368,8 @@ ssize_t page_alloc_raw(void) {
     // Before the bitmap is initialized, use simple bump allocation.
     for (size_t i = 0; i < num_phys_ranges; ++i) {
         struct phys_range* r = &phys_ranges[i];
-        if (r->pfn_start >= r->pfn_end || !r->is_available)
-            continue;
-
-        size_t pfn = r->pfn_start + r->num_bump_allocated_pages;
-        if (pfn < r->pfn_end) {
-            r->num_bump_allocated_pages++;
-            return pfn;
-        }
+        if (r->pfn_start < r->pfn_end && r->is_available)
+            return r->pfn_start++;
     }
     UNREACHABLE();
 }
