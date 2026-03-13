@@ -16,7 +16,7 @@ jobs:
             EXTRA_CFLAGS: -Werror
             MAKEFLAGS: -j
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - run: sudo apt-get update && sudo apt-get install -y cpio qemu-system-x86 grub2 mtools xorriso
             - run: make
             - run: make test
@@ -35,7 +35,7 @@ jobs:
             EXTRA_CFLAGS: -Werror -fsanitize=undefined
             MAKEFLAGS: -j
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - run: sudo apt-get update && sudo apt-get install -y cpio qemu-system-x86
             - run: make
             - run: make test
@@ -51,7 +51,7 @@ jobs:
             ARCH: ${{ matrix.arch }}
             MAKEFLAGS: -j
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
             - run: make userland
             # Reduce resource limits to reach the thresholds more easily.
             - run: sudo systemd-run --scope --quiet -p MemoryMax=256M bash -c 'ulimit -s 4096 -v 1048576 && ${{ github.workspace }}/build/${{ matrix.arch }}/base/bin/tests/run'
