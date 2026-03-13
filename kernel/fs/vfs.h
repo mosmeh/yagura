@@ -20,7 +20,7 @@ struct mount {
     struct mutex lock;
 };
 
-DEFINE_LOCKED(mount, struct mount*, mutex, lock)
+DEFINE_LOCKED(mount, struct mount, mutex, lock)
 
 // Marks the given inode as ready to be used, adding it to the mount's inode
 // cache.

@@ -35,7 +35,7 @@ struct unix_socket {
     _Atomic(bool) is_open_for_writing_to_acceptor;
 };
 
-DEFINE_LOCKED(unix_socket, struct unix_socket*, inode, vfs_inode)
+DEFINE_LOCKED(unix_socket, struct unix_socket, inode, vfs_inode)
 
 static struct slab unix_socket_slab;
 static struct mount* sock_mount;

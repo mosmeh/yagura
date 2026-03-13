@@ -31,7 +31,7 @@ static inline void __font_destroy(struct font* font) {
     kfree(font);
 }
 
-DEFINE_REFCOUNTED_BASE(font, struct font*, refcount, __font_destroy)
+DEFINE_REFCOUNTED_BASE(font, struct font, refcount, __font_destroy)
 
 // Returns the size in bytes of the font data
 static inline size_t font_size(const struct font* font) {

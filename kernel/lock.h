@@ -32,25 +32,27 @@ DEFINE_LOCK(spinlock)
 // Lock guard helper macros
 //
 // struct mutex lock;
-// DEFINE_LOCK_GUARD(mutex, struct mutex, mutex, lock)
+// DEFINE_LOCK_GUARD(mutex, struct mutex)
 //
 // void use_lock(void) {
 //     SCOPED_LOCK(mutex, lock);
 //     // mutex_unlock(lock) is called at the end of the scope
 // }
 
-#define DEFINE_LOCK_GUARD(name, type, lock, unlock)                            \
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define DEFINE_LOCK_GUARD(name, type)                                          \
     struct __LOCK_GUARD_ID(name) {                                             \
-        type obj;                                                              \
+        type* obj;                                                             \
     };                                                                         \
                                                                                \
-    static inline void __LOCK_GUARD_UNLOCK(name)(void* p) {                    \
-        struct __LOCK_GUARD_ID(name)* guard = p;                               \
+    static inline void __LOCK_GUARD_UNLOCK(name)(                              \
+        struct __LOCK_GUARD_ID(name) * guard) {                                \
         if (guard->obj) {                                                      \
             __UNLOCK(name)(guard->obj);                                        \
             guard->obj = NULL;                                                 \
         }                                                                      \
     }
+// NOLINTEND(bugprone-macro-parentheses)
 
 #define __LOCK_GUARD_ID(name) CONCAT(__, CONCAT(name, _lock_guard))
 #define __LOCK_GUARD_UNLOCK(name) __UNLOCK(__LOCK_GUARD_ID(name))
@@ -62,8 +64,8 @@ DEFINE_LOCK(spinlock)
 
 #define __SCOPED_LOCK_UNIQUE(name) CONCAT(__LOCK_GUARD_ID(name), __COUNTER__)
 
-DEFINE_LOCK_GUARD(mutex, struct mutex*, mutex, lock)
-DEFINE_LOCK_GUARD(spinlock, struct spinlock*, spinlock, lock)
+DEFINE_LOCK_GUARD(mutex, struct mutex)
+DEFINE_LOCK_GUARD(spinlock, struct spinlock)
 
 // Locked resource helper macro
 //
@@ -71,7 +73,7 @@ DEFINE_LOCK_GUARD(spinlock, struct spinlock*, spinlock, lock)
 //     struct mutex lock;
 // }
 //
-// DEFINE_LOCKED(obj, struct obj*, mutex, lock)
+// DEFINE_LOCKED(obj, struct obj, mutex, lock)
 //
 // void manual_lock(void) {
 //     struct obj* x = create_obj(...);
@@ -86,20 +88,22 @@ DEFINE_LOCK_GUARD(spinlock, struct spinlock*, spinlock, lock)
 //     // obj_unlock(x) is called at the end of the scope
 // }
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define DEFINE_LOCKED(name, type, lock_type, lock_field)                       \
-    MAYBE_UNUSED static inline void __LOCK(name)(type obj) {                   \
+    MAYBE_UNUSED static inline void __LOCK(name)(type * obj) {                 \
         ASSERT_PTR(obj);                                                       \
         __LOCK(lock_type)(&obj->lock_field);                                   \
     }                                                                          \
                                                                                \
-    MAYBE_UNUSED static inline void __UNLOCK(name)(type obj) {                 \
+    MAYBE_UNUSED static inline void __UNLOCK(name)(type * obj) {               \
         ASSERT_PTR(obj);                                                       \
         __UNLOCK(lock_type)(&obj->lock_field);                                 \
     }                                                                          \
                                                                                \
-    MAYBE_UNUSED static inline bool __CURRENT_LOCKS(name)(const type obj) {    \
+    MAYBE_UNUSED static inline bool __CURRENT_LOCKS(name)(const type* obj) {   \
         ASSERT_PTR(obj);                                                       \
         return __CURRENT_LOCKS(lock_type)(&obj->lock_field);                   \
     }                                                                          \
                                                                                \
-    DEFINE_LOCK_GUARD(name, type, lock_type, lock_field)
+    DEFINE_LOCK_GUARD(name, type)
+// NOLINTEND(bugprone-macro-parentheses)

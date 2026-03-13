@@ -6,7 +6,7 @@
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 
-DEFINE_LOCKED(slab, struct slab*, mutex, lock)
+DEFINE_LOCKED(slab, struct slab, mutex, lock)
 
 static struct slab* slabs;
 

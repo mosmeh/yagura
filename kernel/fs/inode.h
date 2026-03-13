@@ -57,8 +57,8 @@ struct inode_ops {
     NODISCARD int (*sync)(struct inode*);
 };
 
-DEFINE_LOCKED(inode, struct inode*, vm_obj, vm_obj)
-DEFINE_REFCOUNTED_SUB(inode, struct inode*, vm_obj, vm_obj)
+DEFINE_LOCKED(inode, struct inode, vm_obj, vm_obj)
+DEFINE_REFCOUNTED_SUB(inode, struct inode, vm_obj, vm_obj)
 
 NODISCARD struct inode* inode_lookup(struct inode* parent, const char* name);
 NODISCARD int inode_link(struct inode* parent, const char* name,

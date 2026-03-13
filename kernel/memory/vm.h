@@ -40,10 +40,10 @@ struct vm_obj {
     refcount_t refcount;
 };
 
-DEFINE_LOCKED(vm_obj, struct vm_obj*, mutex, lock)
+DEFINE_LOCKED(vm_obj, struct vm_obj, mutex, lock)
 
 void __vm_obj_destroy(struct vm_obj*);
-DEFINE_REFCOUNTED_BASE(vm_obj, struct vm_obj*, refcount, __vm_obj_destroy)
+DEFINE_REFCOUNTED_BASE(vm_obj, struct vm_obj, refcount, __vm_obj_destroy)
 
 // Maps the given vm_obj into kernel virtual address space.
 // Returns the virtual address.
@@ -63,7 +63,11 @@ struct vm_obj* phys_create(phys_addr_t phys_addr, size_t npages);
 void* phys_map(phys_addr_t phys_addr, size_t size, unsigned vm_flags);
 void phys_unmap(void*);
 
-DEFINE_FREE(phys, void*, phys_unmap)
+static inline void __free_phys(void* ptr) {
+    void* p = *(void**)ptr;
+    if (p && IS_OK(p))
+        phys_unmap(p);
+}
 
 struct vm {
     size_t start; // Start virtual address in pages (inclusive)
@@ -92,10 +96,10 @@ extern struct vm* kernel_vm;
 
 struct vm* vm_create(void* start, void* end);
 
-DEFINE_LOCKED(vm, struct vm*, mutex, lock)
+DEFINE_LOCKED(vm, struct vm, mutex, lock)
 
 void __vm_destroy(struct vm*);
-DEFINE_REFCOUNTED_BASE(vm, struct vm*, refcount, __vm_destroy)
+DEFINE_REFCOUNTED_BASE(vm, struct vm, refcount, __vm_destroy)
 
 // Switches to the virtual memory space. Returns the previous vm.
 struct vm* vm_enter(struct vm*);

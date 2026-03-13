@@ -101,13 +101,13 @@ static inline size_t refcount_dec(refcount_t* refcount) {
 // };
 //
 // void __base_obj_destroy(struct base_obj*);
-// DEFINE_REFCOUNTED_BASE(base_obj, struct base_obj*, refcount,
+// DEFINE_REFCOUNTED_BASE(base_obj, struct base_obj, refcount,
 //                        __base_obj_destroy)
 //
 // struct sub_obj {
 //    struct base_obj base;
 // };
-// DEFINE_REFCOUNTED_SUB(sub_obj, struct sub_obj*, base_obj, base)
+// DEFINE_REFCOUNTED_SUB(sub_obj, struct sub_obj, base_obj, base)
 //
 // void use_obj(void) {
 //     struct base_obj* base_obj = create_base_obj(...);
@@ -119,14 +119,15 @@ static inline size_t refcount_dec(refcount_t* refcount) {
 //     base_obj_unref(base_obj);
 //  }
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define DEFINE_REFCOUNTED_BASE(name, type, field, destructor)                  \
-    static inline type name##_ref(type obj) {                                  \
+    static inline type* __REF(name)(type * obj) {                              \
         ASSERT_PTR(obj);                                                       \
         refcount_inc(&obj->field);                                             \
         return obj;                                                            \
     }                                                                          \
                                                                                \
-    static inline void name##_unref(type obj) {                                \
+    static inline void __UNREF(name)(type * obj) {                             \
         if (!obj)                                                              \
             return;                                                            \
         if (refcount_dec(&obj->field))                                         \
@@ -134,26 +135,32 @@ static inline size_t refcount_dec(refcount_t* refcount) {
         destructor(obj);                                                       \
     }                                                                          \
                                                                                \
-    DEFINE_FREE(name, type, name##_unref)
+    DEFINE_FREE(name, type, __UNREF(name))
+// NOLINTEND(bugprone-macro-parentheses)
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define DEFINE_REFCOUNTED_SUB(name, type, base_type, base_field)               \
-    static inline type name##_ref(type obj) {                                  \
+    static inline type* __REF(name)(type * obj) {                              \
         ASSERT_PTR(obj);                                                       \
-        base_type##_ref(&obj->base_field);                                     \
+        __REF(base_type)(&obj->base_field);                                    \
         return obj;                                                            \
     }                                                                          \
                                                                                \
-    static inline void name##_unref(type obj) {                                \
+    static inline void __UNREF(name)(type * obj) {                             \
         if (!obj)                                                              \
             return;                                                            \
-        base_type##_unref(&obj->base_field);                                   \
+        __UNREF(base_type)(&obj->base_field);                                  \
     }                                                                          \
                                                                                \
-    DEFINE_FREE(name, type, name##_unref)
+    DEFINE_FREE(name, type, __UNREF(name))
+// NOLINTEND(bugprone-macro-parentheses)
+
+#define __REF(name) CONCAT(name, _ref)
+#define __UNREF(name) CONCAT(name, _unref)
 
 // Scoped resource management macros
 //
-// DEFINE_FREE(obj, struct obj*, obj_unref)
+// DEFINE_FREE(obj, struct obj, obj_unref)
 //
 // struct obj* foo(void) {
 //     struct obj* obj FREE(obj) = create_obj(...);
@@ -163,12 +170,14 @@ static inline size_t refcount_dec(refcount_t* refcount) {
 //     // When obj goes out of scope, obj_unref(obj) is called automatically
 // }
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define DEFINE_FREE(name, type, func)                                          \
-    static inline void __free_##name(void* p) {                                \
-        type _p = *(type*)p;                                                   \
-        if (_p && IS_OK(_p))                                                   \
-            func(_p);                                                          \
+    static inline void __free_##name(type** p) {                               \
+        type* __p = *p;                                                        \
+        if (__p && IS_OK(__p))                                                 \
+            func(__p);                                                         \
     }
+// NOLINTEND(bugprone-macro-parentheses)
 
 #define FREE(name) CLEANUP(__free_##name)
 

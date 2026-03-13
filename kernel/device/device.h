@@ -40,8 +40,8 @@ struct block_ops {
     NODISCARD int (*flush)(struct block_dev*);
 };
 
-DEFINE_LOCKED(block_dev, struct block_dev*, inode, vfs_inode)
-DEFINE_REFCOUNTED_SUB(block_dev, struct block_dev*, inode, vfs_inode)
+DEFINE_LOCKED(block_dev, struct block_dev, inode, vfs_inode)
+DEFINE_REFCOUNTED_SUB(block_dev, struct block_dev, inode, vfs_inode)
 
 extern const struct file_ops block_dev_fops;
 

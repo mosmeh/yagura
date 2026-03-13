@@ -40,4 +40,4 @@ void path_destroy_last(struct path*);
 // Destroys the path and all its parents.
 void path_destroy_recursive(struct path*);
 
-DEFINE_FREE(path, struct path*, path_destroy_recursive)
+DEFINE_FREE(path, struct path, path_destroy_recursive)

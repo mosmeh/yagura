@@ -79,10 +79,10 @@ static inline struct task* task_get_current(void) {
 struct task* task_create(const char* comm, void (*entry_point)(void));
 NODISCARD pid_t task_spawn(const char* comm, void (*entry_point)(void));
 
-DEFINE_LOCKED(task, struct task*, mutex, lock)
+DEFINE_LOCKED(task, struct task, mutex, lock)
 
 void __task_destroy(struct task*);
-DEFINE_REFCOUNTED_BASE(task, struct task*, refcount, __task_destroy)
+DEFINE_REFCOUNTED_BASE(task, struct task, refcount, __task_destroy)
 
 // Ensures that the current task has its own copy of the resources specified
 // by `flags` (`CLONE_*`).
@@ -105,10 +105,10 @@ struct fs {
 
 struct fs* fs_clone(struct fs*);
 
-DEFINE_LOCKED(fs, struct fs*, mutex, lock)
+DEFINE_LOCKED(fs, struct fs, mutex, lock)
 
 void __fs_destroy(struct fs*);
-DEFINE_REFCOUNTED_BASE(fs, struct fs*, refcount, __fs_destroy)
+DEFINE_REFCOUNTED_BASE(fs, struct fs, refcount, __fs_destroy)
 
 NODISCARD int fs_chroot(struct fs*, struct path*);
 NODISCARD int fs_chdir(struct fs*, struct path*);
@@ -122,10 +122,10 @@ struct files {
 
 struct files* files_clone(struct files*);
 
-DEFINE_LOCKED(files, struct files*, mutex, lock)
+DEFINE_LOCKED(files, struct files, mutex, lock)
 
 void __files_destroy(struct files*);
-DEFINE_REFCOUNTED_BASE(files, struct files*, refcount, __files_destroy)
+DEFINE_REFCOUNTED_BASE(files, struct files, refcount, __files_destroy)
 
 // Allocates lowest-numbered file descriptor >= min_fd
 // that is not already used, and sets it to the given file.
@@ -159,10 +159,10 @@ struct sighand {
 
 struct sighand* sighand_clone(struct sighand*);
 
-DEFINE_LOCKED(sighand, struct sighand*, spinlock, lock)
+DEFINE_LOCKED(sighand, struct sighand, spinlock, lock)
 
 void __sighand_destroy(struct sighand*);
-DEFINE_REFCOUNTED_BASE(sighand, struct sighand*, refcount, __sighand_destroy)
+DEFINE_REFCOUNTED_BASE(sighand, struct sighand, refcount, __sighand_destroy)
 
 struct thread_group {
     pid_t tgid;
@@ -176,7 +176,7 @@ struct thread_group {
 struct thread_group* thread_group_create(void);
 
 void __thread_group_destroy(struct thread_group*);
-DEFINE_REFCOUNTED_BASE(thread_group, struct thread_group*, refcount,
+DEFINE_REFCOUNTED_BASE(thread_group, struct thread_group, refcount,
                        __thread_group_destroy)
 
 // Returns the set of pending signals for the current task,

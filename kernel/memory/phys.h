@@ -21,7 +21,7 @@ struct page {
 struct page* page_ref(struct page*);
 void page_unref(struct page*);
 
-DEFINE_FREE(page, struct page*, page_unref)
+DEFINE_FREE(page, struct page, page_unref)
 
 struct page* page_get(size_t pfn);
 size_t page_to_pfn(const struct page*);

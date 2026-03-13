@@ -18,7 +18,7 @@ struct pipe {
     _Atomic(size_t) num_writers;
 };
 
-DEFINE_LOCKED(pipe, struct pipe*, inode, vfs_inode)
+DEFINE_LOCKED(pipe, struct pipe, inode, vfs_inode)
 
 static struct slab pipe_slab;
 static struct mount* pipe_mount;

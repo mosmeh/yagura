@@ -36,10 +36,10 @@ struct file_ops {
     NODISCARD struct vm_obj* (*mmap)(struct file*);
 };
 
-DEFINE_LOCKED(file, struct file*, mutex, lock)
+DEFINE_LOCKED(file, struct file, mutex, lock)
 
 void __file_destroy(struct file*);
-DEFINE_REFCOUNTED_BASE(file, struct file*, refcount, __file_destroy)
+DEFINE_REFCOUNTED_BASE(file, struct file, refcount, __file_destroy)
 
 NODISCARD ssize_t file_pread(struct file*, void* user_buffer, size_t count,
                              uint64_t offset);

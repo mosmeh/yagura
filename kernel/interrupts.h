@@ -23,8 +23,8 @@ struct __interrupts_restorer {
             .expected_state = (new_state),                                     \
     };
 
-static inline void __interrupts_restorer_leave(void* p) {
-    struct __interrupts_restorer* guard = p;
+static inline void
+__interrupts_restorer_leave(const struct __interrupts_restorer* guard) {
     bool current_state = arch_interrupts_enabled();
     ASSERT(current_state == guard->expected_state);
     if (current_state == guard->previous_state)
