@@ -125,8 +125,7 @@ static void init_device(const struct pci_addr* addr) {
         return;
     }
     volatile struct virtio_blk_config* blk_config =
-        (volatile struct virtio_blk_config*)(device_cfg_space +
-                                             device_cfg_cap.offset);
+        (void*)(device_cfg_space + device_cfg_cap.offset);
     uint64_t capacity = blk_config->capacity;
     phys_unmap(device_cfg_space);
 

@@ -9,7 +9,7 @@ struct pthread* __init_tls(void* tls);
 
 struct pthread {
     struct pthread* self;
-    volatile _Atomic(unsigned int) state;
+    _Atomic(unsigned int) state;
     void* alloc_base;
     void* (*fn)(void*);
     void* arg;

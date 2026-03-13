@@ -12,7 +12,7 @@
 struct timespec;
 struct timezone;
 
-extern volatile _Atomic(unsigned long) uptime;
+extern _Atomic(unsigned long) uptime;
 
 void timespec_add(struct timespec*, const struct timespec*);
 void timespec_saturating_sub(struct timespec*, const struct timespec*);

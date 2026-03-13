@@ -64,7 +64,7 @@ struct virtq {
     // A ring of used descriptor heads with free-running index.
     volatile struct virtq_used* used;
 
-    uint16_t* notify; // The notification address
+    volatile uint16_t* notify; // The notification address
 };
 
 bool virtq_is_ready(const struct virtq*);

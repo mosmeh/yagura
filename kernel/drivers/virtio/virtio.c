@@ -243,8 +243,7 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
     if (IS_ERR(common_cfg_space))
         goto fail_discovery_common_cfg;
     volatile struct virtio_pci_common_cfg* common_cfg =
-        (volatile struct virtio_pci_common_cfg*)(common_cfg_space +
-                                                 common_cfg_cap.offset);
+        (void*)(common_cfg_space + common_cfg_cap.offset);
 
     struct virtio_pci_notify_cap notify_cap = {0};
     if (!virtio_find_pci_cap(addr, VIRTIO_PCI_CAP_NOTIFY_CFG,
@@ -261,7 +260,7 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
         goto fail_discovery_notify;
 
     virtio->notify_space = notify_space;
-    uint16_t* notify = (uint16_t*)(notify_space + notify_offset);
+    volatile uint16_t* notify = (void*)(notify_space + notify_offset);
 
     // 3.1.1 Driver Requirements: Device Initialization
 
