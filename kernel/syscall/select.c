@@ -45,6 +45,14 @@ static bool unblock_wait_fds(void* data) {
     return false;
 }
 
+static void fd_waiter_deinit(struct fd_waiter* waiter) {
+    if (!waiter->files)
+        return;
+    for (nfds_t i = 0; i < waiter->nfds; ++i)
+        file_unref(waiter->files[i]);
+    kfree(waiter->files);
+}
+
 // The differences from poll(2) are:
 // - The timeout is struct timespec.
 //   On success, updates the timeout to reflect the remaining time.
@@ -57,18 +65,15 @@ NODISCARD static int wait_fds(nfds_t nfds, struct pollfd pollfds[nfds],
             return -EINVAL;
     }
 
-    int ret = 0;
-    struct fd_waiter waiter = {
+    struct fd_waiter waiter CLEANUP(fd_waiter_deinit) = {
         .nfds = nfds,
         .pollfds = pollfds,
     };
 
     if (nfds > 0) {
         waiter.files = kmalloc(sizeof(struct file*) * nfds);
-        if (!waiter.files) {
-            ret = -ENOMEM;
-            goto fail;
-        }
+        if (!waiter.files)
+            return -ENOMEM;
 
         struct files* files = current->files;
         for (nfds_t i = 0; i < nfds; ++i) {
@@ -89,36 +94,28 @@ NODISCARD static int wait_fds(nfds_t nfds, struct pollfd pollfds[nfds],
 
     if (timeout) {
         struct timespec deadline;
-        ret = time_now(CLOCK_MONOTONIC, &deadline);
+        int ret = time_now(CLOCK_MONOTONIC, &deadline);
         if (IS_ERR(ret))
-            goto fail;
+            return ret;
         timespec_add(&deadline, timeout);
         waiter.has_timeout = true;
         waiter.deadline = deadline;
     }
 
-    ret = sched_block(unblock_wait_fds, &waiter, 0);
+    int ret = sched_block(unblock_wait_fds, &waiter, 0);
     if (IS_ERR(ret))
-        goto fail;
+        return ret;
 
     if (timeout) {
         *timeout = waiter.deadline;
         struct timespec now;
         ret = time_now(CLOCK_MONOTONIC, &now);
         if (IS_ERR(ret))
-            goto fail;
+            return ret;
         timespec_saturating_sub(timeout, &now);
     }
 
-    ret = waiter.num_events;
-
-fail:
-    if (waiter.files) {
-        for (nfds_t i = 0; i < nfds; ++i)
-            file_unref(waiter.files[i]);
-        kfree(waiter.files);
-    }
-    return ret;
+    return waiter.num_events;
 }
 
 NODISCARD static int

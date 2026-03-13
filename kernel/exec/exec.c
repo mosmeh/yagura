@@ -172,11 +172,6 @@ static void loader_deinit_vm(struct loader* loader) {
     }
 }
 
-static void loader_deinit(struct loader* loader) {
-    loader_deinit_vm(loader);
-    exec_image_unload(&loader->image);
-}
-
 NODISCARD static int loader_init(struct loader* loader, const char* pathname) {
     *loader = (struct loader){0};
 
@@ -187,17 +182,14 @@ NODISCARD static int loader_init(struct loader* loader, const char* pathname) {
 
     int rc = exec_image_load(&loader->image, pathname);
     if (IS_ERR(rc))
-        goto fail;
+        return rc;
 
-    rc = loader_init_vm(loader);
-    if (IS_ERR(rc))
-        goto fail;
+    return loader_init_vm(loader);
+}
 
-    return rc;
-
-fail:
-    loader_deinit(loader);
-    return rc;
+static void loader_deinit(struct loader* loader) {
+    loader_deinit_vm(loader);
+    exec_image_unload(&loader->image);
 }
 
 int loader_push_string_from_kernel(struct loader* loader, const char* str) {
@@ -370,39 +362,33 @@ int execve_kernel(const char* pathname, const char* const* argv,
     ASSERT_PTR(argv);
     ASSERT_PTR(envp);
 
-    struct loader loader;
+    struct loader loader CLEANUP(loader_deinit) = {0};
     int rc = loader_init(&loader, pathname);
     if (IS_ERR(rc))
         return rc;
 
     rc = loader_push_string_from_kernel(&loader, pathname);
     if (IS_ERR(rc))
-        goto fail;
+        return rc;
     loader.execfn = (void*)loader.stack_ptr;
 
     loader.envc = count_strings_kernel(envp);
     loader.env_end = loader.stack_ptr;
     rc = loader_push_strings_from_kernel(&loader, envp, loader.envc);
     if (IS_ERR(rc))
-        goto fail;
+        return rc;
     loader.env_start = loader.stack_ptr;
 
     loader.argc = count_strings_kernel(argv);
-    if (loader.argc == 0) {
-        rc = -EINVAL;
-        goto fail;
-    }
+    if (loader.argc == 0)
+        return -EINVAL;
     loader.arg_end = loader.stack_ptr;
     rc = loader_push_strings_from_kernel(&loader, argv, loader.argc);
     if (IS_ERR(rc))
-        goto fail;
+        return rc;
     loader.arg_start = loader.stack_ptr;
 
-    rc = loader_load(&loader);
-
-fail:
-    loader_deinit(&loader);
-    return rc;
+    return loader_load(&loader);
 }
 
 int execve_user(const char* pathname, const char* const* user_argv,
@@ -413,26 +399,24 @@ int execve_user(const char* pathname, const char* const* user_argv,
     if (user_envp && !is_user_address(user_envp))
         return -EFAULT;
 
-    struct loader loader;
+    struct loader loader CLEANUP(loader_deinit) = {0};
     int rc = loader_init(&loader, pathname);
     if (IS_ERR(rc))
         return rc;
 
     rc = loader_push_string_from_kernel(&loader, pathname);
     if (IS_ERR(rc))
-        goto fail;
+        return rc;
     loader.execfn = (void*)loader.stack_ptr;
 
     loader.env_end = loader.stack_ptr;
     if (user_envp) {
         loader.envc = count_strings_user(user_envp);
-        if (IS_ERR(loader.envc)) {
-            rc = loader.envc;
-            goto fail;
-        }
+        if (IS_ERR(loader.envc))
+            return loader.envc;
         rc = loader_push_strings_from_user(&loader, user_envp, loader.envc);
         if (IS_ERR(rc))
-            goto fail;
+            return rc;
     } else {
         loader.envc = 0;
     }
@@ -441,10 +425,8 @@ int execve_user(const char* pathname, const char* const* user_argv,
     loader.arg_end = loader.stack_ptr;
     if (user_argv) {
         loader.argc = count_strings_user(user_argv);
-        if (IS_ERR(loader.argc)) {
-            rc = loader.argc;
-            goto fail;
-        }
+        if (IS_ERR(loader.argc))
+            return loader.argc;
     } else {
         loader.argc = 0;
     }
@@ -457,12 +439,8 @@ int execve_user(const char* pathname, const char* const* user_argv,
         rc = loader_push_strings_from_kernel(&loader, empty_argv, 1);
     }
     if (IS_ERR(rc))
-        goto fail;
+        return rc;
     loader.arg_start = loader.stack_ptr;
 
-    rc = loader_load(&loader);
-
-fail:
-    loader_deinit(&loader);
-    return rc;
+    return loader_load(&loader);
 }
