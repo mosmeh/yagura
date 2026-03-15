@@ -13,7 +13,7 @@
 #define ENUMERATE_SYSCALLS(F)                                                  \
     F(restart_syscall, sys_ni_syscall, 0)                                      \
     F(exit, sys_exit, 0)                                                       \
-    F(fork, sys_fork, SYSCALL_RAW_REGISTERS)                                   \
+    F(fork, sys_fork, 0)                                                       \
     F(read, sys_read, 0)                                                       \
     F(write, sys_write, 0)                                                     \
     F(open, sys_open, 0)                                                       \
@@ -130,8 +130,8 @@
     F(sysinfo, sys_sysinfo, 0)                                                 \
     F(ipc, sys_ni_syscall, 0)                                                  \
     F(fsync, sys_fsync, 0)                                                     \
-    F(sigreturn, sys_sigreturn, SYSCALL_RAW_REGISTERS | SYSCALL_NO_ERROR)      \
-    F(clone, sys_clone, SYSCALL_RAW_REGISTERS)                                 \
+    F(sigreturn, sys_sigreturn, SYSCALL_NO_ERROR)                              \
+    F(clone, sys_int80_clone, 0)                                               \
     F(setdomainname, sys_setdomainname, 0)                                     \
     F(uname, sys_newuname, 0)                                                  \
     F(modify_ldt, sys_ni_syscall, 0)                                           \
@@ -184,8 +184,7 @@
     F(setresgid, sys_ni_syscall, 0)                                            \
     F(getresgid, sys_getresgid16, 0)                                           \
     F(prctl, sys_prctl, 0)                                                     \
-    F(rt_sigreturn, sys_rt_sigreturn,                                          \
-      SYSCALL_RAW_REGISTERS | SYSCALL_NO_ERROR)                                \
+    F(rt_sigreturn, sys_rt_sigreturn, SYSCALL_NO_ERROR)                        \
     F(rt_sigaction, sys_rt_sigaction, 0)                                       \
     F(rt_sigprocmask, sys_rt_sigprocmask, 0)                                   \
     F(rt_sigpending, sys_rt_sigpending, 0)                                     \
@@ -202,7 +201,7 @@
     F(sendfile, sys_ni_syscall, 0)                                             \
     F(getpmsg, sys_ni_syscall, 0)                                              \
     F(putpmsg, sys_ni_syscall, 0)                                              \
-    F(vfork, sys_vfork, SYSCALL_RAW_REGISTERS)                                 \
+    F(vfork, sys_vfork, 0)                                                     \
     F(ugetrlimit, sys_ni_syscall, 0)                                           \
     F(mmap2, sys_mmap_pgoff, 0)                                                \
     F(truncate64, sys_ia32_truncate64, 0)                                      \
@@ -431,18 +430,20 @@
     F(io_uring_register, sys_ni_syscall, 0)                                    \
     F(dbgprint, sys_dbgprint, 0)
 
-static long sys_clone(struct registers* regs, unsigned long flags,
-                      void* user_stack, pid_t* user_parent_tid, void* user_tls,
-                      pid_t* user_child_tid) {
-    return clone_user_task(regs, flags, user_stack, user_parent_tid,
-                           user_child_tid, user_tls);
+SYSCALL_RAW(int80_clone, regs) {
+    unsigned long flags = regs->bx;
+    void* stack = (void*)regs->cx;
+    pid_t* parent_tid = (pid_t*)regs->dx;
+    void* tls = (void*)regs->si;
+    pid_t* child_tid = (pid_t*)regs->di;
+    return clone_user_task(regs, flags, stack, parent_tid, child_tid, tls);
 }
 
 static const struct syscall syscalls[] = {
 #define F(name, handler, flags)                                                \
     [SYS_##name] = {                                                           \
         #name,                                                                 \
-        (uintptr_t)(handler),                                                  \
+        (handler),                                                             \
         (flags),                                                               \
     },
     ENUMERATE_SYSCALLS(F)

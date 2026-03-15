@@ -1,6 +1,7 @@
 #include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/i386/asm/unistd.h>
+#include <kernel/arch/x86/syscall/syscall.h>
 #include <kernel/arch/x86/task/context.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
@@ -125,7 +126,7 @@ static unsigned long fix_segment(unsigned long seg) {
      X86_EFLAGS_SF | X86_EFLAGS_ZF | X86_EFLAGS_AF | X86_EFLAGS_PF |           \
      X86_EFLAGS_CF | X86_EFLAGS_RF)
 
-long sys_sigreturn(struct registers* regs) {
+NODISCARD static long sigreturn(struct registers* regs) {
     struct sigcontext ctx;
     if (copy_sigcontext_from_user(&ctx, (const void*)regs->sp))
         task_crash(SIGSEGV);
@@ -165,4 +166,6 @@ long sys_sigreturn(struct registers* regs) {
     return ctx.regs.ax;
 }
 
-long sys_rt_sigreturn(struct registers* regs) { return sys_sigreturn(regs); }
+SYSCALL_RAW(sigreturn, regs) { return sigreturn(regs); }
+
+SYSCALL_RAW(rt_sigreturn, regs) { return sigreturn(regs); }

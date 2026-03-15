@@ -26,8 +26,7 @@
     F(brk, sys_ni_syscall, 0)                                                  \
     F(rt_sigaction, sys_rt_sigaction, 0)                                       \
     F(rt_sigprocmask, sys_rt_sigprocmask, 0)                                   \
-    F(rt_sigreturn, sys_rt_sigreturn,                                          \
-      SYSCALL_RAW_REGISTERS | SYSCALL_NO_ERROR)                                \
+    F(rt_sigreturn, sys_rt_sigreturn, SYSCALL_NO_ERROR)                        \
     F(ioctl, sys_ioctl, 0)                                                     \
     F(pread64, sys_pread64, 0)                                                 \
     F(pwrite64, sys_pwrite64, 0)                                               \
@@ -68,9 +67,9 @@
     F(socketpair, sys_ni_syscall, 0)                                           \
     F(setsockopt, sys_ni_syscall, 0)                                           \
     F(getsockopt, sys_ni_syscall, 0)                                           \
-    F(clone, sys_clone, SYSCALL_RAW_REGISTERS)                                 \
-    F(fork, sys_fork, SYSCALL_RAW_REGISTERS)                                   \
-    F(vfork, sys_vfork, SYSCALL_RAW_REGISTERS)                                 \
+    F(clone, sys_x64_clone, 0)                                                 \
+    F(fork, sys_fork, 0)                                                       \
+    F(vfork, sys_vfork, 0)                                                     \
     F(execve, sys_execve, 0)                                                   \
     F(exit, sys_exit, 0)                                                       \
     F(wait4, sys_wait4, 0)                                                     \
@@ -339,18 +338,20 @@
     F(io_uring_register, sys_ni_syscall, 0)                                    \
     F(dbgprint, sys_dbgprint, 0)
 
-static long sys_clone(struct registers* regs, unsigned long flags,
-                      void* user_stack, pid_t* user_parent_tid,
-                      pid_t* user_child_tid, void* user_tls) {
-    return clone_user_task(regs, flags, user_stack, user_parent_tid,
-                           user_child_tid, user_tls);
+SYSCALL_RAW(x64_clone, regs) {
+    unsigned long flags = regs->di;
+    void* stack = (void*)regs->si;
+    pid_t* parent_tid = (pid_t*)regs->dx;
+    pid_t* child_tid = (pid_t*)regs->r10;
+    void* tls = (void*)regs->r8;
+    return clone_user_task(regs, flags, stack, parent_tid, child_tid, tls);
 }
 
 static const struct syscall syscalls[] = {
 #define F(name, handler, flags)                                                \
     [SYS_##name] = {                                                           \
         #name,                                                                 \
-        (uintptr_t)(handler),                                                  \
+        (handler),                                                             \
         (flags),                                                               \
     },
     ENUMERATE_SYSCALLS(F)

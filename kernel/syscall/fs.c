@@ -5,9 +5,9 @@
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
-long sys_mount(const char* user_source, const char* user_target,
-               const char* user_filesystemtype, unsigned long mountflags,
-               const void* user_data) {
+SYSCALL5(mount, const char*, user_source, const char*, user_target, const char*,
+         user_filesystemtype, unsigned long, mountflags, const void*,
+         user_data) {
     (void)mountflags;
     (void)user_data;
 
@@ -45,13 +45,13 @@ long sys_mount(const char* user_source, const char* user_target,
     return vfs_mount(fs, user_source ? source : NULL, target);
 }
 
-long sys_sync(void) {
+SYSCALL0(sync) {
     int rc = vfs_sync();
     (void)rc;
     return 0;
 }
 
-long sys_syncfs(int fd) {
+SYSCALL1(syncfs, int, fd) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))

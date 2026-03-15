@@ -80,7 +80,7 @@ bool arch_is_user_mode(const struct registers* regs) {
     return (regs->cs & 3) == 3;
 }
 
-long sys_arch_prctl(int op, unsigned long addr) {
+SYSCALL2(arch_prctl, int, op, unsigned long, addr) {
 #ifdef ARCH_X86_64
     switch (op) {
     case ARCH_SET_FS: {

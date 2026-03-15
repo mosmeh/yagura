@@ -91,20 +91,23 @@ NODISCARD static long open(const struct path* base, const char* user_pathname,
     return fd_table_alloc_fd(current->fd_table, 0, file, fd_flags);
 }
 
-long sys_open(const char* user_pathname, int flags, unsigned mode) {
+SYSCALL3(open, const char*, user_pathname, int, flags, unsigned, mode) {
     SCOPED_LOCK(fs_env, current->fs_env);
     return open(current->fs_env->cwd, user_pathname, flags, mode);
 }
 
-long sys_openat(int dirfd, const char* user_pathname, int flags, mode_t mode) {
+SYSCALL4(openat, int, dirfd, const char*, user_pathname, int, flags, mode_t,
+         mode) {
     struct path* base FREE(path) = ASSERT(path_from_dirfd(dirfd));
     if (IS_ERR(base))
         return PTR_ERR(base);
     return open(base, user_pathname, flags, mode);
 }
 
-long sys_creat(const char* user_pathname, mode_t mode) {
-    return sys_open(user_pathname, O_CREAT | O_WRONLY | O_TRUNC, mode);
+SYSCALL2(creat, const char*, user_pathname, mode_t, mode) {
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return open(current->fs_env->cwd, user_pathname,
+                O_CREAT | O_WRONLY | O_TRUNC, mode);
 }
 
 NODISCARD static long mknod(const struct path* base, const char* user_pathname,
@@ -133,12 +136,13 @@ NODISCARD static long mknod(const struct path* base, const char* user_pathname,
     return 0;
 }
 
-long sys_mknod(const char* user_pathname, mode_t mode, dev_t dev) {
+SYSCALL3(mknod, const char*, user_pathname, mode_t, mode, dev_t, dev) {
     SCOPED_LOCK(fs_env, current->fs_env);
     return mknod(current->fs_env->cwd, user_pathname, mode, dev);
 }
 
-long sys_mknodat(int dirfd, const char* user_pathname, mode_t mode, dev_t dev) {
+SYSCALL4(mknodat, int, dirfd, const char*, user_pathname, mode_t, mode, dev_t,
+         dev) {
     struct path* base FREE(path) = ASSERT(path_from_dirfd(dirfd));
     if (IS_ERR(base))
         return PTR_ERR(base);
@@ -158,12 +162,12 @@ NODISCARD static long mkdir(const struct path* base, const char* user_pathname,
     return 0;
 }
 
-long sys_mkdir(const char* user_pathname, mode_t mode) {
+SYSCALL2(mkdir, const char*, user_pathname, mode_t, mode) {
     SCOPED_LOCK(fs_env, current->fs_env);
     return mkdir(current->fs_env->cwd, user_pathname, mode);
 }
 
-long sys_mkdirat(int dirfd, const char* user_pathname, mode_t mode) {
+SYSCALL3(mkdirat, int, dirfd, const char*, user_pathname, mode_t, mode) {
     struct path* base FREE(path) = ASSERT(path_from_dirfd(dirfd));
     if (IS_ERR(base))
         return PTR_ERR(base);
@@ -185,12 +189,12 @@ NODISCARD static long access(const struct path* base, const char* user_pathname,
     return 0;
 }
 
-long sys_access(const char* user_pathname, int mode) {
+SYSCALL2(access, const char*, user_pathname, int, mode) {
     SCOPED_LOCK(fs_env, current->fs_env);
     return access(current->fs_env->cwd, user_pathname, mode);
 }
 
-long sys_faccessat(int dirfd, const char* user_pathname, int mode) {
+SYSCALL3(faccessat, int, dirfd, const char*, user_pathname, int, mode) {
     struct path* base FREE(path) = ASSERT(path_from_dirfd(dirfd));
     if (IS_ERR(base))
         return PTR_ERR(base);
@@ -220,7 +224,7 @@ NODISCARD static long link(struct inode* old_inode, const struct path* new_base,
     return inode_link(new_path->parent->inode, new_path->basename, old_inode);
 }
 
-long sys_link(const char* user_oldpath, const char* user_newpath) {
+SYSCALL2(link, const char*, user_oldpath, const char*, user_newpath) {
     char old_pathname[PATH_MAX];
     ssize_t len = copy_pathname_from_user(old_pathname, user_oldpath);
     if (IS_ERR(len))
@@ -236,8 +240,8 @@ long sys_link(const char* user_oldpath, const char* user_newpath) {
     return link(old_path->inode, current->fs_env->cwd, user_newpath);
 }
 
-long sys_linkat(int olddirfd, const char* user_oldpath, int newdirfd,
-                const char* user_newpath, int flags) {
+SYSCALL5(linkat, int, olddirfd, const char*, user_oldpath, int, newdirfd,
+         const char*, user_newpath, int, flags) {
     if (flags & ~(AT_SYMLINK_FOLLOW | AT_EMPTY_PATH))
         return -EINVAL;
     if (!(flags & AT_SYMLINK_FOLLOW))
@@ -274,7 +278,7 @@ static long unlink(const struct path* base, const char* user_pathname) {
     return inode_unlink(path->parent->inode, path->basename);
 }
 
-long sys_unlink(const char* user_pathname) {
+SYSCALL1(unlink, const char*, user_pathname) {
     SCOPED_LOCK(fs_env, current->fs_env);
     return unlink(current->fs_env->cwd, user_pathname);
 }
@@ -300,7 +304,7 @@ static long rmdir(const struct path* base, const char* user_pathname) {
     return inode_unlink(path->parent->inode, path->basename);
 }
 
-long sys_unlinkat(int dirfd, const char* user_pathname, int flags) {
+SYSCALL3(unlinkat, int, dirfd, const char*, user_pathname, int, flags) {
     if (flags & ~AT_REMOVEDIR)
         return -EINVAL;
 
@@ -311,7 +315,7 @@ long sys_unlinkat(int dirfd, const char* user_pathname, int flags) {
                                   : unlink(base, user_pathname);
 }
 
-long sys_rmdir(const char* user_pathname) {
+SYSCALL1(rmdir, const char*, user_pathname) {
     SCOPED_LOCK(fs_env, current->fs_env);
     return rmdir(current->fs_env->cwd, user_pathname);
 }
@@ -370,19 +374,15 @@ static long rename(const struct path* old_base, const char* user_oldpath,
     return inode_unlink(old_path->parent->inode, old_path->basename);
 }
 
-long sys_rename(const char* user_oldpath, const char* user_newpath) {
+SYSCALL2(rename, const char*, user_oldpath, const char*, user_newpath) {
     SCOPED_LOCK(fs_env, current->fs_env);
     return rename(current->fs_env->cwd, user_oldpath, current->fs_env->cwd,
                   user_newpath);
 }
 
-long sys_renameat(int olddirfd, const char* user_oldpath, int newdirfd,
-                  const char* user_newpath) {
-    return sys_renameat2(olddirfd, user_oldpath, newdirfd, user_newpath, 0);
-}
-
-long sys_renameat2(int olddirfd, const char* user_oldpath, int newdirfd,
-                   const char* user_newpath, unsigned int flags) {
+NODISCARD static int renameat2(int olddirfd, const char* user_oldpath,
+                               int newdirfd, const char* user_newpath,
+                               unsigned int flags) {
     if (flags)
         return -EINVAL;
 
@@ -395,6 +395,16 @@ long sys_renameat2(int olddirfd, const char* user_oldpath, int newdirfd,
         return PTR_ERR(new_base);
 
     return rename(old_base, user_oldpath, new_base, user_newpath);
+}
+
+SYSCALL4(renameat, int, olddirfd, const char*, user_oldpath, int, newdirfd,
+         const char*, user_newpath) {
+    return renameat2(olddirfd, user_oldpath, newdirfd, user_newpath, 0);
+}
+
+SYSCALL5(renameat2, int, olddirfd, const char*, user_oldpath, int, newdirfd,
+         const char*, user_newpath, unsigned int, flags) {
+    return renameat2(olddirfd, user_oldpath, newdirfd, user_newpath, flags);
 }
 
 NODISCARD static long symlink(const struct path* base, const char* user_target,
@@ -422,13 +432,13 @@ NODISCARD static long symlink(const struct path* base, const char* user_target,
     return file_symlink(file, target, target_len);
 }
 
-long sys_symlink(const char* user_target, const char* user_linkpath) {
+SYSCALL2(symlink, const char*, user_target, const char*, user_linkpath) {
     SCOPED_LOCK(fs_env, current->fs_env);
     return symlink(current->fs_env->cwd, user_target, user_linkpath);
 }
 
-long sys_symlinkat(const char* user_target, int newdirfd,
-                   const char* user_linkpath) {
+SYSCALL3(symlinkat, const char*, user_target, int, newdirfd, const char*,
+         user_linkpath) {
     struct path* base FREE(path) = ASSERT(path_from_dirfd(newdirfd));
     if (IS_ERR(base))
         return PTR_ERR(base);
@@ -463,15 +473,16 @@ static long readlink(const struct path* base, const char* user_pathname,
     return len;
 }
 
-long sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
+SYSCALL3(readlink, const char*, user_pathname, char*, user_buf, size_t,
+         bufsiz) {
     if (bufsiz == 0)
         return -EINVAL;
     SCOPED_LOCK(fs_env, current->fs_env);
     return readlink(current->fs_env->cwd, user_pathname, user_buf, bufsiz);
 }
 
-long sys_readlinkat(int dirfd, const char* user_pathname, char* user_buf,
-                    size_t bufsiz) {
+SYSCALL4(readlinkat, int, dirfd, const char*, user_pathname, char*, user_buf,
+         size_t, bufsiz) {
     if (bufsiz == 0)
         return -EINVAL;
     struct path* base FREE(path) = ASSERT(path_from_dirfd(dirfd));
@@ -485,7 +496,7 @@ static void chmod(struct inode* inode, mode_t mode) {
     inode->mode = (inode->mode & ~ALLPERMS) | (mode & ALLPERMS);
 }
 
-long sys_chmod(const char* user_pathname, mode_t mode) {
+SYSCALL2(chmod, const char*, user_pathname, mode_t, mode) {
     char pathname[PATH_MAX];
     ssize_t len = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(len))
@@ -501,7 +512,7 @@ long sys_chmod(const char* user_pathname, mode_t mode) {
     return 0;
 }
 
-long sys_fchmod(int fd, mode_t mode) {
+SYSCALL2(fchmod, int, fd, mode_t, mode) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -510,7 +521,7 @@ long sys_fchmod(int fd, mode_t mode) {
     return 0;
 }
 
-long sys_fchmodat(int dirfd, const char* user_pathname, mode_t mode) {
+SYSCALL3(fchmodat, int, dirfd, const char*, user_pathname, mode_t, mode) {
     char pathname[PATH_MAX];
     ssize_t len = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(len))
@@ -529,7 +540,7 @@ long sys_fchmodat(int dirfd, const char* user_pathname, mode_t mode) {
     return 0;
 }
 
-static void chown(struct inode* inode, uid_t owner, gid_t group) {
+static void chown_inode(struct inode* inode, uid_t owner, gid_t group) {
     SCOPED_LOCK(inode, inode);
 
     if (owner != (uid_t)-1)
@@ -549,60 +560,58 @@ static void chown(struct inode* inode, uid_t owner, gid_t group) {
     }
 }
 
-long sys_chown(const char* user_pathname, uid_t owner, gid_t group) {
+NODISCARD static int chown(const char* user_pathname, uid_t owner, gid_t group,
+                           int flags) {
     char pathname[PATH_MAX];
     ssize_t len = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(len))
         return len;
 
-    struct path* path FREE(path) = ASSERT(vfs_resolve_path(pathname, 0));
+    struct path* path FREE(path) = ASSERT(vfs_resolve_path(pathname, flags));
     if (IS_ERR(path))
         return PTR_ERR(path);
 
-    chown(path->inode, owner, group);
+    chown_inode(path->inode, owner, group);
     return 0;
 }
 
-long sys_chown16(const char* user_pathname, linux_old_uid_t owner,
-                 linux_old_gid_t group) {
-    return sys_chown(user_pathname, owner, group);
+SYSCALL3(chown, const char*, user_pathname, uid_t, owner, gid_t, group) {
+    return chown(user_pathname, owner, group, 0);
 }
 
-long sys_lchown(const char* user_pathname, uid_t owner, gid_t group) {
-    char pathname[PATH_MAX];
-    ssize_t len = copy_pathname_from_user(pathname, user_pathname);
-    if (IS_ERR(len))
-        return len;
-
-    struct path* path FREE(path) =
-        ASSERT(vfs_resolve_path(pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
-    if (IS_ERR(path))
-        return PTR_ERR(path);
-
-    chown(path->inode, owner, group);
-    return 0;
+SYSCALL3(chown16, const char*, user_pathname, linux_old_uid_t, owner,
+         linux_old_gid_t, group) {
+    return chown(user_pathname, owner, group, 0);
 }
 
-long sys_lchown16(const char* user_pathname, linux_old_uid_t owner,
-                  linux_old_gid_t group) {
-    return sys_lchown(user_pathname, owner, group);
+SYSCALL3(lchown, const char*, user_pathname, uid_t, owner, gid_t, group) {
+    return chown(user_pathname, owner, group, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
 }
 
-long sys_fchown(int fd, uid_t owner, gid_t group) {
+SYSCALL3(lchown16, const char*, user_pathname, linux_old_uid_t, owner,
+         linux_old_gid_t, group) {
+    return chown(user_pathname, owner, group, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
+}
+
+NODISCARD static int fchown(int fd, uid_t owner, gid_t group) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
         return PTR_ERR(file);
-    chown(file->inode, owner, group);
+    chown_inode(file->inode, owner, group);
     return 0;
 }
 
-long sys_fchown16(int fd, linux_old_uid_t owner, linux_old_gid_t group) {
-    return sys_fchown(fd, owner, group);
+SYSCALL3(fchown, int, fd, uid_t, owner, gid_t, group) {
+    return fchown(fd, owner, group);
 }
 
-long sys_fchownat(int dirfd, const char* user_pathname, uid_t owner,
-                  gid_t group, int flags) {
+SYSCALL3(fchown16, int, fd, linux_old_uid_t, owner, linux_old_gid_t, group) {
+    return fchown(fd, owner, group);
+}
+
+SYSCALL5(fchownat, int, dirfd, const char*, user_pathname, uid_t, owner, gid_t,
+         group, int, flags) {
     if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH))
         return -EINVAL;
     if (!(flags & AT_SYMLINK_NOFOLLOW))
@@ -611,6 +620,6 @@ long sys_fchownat(int dirfd, const char* user_pathname, uid_t owner,
         ASSERT(resolve_inode_at(dirfd, user_pathname, flags));
     if (IS_ERR(inode))
         return PTR_ERR(inode);
-    chown(inode, owner, group);
+    chown_inode(inode, owner, group);
     return 0;
 }
