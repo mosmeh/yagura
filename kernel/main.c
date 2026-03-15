@@ -28,7 +28,7 @@ static void open_console(void) {
     }
     int rc;
     for (int i = 0; i < 3; ++i)
-        rc = files_alloc_fd(current->files, 0, file, 0);
+        rc = fd_table_alloc_fd(current->fd_table, 0, file, 0);
     (void)rc;
 }
 

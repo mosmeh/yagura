@@ -37,12 +37,12 @@ long sys_socket(int domain, int type, int protocol) {
     int fd_flags = 0;
     if (type & SOCK_CLOEXEC)
         fd_flags |= FD_CLOEXEC;
-    return files_alloc_fd(current->files, 0, file, fd_flags);
+    return fd_table_alloc_fd(current->fd_table, 0, file, fd_flags);
 }
 
 long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
     struct file* file FREE(file) =
-        ASSERT(files_ref_file(current->files, sockfd));
+        ASSERT(fd_table_ref_file(current->fd_table, sockfd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
@@ -61,7 +61,7 @@ long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
     char path[UNIX_PATH_MAX + 1];
     strlcpy(path, addr_un.sun_path, sizeof(path));
 
-    mode_t mode = S_IFSOCK | (file->inode->mode & ~current->fs->umask);
+    mode_t mode = S_IFSOCK | (file->inode->mode & ~current->fs_env->umask);
     struct inode* addr_inode FREE(inode) = ASSERT(vfs_create(path, mode));
     if (IS_ERR(addr_inode)) {
         if (PTR_ERR(addr_inode) == -EEXIST)
@@ -74,7 +74,7 @@ long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
 
 long sys_listen(int sockfd, int backlog) {
     struct file* file FREE(file) =
-        ASSERT(files_ref_file(current->files, sockfd));
+        ASSERT(fd_table_ref_file(current->fd_table, sockfd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     if (!S_ISSOCK(file->inode->mode))
@@ -92,7 +92,7 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
         return -EINVAL;
 
     struct file* file FREE(file) =
-        ASSERT(files_ref_file(current->files, sockfd));
+        ASSERT(fd_table_ref_file(current->fd_table, sockfd));
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -132,13 +132,13 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
     int fd_flags = 0;
     if (flags & SOCK_CLOEXEC)
         fd_flags |= FD_CLOEXEC;
-    return files_alloc_fd(current->files, 0, connector_file, fd_flags);
+    return fd_table_alloc_fd(current->fd_table, 0, connector_file, fd_flags);
 }
 
 long sys_connect(int sockfd, const struct sockaddr* user_addr,
                  socklen_t addrlen) {
     struct file* file FREE(file) =
-        ASSERT(files_ref_file(current->files, sockfd));
+        ASSERT(fd_table_ref_file(current->fd_table, sockfd));
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -167,7 +167,7 @@ long sys_connect(int sockfd, const struct sockaddr* user_addr,
 
 long sys_shutdown(int sockfd, int how) {
     struct file* file FREE(file) =
-        ASSERT(files_ref_file(current->files, sockfd));
+        ASSERT(fd_table_ref_file(current->fd_table, sockfd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     return unix_socket_shutdown(file, how);

@@ -71,7 +71,7 @@ long sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
             return PTR_ERR(obj);
     } else {
         struct file* file FREE(file) =
-            ASSERT(files_ref_file(current->files, fd));
+            ASSERT(fd_table_ref_file(current->fd_table, fd));
         if (IS_ERR(file))
             return PTR_ERR(file);
         if (S_ISDIR(file->inode->mode))

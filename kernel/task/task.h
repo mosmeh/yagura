@@ -36,8 +36,8 @@ struct task {
     uintptr_t kernel_stack_base, kernel_stack_top;
     uintptr_t arg_start, arg_end, env_start, env_end;
 
-    struct fs* fs;
-    struct files* files;
+    struct fs_env* fs_env;
+    struct fd_table* fd_table;
 
     struct sighand* sighand;
     sigset_t pending_signals;
@@ -95,7 +95,7 @@ _Noreturn void task_exit(int status);
 _Noreturn void task_exit_thread_group(int status);
 _Noreturn void task_crash(int signum);
 
-struct fs {
+struct fs_env {
     struct path* root;
     struct path* cwd;
     _Atomic(mode_t) umask;
@@ -103,53 +103,54 @@ struct fs {
     refcount_t refcount;
 };
 
-struct fs* fs_clone(struct fs*);
+struct fs_env* fs_env_clone(struct fs_env*);
 
-DEFINE_LOCKED(fs, struct fs, mutex, lock)
+DEFINE_LOCKED(fs_env, struct fs_env, mutex, lock)
 
-void __fs_destroy(struct fs*);
-DEFINE_REFCOUNTED_BASE(fs, struct fs, refcount, __fs_destroy)
+void __fs_env_destroy(struct fs_env*);
+DEFINE_REFCOUNTED_BASE(fs_env, struct fs_env, refcount, __fs_env_destroy)
 
-NODISCARD int fs_chroot(struct fs*, struct path*);
-NODISCARD int fs_chdir(struct fs*, struct path*);
+NODISCARD int fs_env_chroot(struct fs_env*, struct path*);
+NODISCARD int fs_env_chdir(struct fs_env*, struct path*);
 
-struct files {
+struct fd_table {
     struct file* entries[OPEN_MAX];
     unsigned long closed_on_exec[DIV_CEIL(OPEN_MAX, ULONG_WIDTH)];
     struct mutex lock;
     refcount_t refcount;
 };
 
-struct files* files_clone(struct files*);
+struct fd_table* fd_table_clone(struct fd_table*);
 
-DEFINE_LOCKED(files, struct files, mutex, lock)
+DEFINE_LOCKED(fd_table, struct fd_table, mutex, lock)
 
-void __files_destroy(struct files*);
-DEFINE_REFCOUNTED_BASE(files, struct files, refcount, __files_destroy)
+void __fd_table_destroy(struct fd_table*);
+DEFINE_REFCOUNTED_BASE(fd_table, struct fd_table, refcount, __fd_table_destroy)
 
 // Allocates lowest-numbered file descriptor >= min_fd
 // that is not already used, and sets it to the given file.
 // Flags are the file descriptor flags (FD_*).
-NODISCARD int files_alloc_fd(struct files*, int min_fd, struct file*,
-                             int flags);
+NODISCARD int fd_table_alloc_fd(struct fd_table*, int min_fd, struct file*,
+                                int flags);
 
 // Sets the file at given fd to the given file.
 // If the fd is already used, replaces and frees the old file.
 // Flags are the file descriptor flags (FD_*).
-NODISCARD int files_set_file(struct files*, int fd, struct file*, int flags);
+NODISCARD int fd_table_set_file(struct fd_table*, int fd, struct file*,
+                                int flags);
 
-int files_free_fd(struct files*, int fd);
+int fd_table_free_fd(struct fd_table*, int fd);
 
-struct file* files_ref_file(struct files*, int fd);
+struct file* fd_table_ref_file(struct fd_table*, int fd);
 
 // Gets the file descriptor flags (FD_*) for the given fd.
-NODISCARD int files_get_flags(struct files*, int fd);
+NODISCARD int fd_table_get_flags(struct fd_table*, int fd);
 
 // Sets the file descriptor flags (FD_*) for the given fd.
-NODISCARD int files_set_flags(struct files*, int fd, int flags);
+NODISCARD int fd_table_set_flags(struct fd_table*, int fd, int flags);
 
 // Closes all file descriptors with FD_CLOEXEC flag set.
-NODISCARD int files_close_on_exec(struct files*);
+NODISCARD int fd_table_close_on_exec(struct fd_table*);
 
 struct sighand {
     struct sigaction actions[NSIG - 1];

@@ -11,11 +11,11 @@
 
 struct path* path_from_dirfd(int dirfd) {
     if (dirfd == AT_FDCWD) {
-        SCOPED_LOCK(fs, current->fs);
-        return path_dup(current->fs->cwd);
+        SCOPED_LOCK(fs_env, current->fs_env);
+        return path_dup(current->fs_env->cwd);
     }
     struct file* file FREE(file) =
-        ASSERT(files_ref_file(current->files, dirfd));
+        ASSERT(fd_table_ref_file(current->fd_table, dirfd));
     if (IS_ERR(file))
         return ERR_PTR(PTR_ERR(file));
     if (!S_ISDIR(file->inode->mode) || !file->path)
@@ -55,14 +55,16 @@ static struct inode* resolve_inode_at(int dirfd, const char* user_pathname,
         return ERR_PTR(-ENOENT);
 
     struct file* file FREE(file) =
-        ASSERT(files_ref_file(current->files, dirfd));
+        ASSERT(fd_table_ref_file(current->fd_table, dirfd));
     if (IS_ERR(file))
         return ERR_PTR(PTR_ERR(file));
 
     return inode_ref(file->inode);
 }
 
-static mode_t apply_umask(mode_t mode) { return mode & ~current->fs->umask; }
+static mode_t apply_umask(mode_t mode) {
+    return mode & ~current->fs_env->umask;
+}
 
 NODISCARD static long open(const struct path* base, const char* user_pathname,
                            int flags, unsigned mode) {
@@ -86,12 +88,12 @@ NODISCARD static long open(const struct path* base, const char* user_pathname,
     if (IS_ERR(file))
         return PTR_ERR(file);
 
-    return files_alloc_fd(current->files, 0, file, fd_flags);
+    return fd_table_alloc_fd(current->fd_table, 0, file, fd_flags);
 }
 
 long sys_open(const char* user_pathname, int flags, unsigned mode) {
-    SCOPED_LOCK(fs, current->fs);
-    return open(current->fs->cwd, user_pathname, flags, mode);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return open(current->fs_env->cwd, user_pathname, flags, mode);
 }
 
 long sys_openat(int dirfd, const char* user_pathname, int flags, mode_t mode) {
@@ -132,8 +134,8 @@ NODISCARD static long mknod(const struct path* base, const char* user_pathname,
 }
 
 long sys_mknod(const char* user_pathname, mode_t mode, dev_t dev) {
-    SCOPED_LOCK(fs, current->fs);
-    return mknod(current->fs->cwd, user_pathname, mode, dev);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return mknod(current->fs_env->cwd, user_pathname, mode, dev);
 }
 
 long sys_mknodat(int dirfd, const char* user_pathname, mode_t mode, dev_t dev) {
@@ -157,8 +159,8 @@ NODISCARD static long mkdir(const struct path* base, const char* user_pathname,
 }
 
 long sys_mkdir(const char* user_pathname, mode_t mode) {
-    SCOPED_LOCK(fs, current->fs);
-    return mkdir(current->fs->cwd, user_pathname, mode);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return mkdir(current->fs_env->cwd, user_pathname, mode);
 }
 
 long sys_mkdirat(int dirfd, const char* user_pathname, mode_t mode) {
@@ -184,8 +186,8 @@ NODISCARD static long access(const struct path* base, const char* user_pathname,
 }
 
 long sys_access(const char* user_pathname, int mode) {
-    SCOPED_LOCK(fs, current->fs);
-    return access(current->fs->cwd, user_pathname, mode);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return access(current->fs_env->cwd, user_pathname, mode);
 }
 
 long sys_faccessat(int dirfd, const char* user_pathname, int mode) {
@@ -224,14 +226,14 @@ long sys_link(const char* user_oldpath, const char* user_newpath) {
     if (IS_ERR(len))
         return len;
 
-    SCOPED_LOCK(fs, current->fs);
+    SCOPED_LOCK(fs_env, current->fs_env);
 
     struct path* old_path FREE(path) = ASSERT(vfs_resolve_path_at(
-        current->fs->cwd, old_pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
+        current->fs_env->cwd, old_pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(old_path))
         return PTR_ERR(old_path);
 
-    return link(old_path->inode, current->fs->cwd, user_newpath);
+    return link(old_path->inode, current->fs_env->cwd, user_newpath);
 }
 
 long sys_linkat(int olddirfd, const char* user_oldpath, int newdirfd,
@@ -273,8 +275,8 @@ static long unlink(const struct path* base, const char* user_pathname) {
 }
 
 long sys_unlink(const char* user_pathname) {
-    SCOPED_LOCK(fs, current->fs);
-    return unlink(current->fs->cwd, user_pathname);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return unlink(current->fs_env->cwd, user_pathname);
 }
 
 NODISCARD
@@ -310,8 +312,8 @@ long sys_unlinkat(int dirfd, const char* user_pathname, int flags) {
 }
 
 long sys_rmdir(const char* user_pathname) {
-    SCOPED_LOCK(fs, current->fs);
-    return rmdir(current->fs->cwd, user_pathname);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return rmdir(current->fs_env->cwd, user_pathname);
 }
 
 NODISCARD
@@ -369,8 +371,8 @@ static long rename(const struct path* old_base, const char* user_oldpath,
 }
 
 long sys_rename(const char* user_oldpath, const char* user_newpath) {
-    SCOPED_LOCK(fs, current->fs);
-    return rename(current->fs->cwd, user_oldpath, current->fs->cwd,
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return rename(current->fs_env->cwd, user_oldpath, current->fs_env->cwd,
                   user_newpath);
 }
 
@@ -421,8 +423,8 @@ NODISCARD static long symlink(const struct path* base, const char* user_target,
 }
 
 long sys_symlink(const char* user_target, const char* user_linkpath) {
-    SCOPED_LOCK(fs, current->fs);
-    return symlink(current->fs->cwd, user_target, user_linkpath);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return symlink(current->fs_env->cwd, user_target, user_linkpath);
 }
 
 long sys_symlinkat(const char* user_target, int newdirfd,
@@ -464,8 +466,8 @@ static long readlink(const struct path* base, const char* user_pathname,
 long sys_readlink(const char* user_pathname, char* user_buf, size_t bufsiz) {
     if (bufsiz == 0)
         return -EINVAL;
-    SCOPED_LOCK(fs, current->fs);
-    return readlink(current->fs->cwd, user_pathname, user_buf, bufsiz);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return readlink(current->fs_env->cwd, user_pathname, user_buf, bufsiz);
 }
 
 long sys_readlinkat(int dirfd, const char* user_pathname, char* user_buf,
@@ -489,9 +491,9 @@ long sys_chmod(const char* user_pathname, mode_t mode) {
     if (IS_ERR(len))
         return len;
 
-    SCOPED_LOCK(fs, current->fs);
+    SCOPED_LOCK(fs_env, current->fs_env);
     struct path* path FREE(path) =
-        ASSERT(vfs_resolve_path_at(current->fs->cwd, pathname, 0));
+        ASSERT(vfs_resolve_path_at(current->fs_env->cwd, pathname, 0));
     if (IS_ERR(path))
         return PTR_ERR(path);
 
@@ -500,7 +502,8 @@ long sys_chmod(const char* user_pathname, mode_t mode) {
 }
 
 long sys_fchmod(int fd, mode_t mode) {
-    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    struct file* file FREE(file) =
+        ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     chmod(file->inode, mode);
@@ -586,7 +589,8 @@ long sys_lchown16(const char* user_pathname, linux_old_uid_t owner,
 }
 
 long sys_fchown(int fd, uid_t owner, gid_t group) {
-    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    struct file* file FREE(file) =
+        ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     chown(file->inode, owner, group);

@@ -75,14 +75,14 @@ NODISCARD static int wait_fds(nfds_t nfds, struct pollfd pollfds[nfds],
         if (!waiter.files)
             return -ENOMEM;
 
-        struct files* files = current->files;
+        struct fd_table* fd_table = current->fd_table;
         for (nfds_t i = 0; i < nfds; ++i) {
             struct pollfd* pollfd = pollfds + i;
             pollfd->revents = 0;
             waiter.files[i] = NULL;
             if (pollfd->fd < 0)
                 continue;
-            struct file* file = ASSERT(files_ref_file(files, pollfd->fd));
+            struct file* file = ASSERT(fd_table_ref_file(fd_table, pollfd->fd));
             if (IS_ERR(file)) {
                 pollfd->revents = POLLNVAL;
                 ++waiter.num_events;

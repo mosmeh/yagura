@@ -38,11 +38,11 @@ void task_early_init(void) {
 void task_late_init(void) {
     ASSERT(current == &init_task);
 
-    ASSERT(!init_task.fs);
-    init_task.fs = ASSERT_PTR(fs_create());
+    ASSERT(!init_task.fs_env);
+    init_task.fs_env = ASSERT_PTR(fs_env_create());
 
-    ASSERT(!init_task.files);
-    init_task.files = ASSERT_PTR(files_create());
+    ASSERT(!init_task.fd_table);
+    init_task.fd_table = ASSERT_PTR(fd_table_create());
 
     ASSERT(!init_task.sighand);
     init_task.sighand = ASSERT_PTR(sighand_create());
@@ -88,22 +88,22 @@ static struct task* task_clone(unsigned flags) {
             return ERR_CAST(vm);
     }
 
-    struct fs* fs FREE(fs) = NULL;
+    struct fs_env* fs_env FREE(fs_env) = NULL;
     if (flags & CLONE_FS) {
-        fs = fs_ref(current->fs);
+        fs_env = fs_env_ref(current->fs_env);
     } else {
-        fs = ASSERT(fs_clone(current->fs));
-        if (IS_ERR(fs))
-            return ERR_CAST(fs);
+        fs_env = ASSERT(fs_env_clone(current->fs_env));
+        if (IS_ERR(fs_env))
+            return ERR_CAST(fs_env);
     }
 
-    struct files* files FREE(files) = NULL;
+    struct fd_table* fd_table FREE(fd_table) = NULL;
     if (flags & CLONE_FILES) {
-        files = files_ref(current->files);
+        fd_table = fd_table_ref(current->fd_table);
     } else {
-        files = ASSERT(files_clone(current->files));
-        if (IS_ERR(files))
-            return ERR_CAST(files);
+        fd_table = ASSERT(fd_table_clone(current->fd_table));
+        if (IS_ERR(fd_table))
+            return ERR_CAST(fd_table);
     }
 
     struct sighand* sighand FREE(sighand) = NULL;
@@ -129,8 +129,8 @@ static struct task* task_clone(unsigned flags) {
 
     TAKE_PTR(stack);
     new_task->vm = TAKE_PTR(vm);
-    new_task->fs = TAKE_PTR(fs);
-    new_task->files = TAKE_PTR(files);
+    new_task->fs_env = TAKE_PTR(fs_env);
+    new_task->fd_table = TAKE_PTR(fd_table);
     new_task->sighand = TAKE_PTR(sighand);
     new_task->thread_group = TAKE_PTR(thread_group);
 
@@ -168,8 +168,8 @@ static void destroy(struct work* work) {
     struct task* task = CONTAINER_OF(work, struct task, destroy_work);
     thread_group_unref(task->thread_group);
     sighand_unref(task->sighand);
-    files_unref(task->files);
-    fs_unref(task->fs);
+    fd_table_unref(task->fd_table);
+    fs_env_unref(task->fs_env);
     vm_unref(task->vm);
     kfree((void*)task->kernel_stack_base);
 }
@@ -187,29 +187,30 @@ int task_unshare(unsigned long flags) {
 
     SCOPED_LOCK(task, current);
 
-    struct fs* new_fs FREE(fs) = NULL;
-    if ((flags & CLONE_FS) && refcount_get(&current->fs->refcount) > 1) {
-        new_fs = ASSERT(fs_clone(current->fs));
-        if (IS_ERR(new_fs))
-            return PTR_ERR(new_fs);
+    struct fs_env* new_fs_env FREE(fs_env) = NULL;
+    if ((flags & CLONE_FS) && refcount_get(&current->fs_env->refcount) > 1) {
+        new_fs_env = ASSERT(fs_env_clone(current->fs_env));
+        if (IS_ERR(new_fs_env))
+            return PTR_ERR(new_fs_env);
     }
 
-    struct files* new_files FREE(files) = NULL;
-    if ((flags & CLONE_FILES) && refcount_get(&current->files->refcount) > 1) {
-        new_files = ASSERT(files_clone(current->files));
-        if (IS_ERR(new_files))
-            return PTR_ERR(new_files);
+    struct fd_table* new_fd_table FREE(fd_table) = NULL;
+    if ((flags & CLONE_FILES) &&
+        refcount_get(&current->fd_table->refcount) > 1) {
+        new_fd_table = ASSERT(fd_table_clone(current->fd_table));
+        if (IS_ERR(new_fd_table))
+            return PTR_ERR(new_fd_table);
     }
 
-    if (new_fs) {
-        struct fs* old_fs = current->fs;
-        current->fs = TAKE_PTR(new_fs);
-        fs_unref(old_fs);
+    if (new_fs_env) {
+        struct fs_env* old_fs_env = current->fs_env;
+        current->fs_env = TAKE_PTR(new_fs_env);
+        fs_env_unref(old_fs_env);
     }
-    if (new_files) {
-        struct files* old_files = current->files;
-        current->files = TAKE_PTR(new_files);
-        files_unref(old_files);
+    if (new_fd_table) {
+        struct fd_table* old_fd_table = current->fd_table;
+        current->fd_table = TAKE_PTR(new_fd_table);
+        fd_table_unref(old_fd_table);
     }
 
     return 0;
@@ -260,13 +261,13 @@ static _Noreturn void exit(int exit_status) {
     {
         SCOPED_LOCK(task, current);
 
-        struct files* files = current->files;
-        current->files = NULL;
-        files_unref(files);
+        struct fd_table* fd_table = current->fd_table;
+        current->fd_table = NULL;
+        fd_table_unref(fd_table);
 
-        struct fs* fs = current->fs;
-        current->fs = NULL;
-        fs_unref(fs);
+        struct fs_env* fs_env = current->fs_env;
+        current->fs_env = NULL;
+        fs_env_unref(fs_env);
     }
 
     arch_disable_interrupts();

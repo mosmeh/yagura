@@ -52,7 +52,8 @@ long sys_sync(void) {
 }
 
 long sys_syncfs(int fd) {
-    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    struct file* file FREE(file) =
+        ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     return mount_sync(file->inode->mount);

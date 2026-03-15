@@ -6,16 +6,16 @@
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
-long sys_close(int fd) { return files_free_fd(current->files, fd); }
+long sys_close(int fd) { return fd_table_free_fd(current->fd_table, fd); }
 
 #define SETFL_MASK O_NONBLOCK
 
 long sys_fcntl(int fd, int cmd, unsigned long arg) {
-    struct files* files = current->files;
+    struct fd_table* fd_table = current->fd_table;
     switch (cmd) {
     case F_DUPFD:
     case F_DUPFD_CLOEXEC: {
-        struct file* file FREE(file) = ASSERT(files_ref_file(files, fd));
+        struct file* file FREE(file) = ASSERT(fd_table_ref_file(fd_table, fd));
         if (IS_ERR(file))
             return PTR_ERR(file);
         if (arg >= OPEN_MAX)
@@ -23,20 +23,20 @@ long sys_fcntl(int fd, int cmd, unsigned long arg) {
         int fd_flags = 0;
         if (cmd == F_DUPFD_CLOEXEC)
             fd_flags |= FD_CLOEXEC;
-        return files_alloc_fd(files, arg, file, fd_flags);
+        return fd_table_alloc_fd(fd_table, arg, file, fd_flags);
     }
     case F_GETFD:
-        return files_get_flags(files, fd);
+        return fd_table_get_flags(fd_table, fd);
     case F_SETFD:
-        return files_set_flags(files, fd, arg);
+        return fd_table_set_flags(fd_table, fd, arg);
     case F_GETFL: {
-        struct file* file FREE(file) = ASSERT(files_ref_file(files, fd));
+        struct file* file FREE(file) = ASSERT(fd_table_ref_file(fd_table, fd));
         if (IS_ERR(file))
             return PTR_ERR(file);
         return file->flags;
     }
     case F_SETFL: {
-        struct file* file FREE(file) = ASSERT(files_ref_file(files, fd));
+        struct file* file FREE(file) = ASSERT(fd_table_ref_file(fd_table, fd));
         if (IS_ERR(file))
             return PTR_ERR(file);
         file->flags = (file->flags & ~SETFL_MASK) | (arg & SETFL_MASK);
@@ -52,23 +52,24 @@ long sys_fcntl64(int fd, int cmd, unsigned long arg) {
 }
 
 long sys_dup(int oldfd) {
-    struct files* files = current->files;
-    struct file* file FREE(file) = ASSERT(files_ref_file(files, oldfd));
+    struct fd_table* fd_table = current->fd_table;
+    struct file* file FREE(file) = ASSERT(fd_table_ref_file(fd_table, oldfd));
     if (IS_ERR(file))
         return PTR_ERR(file);
-    return files_alloc_fd(files, 0, file, 0);
+    return fd_table_alloc_fd(fd_table, 0, file, 0);
 }
 
 long sys_dup2(int oldfd, int newfd) {
     if (newfd < 0)
         return -EBADF;
-    struct files* files = current->files;
-    struct file* oldfd_file FREE(file) = ASSERT(files_ref_file(files, oldfd));
+    struct fd_table* fd_table = current->fd_table;
+    struct file* oldfd_file FREE(file) =
+        ASSERT(fd_table_ref_file(fd_table, oldfd));
     if (IS_ERR(oldfd_file))
         return PTR_ERR(oldfd_file);
     if (oldfd == newfd)
         return oldfd;
-    int rc = files_set_file(files, newfd, oldfd_file, 0);
+    int rc = fd_table_set_file(fd_table, newfd, oldfd_file, 0);
     if (IS_ERR(rc))
         return rc;
     return newfd;
@@ -81,21 +82,23 @@ long sys_dup3(int oldfd, int newfd, int flags) {
         return -EINVAL;
     if (newfd < 0)
         return -EBADF;
-    struct files* files = current->files;
-    struct file* oldfd_file FREE(file) = ASSERT(files_ref_file(files, oldfd));
+    struct fd_table* fd_table = current->fd_table;
+    struct file* oldfd_file FREE(file) =
+        ASSERT(fd_table_ref_file(fd_table, oldfd));
     if (IS_ERR(oldfd_file))
         return PTR_ERR(oldfd_file);
     int fd_flags = 0;
     if (flags & O_CLOEXEC)
         fd_flags |= FD_CLOEXEC;
-    int rc = files_set_file(files, newfd, oldfd_file, fd_flags);
+    int rc = fd_table_set_file(fd_table, newfd, oldfd_file, fd_flags);
     if (IS_ERR(rc))
         return rc;
     return newfd;
 }
 
 long sys_ioctl(int fd, unsigned cmd, unsigned long arg) {
-    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    struct file* file FREE(file) =
+        ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     int rc = file_ioctl(file, cmd, arg);
@@ -131,22 +134,22 @@ long sys_pipe2(int user_pipefd[2], int flags) {
     if (IS_ERR(writer_file))
         return PTR_ERR(writer_file);
 
-    struct files* files = current->files;
+    struct fd_table* fd_table = current->fd_table;
 
-    int reader_fd = files_alloc_fd(files, 0, reader_file, fd_flags);
+    int reader_fd = fd_table_alloc_fd(fd_table, 0, reader_file, fd_flags);
     if (IS_ERR(reader_fd))
         return reader_fd;
 
-    int writer_fd = files_alloc_fd(files, 0, writer_file, fd_flags);
+    int writer_fd = fd_table_alloc_fd(fd_table, 0, writer_file, fd_flags);
     if (IS_ERR(writer_fd)) {
-        files_free_fd(files, reader_fd);
+        fd_table_free_fd(fd_table, reader_fd);
         return writer_fd;
     }
 
     int fds[2] = {reader_fd, writer_fd};
     if (copy_to_user(user_pipefd, fds, sizeof(int[2]))) {
-        files_free_fd(files, writer_fd);
-        files_free_fd(files, reader_fd);
+        fd_table_free_fd(fd_table, writer_fd);
+        fd_table_free_fd(fd_table, reader_fd);
         return -EFAULT;
     }
 

@@ -283,7 +283,7 @@ NODISCARD static int finalize_exec(struct loader* loader) {
         sighand_unref(old_sighand);
     }
 
-    rc = files_close_on_exec(task->files);
+    rc = fd_table_close_on_exec(task->fd_table);
     if (IS_ERR(rc))
         return rc;
 

@@ -119,8 +119,8 @@ static struct inode* resolve_mounts(struct inode* host) {
 
 int vfs_mount(const struct file_system* fs, const char* source,
               const char* target) {
-    SCOPED_LOCK(fs, current->fs);
-    return vfs_mount_at(fs, current->fs->cwd, source, target);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return vfs_mount_at(fs, current->fs_env->cwd, source, target);
 }
 
 int vfs_mount_at(const struct file_system* fs, const struct path* base,
@@ -155,11 +155,12 @@ int vfs_mount_at(const struct file_system* fs, const struct path* base,
 
 int proc_print_mounts(struct file* file, struct vec* vec) {
     (void)file;
-    SCOPED_LOCK(fs, current->fs);
+    SCOPED_LOCK(fs_env, current->fs_env);
     SCOPED_LOCK(mutex, &mounts_lock);
     for (struct mount_point* it = mount_points; it; it = it->next) {
         const struct file_system* fs = it->guest->fs;
-        char* path FREE(kfree) = path_to_string(it->path, current->fs->root);
+        char* path FREE(kfree) =
+            path_to_string(it->path, current->fs_env->root);
         if (!path)
             return -ENOMEM;
         int rc = vec_printf(vec, "%s %s %s rw 0 0\n", fs->name, path, fs->name);
@@ -216,9 +217,9 @@ static struct path* resolve_path_at(const struct path* base,
 
     struct path* path FREE(path) = NULL;
     if (is_absolute_path(pathname)) {
-        struct fs* fs = current->fs;
-        SCOPED_LOCK(fs, fs);
-        path = path_dup(fs->root);
+        struct fs_env* fs_env = current->fs_env;
+        SCOPED_LOCK(fs_env, fs_env);
+        path = path_dup(fs_env->root);
     } else {
         path = path_dup(base);
     }
@@ -301,8 +302,8 @@ static struct path* resolve_path_at(const struct path* base,
 }
 
 struct path* vfs_resolve_path(const char* pathname, int flags) {
-    SCOPED_LOCK(fs, current->fs);
-    return vfs_resolve_path_at(current->fs->cwd, pathname, flags);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return vfs_resolve_path_at(current->fs_env->cwd, pathname, flags);
 }
 
 struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
@@ -363,8 +364,8 @@ static struct path* create_at(const struct path* base, const char* pathname,
 }
 
 struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
-    SCOPED_LOCK(fs, current->fs);
-    return vfs_open_at(current->fs->cwd, pathname, flags, mode);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return vfs_open_at(current->fs_env->cwd, pathname, flags, mode);
 }
 
 struct file* vfs_open_at(const struct path* base, const char* pathname,
@@ -386,8 +387,8 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
 }
 
 int vfs_stat(const char* pathname, struct kstat* buf, int flags) {
-    SCOPED_LOCK(fs, current->fs);
-    return vfs_stat_at(current->fs->cwd, pathname, buf, flags);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return vfs_stat_at(current->fs_env->cwd, pathname, buf, flags);
 }
 
 int vfs_stat_at(const struct path* base, const char* pathname,
@@ -401,8 +402,8 @@ int vfs_stat_at(const struct path* base, const char* pathname,
 }
 
 struct inode* vfs_create(const char* pathname, mode_t mode) {
-    SCOPED_LOCK(fs, current->fs);
-    return vfs_create_at(current->fs->cwd, pathname, mode);
+    SCOPED_LOCK(fs_env, current->fs_env);
+    return vfs_create_at(current->fs_env->cwd, pathname, mode);
 }
 
 struct inode* vfs_create_at(const struct path* base, const char* pathname,
@@ -431,9 +432,9 @@ static void mount_root(void) {
     struct mount* mount = ASSERT_PTR(file_system_mount(fs, "tmpfs"));
     struct path* root FREE(path) = ASSERT_PTR(path_create_root(mount->root));
 
-    SCOPED_LOCK(fs, current->fs);
-    ASSERT_OK(fs_chroot(current->fs, root));
-    ASSERT_OK(fs_chdir(current->fs, root));
+    SCOPED_LOCK(fs_env, current->fs_env);
+    ASSERT_OK(fs_env_chroot(current->fs_env, root));
+    ASSERT_OK(fs_env_chdir(current->fs_env, root));
 }
 
 static void schedule_sync(void);

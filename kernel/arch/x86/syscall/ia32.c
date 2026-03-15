@@ -7,7 +7,8 @@
 
 long sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
                       uint32_t pos_hi) {
-    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    struct file* file FREE(file) =
+        ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     if (count == 0)
@@ -23,7 +24,8 @@ long sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
 
 long sys_ia32_pwrite64(int fd, const void* user_buf, size_t count,
                        uint32_t pos_lo, uint32_t pos_hi) {
-    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    struct file* file FREE(file) =
+        ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     if (count == 0)
@@ -51,7 +53,8 @@ long sys_ia32_truncate64(const char* user_path, unsigned long offset_low,
 
 long sys_ia32_ftruncate64(int fd, unsigned long offset_low,
                           unsigned long offset_high) {
-    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    struct file* file FREE(file) =
+        ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_truncate(file, ((uint64_t)offset_high << 32) | offset_low);

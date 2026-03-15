@@ -254,7 +254,7 @@ long sys_times(struct tms* user_buf) {
 long sys_unshare(unsigned long flags) { return task_unshare(flags); }
 
 long sys_umask(mode_t mask) {
-    return atomic_exchange(&current->fs->umask, mask & ACCESSPERMS);
+    return atomic_exchange(&current->fs_env->umask, mask & ACCESSPERMS);
 }
 
 long sys_chroot(const char* user_path) {
@@ -263,15 +263,15 @@ long sys_chroot(const char* user_path) {
     if (IS_ERR(len))
         return len;
 
-    struct fs* fs = current->fs;
-    SCOPED_LOCK(fs, fs);
+    struct fs_env* fs_env = current->fs_env;
+    SCOPED_LOCK(fs_env, fs_env);
 
     struct path* new_root FREE(path) =
-        ASSERT(vfs_resolve_path_at(fs->cwd, path, 0));
+        ASSERT(vfs_resolve_path_at(fs_env->cwd, path, 0));
     if (IS_ERR(new_root))
         return PTR_ERR(new_root);
 
-    return fs_chroot(fs, new_root);
+    return fs_env_chroot(fs_env, new_root);
 }
 
 long sys_getcwd(char* user_buf, size_t size) {
@@ -280,9 +280,9 @@ long sys_getcwd(char* user_buf, size_t size) {
 
     char* cwd_str FREE(kfree) = NULL;
     {
-        struct fs* fs = current->fs;
-        SCOPED_LOCK(fs, fs);
-        cwd_str = path_to_string(fs->cwd, fs->root);
+        struct fs_env* fs_env = current->fs_env;
+        SCOPED_LOCK(fs_env, fs_env);
+        cwd_str = path_to_string(fs_env->cwd, fs_env->root);
     }
     if (!cwd_str)
         return -ENOMEM;
@@ -302,27 +302,28 @@ long sys_chdir(const char* user_path) {
     if (IS_ERR(len))
         return len;
 
-    struct fs* fs = current->fs;
-    SCOPED_LOCK(fs, fs);
+    struct fs_env* fs_env = current->fs_env;
+    SCOPED_LOCK(fs_env, fs_env);
 
     struct path* new_cwd FREE(path) =
-        ASSERT(vfs_resolve_path_at(fs->cwd, path, 0));
+        ASSERT(vfs_resolve_path_at(fs_env->cwd, path, 0));
     if (IS_ERR(new_cwd))
         return PTR_ERR(new_cwd);
 
-    return fs_chdir(fs, new_cwd);
+    return fs_env_chdir(fs_env, new_cwd);
 }
 
 long sys_fchdir(int fd) {
-    struct file* file FREE(file) = ASSERT(files_ref_file(current->files, fd));
+    struct file* file FREE(file) =
+        ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     if (!S_ISDIR(file->inode->mode) || !file->path)
         return -ENOTDIR;
 
-    struct fs* fs = current->fs;
-    SCOPED_LOCK(fs, fs);
-    return fs_chdir(fs, file->path);
+    struct fs_env* fs_env = current->fs_env;
+    SCOPED_LOCK(fs_env, fs_env);
+    return fs_env_chdir(fs_env, file->path);
 }
 
 long sys_prctl(int op, unsigned long arg2, unsigned long arg3,

@@ -87,16 +87,16 @@ static int print_cwd(struct file* file, struct vec* vec) {
         struct path* cwd FREE(path) = NULL;
         {
             SCOPED_LOCK(task, task);
-            SCOPED_LOCK(fs, task->fs);
-            cwd = path_dup(task->fs->cwd);
+            SCOPED_LOCK(fs_env, task->fs_env);
+            cwd = path_dup(task->fs_env->cwd);
         }
         if (IS_ERR(cwd))
             return PTR_ERR(cwd);
 
         struct path* root FREE(path) = NULL;
         {
-            SCOPED_LOCK(fs, current->fs);
-            root = path_dup(current->fs->root);
+            SCOPED_LOCK(fs_env, current->fs_env);
+            root = path_dup(current->fs_env->root);
         }
         if (IS_ERR(root))
             return PTR_ERR(root);
