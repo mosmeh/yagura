@@ -1,5 +1,6 @@
 #include <common/string.h>
 #include <kernel/api/x86/asm/ldt.h>
+#include <kernel/arch/x86/syscall/syscall.h>
 #include <kernel/cpu.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
@@ -79,7 +80,7 @@ static int set_tls_entry(struct task* task, const struct user_desc* u) {
     return 0;
 }
 
-long sys_get_thread_area(struct user_desc* user_u_info) {
+SYSCALL1(get_thread_area, struct user_desc*, user_u_info) {
     struct user_desc u_info;
     if (copy_from_user(&u_info, user_u_info, sizeof(struct user_desc)))
         return -EFAULT;
@@ -101,7 +102,7 @@ static int find_free_tls_entry(void) {
     return -ESRCH;
 }
 
-long sys_set_thread_area(struct user_desc* user_u_info) {
+SYSCALL1(set_thread_area, struct user_desc*, user_u_info) {
     struct user_desc u_info;
     if (copy_from_user(&u_info, user_u_info, sizeof(struct user_desc)))
         return -EFAULT;

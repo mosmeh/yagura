@@ -16,23 +16,31 @@
 // There is no support for users and groups in this kernel.
 // It behaves as if the user is always root.
 
-long sys_getuid(void) { return sys_getuid16(); }
+static uid_t getuid(void) { return 0; }
 
-long sys_getuid16(void) { return 0; }
+SYSCALL0(getuid16) { return getuid(); }
 
-long sys_geteuid(void) { return sys_geteuid16(); }
+SYSCALL0(getuid) { return getuid(); }
 
-long sys_geteuid16(void) { return 0; }
+static uid_t geteuid(void) { return 0; }
 
-long sys_getgid(void) { return sys_getgid16(); }
+SYSCALL0(geteuid16) { return geteuid(); }
 
-long sys_getgid16(void) { return 0; }
+SYSCALL0(geteuid) { return geteuid(); }
 
-long sys_getegid(void) { return sys_getegid16(); }
+static gid_t getgid(void) { return 0; }
 
-long sys_getegid16(void) { return 0; }
+SYSCALL0(getgid16) { return getgid(); }
 
-long sys_getresuid(uid_t* user_ruid, uid_t* user_euid, uid_t* user_suid) {
+SYSCALL0(getgid) { return getgid(); }
+
+static gid_t getegid(void) { return 0; }
+
+SYSCALL0(getegid16) { return getegid(); }
+
+SYSCALL0(getegid) { return getegid(); }
+
+SYSCALL3(getresuid, uid_t*, user_ruid, uid_t*, user_euid, uid_t*, user_suid) {
     uid_t zero = 0;
     if (copy_to_user(user_ruid, &zero, sizeof(uid_t)))
         return -EFAULT;
@@ -43,8 +51,8 @@ long sys_getresuid(uid_t* user_ruid, uid_t* user_euid, uid_t* user_suid) {
     return 0;
 }
 
-long sys_getresuid16(linux_old_uid_t* user_ruid, linux_old_uid_t* user_euid,
-                     linux_old_uid_t* user_suid) {
+SYSCALL3(getresuid16, linux_old_uid_t*, user_ruid, linux_old_uid_t*, user_euid,
+         linux_old_uid_t*, user_suid) {
     linux_old_uid_t zero = 0;
     if (copy_to_user(user_ruid, &zero, sizeof(linux_old_uid_t)))
         return -EFAULT;
@@ -55,7 +63,7 @@ long sys_getresuid16(linux_old_uid_t* user_ruid, linux_old_uid_t* user_euid,
     return 0;
 }
 
-long sys_getresgid(gid_t* user_rgid, gid_t* user_egid, gid_t* user_sgid) {
+SYSCALL3(getresgid, gid_t*, user_rgid, gid_t*, user_egid, gid_t*, user_sgid) {
     gid_t zero = 0;
     if (copy_to_user(user_rgid, &zero, sizeof(gid_t)))
         return -EFAULT;
@@ -66,8 +74,8 @@ long sys_getresgid(gid_t* user_rgid, gid_t* user_egid, gid_t* user_sgid) {
     return 0;
 }
 
-long sys_getresgid16(linux_old_gid_t* user_rgid, linux_old_gid_t* user_egid,
-                     linux_old_gid_t* user_sgid) {
+SYSCALL3(getresgid16, linux_old_gid_t*, user_rgid, linux_old_gid_t*, user_egid,
+         linux_old_gid_t*, user_sgid) {
     linux_old_gid_t zero = 0;
     if (copy_to_user(user_rgid, &zero, sizeof(linux_old_gid_t)))
         return -EFAULT;
@@ -79,7 +87,7 @@ long sys_getresgid16(linux_old_gid_t* user_rgid, linux_old_gid_t* user_egid,
 }
 
 // NOLINTNEXTLINE(readability-non-const-parameter)
-long sys_getgroups(int size, gid_t* user_list) {
+SYSCALL2(getgroups, int, size, gid_t*, user_list) {
     (void)user_list;
     if (size < 0)
         return -EINVAL;
@@ -87,14 +95,14 @@ long sys_getgroups(int size, gid_t* user_list) {
 }
 
 // NOLINTNEXTLINE(readability-non-const-parameter)
-long sys_getgroups16(int size, linux_old_gid_t* user_list) {
+SYSCALL2(getgroups16, int, size, linux_old_gid_t*, user_list) {
     (void)user_list;
     if (size < 0)
         return -EINVAL;
     return 0;
 }
 
-long sys_reboot(int magic, int magic2, int op, void* user_arg) {
+SYSCALL4(reboot, int, magic, int, magic2, int, op, void*, user_arg) {
     if ((unsigned)magic != LINUX_REBOOT_MAGIC1)
         return -EINVAL;
     switch (magic2) {
@@ -127,7 +135,7 @@ long sys_reboot(int magic, int magic2, int op, void* user_arg) {
     }
 }
 
-long sys_sysinfo(struct sysinfo* user_info) {
+SYSCALL1(sysinfo, struct sysinfo*, user_info) {
     struct memory_stats memory_stats;
     memory_get_stats(&memory_stats);
 
@@ -150,7 +158,7 @@ long sys_sysinfo(struct sysinfo* user_info) {
     return 0;
 }
 
-long sys_olduname(struct linux_oldold_utsname* user_buf) {
+SYSCALL1(olduname, struct linux_oldold_utsname*, user_buf) {
     struct utsname utsname;
     utsname_get(&utsname);
     struct linux_oldold_utsname buf = {0};
@@ -164,7 +172,7 @@ long sys_olduname(struct linux_oldold_utsname* user_buf) {
     return 0;
 }
 
-long sys_uname(struct linux_old_utsname* user_buf) {
+SYSCALL1(uname, struct linux_old_utsname*, user_buf) {
     struct utsname utsname;
     utsname_get(&utsname);
     struct linux_old_utsname buf = {0};
@@ -178,7 +186,7 @@ long sys_uname(struct linux_old_utsname* user_buf) {
     return 0;
 }
 
-long sys_newuname(struct utsname* user_buf) {
+SYSCALL1(newuname, struct utsname*, user_buf) {
     struct utsname buf;
     utsname_get(&buf);
     if (copy_to_user(user_buf, &buf, sizeof(struct utsname)))
@@ -186,7 +194,7 @@ long sys_newuname(struct utsname* user_buf) {
     return 0;
 }
 
-long sys_sethostname(const char* user_name, int len) {
+SYSCALL2(sethostname, const char*, user_name, int, len) {
     if (len < 0 || UTSNAME_LENGTH <= len)
         return -EINVAL;
     char name[UTSNAME_LENGTH] = {0};
@@ -198,7 +206,7 @@ long sys_sethostname(const char* user_name, int len) {
     return utsname_set_hostname(name, len);
 }
 
-long sys_setdomainname(const char* user_name, int len) {
+SYSCALL2(setdomainname, const char*, user_name, int, len) {
     if (len < 0 || UTSNAME_LENGTH <= len)
         return -EINVAL;
     char name[UTSNAME_LENGTH] = {0};
@@ -210,8 +218,10 @@ long sys_setdomainname(const char* user_name, int len) {
     return utsname_set_domainname(name, len);
 }
 
-long sys_getcpu(unsigned int* user_cpu, unsigned int* user_node,
-                struct getcpu_cache* user_tcache) {
+struct getcpu_cache;
+
+SYSCALL3(getcpu, unsigned int*, user_cpu, unsigned int*, user_node,
+         struct getcpu_cache*, user_tcache) {
     (void)user_tcache;
     int rc = 0;
     if (user_cpu) {
@@ -225,7 +235,7 @@ long sys_getcpu(unsigned int* user_cpu, unsigned int* user_node,
     return rc ? -EFAULT : 0;
 }
 
-long sys_getrandom(void* user_buf, size_t buflen, unsigned int flags) {
+SYSCALL3(getrandom, void*, user_buf, size_t, buflen, unsigned int, flags) {
     if (flags & ~(GRND_NONBLOCK | GRND_RANDOM))
         return -EINVAL;
     // Our RNG never blocks, so GRND_NONBLOCK has no effect.
@@ -233,7 +243,7 @@ long sys_getrandom(void* user_buf, size_t buflen, unsigned int flags) {
     return random_get_user(user_buf, buflen);
 }
 
-long sys_dbgprint(const char* user_str) {
+SYSCALL1(dbgprint, const char*, user_str) {
     char str[1024];
     ssize_t str_len = strncpy_from_user(str, user_str, sizeof(str));
     if (IS_ERR(str_len))

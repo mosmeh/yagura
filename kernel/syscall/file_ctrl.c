@@ -6,11 +6,11 @@
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
-long sys_close(int fd) { return fd_table_free_fd(current->fd_table, fd); }
+SYSCALL1(close, int, fd) { return fd_table_free_fd(current->fd_table, fd); }
 
 #define SETFL_MASK O_NONBLOCK
 
-long sys_fcntl(int fd, int cmd, unsigned long arg) {
+NODISCARD static int fcntl(int fd, int cmd, unsigned long arg) {
     struct fd_table* fd_table = current->fd_table;
     switch (cmd) {
     case F_DUPFD:
@@ -47,11 +47,15 @@ long sys_fcntl(int fd, int cmd, unsigned long arg) {
     }
 }
 
-long sys_fcntl64(int fd, int cmd, unsigned long arg) {
-    return sys_fcntl(fd, cmd, arg);
+SYSCALL3(fcntl, int, fd, int, cmd, unsigned long, arg) {
+    return fcntl(fd, cmd, arg);
 }
 
-long sys_dup(int oldfd) {
+SYSCALL3(fcntl64, int, fd, int, cmd, unsigned long, arg) {
+    return fcntl(fd, cmd, arg);
+}
+
+SYSCALL1(dup, int, oldfd) {
     struct fd_table* fd_table = current->fd_table;
     struct file* file FREE(file) = ASSERT(fd_table_ref_file(fd_table, oldfd));
     if (IS_ERR(file))
@@ -59,7 +63,7 @@ long sys_dup(int oldfd) {
     return fd_table_alloc_fd(fd_table, 0, file, 0);
 }
 
-long sys_dup2(int oldfd, int newfd) {
+SYSCALL2(dup2, int, oldfd, int, newfd) {
     if (newfd < 0)
         return -EBADF;
     struct fd_table* fd_table = current->fd_table;
@@ -75,7 +79,7 @@ long sys_dup2(int oldfd, int newfd) {
     return newfd;
 }
 
-long sys_dup3(int oldfd, int newfd, int flags) {
+SYSCALL3(dup3, int, oldfd, int, newfd, int, flags) {
     if (flags & ~O_CLOEXEC)
         return -EINVAL;
     if (oldfd == newfd)
@@ -96,7 +100,7 @@ long sys_dup3(int oldfd, int newfd, int flags) {
     return newfd;
 }
 
-long sys_ioctl(int fd, unsigned cmd, unsigned long arg) {
+SYSCALL3(ioctl, int, fd, unsigned, cmd, unsigned long, arg) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -107,9 +111,7 @@ long sys_ioctl(int fd, unsigned cmd, unsigned long arg) {
     return rc;
 }
 
-long sys_pipe(int user_pipefd[2]) { return sys_pipe2(user_pipefd, 0); }
-
-long sys_pipe2(int user_pipefd[2], int flags) {
+NODISCARD static int pipe2(int user_pipefd[2], int flags) {
     if (flags & O_ACCMODE)
         return -EINVAL;
     flags &= ~O_KERNEL_INTERNAL_MASK;
@@ -154,4 +156,10 @@ long sys_pipe2(int user_pipefd[2], int flags) {
     }
 
     return 0;
+}
+
+SYSCALL1(pipe, int*, user_pipefd) { return pipe2(user_pipefd, 0); }
+
+SYSCALL2(pipe2, int*, user_pipefd, int, flags) {
+    return pipe2(user_pipefd, flags);
 }

@@ -22,7 +22,7 @@ NODISCARD static ssize_t pread(struct file* file, void* user_buf, size_t count,
     return nread;
 }
 
-long sys_read(int fd, void* user_buf, size_t count) {
+SYSCALL3(read, int, fd, void*, user_buf, size_t, count) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -34,7 +34,7 @@ long sys_read(int fd, void* user_buf, size_t count) {
     return nread;
 }
 
-long sys_pread64(int fd, void* user_buf, size_t count, loff_t pos) {
+SYSCALL4(pread64, int, fd, void*, user_buf, size_t, count, loff_t, pos) {
     if (pos < 0)
         return -EINVAL;
     struct file* file FREE(file) =
@@ -89,7 +89,7 @@ NODISCARD static ssize_t readv(struct file* file, const struct iovec* user_iov,
     return nread;
 }
 
-long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
+SYSCALL3(readv, int, fd, const struct iovec*, user_iov, int, iovcnt) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -102,14 +102,9 @@ long sys_readv(int fd, const struct iovec* user_iov, int iovcnt) {
     return nread;
 }
 
-long sys_preadv(int fd, const struct iovec* user_iov, int iovcnt,
-                unsigned long offset_low, unsigned long offset_high) {
-    return sys_preadv2(fd, user_iov, iovcnt, offset_low, offset_high, 0);
-}
-
-long sys_preadv2(int fd, const struct iovec* user_iov, int iovcnt,
-                 unsigned long offset_low, unsigned long offset_high,
-                 int flags) {
+NODISCARD static ssize_t preadv2(int fd, const struct iovec* user_iov,
+                                 int iovcnt, unsigned long offset_low,
+                                 unsigned long offset_high, int flags) {
     (void)flags;
 
     struct file* file FREE(file) =
@@ -121,6 +116,16 @@ long sys_preadv2(int fd, const struct iovec* user_iov, int iovcnt,
         (((uint64_t)offset_high << HALF_LONG_WIDTH) << HALF_LONG_WIDTH) |
         offset_low;
     return readv(file, user_iov, iovcnt, offset);
+}
+
+SYSCALL5(preadv, int, fd, const struct iovec*, user_iov, int, iovcnt,
+         unsigned long, offset_low, unsigned long, offset_high) {
+    return preadv2(fd, user_iov, iovcnt, offset_low, offset_high, 0);
+}
+
+SYSCALL6(preadv2, int, fd, const struct iovec*, user_iov, int, iovcnt,
+         unsigned long, offset_low, unsigned long, offset_high, int, flags) {
+    return preadv2(fd, user_iov, iovcnt, offset_low, offset_high, flags);
 }
 
 NODISCARD static ssize_t pwrite(struct file* file, const void* user_buf,
@@ -135,7 +140,7 @@ NODISCARD static ssize_t pwrite(struct file* file, const void* user_buf,
     return nwritten;
 }
 
-long sys_write(int fd, const void* user_buf, size_t count) {
+SYSCALL3(write, int, fd, const void*, user_buf, size_t, count) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -147,7 +152,7 @@ long sys_write(int fd, const void* user_buf, size_t count) {
     return nwritten;
 }
 
-long sys_pwrite64(int fd, const void* buf, size_t count, loff_t pos) {
+SYSCALL4(pwrite64, int, fd, const void*, buf, size_t, count, loff_t, pos) {
     if (pos < 0)
         return -EINVAL;
     struct file* file FREE(file) =
@@ -200,7 +205,7 @@ NODISCARD static ssize_t writev(struct file* file, const struct iovec* user_iov,
     return nwritten;
 }
 
-long sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
+SYSCALL3(writev, int, fd, const struct iovec*, user_iov, int, iovcnt) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -213,14 +218,9 @@ long sys_writev(int fd, const struct iovec* user_iov, int iovcnt) {
     return nwritten;
 }
 
-long sys_pwritev(int fd, const struct iovec* user_iov, int iovcnt,
-                 unsigned long offset_low, unsigned long offset_high) {
-    return sys_pwritev2(fd, user_iov, iovcnt, offset_low, offset_high, 0);
-}
-
-long sys_pwritev2(int fd, const struct iovec* user_iov, int iovcnt,
-                  unsigned long offset_low, unsigned long offset_high,
-                  int flags) {
+NODISCARD static ssize_t pwritev2(int fd, const struct iovec* user_iov,
+                                  int iovcnt, unsigned long offset_low,
+                                  unsigned long offset_high, int flags) {
     (void)flags;
 
     struct file* file FREE(file) =
@@ -234,7 +234,17 @@ long sys_pwritev2(int fd, const struct iovec* user_iov, int iovcnt,
     return writev(file, user_iov, iovcnt, offset);
 }
 
-long sys_lseek(int fd, off_t offset, int whence) {
+SYSCALL5(pwritev, int, fd, const struct iovec*, user_iov, int, iovcnt,
+         unsigned long, offset_low, unsigned long, offset_high) {
+    return pwritev2(fd, user_iov, iovcnt, offset_low, offset_high, 0);
+}
+
+SYSCALL6(pwritev2, int, fd, const struct iovec*, user_iov, int, iovcnt,
+         unsigned long, offset_low, unsigned long, offset_high, int, flags) {
+    return pwritev2(fd, user_iov, iovcnt, offset_low, offset_high, flags);
+}
+
+SYSCALL3(lseek, int, fd, off_t, offset, int, whence) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -242,9 +252,8 @@ long sys_lseek(int fd, off_t offset, int whence) {
     return file_seek(file, offset, whence);
 }
 
-long sys_llseek(unsigned int fd, unsigned long offset_high,
-                unsigned long offset_low, loff_t* user_result,
-                unsigned int whence) {
+SYSCALL5(llseek, unsigned int, fd, unsigned long, offset_high, unsigned long,
+         offset_low, loff_t*, user_result, unsigned int, whence) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -258,7 +267,7 @@ long sys_llseek(unsigned int fd, unsigned long offset_high,
     return 0;
 }
 
-long sys_truncate(const char* user_path, off_t length) {
+SYSCALL2(truncate, const char*, user_path, off_t, length) {
     if (length < 0)
         return -EINVAL;
     char path[PATH_MAX];
@@ -271,7 +280,7 @@ long sys_truncate(const char* user_path, off_t length) {
     return file_truncate(file, length);
 }
 
-long sys_ftruncate(int fd, off_t length) {
+SYSCALL2(ftruncate, int, fd, off_t, length) {
     if (length < 0)
         return -EINVAL;
     struct file* file FREE(file) =
@@ -281,7 +290,7 @@ long sys_ftruncate(int fd, off_t length) {
     return file_truncate(file, length);
 }
 
-long sys_fsync(int fd) {
+NODISCARD static int fsync(int fd) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -289,4 +298,6 @@ long sys_fsync(int fd) {
     return file_sync(file, 0, UINT64_MAX);
 }
 
-long sys_fdatasync(int fd) { return sys_fsync(fd); }
+SYSCALL1(fsync, int, fd) { return fsync(fd); }
+
+SYSCALL1(fdatasync, int, fd) { return fsync(fd); }

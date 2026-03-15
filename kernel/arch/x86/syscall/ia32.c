@@ -1,12 +1,12 @@
 #include <kernel/api/fcntl.h>
+#include <kernel/arch/x86/syscall/syscall.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/vfs.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
-long sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
-                      uint32_t pos_hi) {
+SYSCALL5(ia32_pread64, int, fd, void*, user_buf, size_t, count, uint32_t,
+         pos_lo, uint32_t, pos_hi) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -22,8 +22,8 @@ long sys_ia32_pread64(int fd, void* user_buf, size_t count, uint32_t pos_lo,
     return rc;
 }
 
-long sys_ia32_pwrite64(int fd, const void* user_buf, size_t count,
-                       uint32_t pos_lo, uint32_t pos_hi) {
+SYSCALL5(ia32_pwrite64, int, fd, const void*, user_buf, size_t, count, uint32_t,
+         pos_lo, uint32_t, pos_hi) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))
@@ -39,8 +39,8 @@ long sys_ia32_pwrite64(int fd, const void* user_buf, size_t count,
     return rc;
 }
 
-long sys_ia32_truncate64(const char* user_path, unsigned long offset_low,
-                         unsigned long offset_high) {
+SYSCALL3(ia32_truncate64, const char*, user_path, unsigned long, offset_low,
+         unsigned long, offset_high) {
     char path[PATH_MAX];
     ssize_t len = copy_pathname_from_user(path, user_path);
     if (IS_ERR(len))
@@ -51,8 +51,8 @@ long sys_ia32_truncate64(const char* user_path, unsigned long offset_low,
     return file_truncate(file, ((uint64_t)offset_high << 32) | offset_low);
 }
 
-long sys_ia32_ftruncate64(int fd, unsigned long offset_low,
-                          unsigned long offset_high) {
+SYSCALL3(ia32_ftruncate64, int, fd, unsigned long, offset_low, unsigned long,
+         offset_high) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, fd));
     if (IS_ERR(file))

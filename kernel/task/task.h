@@ -186,8 +186,8 @@ void task_get_pending_signals(struct task*, sigset_t* out_set);
 
 void task_set_blocked_signals(const sigset_t*);
 
-NODISCARD int clone_user_task(struct registers* regs, unsigned long flags,
-                              void* user_stack, pid_t* user_parent_tid,
-                              pid_t* user_child_tid, void* user_tls);
+NODISCARD pid_t clone_user_task(struct registers* regs, unsigned long flags,
+                                void* user_stack, pid_t* user_parent_tid,
+                                pid_t* user_child_tid, void* user_tls);
 
 #endif

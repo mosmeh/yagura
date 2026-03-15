@@ -11,439 +11,439 @@
 // in the Linux kernel source.
 // The unimplemented syscalls are mapped to sys_ni_syscall.
 #define ENUMERATE_SYSCALLS(F)                                                  \
-    F(restart_syscall, sys_ni_syscall, 0)                                      \
-    F(exit, sys_exit, 0)                                                       \
-    F(fork, sys_fork, SYSCALL_RAW_REGISTERS)                                   \
-    F(read, sys_read, 0)                                                       \
-    F(write, sys_write, 0)                                                     \
-    F(open, sys_open, 0)                                                       \
-    F(close, sys_close, 0)                                                     \
-    F(waitpid, sys_waitpid, 0)                                                 \
-    F(creat, sys_creat, 0)                                                     \
-    F(link, sys_link, 0)                                                       \
-    F(unlink, sys_unlink, 0)                                                   \
-    F(execve, sys_execve, 0)                                                   \
-    F(chdir, sys_chdir, 0)                                                     \
-    F(time, sys_time32, 0)                                                     \
-    F(mknod, sys_mknod, 0)                                                     \
-    F(chmod, sys_chmod, 0)                                                     \
-    F(lchown, sys_lchown16, 0)                                                 \
-    F(break, sys_ni_syscall, 0)                                                \
-    F(oldstat, sys_stat, 0)                                                    \
-    F(lseek, sys_lseek, 0)                                                     \
-    F(getpid, sys_getpid, 0)                                                   \
-    F(mount, sys_mount, 0)                                                     \
-    F(umount, sys_ni_syscall, 0)                                               \
-    F(setuid, sys_ni_syscall, 0)                                               \
-    F(getuid, sys_getuid16, 0)                                                 \
-    F(stime, sys_stime32, 0)                                                   \
-    F(ptrace, sys_ni_syscall, 0)                                               \
-    F(alarm, sys_ni_syscall, 0)                                                \
-    F(oldfstat, sys_fstat, 0)                                                  \
-    F(pause, sys_pause, 0)                                                     \
-    F(utime, sys_ni_syscall, 0)                                                \
-    F(stty, sys_ni_syscall, 0)                                                 \
-    F(gtty, sys_ni_syscall, 0)                                                 \
-    F(access, sys_access, 0)                                                   \
-    F(nice, sys_ni_syscall, 0)                                                 \
-    F(ftime, sys_ni_syscall, 0)                                                \
-    F(sync, sys_sync, 0)                                                       \
-    F(kill, sys_kill, 0)                                                       \
-    F(rename, sys_rename, 0)                                                   \
-    F(mkdir, sys_mkdir, 0)                                                     \
-    F(rmdir, sys_rmdir, 0)                                                     \
-    F(dup, sys_dup, 0)                                                         \
-    F(pipe, sys_pipe, 0)                                                       \
-    F(times, sys_times, 0)                                                     \
-    F(prof, sys_ni_syscall, 0)                                                 \
-    F(brk, sys_ni_syscall, 0)                                                  \
-    F(setgid, sys_ni_syscall, 0)                                               \
-    F(getgid, sys_getgid16, 0)                                                 \
-    F(signal, sys_signal, 0)                                                   \
-    F(geteuid, sys_geteuid16, 0)                                               \
-    F(getegid, sys_getegid16, 0)                                               \
-    F(acct, sys_ni_syscall, 0)                                                 \
-    F(umount2, sys_ni_syscall, 0)                                              \
-    F(lock, sys_ni_syscall, 0)                                                 \
-    F(ioctl, sys_ioctl, 0)                                                     \
-    F(fcntl, sys_fcntl, 0)                                                     \
-    F(mpx, sys_ni_syscall, 0)                                                  \
-    F(setpgid, sys_setpgid, 0)                                                 \
-    F(ulimit, sys_ni_syscall, 0)                                               \
-    F(oldolduname, sys_olduname, 0)                                            \
-    F(umask, sys_umask, 0)                                                     \
-    F(chroot, sys_chroot, 0)                                                   \
-    F(ustat, sys_ni_syscall, 0)                                                \
-    F(dup2, sys_dup2, 0)                                                       \
-    F(getppid, sys_getppid, 0)                                                 \
-    F(getpgrp, sys_getpgrp, 0)                                                 \
-    F(setsid, sys_ni_syscall, 0)                                               \
-    F(sigaction, sys_sigaction, 0)                                             \
-    F(sgetmask, sys_sgetmask, 0)                                               \
-    F(ssetmask, sys_ssetmask, 0)                                               \
-    F(setreuid, sys_ni_syscall, 0)                                             \
-    F(setregid, sys_ni_syscall, 0)                                             \
-    F(sigsuspend, sys_sigsuspend, 0)                                           \
-    F(sigpending, sys_sigpending, 0)                                           \
-    F(sethostname, sys_sethostname, 0)                                         \
-    F(setrlimit, sys_ni_syscall, 0)                                            \
-    F(getrlimit, sys_ni_syscall, 0)                                            \
-    F(getrusage, sys_ni_syscall, 0)                                            \
-    F(gettimeofday, sys_gettimeofday, 0)                                       \
-    F(settimeofday, sys_settimeofday, 0)                                       \
-    F(getgroups, sys_getgroups16, 0)                                           \
-    F(setgroups, sys_ni_syscall, 0)                                            \
-    F(select, sys_old_select, 0)                                               \
-    F(symlink, sys_symlink, 0)                                                 \
-    F(oldlstat, sys_lstat, 0)                                                  \
-    F(readlink, sys_readlink, 0)                                               \
-    F(uselib, sys_ni_syscall, 0)                                               \
-    F(swapon, sys_ni_syscall, 0)                                               \
-    F(reboot, sys_reboot, 0)                                                   \
-    F(readdir, sys_old_readdir, 0)                                             \
-    F(mmap, sys_old_mmap, 0)                                                   \
-    F(munmap, sys_munmap, 0)                                                   \
-    F(truncate, sys_truncate, 0)                                               \
-    F(ftruncate, sys_ftruncate, 0)                                             \
-    F(fchmod, sys_fchmod, 0)                                                   \
-    F(fchown, sys_fchown16, 0)                                                 \
-    F(getpriority, sys_ni_syscall, 0)                                          \
-    F(setpriority, sys_ni_syscall, 0)                                          \
-    F(profil, sys_ni_syscall, 0)                                               \
-    F(statfs, sys_ni_syscall, 0)                                               \
-    F(fstatfs, sys_ni_syscall, 0)                                              \
-    F(ioperm, sys_ni_syscall, 0)                                               \
-    F(socketcall, sys_socketcall, 0)                                           \
-    F(syslog, sys_ni_syscall, 0)                                               \
-    F(setitimer, sys_ni_syscall, 0)                                            \
-    F(getitimer, sys_ni_syscall, 0)                                            \
-    F(stat, sys_newstat, 0)                                                    \
-    F(lstat, sys_newlstat, 0)                                                  \
-    F(fstat, sys_newfstat, 0)                                                  \
-    F(olduname, sys_uname, 0)                                                  \
-    F(iopl, sys_ni_syscall, 0)                                                 \
-    F(vhangup, sys_ni_syscall, 0)                                              \
-    F(idle, sys_ni_syscall, 0)                                                 \
-    F(vm86old, sys_ni_syscall, 0)                                              \
-    F(wait4, sys_wait4, 0)                                                     \
-    F(swapoff, sys_ni_syscall, 0)                                              \
-    F(sysinfo, sys_sysinfo, 0)                                                 \
-    F(ipc, sys_ni_syscall, 0)                                                  \
-    F(fsync, sys_fsync, 0)                                                     \
-    F(sigreturn, sys_sigreturn, SYSCALL_RAW_REGISTERS | SYSCALL_NO_ERROR)      \
-    F(clone, sys_clone, SYSCALL_RAW_REGISTERS)                                 \
-    F(setdomainname, sys_setdomainname, 0)                                     \
-    F(uname, sys_newuname, 0)                                                  \
-    F(modify_ldt, sys_ni_syscall, 0)                                           \
-    F(adjtimex, sys_ni_syscall, 0)                                             \
-    F(mprotect, sys_mprotect, 0)                                               \
-    F(sigprocmask, sys_sigprocmask, 0)                                         \
-    F(create_module, sys_ni_syscall, 0)                                        \
-    F(init_module, sys_ni_syscall, 0)                                          \
-    F(delete_module, sys_ni_syscall, 0)                                        \
-    F(get_kernel_syms, sys_ni_syscall, 0)                                      \
-    F(quotactl, sys_ni_syscall, 0)                                             \
-    F(getpgid, sys_getpgid, 0)                                                 \
-    F(fchdir, sys_fchdir, 0)                                                   \
-    F(bdflush, sys_ni_syscall, 0)                                              \
-    F(sysfs, sys_ni_syscall, 0)                                                \
-    F(personality, sys_ni_syscall, 0)                                          \
-    F(afs_syscall, sys_ni_syscall, 0)                                          \
-    F(setfsuid, sys_ni_syscall, 0)                                             \
-    F(setfsgid, sys_ni_syscall, 0)                                             \
-    F(_llseek, sys_llseek, 0)                                                  \
-    F(getdents, sys_getdents, 0)                                               \
-    F(_newselect, sys_select, 0)                                               \
-    F(flock, sys_ni_syscall, 0)                                                \
-    F(msync, sys_msync, 0)                                                     \
-    F(readv, sys_readv, 0)                                                     \
-    F(writev, sys_writev, 0)                                                   \
-    F(getsid, sys_getsid, 0)                                                   \
-    F(fdatasync, sys_fdatasync, 0)                                             \
-    F(_sysctl, sys_ni_syscall, 0)                                              \
-    F(mlock, sys_ni_syscall, 0)                                                \
-    F(munlock, sys_ni_syscall, 0)                                              \
-    F(mlockall, sys_ni_syscall, 0)                                             \
-    F(munlockall, sys_ni_syscall, 0)                                           \
-    F(sched_setparam, sys_ni_syscall, 0)                                       \
-    F(sched_getparam, sys_ni_syscall, 0)                                       \
-    F(sched_setscheduler, sys_ni_syscall, 0)                                   \
-    F(sched_getscheduler, sys_ni_syscall, 0)                                   \
-    F(sched_yield, sys_sched_yield, 0)                                         \
-    F(sched_get_priority_max, sys_ni_syscall, 0)                               \
-    F(sched_get_priority_min, sys_ni_syscall, 0)                               \
-    F(sched_rr_get_interval, sys_ni_syscall, 0)                                \
-    F(nanosleep, sys_nanosleep_time32, 0)                                      \
-    F(mremap, sys_ni_syscall, 0)                                               \
-    F(setresuid, sys_ni_syscall, 0)                                            \
-    F(getresuid, sys_getresuid16, 0)                                           \
-    F(vm86, sys_ni_syscall, 0)                                                 \
-    F(query_module, sys_ni_syscall, 0)                                         \
-    F(poll, sys_poll, 0)                                                       \
-    F(nfsservctl, sys_ni_syscall, 0)                                           \
-    F(setresgid, sys_ni_syscall, 0)                                            \
-    F(getresgid, sys_getresgid16, 0)                                           \
-    F(prctl, sys_prctl, 0)                                                     \
-    F(rt_sigreturn, sys_rt_sigreturn,                                          \
-      SYSCALL_RAW_REGISTERS | SYSCALL_NO_ERROR)                                \
-    F(rt_sigaction, sys_rt_sigaction, 0)                                       \
-    F(rt_sigprocmask, sys_rt_sigprocmask, 0)                                   \
-    F(rt_sigpending, sys_rt_sigpending, 0)                                     \
-    F(rt_sigtimedwait, sys_ni_syscall, 0)                                      \
-    F(rt_sigqueueinfo, sys_ni_syscall, 0)                                      \
-    F(rt_sigsuspend, sys_rt_sigsuspend, 0)                                     \
-    F(pread64, sys_ia32_pread64, 0)                                            \
-    F(pwrite64, sys_ia32_pwrite64, 0)                                          \
-    F(chown, sys_chown16, 0)                                                   \
-    F(getcwd, sys_getcwd, 0)                                                   \
-    F(capget, sys_ni_syscall, 0)                                               \
-    F(capset, sys_ni_syscall, 0)                                               \
-    F(sigaltstack, sys_ni_syscall, 0)                                          \
-    F(sendfile, sys_ni_syscall, 0)                                             \
-    F(getpmsg, sys_ni_syscall, 0)                                              \
-    F(putpmsg, sys_ni_syscall, 0)                                              \
-    F(vfork, sys_vfork, SYSCALL_RAW_REGISTERS)                                 \
-    F(ugetrlimit, sys_ni_syscall, 0)                                           \
-    F(mmap2, sys_mmap_pgoff, 0)                                                \
-    F(truncate64, sys_ia32_truncate64, 0)                                      \
-    F(ftruncate64, sys_ia32_ftruncate64, 0)                                    \
-    F(stat64, sys_stat64, 0)                                                   \
-    F(lstat64, sys_lstat64, 0)                                                 \
-    F(fstat64, sys_fstat64, 0)                                                 \
-    F(lchown32, sys_lchown, 0)                                                 \
-    F(getuid32, sys_getuid, 0)                                                 \
-    F(getgid32, sys_getgid, 0)                                                 \
-    F(geteuid32, sys_geteuid, 0)                                               \
-    F(getegid32, sys_getegid, 0)                                               \
-    F(setreuid32, sys_ni_syscall, 0)                                           \
-    F(setregid32, sys_ni_syscall, 0)                                           \
-    F(getgroups32, sys_getgroups, 0)                                           \
-    F(setgroups32, sys_ni_syscall, 0)                                          \
-    F(fchown32, sys_fchown, 0)                                                 \
-    F(setresuid32, sys_ni_syscall, 0)                                          \
-    F(getresuid32, sys_getresuid, 0)                                           \
-    F(setresgid32, sys_ni_syscall, 0)                                          \
-    F(getresgid32, sys_getresgid, 0)                                           \
-    F(chown32, sys_chown, 0)                                                   \
-    F(setuid32, sys_ni_syscall, 0)                                             \
-    F(setgid32, sys_ni_syscall, 0)                                             \
-    F(setfsuid32, sys_ni_syscall, 0)                                           \
-    F(setfsgid32, sys_ni_syscall, 0)                                           \
-    F(pivot_root, sys_ni_syscall, 0)                                           \
-    F(mincore, sys_ni_syscall, 0)                                              \
-    F(madvise, sys_ni_syscall, 0)                                              \
-    F(getdents64, sys_getdents64, 0)                                           \
-    F(fcntl64, sys_fcntl64, 0)                                                 \
-    F(gettid, sys_gettid, 0)                                                   \
-    F(readahead, sys_ni_syscall, 0)                                            \
-    F(setxattr, sys_ni_syscall, 0)                                             \
-    F(lsetxattr, sys_ni_syscall, 0)                                            \
-    F(fsetxattr, sys_ni_syscall, 0)                                            \
-    F(getxattr, sys_ni_syscall, 0)                                             \
-    F(lgetxattr, sys_ni_syscall, 0)                                            \
-    F(fgetxattr, sys_ni_syscall, 0)                                            \
-    F(listxattr, sys_ni_syscall, 0)                                            \
-    F(llistxattr, sys_ni_syscall, 0)                                           \
-    F(flistxattr, sys_ni_syscall, 0)                                           \
-    F(removexattr, sys_ni_syscall, 0)                                          \
-    F(lremovexattr, sys_ni_syscall, 0)                                         \
-    F(fremovexattr, sys_ni_syscall, 0)                                         \
-    F(tkill, sys_tkill, 0)                                                     \
-    F(sendfile64, sys_ni_syscall, 0)                                           \
-    F(futex, sys_ni_syscall, 0)                                                \
-    F(sched_setaffinity, sys_ni_syscall, 0)                                    \
-    F(sched_getaffinity, sys_ni_syscall, 0)                                    \
-    F(set_thread_area, sys_set_thread_area, 0)                                 \
-    F(get_thread_area, sys_get_thread_area, 0)                                 \
-    F(io_setup, sys_ni_syscall, 0)                                             \
-    F(io_destroy, sys_ni_syscall, 0)                                           \
-    F(io_getevents, sys_ni_syscall, 0)                                         \
-    F(io_submit, sys_ni_syscall, 0)                                            \
-    F(io_cancel, sys_ni_syscall, 0)                                            \
-    F(fadvise64, sys_ni_syscall, 0)                                            \
-    F(exit_group, sys_exit_group, 0)                                           \
-    F(lookup_dcookie, sys_ni_syscall, 0)                                       \
-    F(epoll_create, sys_ni_syscall, 0)                                         \
-    F(epoll_ctl, sys_ni_syscall, 0)                                            \
-    F(epoll_wait, sys_ni_syscall, 0)                                           \
-    F(remap_file_pages, sys_ni_syscall, 0)                                     \
-    F(set_tid_address, sys_ni_syscall, 0)                                      \
-    F(timer_create, sys_ni_syscall, 0)                                         \
-    F(timer_settime, sys_ni_syscall, 0)                                        \
-    F(timer_gettime, sys_ni_syscall, 0)                                        \
-    F(timer_getoverrun, sys_ni_syscall, 0)                                     \
-    F(timer_delete, sys_ni_syscall, 0)                                         \
-    F(clock_settime, sys_clock_settime32, 0)                                   \
-    F(clock_gettime, sys_clock_gettime32, 0)                                   \
-    F(clock_getres, sys_clock_getres_time32, 0)                                \
-    F(clock_nanosleep, sys_clock_nanosleep_time32, 0)                          \
-    F(statfs64, sys_ni_syscall, 0)                                             \
-    F(fstatfs64, sys_ni_syscall, 0)                                            \
-    F(tgkill, sys_tgkill, 0)                                                   \
-    F(utimes, sys_ni_syscall, 0)                                               \
-    F(fadvise64_64, sys_ni_syscall, 0)                                         \
-    F(vserver, sys_ni_syscall, 0)                                              \
-    F(mbind, sys_ni_syscall, 0)                                                \
-    F(get_mempolicy, sys_ni_syscall, 0)                                        \
-    F(set_mempolicy, sys_ni_syscall, 0)                                        \
-    F(mq_open, sys_ni_syscall, 0)                                              \
-    F(mq_unlink, sys_ni_syscall, 0)                                            \
-    F(mq_timedsend, sys_ni_syscall, 0)                                         \
-    F(mq_timedreceive, sys_ni_syscall, 0)                                      \
-    F(mq_notify, sys_ni_syscall, 0)                                            \
-    F(mq_getsetattr, sys_ni_syscall, 0)                                        \
-    F(kexec_load, sys_ni_syscall, 0)                                           \
-    F(waitid, sys_ni_syscall, 0)                                               \
-    F(add_key, sys_ni_syscall, 0)                                              \
-    F(request_key, sys_ni_syscall, 0)                                          \
-    F(keyctl, sys_ni_syscall, 0)                                               \
-    F(ioprio_set, sys_ni_syscall, 0)                                           \
-    F(ioprio_get, sys_ni_syscall, 0)                                           \
-    F(inotify_init, sys_ni_syscall, 0)                                         \
-    F(inotify_add_watch, sys_ni_syscall, 0)                                    \
-    F(inotify_rm_watch, sys_ni_syscall, 0)                                     \
-    F(migrate_pages, sys_ni_syscall, 0)                                        \
-    F(openat, sys_openat, 0)                                                   \
-    F(mkdirat, sys_mkdirat, 0)                                                 \
-    F(mknodat, sys_mknodat, 0)                                                 \
-    F(fchownat, sys_fchownat, 0)                                               \
-    F(futimesat, sys_ni_syscall, 0)                                            \
-    F(fstatat64, sys_fstatat64, 0)                                             \
-    F(unlinkat, sys_unlinkat, 0)                                               \
-    F(renameat, sys_renameat, 0)                                               \
-    F(linkat, sys_linkat, 0)                                                   \
-    F(symlinkat, sys_symlinkat, 0)                                             \
-    F(readlinkat, sys_readlinkat, 0)                                           \
-    F(fchmodat, sys_fchmodat, 0)                                               \
-    F(faccessat, sys_faccessat, 0)                                             \
-    F(pselect6, sys_pselect6_time32, 0)                                        \
-    F(ppoll, sys_ppoll_time32, 0)                                              \
-    F(unshare, sys_unshare, 0)                                                 \
-    F(set_robust_list, sys_ni_syscall, 0)                                      \
-    F(get_robust_list, sys_ni_syscall, 0)                                      \
-    F(splice, sys_ni_syscall, 0)                                               \
-    F(sync_file_range, sys_ni_syscall, 0)                                      \
-    F(tee, sys_ni_syscall, 0)                                                  \
-    F(vmsplice, sys_ni_syscall, 0)                                             \
-    F(move_pages, sys_ni_syscall, 0)                                           \
-    F(getcpu, sys_getcpu, 0)                                                   \
-    F(epoll_pwait, sys_ni_syscall, 0)                                          \
-    F(utimensat, sys_ni_syscall, 0)                                            \
-    F(signalfd, sys_ni_syscall, 0)                                             \
-    F(timerfd_create, sys_ni_syscall, 0)                                       \
-    F(eventfd, sys_ni_syscall, 0)                                              \
-    F(fallocate, sys_ni_syscall, 0)                                            \
-    F(timerfd_settime, sys_ni_syscall, 0)                                      \
-    F(timerfd_gettime, sys_ni_syscall, 0)                                      \
-    F(signalfd4, sys_ni_syscall, 0)                                            \
-    F(eventfd2, sys_ni_syscall, 0)                                             \
-    F(epoll_create1, sys_ni_syscall, 0)                                        \
-    F(dup3, sys_dup3, 0)                                                       \
-    F(pipe2, sys_pipe2, 0)                                                     \
-    F(inotify_init1, sys_ni_syscall, 0)                                        \
-    F(preadv, sys_preadv, 0)                                                   \
-    F(pwritev, sys_pwritev, 0)                                                 \
-    F(rt_tgsigqueueinfo, sys_ni_syscall, 0)                                    \
-    F(perf_event_open, sys_ni_syscall, 0)                                      \
-    F(recvmmsg, sys_ni_syscall, 0)                                             \
-    F(fanotify_init, sys_ni_syscall, 0)                                        \
-    F(fanotify_mark, sys_ni_syscall, 0)                                        \
-    F(prlimit64, sys_ni_syscall, 0)                                            \
-    F(name_to_handle_at, sys_ni_syscall, 0)                                    \
-    F(open_by_handle_at, sys_ni_syscall, 0)                                    \
-    F(clock_adjtime, sys_ni_syscall, 0)                                        \
-    F(syncfs, sys_syncfs, 0)                                                   \
-    F(sendmmsg, sys_ni_syscall, 0)                                             \
-    F(setns, sys_ni_syscall, 0)                                                \
-    F(process_vm_readv, sys_process_vm_readv, 0)                               \
-    F(process_vm_writev, sys_process_vm_writev, 0)                             \
-    F(kcmp, sys_ni_syscall, 0)                                                 \
-    F(finit_module, sys_ni_syscall, 0)                                         \
-    F(sched_setattr, sys_ni_syscall, 0)                                        \
-    F(sched_getattr, sys_ni_syscall, 0)                                        \
-    F(renameat2, sys_renameat2, 0)                                             \
-    F(seccomp, sys_ni_syscall, 0)                                              \
-    F(getrandom, sys_getrandom, 0)                                             \
-    F(memfd_create, sys_ni_syscall, 0)                                         \
-    F(bpf, sys_ni_syscall, 0)                                                  \
-    F(execveat, sys_ni_syscall, 0)                                             \
-    F(socket, sys_socket, 0)                                                   \
-    F(socketpair, sys_ni_syscall, 0)                                           \
-    F(bind, sys_bind, 0)                                                       \
-    F(connect, sys_connect, 0)                                                 \
-    F(listen, sys_listen, 0)                                                   \
-    F(accept4, sys_accept4, 0)                                                 \
-    F(getsockopt, sys_ni_syscall, 0)                                           \
-    F(setsockopt, sys_ni_syscall, 0)                                           \
-    F(getsockname, sys_ni_syscall, 0)                                          \
-    F(getpeername, sys_ni_syscall, 0)                                          \
-    F(sendto, sys_ni_syscall, 0)                                               \
-    F(sendmsg, sys_ni_syscall, 0)                                              \
-    F(recvfrom, sys_ni_syscall, 0)                                             \
-    F(recvmsg, sys_ni_syscall, 0)                                              \
-    F(shutdown, sys_shutdown, 0)                                               \
-    F(userfaultfd, sys_ni_syscall, 0)                                          \
-    F(membarrier, sys_ni_syscall, 0)                                           \
-    F(mlock2, sys_ni_syscall, 0)                                               \
-    F(copy_file_range, sys_ni_syscall, 0)                                      \
-    F(preadv2, sys_preadv2, 0)                                                 \
-    F(pwritev2, sys_pwritev2, 0)                                               \
-    F(pkey_mprotect, sys_ni_syscall, 0)                                        \
-    F(pkey_alloc, sys_ni_syscall, 0)                                           \
-    F(pkey_free, sys_ni_syscall, 0)                                            \
-    F(statx, sys_statx, 0)                                                     \
-    F(arch_prctl, sys_arch_prctl, 0)                                           \
-    F(io_pgetevents, sys_ni_syscall, 0)                                        \
-    F(rseq, sys_ni_syscall, 0)                                                 \
-    F(semget, sys_ni_syscall, 0)                                               \
-    F(semctl, sys_ni_syscall, 0)                                               \
-    F(shmget, sys_ni_syscall, 0)                                               \
-    F(shmctl, sys_ni_syscall, 0)                                               \
-    F(shmat, sys_ni_syscall, 0)                                                \
-    F(shmdt, sys_ni_syscall, 0)                                                \
-    F(msgget, sys_ni_syscall, 0)                                               \
-    F(msgsnd, sys_ni_syscall, 0)                                               \
-    F(msgrcv, sys_ni_syscall, 0)                                               \
-    F(msgctl, sys_ni_syscall, 0)                                               \
-    F(clock_gettime64, sys_clock_gettime, 0)                                   \
-    F(clock_settime64, sys_clock_settime, 0)                                   \
-    F(clock_adjtime64, sys_ni_syscall, 0)                                      \
-    F(clock_getres_time64, sys_clock_getres, 0)                                \
-    F(clock_nanosleep_time64, sys_clock_nanosleep, 0)                          \
-    F(timer_gettime64, sys_ni_syscall, 0)                                      \
-    F(timer_settime64, sys_ni_syscall, 0)                                      \
-    F(timerfd_gettime64, sys_ni_syscall, 0)                                    \
-    F(timerfd_settime64, sys_ni_syscall, 0)                                    \
-    F(utimensat_time64, sys_ni_syscall, 0)                                     \
-    F(pselect6_time64, sys_pselect6, 0)                                        \
-    F(ppoll_time64, sys_ppoll, 0)                                              \
-    F(io_pgetevents_time64, sys_ni_syscall, 0)                                 \
-    F(recvmmsg_time64, sys_ni_syscall, 0)                                      \
-    F(mq_timedsend_time64, sys_ni_syscall, 0)                                  \
-    F(mq_timedreceive_time64, sys_ni_syscall, 0)                               \
-    F(semtimedop_time64, sys_ni_syscall, 0)                                    \
-    F(rt_sigtimedwait_time64, sys_ni_syscall, 0)                               \
-    F(futex_time64, sys_ni_syscall, 0)                                         \
-    F(sched_rr_get_interval_time64, sys_ni_syscall, 0)                         \
-    F(pidfd_send_signal, sys_ni_syscall, 0)                                    \
-    F(io_uring_setup, sys_ni_syscall, 0)                                       \
-    F(io_uring_enter, sys_ni_syscall, 0)                                       \
-    F(io_uring_register, sys_ni_syscall, 0)                                    \
-    F(dbgprint, sys_dbgprint, 0)
+    F(restart_syscall, sys_ni_syscall)                                         \
+    F(exit, sys_exit)                                                          \
+    F(fork, sys_fork)                                                          \
+    F(read, sys_read)                                                          \
+    F(write, sys_write)                                                        \
+    F(open, sys_open)                                                          \
+    F(close, sys_close)                                                        \
+    F(waitpid, sys_waitpid)                                                    \
+    F(creat, sys_creat)                                                        \
+    F(link, sys_link)                                                          \
+    F(unlink, sys_unlink)                                                      \
+    F(execve, sys_execve)                                                      \
+    F(chdir, sys_chdir)                                                        \
+    F(time, sys_time32)                                                        \
+    F(mknod, sys_mknod)                                                        \
+    F(chmod, sys_chmod)                                                        \
+    F(lchown, sys_lchown16)                                                    \
+    F(break, sys_ni_syscall)                                                   \
+    F(oldstat, sys_stat)                                                       \
+    F(lseek, sys_lseek)                                                        \
+    F(getpid, sys_getpid)                                                      \
+    F(mount, sys_mount)                                                        \
+    F(umount, sys_ni_syscall)                                                  \
+    F(setuid, sys_ni_syscall)                                                  \
+    F(getuid, sys_getuid16)                                                    \
+    F(stime, sys_stime32)                                                      \
+    F(ptrace, sys_ni_syscall)                                                  \
+    F(alarm, sys_ni_syscall)                                                   \
+    F(oldfstat, sys_fstat)                                                     \
+    F(pause, sys_pause)                                                        \
+    F(utime, sys_ni_syscall)                                                   \
+    F(stty, sys_ni_syscall)                                                    \
+    F(gtty, sys_ni_syscall)                                                    \
+    F(access, sys_access)                                                      \
+    F(nice, sys_ni_syscall)                                                    \
+    F(ftime, sys_ni_syscall)                                                   \
+    F(sync, sys_sync)                                                          \
+    F(kill, sys_kill)                                                          \
+    F(rename, sys_rename)                                                      \
+    F(mkdir, sys_mkdir)                                                        \
+    F(rmdir, sys_rmdir)                                                        \
+    F(dup, sys_dup)                                                            \
+    F(pipe, sys_pipe)                                                          \
+    F(times, sys_times)                                                        \
+    F(prof, sys_ni_syscall)                                                    \
+    F(brk, sys_ni_syscall)                                                     \
+    F(setgid, sys_ni_syscall)                                                  \
+    F(getgid, sys_getgid16)                                                    \
+    F(signal, sys_signal)                                                      \
+    F(geteuid, sys_geteuid16)                                                  \
+    F(getegid, sys_getegid16)                                                  \
+    F(acct, sys_ni_syscall)                                                    \
+    F(umount2, sys_ni_syscall)                                                 \
+    F(lock, sys_ni_syscall)                                                    \
+    F(ioctl, sys_ioctl)                                                        \
+    F(fcntl, sys_fcntl)                                                        \
+    F(mpx, sys_ni_syscall)                                                     \
+    F(setpgid, sys_setpgid)                                                    \
+    F(ulimit, sys_ni_syscall)                                                  \
+    F(oldolduname, sys_olduname)                                               \
+    F(umask, sys_umask)                                                        \
+    F(chroot, sys_chroot)                                                      \
+    F(ustat, sys_ni_syscall)                                                   \
+    F(dup2, sys_dup2)                                                          \
+    F(getppid, sys_getppid)                                                    \
+    F(getpgrp, sys_getpgrp)                                                    \
+    F(setsid, sys_ni_syscall)                                                  \
+    F(sigaction, sys_sigaction)                                                \
+    F(sgetmask, sys_sgetmask)                                                  \
+    F(ssetmask, sys_ssetmask)                                                  \
+    F(setreuid, sys_ni_syscall)                                                \
+    F(setregid, sys_ni_syscall)                                                \
+    F(sigsuspend, sys_sigsuspend)                                              \
+    F(sigpending, sys_sigpending)                                              \
+    F(sethostname, sys_sethostname)                                            \
+    F(setrlimit, sys_ni_syscall)                                               \
+    F(getrlimit, sys_ni_syscall)                                               \
+    F(getrusage, sys_ni_syscall)                                               \
+    F(gettimeofday, sys_gettimeofday)                                          \
+    F(settimeofday, sys_settimeofday)                                          \
+    F(getgroups, sys_getgroups16)                                              \
+    F(setgroups, sys_ni_syscall)                                               \
+    F(select, sys_old_select)                                                  \
+    F(symlink, sys_symlink)                                                    \
+    F(oldlstat, sys_lstat)                                                     \
+    F(readlink, sys_readlink)                                                  \
+    F(uselib, sys_ni_syscall)                                                  \
+    F(swapon, sys_ni_syscall)                                                  \
+    F(reboot, sys_reboot)                                                      \
+    F(readdir, sys_old_readdir)                                                \
+    F(mmap, sys_old_mmap)                                                      \
+    F(munmap, sys_munmap)                                                      \
+    F(truncate, sys_truncate)                                                  \
+    F(ftruncate, sys_ftruncate)                                                \
+    F(fchmod, sys_fchmod)                                                      \
+    F(fchown, sys_fchown16)                                                    \
+    F(getpriority, sys_ni_syscall)                                             \
+    F(setpriority, sys_ni_syscall)                                             \
+    F(profil, sys_ni_syscall)                                                  \
+    F(statfs, sys_ni_syscall)                                                  \
+    F(fstatfs, sys_ni_syscall)                                                 \
+    F(ioperm, sys_ni_syscall)                                                  \
+    F(socketcall, sys_socketcall)                                              \
+    F(syslog, sys_ni_syscall)                                                  \
+    F(setitimer, sys_ni_syscall)                                               \
+    F(getitimer, sys_ni_syscall)                                               \
+    F(stat, sys_newstat)                                                       \
+    F(lstat, sys_newlstat)                                                     \
+    F(fstat, sys_newfstat)                                                     \
+    F(olduname, sys_uname)                                                     \
+    F(iopl, sys_ni_syscall)                                                    \
+    F(vhangup, sys_ni_syscall)                                                 \
+    F(idle, sys_ni_syscall)                                                    \
+    F(vm86old, sys_ni_syscall)                                                 \
+    F(wait4, sys_wait4)                                                        \
+    F(swapoff, sys_ni_syscall)                                                 \
+    F(sysinfo, sys_sysinfo)                                                    \
+    F(ipc, sys_ni_syscall)                                                     \
+    F(fsync, sys_fsync)                                                        \
+    F(sigreturn, sys_sigreturn)                                                \
+    F(clone, sys_int80_clone)                                                  \
+    F(setdomainname, sys_setdomainname)                                        \
+    F(uname, sys_newuname)                                                     \
+    F(modify_ldt, sys_ni_syscall)                                              \
+    F(adjtimex, sys_ni_syscall)                                                \
+    F(mprotect, sys_mprotect)                                                  \
+    F(sigprocmask, sys_sigprocmask)                                            \
+    F(create_module, sys_ni_syscall)                                           \
+    F(init_module, sys_ni_syscall)                                             \
+    F(delete_module, sys_ni_syscall)                                           \
+    F(get_kernel_syms, sys_ni_syscall)                                         \
+    F(quotactl, sys_ni_syscall)                                                \
+    F(getpgid, sys_getpgid)                                                    \
+    F(fchdir, sys_fchdir)                                                      \
+    F(bdflush, sys_ni_syscall)                                                 \
+    F(sysfs, sys_ni_syscall)                                                   \
+    F(personality, sys_ni_syscall)                                             \
+    F(afs_syscall, sys_ni_syscall)                                             \
+    F(setfsuid, sys_ni_syscall)                                                \
+    F(setfsgid, sys_ni_syscall)                                                \
+    F(_llseek, sys_llseek)                                                     \
+    F(getdents, sys_getdents)                                                  \
+    F(_newselect, sys_select)                                                  \
+    F(flock, sys_ni_syscall)                                                   \
+    F(msync, sys_msync)                                                        \
+    F(readv, sys_readv)                                                        \
+    F(writev, sys_writev)                                                      \
+    F(getsid, sys_getsid)                                                      \
+    F(fdatasync, sys_fdatasync)                                                \
+    F(_sysctl, sys_ni_syscall)                                                 \
+    F(mlock, sys_ni_syscall)                                                   \
+    F(munlock, sys_ni_syscall)                                                 \
+    F(mlockall, sys_ni_syscall)                                                \
+    F(munlockall, sys_ni_syscall)                                              \
+    F(sched_setparam, sys_ni_syscall)                                          \
+    F(sched_getparam, sys_ni_syscall)                                          \
+    F(sched_setscheduler, sys_ni_syscall)                                      \
+    F(sched_getscheduler, sys_ni_syscall)                                      \
+    F(sched_yield, sys_sched_yield)                                            \
+    F(sched_get_priority_max, sys_ni_syscall)                                  \
+    F(sched_get_priority_min, sys_ni_syscall)                                  \
+    F(sched_rr_get_interval, sys_ni_syscall)                                   \
+    F(nanosleep, sys_nanosleep_time32)                                         \
+    F(mremap, sys_ni_syscall)                                                  \
+    F(setresuid, sys_ni_syscall)                                               \
+    F(getresuid, sys_getresuid16)                                              \
+    F(vm86, sys_ni_syscall)                                                    \
+    F(query_module, sys_ni_syscall)                                            \
+    F(poll, sys_poll)                                                          \
+    F(nfsservctl, sys_ni_syscall)                                              \
+    F(setresgid, sys_ni_syscall)                                               \
+    F(getresgid, sys_getresgid16)                                              \
+    F(prctl, sys_prctl)                                                        \
+    F(rt_sigreturn, sys_rt_sigreturn)                                          \
+    F(rt_sigaction, sys_rt_sigaction)                                          \
+    F(rt_sigprocmask, sys_rt_sigprocmask)                                      \
+    F(rt_sigpending, sys_rt_sigpending)                                        \
+    F(rt_sigtimedwait, sys_ni_syscall)                                         \
+    F(rt_sigqueueinfo, sys_ni_syscall)                                         \
+    F(rt_sigsuspend, sys_rt_sigsuspend)                                        \
+    F(pread64, sys_ia32_pread64)                                               \
+    F(pwrite64, sys_ia32_pwrite64)                                             \
+    F(chown, sys_chown16)                                                      \
+    F(getcwd, sys_getcwd)                                                      \
+    F(capget, sys_ni_syscall)                                                  \
+    F(capset, sys_ni_syscall)                                                  \
+    F(sigaltstack, sys_ni_syscall)                                             \
+    F(sendfile, sys_ni_syscall)                                                \
+    F(getpmsg, sys_ni_syscall)                                                 \
+    F(putpmsg, sys_ni_syscall)                                                 \
+    F(vfork, sys_vfork)                                                        \
+    F(ugetrlimit, sys_ni_syscall)                                              \
+    F(mmap2, sys_mmap_pgoff)                                                   \
+    F(truncate64, sys_ia32_truncate64)                                         \
+    F(ftruncate64, sys_ia32_ftruncate64)                                       \
+    F(stat64, sys_stat64)                                                      \
+    F(lstat64, sys_lstat64)                                                    \
+    F(fstat64, sys_fstat64)                                                    \
+    F(lchown32, sys_lchown)                                                    \
+    F(getuid32, sys_getuid)                                                    \
+    F(getgid32, sys_getgid)                                                    \
+    F(geteuid32, sys_geteuid)                                                  \
+    F(getegid32, sys_getegid)                                                  \
+    F(setreuid32, sys_ni_syscall)                                              \
+    F(setregid32, sys_ni_syscall)                                              \
+    F(getgroups32, sys_getgroups)                                              \
+    F(setgroups32, sys_ni_syscall)                                             \
+    F(fchown32, sys_fchown)                                                    \
+    F(setresuid32, sys_ni_syscall)                                             \
+    F(getresuid32, sys_getresuid)                                              \
+    F(setresgid32, sys_ni_syscall)                                             \
+    F(getresgid32, sys_getresgid)                                              \
+    F(chown32, sys_chown)                                                      \
+    F(setuid32, sys_ni_syscall)                                                \
+    F(setgid32, sys_ni_syscall)                                                \
+    F(setfsuid32, sys_ni_syscall)                                              \
+    F(setfsgid32, sys_ni_syscall)                                              \
+    F(pivot_root, sys_ni_syscall)                                              \
+    F(mincore, sys_ni_syscall)                                                 \
+    F(madvise, sys_ni_syscall)                                                 \
+    F(getdents64, sys_getdents64)                                              \
+    F(fcntl64, sys_fcntl64)                                                    \
+    F(gettid, sys_gettid)                                                      \
+    F(readahead, sys_ni_syscall)                                               \
+    F(setxattr, sys_ni_syscall)                                                \
+    F(lsetxattr, sys_ni_syscall)                                               \
+    F(fsetxattr, sys_ni_syscall)                                               \
+    F(getxattr, sys_ni_syscall)                                                \
+    F(lgetxattr, sys_ni_syscall)                                               \
+    F(fgetxattr, sys_ni_syscall)                                               \
+    F(listxattr, sys_ni_syscall)                                               \
+    F(llistxattr, sys_ni_syscall)                                              \
+    F(flistxattr, sys_ni_syscall)                                              \
+    F(removexattr, sys_ni_syscall)                                             \
+    F(lremovexattr, sys_ni_syscall)                                            \
+    F(fremovexattr, sys_ni_syscall)                                            \
+    F(tkill, sys_tkill)                                                        \
+    F(sendfile64, sys_ni_syscall)                                              \
+    F(futex, sys_ni_syscall)                                                   \
+    F(sched_setaffinity, sys_ni_syscall)                                       \
+    F(sched_getaffinity, sys_ni_syscall)                                       \
+    F(set_thread_area, sys_set_thread_area)                                    \
+    F(get_thread_area, sys_get_thread_area)                                    \
+    F(io_setup, sys_ni_syscall)                                                \
+    F(io_destroy, sys_ni_syscall)                                              \
+    F(io_getevents, sys_ni_syscall)                                            \
+    F(io_submit, sys_ni_syscall)                                               \
+    F(io_cancel, sys_ni_syscall)                                               \
+    F(fadvise64, sys_ni_syscall)                                               \
+    F(exit_group, sys_exit_group)                                              \
+    F(lookup_dcookie, sys_ni_syscall)                                          \
+    F(epoll_create, sys_ni_syscall)                                            \
+    F(epoll_ctl, sys_ni_syscall)                                               \
+    F(epoll_wait, sys_ni_syscall)                                              \
+    F(remap_file_pages, sys_ni_syscall)                                        \
+    F(set_tid_address, sys_ni_syscall)                                         \
+    F(timer_create, sys_ni_syscall)                                            \
+    F(timer_settime, sys_ni_syscall)                                           \
+    F(timer_gettime, sys_ni_syscall)                                           \
+    F(timer_getoverrun, sys_ni_syscall)                                        \
+    F(timer_delete, sys_ni_syscall)                                            \
+    F(clock_settime, sys_clock_settime32)                                      \
+    F(clock_gettime, sys_clock_gettime32)                                      \
+    F(clock_getres, sys_clock_getres_time32)                                   \
+    F(clock_nanosleep, sys_clock_nanosleep_time32)                             \
+    F(statfs64, sys_ni_syscall)                                                \
+    F(fstatfs64, sys_ni_syscall)                                               \
+    F(tgkill, sys_tgkill)                                                      \
+    F(utimes, sys_ni_syscall)                                                  \
+    F(fadvise64_64, sys_ni_syscall)                                            \
+    F(vserver, sys_ni_syscall)                                                 \
+    F(mbind, sys_ni_syscall)                                                   \
+    F(get_mempolicy, sys_ni_syscall)                                           \
+    F(set_mempolicy, sys_ni_syscall)                                           \
+    F(mq_open, sys_ni_syscall)                                                 \
+    F(mq_unlink, sys_ni_syscall)                                               \
+    F(mq_timedsend, sys_ni_syscall)                                            \
+    F(mq_timedreceive, sys_ni_syscall)                                         \
+    F(mq_notify, sys_ni_syscall)                                               \
+    F(mq_getsetattr, sys_ni_syscall)                                           \
+    F(kexec_load, sys_ni_syscall)                                              \
+    F(waitid, sys_ni_syscall)                                                  \
+    F(add_key, sys_ni_syscall)                                                 \
+    F(request_key, sys_ni_syscall)                                             \
+    F(keyctl, sys_ni_syscall)                                                  \
+    F(ioprio_set, sys_ni_syscall)                                              \
+    F(ioprio_get, sys_ni_syscall)                                              \
+    F(inotify_init, sys_ni_syscall)                                            \
+    F(inotify_add_watch, sys_ni_syscall)                                       \
+    F(inotify_rm_watch, sys_ni_syscall)                                        \
+    F(migrate_pages, sys_ni_syscall)                                           \
+    F(openat, sys_openat)                                                      \
+    F(mkdirat, sys_mkdirat)                                                    \
+    F(mknodat, sys_mknodat)                                                    \
+    F(fchownat, sys_fchownat)                                                  \
+    F(futimesat, sys_ni_syscall)                                               \
+    F(fstatat64, sys_fstatat64)                                                \
+    F(unlinkat, sys_unlinkat)                                                  \
+    F(renameat, sys_renameat)                                                  \
+    F(linkat, sys_linkat)                                                      \
+    F(symlinkat, sys_symlinkat)                                                \
+    F(readlinkat, sys_readlinkat)                                              \
+    F(fchmodat, sys_fchmodat)                                                  \
+    F(faccessat, sys_faccessat)                                                \
+    F(pselect6, sys_pselect6_time32)                                           \
+    F(ppoll, sys_ppoll_time32)                                                 \
+    F(unshare, sys_unshare)                                                    \
+    F(set_robust_list, sys_ni_syscall)                                         \
+    F(get_robust_list, sys_ni_syscall)                                         \
+    F(splice, sys_ni_syscall)                                                  \
+    F(sync_file_range, sys_ni_syscall)                                         \
+    F(tee, sys_ni_syscall)                                                     \
+    F(vmsplice, sys_ni_syscall)                                                \
+    F(move_pages, sys_ni_syscall)                                              \
+    F(getcpu, sys_getcpu)                                                      \
+    F(epoll_pwait, sys_ni_syscall)                                             \
+    F(utimensat, sys_ni_syscall)                                               \
+    F(signalfd, sys_ni_syscall)                                                \
+    F(timerfd_create, sys_ni_syscall)                                          \
+    F(eventfd, sys_ni_syscall)                                                 \
+    F(fallocate, sys_ni_syscall)                                               \
+    F(timerfd_settime, sys_ni_syscall)                                         \
+    F(timerfd_gettime, sys_ni_syscall)                                         \
+    F(signalfd4, sys_ni_syscall)                                               \
+    F(eventfd2, sys_ni_syscall)                                                \
+    F(epoll_create1, sys_ni_syscall)                                           \
+    F(dup3, sys_dup3)                                                          \
+    F(pipe2, sys_pipe2)                                                        \
+    F(inotify_init1, sys_ni_syscall)                                           \
+    F(preadv, sys_preadv)                                                      \
+    F(pwritev, sys_pwritev)                                                    \
+    F(rt_tgsigqueueinfo, sys_ni_syscall)                                       \
+    F(perf_event_open, sys_ni_syscall)                                         \
+    F(recvmmsg, sys_ni_syscall)                                                \
+    F(fanotify_init, sys_ni_syscall)                                           \
+    F(fanotify_mark, sys_ni_syscall)                                           \
+    F(prlimit64, sys_ni_syscall)                                               \
+    F(name_to_handle_at, sys_ni_syscall)                                       \
+    F(open_by_handle_at, sys_ni_syscall)                                       \
+    F(clock_adjtime, sys_ni_syscall)                                           \
+    F(syncfs, sys_syncfs)                                                      \
+    F(sendmmsg, sys_ni_syscall)                                                \
+    F(setns, sys_ni_syscall)                                                   \
+    F(process_vm_readv, sys_process_vm_readv)                                  \
+    F(process_vm_writev, sys_process_vm_writev)                                \
+    F(kcmp, sys_ni_syscall)                                                    \
+    F(finit_module, sys_ni_syscall)                                            \
+    F(sched_setattr, sys_ni_syscall)                                           \
+    F(sched_getattr, sys_ni_syscall)                                           \
+    F(renameat2, sys_renameat2)                                                \
+    F(seccomp, sys_ni_syscall)                                                 \
+    F(getrandom, sys_getrandom)                                                \
+    F(memfd_create, sys_ni_syscall)                                            \
+    F(bpf, sys_ni_syscall)                                                     \
+    F(execveat, sys_ni_syscall)                                                \
+    F(socket, sys_socket)                                                      \
+    F(socketpair, sys_ni_syscall)                                              \
+    F(bind, sys_bind)                                                          \
+    F(connect, sys_connect)                                                    \
+    F(listen, sys_listen)                                                      \
+    F(accept4, sys_accept4)                                                    \
+    F(getsockopt, sys_ni_syscall)                                              \
+    F(setsockopt, sys_ni_syscall)                                              \
+    F(getsockname, sys_ni_syscall)                                             \
+    F(getpeername, sys_ni_syscall)                                             \
+    F(sendto, sys_ni_syscall)                                                  \
+    F(sendmsg, sys_ni_syscall)                                                 \
+    F(recvfrom, sys_ni_syscall)                                                \
+    F(recvmsg, sys_ni_syscall)                                                 \
+    F(shutdown, sys_shutdown)                                                  \
+    F(userfaultfd, sys_ni_syscall)                                             \
+    F(membarrier, sys_ni_syscall)                                              \
+    F(mlock2, sys_ni_syscall)                                                  \
+    F(copy_file_range, sys_ni_syscall)                                         \
+    F(preadv2, sys_preadv2)                                                    \
+    F(pwritev2, sys_pwritev2)                                                  \
+    F(pkey_mprotect, sys_ni_syscall)                                           \
+    F(pkey_alloc, sys_ni_syscall)                                              \
+    F(pkey_free, sys_ni_syscall)                                               \
+    F(statx, sys_statx)                                                        \
+    F(arch_prctl, sys_arch_prctl)                                              \
+    F(io_pgetevents, sys_ni_syscall)                                           \
+    F(rseq, sys_ni_syscall)                                                    \
+    F(semget, sys_ni_syscall)                                                  \
+    F(semctl, sys_ni_syscall)                                                  \
+    F(shmget, sys_ni_syscall)                                                  \
+    F(shmctl, sys_ni_syscall)                                                  \
+    F(shmat, sys_ni_syscall)                                                   \
+    F(shmdt, sys_ni_syscall)                                                   \
+    F(msgget, sys_ni_syscall)                                                  \
+    F(msgsnd, sys_ni_syscall)                                                  \
+    F(msgrcv, sys_ni_syscall)                                                  \
+    F(msgctl, sys_ni_syscall)                                                  \
+    F(clock_gettime64, sys_clock_gettime)                                      \
+    F(clock_settime64, sys_clock_settime)                                      \
+    F(clock_adjtime64, sys_ni_syscall)                                         \
+    F(clock_getres_time64, sys_clock_getres)                                   \
+    F(clock_nanosleep_time64, sys_clock_nanosleep)                             \
+    F(timer_gettime64, sys_ni_syscall)                                         \
+    F(timer_settime64, sys_ni_syscall)                                         \
+    F(timerfd_gettime64, sys_ni_syscall)                                       \
+    F(timerfd_settime64, sys_ni_syscall)                                       \
+    F(utimensat_time64, sys_ni_syscall)                                        \
+    F(pselect6_time64, sys_pselect6)                                           \
+    F(ppoll_time64, sys_ppoll)                                                 \
+    F(io_pgetevents_time64, sys_ni_syscall)                                    \
+    F(recvmmsg_time64, sys_ni_syscall)                                         \
+    F(mq_timedsend_time64, sys_ni_syscall)                                     \
+    F(mq_timedreceive_time64, sys_ni_syscall)                                  \
+    F(semtimedop_time64, sys_ni_syscall)                                       \
+    F(rt_sigtimedwait_time64, sys_ni_syscall)                                  \
+    F(futex_time64, sys_ni_syscall)                                            \
+    F(sched_rr_get_interval_time64, sys_ni_syscall)                            \
+    F(pidfd_send_signal, sys_ni_syscall)                                       \
+    F(io_uring_setup, sys_ni_syscall)                                          \
+    F(io_uring_enter, sys_ni_syscall)                                          \
+    F(io_uring_register, sys_ni_syscall)                                       \
+    F(dbgprint, sys_dbgprint)
 
-static long sys_clone(struct registers* regs, unsigned long flags,
-                      void* user_stack, pid_t* user_parent_tid, void* user_tls,
-                      pid_t* user_child_tid) {
-    return clone_user_task(regs, flags, user_stack, user_parent_tid,
-                           user_child_tid, user_tls);
+SYSCALL_RAW(int80_clone, regs) {
+    unsigned long flags = regs->bx;
+    void* stack = (void*)regs->cx;
+    pid_t* parent_tid = (pid_t*)regs->dx;
+    void* tls = (void*)regs->si;
+    pid_t* child_tid = (pid_t*)regs->di;
+    return clone_user_task(regs, flags, stack, parent_tid, child_tid, tls);
 }
 
 static const struct syscall syscalls[] = {
-#define F(name, handler, flags)                                                \
+#define F(name, handler)                                                       \
     [SYS_##name] = {                                                           \
         #name,                                                                 \
-        (uintptr_t)(handler),                                                  \
-        (flags),                                                               \
+        (handler),                                                             \
     },
     ENUMERATE_SYSCALLS(F)
 #undef F

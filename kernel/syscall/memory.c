@@ -47,8 +47,8 @@ static unsigned prot_to_vm_flags(int prot) {
     return flags;
 }
 
-long sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
-                    unsigned long pgoff) {
+NODISCARD static long mmap_pgoff(void* addr, size_t length, int prot, int flags,
+                                 int fd, unsigned long pgoff) {
     if (length == 0)
         return -EINVAL;
     if (!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
@@ -105,11 +105,16 @@ long sys_mmap_pgoff(void* addr, size_t length, int prot, int flags, int fd,
     return (long)vm_region_to_virt(region);
 }
 
-long sys_mmap(void* addr, size_t length, int prot, int flags, int fd,
-              unsigned long off) {
+SYSCALL6(mmap_pgoff, void*, addr, size_t, length, int, prot, int, flags, int,
+         fd, unsigned long, pgoff) {
+    return mmap_pgoff(addr, length, prot, flags, fd, pgoff);
+}
+
+SYSCALL6(mmap, void*, addr, size_t, length, int, prot, int, flags, int, fd,
+         unsigned long, off) {
     if (off % PAGE_SIZE)
         return -EINVAL;
-    return sys_mmap_pgoff(addr, length, prot, flags, fd, off >> PAGE_SHIFT);
+    return mmap_pgoff(addr, length, prot, flags, fd, off >> PAGE_SHIFT);
 }
 
 struct mmap_arg_struct {
@@ -121,14 +126,14 @@ struct mmap_arg_struct {
     unsigned long offset;
 };
 
-long sys_old_mmap(struct mmap_arg_struct* user_arg) {
+SYSCALL1(old_mmap, struct mmap_arg_struct*, user_arg) {
     struct mmap_arg_struct arg;
     if (copy_from_user(&arg, user_arg, sizeof(struct mmap_arg_struct)))
         return -EFAULT;
     if (arg.offset % PAGE_SIZE)
         return -EINVAL;
-    return sys_mmap_pgoff((void*)arg.addr, arg.len, arg.prot, arg.flags, arg.fd,
-                          arg.offset >> PAGE_SHIFT);
+    return mmap_pgoff((void*)arg.addr, arg.len, arg.prot, arg.flags, arg.fd,
+                      arg.offset >> PAGE_SHIFT);
 }
 
 NODISCARD static int for_each_overlapping_region(
@@ -167,7 +172,7 @@ static int unmap(struct vm_region* region, size_t offset, size_t npages,
     return vm_region_free(region, offset, npages);
 }
 
-long sys_munmap(void* addr, size_t length) {
+SYSCALL2(munmap, void*, addr, size_t, length) {
     return for_each_overlapping_region(addr, length, unmap, NULL);
 }
 
@@ -178,7 +183,7 @@ static int protect(struct vm_region* region, size_t offset, size_t npages,
                                VM_READ | VM_WRITE | VM_EXEC);
 }
 
-long sys_mprotect(void* addr, size_t len, int prot) {
+SYSCALL3(mprotect, void*, addr, size_t, len, int, prot) {
     unsigned vm_flags = prot_to_vm_flags(prot);
     return for_each_overlapping_region(addr, len, protect, &vm_flags);
 }
@@ -197,7 +202,7 @@ static int sync(struct vm_region* region, size_t offset, size_t npages,
     return ret;
 }
 
-long sys_msync(void* addr, size_t length, int flags) {
+SYSCALL3(msync, void*, addr, size_t, length, int, flags) {
     if (flags & ~(MS_ASYNC | MS_SYNC | MS_INVALIDATE))
         return -EINVAL;
     if ((flags & MS_SYNC) && (flags & MS_ASYNC))
@@ -208,11 +213,11 @@ long sys_msync(void* addr, size_t length, int flags) {
 }
 
 NODISCARD
-static long process_vm_rw(pid_t pid, const struct iovec* user_local_iov,
-                          unsigned long liovcnt,
-                          const struct iovec* user_remote_iov,
-                          unsigned long riovcnt, unsigned long flags,
-                          bool write) {
+static ssize_t process_vm_rw(pid_t pid, const struct iovec* user_local_iov,
+                             unsigned long liovcnt,
+                             const struct iovec* user_remote_iov,
+                             unsigned long riovcnt, unsigned long flags,
+                             bool write) {
     if (flags)
         return -EINVAL;
     if (liovcnt == 0 || riovcnt == 0)
@@ -304,18 +309,16 @@ static long process_vm_rw(pid_t pid, const struct iovec* user_local_iov,
     return total_copied;
 }
 
-long sys_process_vm_readv(pid_t pid, const struct iovec* user_local_iov,
-                          unsigned long liovcnt,
-                          const struct iovec* user_remote_iov,
-                          unsigned long riovcnt, unsigned long flags) {
+SYSCALL6(process_vm_readv, pid_t, pid, const struct iovec*, user_local_iov,
+         unsigned long, liovcnt, const struct iovec*, user_remote_iov,
+         unsigned long, riovcnt, unsigned long, flags) {
     return process_vm_rw(pid, user_local_iov, liovcnt, user_remote_iov, riovcnt,
                          flags, false);
 }
 
-long sys_process_vm_writev(pid_t pid, const struct iovec* user_local_iov,
-                           unsigned long liovcnt,
-                           const struct iovec* user_remote_iov,
-                           unsigned long riovcnt, unsigned long flags) {
+SYSCALL6(process_vm_writev, pid_t, pid, const struct iovec*, user_local_iov,
+         unsigned long, liovcnt, const struct iovec*, user_remote_iov,
+         unsigned long, riovcnt, unsigned long, flags) {
     return process_vm_rw(pid, user_local_iov, liovcnt, user_remote_iov, riovcnt,
                          flags, true);
 }

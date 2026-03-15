@@ -15,7 +15,7 @@
 
 #define SOCK_TYPE_MASK 0xf
 
-long sys_socket(int domain, int type, int protocol) {
+NODISCARD static int socket(int domain, int type, int protocol) {
     if (domain != AF_UNIX)
         return -EAFNOSUPPORT;
     if (protocol && protocol != PF_UNIX)
@@ -40,7 +40,12 @@ long sys_socket(int domain, int type, int protocol) {
     return fd_table_alloc_fd(current->fd_table, 0, file, fd_flags);
 }
 
-long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
+SYSCALL3(socket, int, domain, int, type, int, protocol) {
+    return socket(domain, type, protocol);
+}
+
+NODISCARD static int bind(int sockfd, const struct sockaddr* user_addr,
+                          socklen_t addrlen) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, sockfd));
     if (IS_ERR(file))
@@ -72,7 +77,12 @@ long sys_bind(int sockfd, const struct sockaddr* user_addr, socklen_t addrlen) {
     return unix_socket_bind(file->inode, addr_inode);
 }
 
-long sys_listen(int sockfd, int backlog) {
+SYSCALL3(bind, int, sockfd, const struct sockaddr*, user_addr, socklen_t,
+         addrlen) {
+    return bind(sockfd, user_addr, addrlen);
+}
+
+NODISCARD static int listen(int sockfd, int backlog) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, sockfd));
     if (IS_ERR(file))
@@ -82,12 +92,10 @@ long sys_listen(int sockfd, int backlog) {
     return unix_socket_listen(file->inode, backlog);
 }
 
-long sys_accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
-    return sys_accept4(sockfd, addr, addrlen, 0);
-}
+SYSCALL2(listen, int, sockfd, int, backlog) { return listen(sockfd, backlog); }
 
-long sys_accept4(int sockfd, struct sockaddr* user_addr,
-                 socklen_t* user_addrlen, int flags) {
+NODISCARD static int accept4(int sockfd, struct sockaddr* user_addr,
+                             socklen_t* user_addrlen, int flags) {
     if (flags & ~(SOCK_NONBLOCK | SOCK_CLOEXEC))
         return -EINVAL;
 
@@ -135,8 +143,17 @@ long sys_accept4(int sockfd, struct sockaddr* user_addr,
     return fd_table_alloc_fd(current->fd_table, 0, connector_file, fd_flags);
 }
 
-long sys_connect(int sockfd, const struct sockaddr* user_addr,
-                 socklen_t addrlen) {
+SYSCALL3(accept, int, sockfd, struct sockaddr*, addr, socklen_t*, addrlen) {
+    return accept4(sockfd, addr, addrlen, 0);
+}
+
+SYSCALL4(accept4, int, sockfd, struct sockaddr*, user_addr, socklen_t*,
+         user_addrlen, int, flags) {
+    return accept4(sockfd, user_addr, user_addrlen, flags);
+}
+
+NODISCARD static int connect(int sockfd, const struct sockaddr* user_addr,
+                             socklen_t addrlen) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, sockfd));
     if (IS_ERR(file))
@@ -165,7 +182,12 @@ long sys_connect(int sockfd, const struct sockaddr* user_addr,
     return rc;
 }
 
-long sys_shutdown(int sockfd, int how) {
+SYSCALL3(connect, int, sockfd, const struct sockaddr*, user_addr, socklen_t,
+         addrlen) {
+    return connect(sockfd, user_addr, addrlen);
+}
+
+NODISCARD static int shutdown(int sockfd, int how) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, sockfd));
     if (IS_ERR(file))
@@ -173,7 +195,9 @@ long sys_shutdown(int sockfd, int how) {
     return unix_socket_shutdown(file, how);
 }
 
-long sys_socketcall(int call, unsigned long* user_args) {
+SYSCALL2(shutdown, int, sockfd, int, how) { return shutdown(sockfd, how); }
+
+SYSCALL2(socketcall, int, call, unsigned long*, user_args) {
     static const size_t num_args[] = {
         [SYS_SOCKET] = 3,  [SYS_BIND] = 3,   [SYS_CONNECT] = 3,
         [SYS_LISTEN] = 2,  [SYS_ACCEPT] = 3, [SYS_SHUTDOWN] = 2,
@@ -193,19 +217,19 @@ long sys_socketcall(int call, unsigned long* user_args) {
 
     switch (call) {
     case SYS_SOCKET:
-        return sys_socket(a[0], a[1], a[2]);
+        return socket(a[0], a[1], a[2]);
     case SYS_BIND:
-        return sys_bind(a[0], (const void*)a[1], a[2]);
+        return bind(a[0], (const void*)a[1], a[2]);
     case SYS_CONNECT:
-        return sys_connect(a[0], (const void*)a[1], a[2]);
+        return connect(a[0], (const void*)a[1], a[2]);
     case SYS_LISTEN:
-        return sys_listen(a[0], a[1]);
+        return listen(a[0], a[1]);
     case SYS_ACCEPT:
-        return sys_accept(a[0], (void*)a[1], (void*)a[2]);
+        return accept4(a[0], (void*)a[1], (void*)a[2], 0);
     case SYS_SHUTDOWN:
-        return sys_shutdown(a[0], a[1]);
+        return shutdown(a[0], a[1]);
     case SYS_ACCEPT4:
-        return sys_accept4(a[0], (void*)a[1], (void*)a[2], a[3]);
+        return accept4(a[0], (void*)a[1], (void*)a[2], a[3]);
     default:
         return -EINVAL;
     }

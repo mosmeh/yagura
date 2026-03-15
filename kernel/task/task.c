@@ -320,9 +320,9 @@ static bool unblock_vfork(void* ctx) {
 }
 
 // NOLINTBEGIN(readability-non-const-parameter)
-int clone_user_task(struct registers* regs, unsigned long flags,
-                    void* user_stack, pid_t* user_parent_tid,
-                    pid_t* user_child_tid, void* user_tls) {
+pid_t clone_user_task(struct registers* regs, unsigned long flags,
+                      void* user_stack, pid_t* user_parent_tid,
+                      pid_t* user_child_tid, void* user_tls) {
     // NOLINTEND(readability-non-const-parameter)
     (void)user_child_tid;
 

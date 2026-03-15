@@ -1,9 +1,10 @@
 #include <common/limits.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/syscall/syscall.h>
 #include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
-long sys_kill(pid_t pid, int sig) {
+SYSCALL2(kill, pid_t, pid, int, sig) {
     if (pid > 0) {
         // Send the signal to the process with the specified pid.
         return signal_send_to_thread_groups(0, pid, sig);
@@ -24,13 +25,13 @@ long sys_kill(pid_t pid, int sig) {
     return signal_send_to_thread_groups(-pid, 0, sig);
 }
 
-long sys_tkill(pid_t tid, int sig) {
+SYSCALL2(tkill, pid_t, tid, int, sig) {
     if (tid <= 0)
         return -EINVAL;
     return signal_send_to_tasks(0, tid, sig);
 }
 
-long sys_tgkill(pid_t tgid, pid_t tid, int sig) {
+SYSCALL3(tgkill, pid_t, tgid, pid_t, tid, int, sig) {
     if (tgid <= 0 || tid <= 0)
         return -EINVAL;
     return signal_send_to_tasks(tgid, tid, sig);
@@ -103,7 +104,7 @@ NODISCARD static int sigaction(int signum, const struct sigaction* act,
     return 0;
 }
 
-long sys_signal(int signum, sighandler_t handler) {
+SYSCALL2(signal, int, signum, sighandler_t, handler) {
     struct sigaction act = {
         .sa_handler = handler,
         .sa_flags = SA_RESETHAND | SA_NODEFER,
@@ -115,8 +116,8 @@ long sys_signal(int signum, sighandler_t handler) {
     return (long)oldact.sa_handler;
 }
 
-long sys_sigaction(int signum, const struct linux_old_sigaction* user_act,
-                   struct linux_old_sigaction* user_oldact) {
+SYSCALL3(sigaction, int, signum, const struct linux_old_sigaction*, user_act,
+         struct linux_old_sigaction*, user_oldact) {
     struct sigaction act;
     if (user_act) {
         if (copy_sigaction_from_user_old(&act, user_act))
@@ -134,8 +135,8 @@ long sys_sigaction(int signum, const struct linux_old_sigaction* user_act,
     return 0;
 }
 
-long sys_rt_sigaction(int signum, const struct sigaction* user_act,
-                      struct sigaction* user_oldact, size_t sigsetsize) {
+SYSCALL4(rt_sigaction, int, signum, const struct sigaction*, user_act,
+         struct sigaction*, user_oldact, size_t, sigsetsize) {
     if (sigsetsize != sizeof(sigset_t))
         return -EINVAL;
 
@@ -157,9 +158,9 @@ long sys_rt_sigaction(int signum, const struct sigaction* user_act,
     return 0;
 }
 
-long sys_sgetmask(void) { return current->blocked_signals.sig[0]; }
+SYSCALL0(sgetmask) { return current->blocked_signals.sig[0]; }
 
-long sys_ssetmask(long newmask) {
+SYSCALL1(ssetmask, long, newmask) {
     unsigned long old_mask = current->blocked_signals.sig[0];
     sigset_t new_mask;
     sigemptyset(&new_mask);
@@ -192,8 +193,8 @@ NODISCARD static int sigprocmask(int how, const sigset_t* set,
     return 0;
 }
 
-long sys_sigprocmask(int how, const linux_old_sigset_t* user_set,
-                     linux_old_sigset_t* user_oldset) {
+SYSCALL3(sigprocmask, int, how, const linux_old_sigset_t*, user_set,
+         linux_old_sigset_t*, user_oldset) {
     sigset_t set;
     if (user_set) {
         if (copy_sigset_from_user_old(&set, user_set))
@@ -211,8 +212,8 @@ long sys_sigprocmask(int how, const linux_old_sigset_t* user_set,
     return 0;
 }
 
-long sys_rt_sigprocmask(int how, const sigset_t* user_set,
-                        sigset_t* user_oldset, size_t sigsetsize) {
+SYSCALL4(rt_sigprocmask, int, how, const sigset_t*, user_set, sigset_t*,
+         user_oldset, size_t, sigsetsize) {
     if (sigsetsize != sizeof(sigset_t))
         return -EINVAL;
 
@@ -234,24 +235,26 @@ long sys_rt_sigprocmask(int how, const sigset_t* user_set,
     return 0;
 }
 
-long sys_pause(void) { return sched_block(NULL, NULL, 0); }
+NODISCARD static int pause(void) { return sched_block(NULL, NULL, 0); }
+
+SYSCALL0(pause) { return pause(); }
 
 NODISCARD static int sigsuspend(const sigset_t* mask) {
     sigset_t old_mask = current->blocked_signals;
     task_set_blocked_signals(mask);
-    int rc = sys_pause();
+    int rc = pause();
     task_set_blocked_signals(&old_mask);
     return rc;
 }
 
-long sys_sigsuspend(const linux_old_sigset_t* user_mask) {
+SYSCALL1(sigsuspend, const linux_old_sigset_t*, user_mask) {
     sigset_t mask;
     if (copy_sigset_from_user_old(&mask, user_mask))
         return -EFAULT;
     return sigsuspend(&mask);
 }
 
-long sys_rt_sigsuspend(const sigset_t* user_mask, size_t sigsetsize) {
+SYSCALL2(rt_sigsuspend, const sigset_t*, user_mask, size_t, sigsetsize) {
     if (sigsetsize != sizeof(sigset_t))
         return -EINVAL;
     sigset_t mask;
@@ -269,7 +272,7 @@ static void sigpending(sigset_t* set) {
     sigandsets(set, set, &current->blocked_signals);
 }
 
-long sys_sigpending(linux_old_sigset_t* user_set) {
+SYSCALL1(sigpending, linux_old_sigset_t*, user_set) {
     sigset_t set;
     sigpending(&set);
     if (copy_sigset_to_user_old(user_set, &set))
@@ -277,7 +280,7 @@ long sys_sigpending(linux_old_sigset_t* user_set) {
     return 0;
 }
 
-long sys_rt_sigpending(sigset_t* user_set, size_t sigsetsize) {
+SYSCALL2(rt_sigpending, sigset_t*, user_set, size_t, sigsetsize) {
     if (sigsetsize != sizeof(sigset_t))
         return -EINVAL;
 
