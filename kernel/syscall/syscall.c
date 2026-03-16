@@ -96,14 +96,13 @@ void syscall_handle(const struct syscall_abi* abi, struct registers* regs) {
 
     switch (ret) {
     case -ERESTARTSYS:
-        if (signum && (act.sa_flags & SA_RESTART)) {
-            // If the syscall was interrupted by a signal with a sigaction
-            // that has SA_RESTART set, restart the syscall.
+        // Restart the syscall when
+        // - There is no signal handler to run, or
+        // - The signal handler has the SA_RESTART flag set
+        if (!signum || (act.sa_flags & SA_RESTART))
             abi->restart(regs);
-        } else {
-            // Otherwise, tell the userland that the syscall was interrupted.
+        else
             abi->set_return_value(regs, -EINTR);
-        }
         break;
     case -ERAWRETURN:
         break;
