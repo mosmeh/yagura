@@ -157,7 +157,8 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
     }
 }
 
-static void echo(struct tty* tty, const char* buf, size_t count) {
+void tty_echo(struct tty* tty, const char* buf, size_t count) {
+    SCOPED_LOCK(tty, tty);
     if (tty->ops->echo)
         tty->ops->echo(tty, buf, count);
 }
@@ -165,20 +166,20 @@ static void echo(struct tty* tty, const char* buf, size_t count) {
 static void processed_echo(struct tty* tty, const char* buf, size_t count) {
     const struct ktermios* termios = &tty->termios;
     if (!(termios->c_oflag & OPOST) || !(termios->c_oflag & ONLCR)) {
-        echo(tty, buf, count);
+        tty_echo(tty, buf, count);
         return;
     }
     const char* start = buf;
     while (count) {
         const char* p = memchr(start, '\n', count);
         if (!p) {
-            echo(tty, start, count);
+            tty_echo(tty, start, count);
             break;
         }
         size_t n = p - start;
         if (n > 0)
-            echo(tty, start, n);
-        echo(tty, "\r\n", 2);
+            tty_echo(tty, start, n);
+        tty_echo(tty, "\r\n", 2);
         start = p + 1;
         count -= n + 1;
     }
@@ -309,7 +310,7 @@ const struct file_ops tty_fops = {
 static bool do_backspace(struct tty* tty) {
     if (tty->line_len) {
         --tty->line_len;
-        echo(tty, "\b \b", 3);
+        tty_echo(tty, "\b \b", 3);
         return true;
     }
     return false;

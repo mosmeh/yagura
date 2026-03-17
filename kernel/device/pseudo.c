@@ -124,7 +124,7 @@ static ssize_t kmsg_pread(struct file* file, void* user_buffer, size_t count,
             kmsg = kmalloc(sizeof(struct kmsg));
             if (!kmsg)
                 return -ENOMEM;
-            kmsg->size = kmsg_read(kmsg->data, KMSG_BUF_SIZE);
+            kmsg->size = kmsg_read(kmsg->data, KMSG_BUF_SIZE, 0);
             file->private_data = kmsg;
         }
     }

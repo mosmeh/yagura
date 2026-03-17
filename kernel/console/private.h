@@ -62,6 +62,9 @@ extern const struct file_ops tty_fops;
 
 NODISCARD int tty_register(struct tty*);
 
+// Sends the given string to the tty's output.
+void tty_echo(struct tty*, const char* buf, size_t count);
+
 // Inputs the given string into the tty.
 ssize_t tty_emit(struct tty*, const char* buf, size_t count);
 
