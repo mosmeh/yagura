@@ -1,4 +1,5 @@
 #include <common/limits.h>
+#include <common/string.h>
 #include <kernel/api/x86/asm/processor-flags.h>
 #include <kernel/arch/x86/interrupts/interrupts.h>
 #include <kernel/arch/x86/msr.h>
@@ -35,8 +36,9 @@ static void detect_features(struct cpu* cpu) {
     uint32_t ecx;
     uint32_t edx;
 
-    uint32_t* vendor_id = (uint32_t*)arch->vendor_id;
+    uint32_t vendor_id[3];
     cpuid(0, &eax, vendor_id, vendor_id + 2, vendor_id + 1);
+    memcpy(arch->vendor_id, vendor_id, sizeof(vendor_id));
     if (eax < 1) {
         // CPUID is not supported
         return;
@@ -253,9 +255,11 @@ static void detect_features(struct cpu* cpu) {
 #undef F
 
     if (max_ext_func >= 0x80000004) {
-        uint32_t* p = (uint32_t*)arch->model_name;
-        for (int i = 0; i < 3; ++i, p += 4)
+        for (int i = 0; i < 3; ++i) {
+            uint32_t p[4];
             cpuid(0x80000002 + i, p, p + 1, p + 2, p + 3);
+            memcpy(arch->model_name + i * sizeof(p), p, sizeof(p));
+        }
     }
     if (max_ext_func >= 0x80000007) {
         cpuid(0x80000007, &eax, &ebx, &ecx, &edx);
