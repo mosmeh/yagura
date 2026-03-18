@@ -186,8 +186,12 @@ SYSCALL2(fstat64, int, fd, struct linux_stat64*, user_buf) {
     return copy_stat_to_user64(&buf, user_buf);
 }
 
-NODISCARD static int stat_at(int dirfd, const char* user_pathname,
+NODISCARD static int fstatat(int dirfd, const char* user_pathname,
                              struct kstat* buf, int flags) {
+    if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_EMPTY_PATH |
+                  AT_STATX_SYNC_TYPE))
+        return -EINVAL;
+
     if (!user_pathname && (flags & AT_EMPTY_PATH)) {
         struct file* file FREE(file) =
             ASSERT(fd_table_ref_file(current->fd_table, dirfd));
@@ -224,13 +228,6 @@ NODISCARD static int stat_at(int dirfd, const char* user_pathname,
     return inode_stat(file->inode, buf);
 }
 
-NODISCARD static int fstatat(int dirfd, const char* user_pathname,
-                             struct kstat* buf, int flags) {
-    if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH))
-        return -EINVAL;
-    return stat_at(dirfd, user_pathname, buf, flags);
-}
-
 SYSCALL4(fstatat64, int, dirfd, const char*, user_pathname,
          struct linux_stat64*, user_buf, int, flags) {
     struct kstat buf;
@@ -257,11 +254,9 @@ SYSCALL5(statx, int, dirfd, const char*, user_pathname, int, flags,
         return -EINVAL;
     if ((flags & AT_STATX_SYNC_TYPE) == AT_STATX_SYNC_TYPE)
         return -EINVAL;
-    if ((flags & ~AT_STATX_SYNC_TYPE) & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH))
-        return -EINVAL;
 
     struct kstat buf;
-    int rc = stat_at(dirfd, user_pathname, &buf, flags);
+    int rc = fstatat(dirfd, user_pathname, &buf, flags);
     if (IS_ERR(rc))
         return rc;
 
