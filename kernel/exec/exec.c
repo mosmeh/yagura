@@ -290,6 +290,17 @@ NODISCARD static int finalize_exec(struct loader* loader) {
     const char* comm = basename(loader->pathname);
     strlcpy(task->comm, comm, sizeof(task->comm));
 
+    {
+        struct sighand* sighand = task->sighand;
+        SCOPED_LOCK(sighand, sighand);
+        for (size_t i = 0; i < ARRAY_SIZE(sighand->actions); ++i) {
+            struct sigaction* action = &sighand->actions[i];
+            sighandler_t handler =
+                action->sa_handler == SIG_IGN ? SIG_IGN : SIG_DFL;
+            *action = (struct sigaction){.sa_handler = handler};
+        }
+    }
+
     task->arg_start = (uintptr_t)loader->arg_start;
     task->arg_end = (uintptr_t)loader->arg_end;
     task->env_start = (uintptr_t)loader->env_start;

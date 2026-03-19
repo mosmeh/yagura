@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <panic.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
@@ -16,6 +17,8 @@ static void spawn(const char* pathname, char* const* argv, char* const* envp) {
     ASSERT(WEXITSTATUS(status) == EXIT_SUCCESS);
 }
 
+static void signal_handler(int signum) { (void)signum; }
+
 int main(int argc, char** argv) {
     ASSERT(argc > 0);
 
@@ -30,6 +33,9 @@ int main(int argc, char** argv) {
         ASSERT_ERRNO(close(103), EBADF);
         ASSERT_ERRNO(close(104), EBADF);
         ASSERT_ERRNO(close(105), EBADF);
+
+        ASSERT(signal(SIGUSR1, signal_handler) == SIG_IGN);
+        ASSERT(signal(SIGUSR2, signal_handler) == SIG_DFL);
 
         return EXIT_SUCCESS;
     }
@@ -52,6 +58,8 @@ int main(int argc, char** argv) {
     ASSERT_OK(fcntl(104, F_SETFD, FD_CLOEXEC));
     ASSERT_OK(fcntl(fd, F_DUPFD_CLOEXEC, 105));
     ASSERT_OK(close(fd));
+    ASSERT(signal(SIGUSR1, SIG_IGN) == SIG_DFL);
+    ASSERT(signal(SIGUSR2, signal_handler) == SIG_DFL);
     spawn(argv[0], (char*[]){argv[0], "child", NULL}, NULL);
 
     return EXIT_SUCCESS;
