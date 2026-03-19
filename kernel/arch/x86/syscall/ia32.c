@@ -16,10 +16,10 @@ SYSCALL5(ia32_pread64, int, fd, void*, user_buf, size_t, count, uint32_t,
     if (!is_user_range(user_buf, count))
         return -EFAULT;
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
-    int rc = file_pread(file, user_buf, count, pos);
-    if (rc == -EINTR)
+    ssize_t n = file_pread(file, user_buf, count, pos);
+    if (n == -EINTR)
         return -ERESTARTSYS;
-    return rc;
+    return n;
 }
 
 SYSCALL5(ia32_pwrite64, int, fd, const void*, user_buf, size_t, count, uint32_t,
@@ -33,10 +33,10 @@ SYSCALL5(ia32_pwrite64, int, fd, const void*, user_buf, size_t, count, uint32_t,
     if (!is_user_range(user_buf, count))
         return -EFAULT;
     uint64_t pos = ((uint64_t)pos_hi << 32) | pos_lo;
-    int rc = file_pwrite(file, user_buf, count, pos);
-    if (rc == -EINTR)
+    ssize_t n = file_pwrite(file, user_buf, count, pos);
+    if (n == -EINTR)
         return -ERESTARTSYS;
-    return rc;
+    return n;
 }
 
 SYSCALL3(ia32_truncate64, const char*, user_path, unsigned long, offset_low,
