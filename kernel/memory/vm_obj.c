@@ -20,7 +20,7 @@ void* vm_obj_map(struct vm_obj* obj, size_t offset, size_t npages,
 
     struct vm_region* region = ASSERT(vm_alloc(kernel_vm, npages));
     if (IS_ERR(region))
-        return ERR_CAST(region);
+        return region;
 
     ASSERT_OK(vm_region_set_flags(region, 0, npages, flags, ~0));
     vm_region_set_obj(region, obj, offset);
@@ -199,7 +199,7 @@ void* phys_map(phys_addr_t phys_addr, size_t size, unsigned vm_flags) {
     struct vm_obj* phys FREE(vm_obj) =
         ASSERT(phys_create(aligned_addr, npages));
     if (IS_ERR(phys))
-        return ERR_CAST(phys);
+        return phys;
 
     unsigned char* addr =
         ASSERT(vm_obj_map(phys, 0, npages, vm_flags | VM_SHARED));

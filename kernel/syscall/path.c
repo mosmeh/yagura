@@ -17,7 +17,7 @@ struct path* path_from_dirfd(int dirfd) {
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, dirfd));
     if (IS_ERR(file))
-        return ERR_PTR(PTR_ERR(file));
+        return ERR_CAST(file);
     if (!S_ISDIR(file->inode->mode) || !file->path)
         return ERR_PTR(-ENOTDIR);
     return path_dup(file->path);
@@ -39,7 +39,7 @@ static struct inode* resolve_inode_at(int dirfd, const char* user_pathname,
     if (pathname[0]) {
         struct path* base FREE(path) = ASSERT(path_from_dirfd(dirfd));
         if (IS_ERR(base))
-            return ERR_PTR(PTR_ERR(base));
+            return ERR_CAST(base);
 
         int vfs_flags = 0;
         if (flags & AT_SYMLINK_NOFOLLOW)
@@ -47,7 +47,7 @@ static struct inode* resolve_inode_at(int dirfd, const char* user_pathname,
         struct path* path FREE(path) =
             ASSERT(vfs_resolve_path_at(base, pathname, vfs_flags));
         if (IS_ERR(path))
-            return ERR_PTR(PTR_ERR(path));
+            return ERR_CAST(path);
 
         return inode_ref(path->inode);
     }
@@ -58,7 +58,7 @@ static struct inode* resolve_inode_at(int dirfd, const char* user_pathname,
     struct file* file FREE(file) =
         ASSERT(fd_table_ref_file(current->fd_table, dirfd));
     if (IS_ERR(file))
-        return ERR_PTR(PTR_ERR(file));
+        return ERR_CAST(file);
 
     return inode_ref(file->inode);
 }

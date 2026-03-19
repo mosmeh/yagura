@@ -321,7 +321,7 @@ static struct path* create_at(const struct path* base, const char* pathname,
     struct path* path FREE(path) =
         ASSERT(vfs_resolve_path_at(base, pathname, flags));
     if (IS_ERR(path))
-        return ERR_CAST(path);
+        return path;
 
     if (path->inode) {
         if (exclusive)

@@ -162,7 +162,7 @@ int block_dev_register(struct block_dev* block_dev) {
     int rc = mount_commit_inode(bdev_mount, inode);
     if (IS_ERR(rc)) {
         block_dev_unref(block_dev);
-        return PTR_ERR(rc);
+        return rc;
     }
 
     kprintf("block_dev: registered %s %u,%u\n", block_dev->name,

@@ -213,7 +213,7 @@ struct pagemap* pagemap_create(void) {
         uintptr_t virt_addr = i << LEVEL_SHIFT(TOP_LEVEL);
         phys_addr_t phys_addr = ensure_page_table(kernel_pagemap, virt_addr);
         if (IS_ERR(phys_addr))
-            return ERR_CAST(phys_addr);
+            return ERR_PTR(phys_addr);
     }
 
     struct pagemap* pagemap =

@@ -263,7 +263,7 @@ static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
             return -EFAULT;
         ssize_t len = strnlen_user(arg_ptr, ARG_MAX);
         if (IS_ERR(len))
-            return PTR_ERR(len);
+            return len;
         if (len >= ARG_MAX)
             return -E2BIG;
         arg_ptr += len + 1;
@@ -277,7 +277,7 @@ static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
             return -EFAULT;
         ssize_t len = strnlen_user(env_ptr, ARG_MAX);
         if (IS_ERR(len))
-            return PTR_ERR(len);
+            return len;
         if (len >= ARG_MAX)
             return -E2BIG;
         env_ptr += len + 1;
