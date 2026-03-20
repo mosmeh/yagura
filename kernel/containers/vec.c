@@ -20,11 +20,11 @@ ssize_t vec_pread(struct vec* vec, void* bytes, size_t count, uint64_t offset) {
     return count;
 }
 
-NODISCARD static int grow_capacity(struct vec* vec, size_t requested_size) {
+NODISCARD static int grow_capacity(struct vec* vec, size_t requested_capacity) {
     size_t new_capacity = vec->capacity * 2;
     if (new_capacity < vec->capacity)
         return -EOVERFLOW;
-    new_capacity = MAX(new_capacity, requested_size);
+    new_capacity = MAX(new_capacity, requested_capacity);
     if (new_capacity == 0)
         new_capacity = PAGE_SIZE;
     new_capacity = ROUND_UP(new_capacity, PAGE_SIZE);
@@ -46,6 +46,10 @@ NODISCARD static int grow_capacity(struct vec* vec, size_t requested_size) {
 ssize_t vec_pwrite(struct vec* vec, const void* bytes, size_t count,
                    uint64_t offset) {
     uint64_t end = offset + count;
+    if (end < offset)
+        return -EOVERFLOW;
+    if (end > SIZE_MAX)
+        return -ENOSPC;
     if (end > vec->capacity) {
         int rc = grow_capacity(vec, end);
         if (IS_ERR(rc))
@@ -72,24 +76,28 @@ int vec_printf(struct vec* vec, const char* format, ...) {
 }
 
 int vec_vsprintf(struct vec* vec, const char* format, va_list args) {
-    for (;;) {
-        uint64_t max_len = vec->capacity - vec->size;
-        if (max_len > 0) {
-            char* dest = (char*)(vec->data + vec->size);
-            va_list args_copy;
-            va_copy(args_copy, args);
-            int len = vsnprintf(dest, max_len, format, args_copy);
-            va_end(args_copy);
-            if (len < 0)
-                return -EINVAL;
-            if ((uint64_t)len < max_len) {
-                vec->size += len;
-                return len;
-            }
-        }
-        int rc =
-            grow_capacity(vec, 0); // specify 0 to let grow_capacity decide size
-        if (IS_ERR(rc))
-            return rc;
+    char* buf = vec->data ? (char*)(vec->data + vec->size) : NULL;
+    size_t remaining_capacity = vec->capacity - vec->size;
+    va_list args_copy;
+    va_copy(args_copy, args);
+    int len = vsnprintf(buf, remaining_capacity, format, args_copy);
+    va_end(args_copy);
+    if (len < 0)
+        return -EINVAL;
+    if ((size_t)len < remaining_capacity) {
+        vec->size += len;
+        return len;
     }
+    int rc = grow_capacity(vec, vec->size + len + 1);
+    if (IS_ERR(rc))
+        return rc;
+
+    ASSERT_PTR(vec->data);
+    buf = (char*)(vec->data + vec->size);
+    remaining_capacity = vec->capacity - vec->size;
+    len = vsnprintf(buf, remaining_capacity, format, args);
+    ASSERT(len >= 0);
+    ASSERT((size_t)len < remaining_capacity);
+    vec->size += len;
+    return len;
 }

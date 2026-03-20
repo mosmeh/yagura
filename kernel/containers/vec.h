@@ -7,7 +7,7 @@
 
 struct vec {
     unsigned char* data;
-    uint64_t capacity, size;
+    size_t capacity, size;
 };
 
 void vec_deinit(struct vec*);
