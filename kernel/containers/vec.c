@@ -36,8 +36,6 @@ NODISCARD static int grow_capacity(struct vec* vec, size_t requested_capacity) {
     if (!new_buf)
         return -ENOMEM;
 
-    memset(new_buf + vec->size, 0, new_capacity - vec->size);
-
     vec->data = new_buf;
     vec->capacity = new_capacity;
     return 0;
@@ -56,6 +54,8 @@ ssize_t vec_pwrite(struct vec* vec, const void* bytes, size_t count,
             return rc;
     }
 
+    if (offset > vec->size)
+        memset(vec->data + vec->size, 0, offset - vec->size);
     memcpy(vec->data + offset, bytes, count);
     if (vec->size < end)
         vec->size = end;
