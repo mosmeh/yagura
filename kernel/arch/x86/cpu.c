@@ -367,62 +367,57 @@ void arch_cpu_unicast_ipi(struct cpu* dest) {
     lapic_unicast_ipi(dest->arch.apic_id);
 }
 
-NODISCARD
-static int print_flag(struct vec* vec, const struct cpu* cpu, int feature,
-                      const char* name) {
-    if (!name[0]) {
-        // Skip empty names
-        return 0;
-    }
-    if (!cpu_has_feature(cpu, feature))
-        return 0;
-    return vec_printf(vec, "%s ", name);
-}
-
 int proc_print_cpuinfo(struct file* file, struct vec* vec) {
     (void)file;
 
+    static const char* const features[] = {
+#define F(variant, name) #name,
+        ENUMERATE_X86_FEATURES(F)
+#undef F
+    };
+
     for (size_t i = 0; i < num_cpus; ++i) {
-        struct cpu* cpu = cpus[i];
-        struct arch_cpu* arch = &cpu->arch;
-        int ret = vec_printf(vec,
-                             "processor       : %zu\n"
-                             "vendor_id       : %s\n"
-                             "cpu family      : %u\n"
-                             "model           : %u\n"
-                             "model name      : %s\n",
-                             i, arch->vendor_id, arch->family, arch->model,
-                             arch->model_name);
+        const struct cpu* cpu = cpus[i];
+        const struct arch_cpu* arch = &cpu->arch;
+
+        const char* fpu = cpu_has_feature(cpu, X86_FEATURE_FPU) ? "yes" : "no";
+        int ret = vec_printf(
+            vec,
+            "processor\t: %zu\n"
+            "vendor_id\t: %s\n"
+            "cpu family\t: %u\n"
+            "model\t\t: %u\n"
+            "model name\t: %s\n"
+            "stepping\t: %u\n"
+            "apicid\t\t: %u\n"
+            "fpu\t\t: %s\n"
+            "fpu_exception\t: %s\n"
+            "wp\t\t: yes\n"
+            "flags\t\t:",
+            i, arch->vendor_id[0] ? arch->vendor_id : "unknown", arch->family,
+            arch->model, arch->model_name[0] ? arch->model_name : "unknown",
+            arch->stepping, arch->apic_id, fpu, fpu);
         if (IS_ERR(ret))
             return ret;
 
-        if (arch->stepping) {
-            ret = vec_printf(vec, "stepping        : %u\n", arch->stepping);
+        for (size_t feature = 0; feature < ARRAY_SIZE(features); ++feature) {
+            const char* name = features[feature];
+            if (!name[0]) {
+                // Skip empty names
+                continue;
+            }
+            if (!cpu_has_feature(cpu, feature))
+                continue;
+            ret = vec_printf(vec, " %s", name);
             if (IS_ERR(ret))
                 return ret;
         }
 
-        const char* fpu = cpu_has_feature(cpu, X86_FEATURE_FPU) ? "yes" : "no";
         ret = vec_printf(vec,
-                         "apicid          : %u\n"
-                         "fpu             : %s\n"
-                         "fpu_exception   : %s\n"
-                         "wp              : yes\n"
-                         "flags           : ",
-                         cpu->arch.apic_id, fpu, fpu);
-        if (IS_ERR(ret))
-            return ret;
-
-#define F(variant, name)                                                       \
-    ret = print_flag(vec, cpu, X86_FEATURE_##variant, #name);                  \
-    if (IS_ERR(ret))                                                           \
-        return ret;
-        ENUMERATE_X86_FEATURES(F)
-#undef F
-
-        ret = vec_printf(
-            vec, "\naddress sizes   : %u bits physical, %u bits virtual\n\n",
-            arch->phys_addr_bits, arch->virt_addr_bits);
+                         "\n"
+                         "address sizes\t: %u bits physical, %u bits virtual\n"
+                         "\n",
+                         arch->phys_addr_bits, arch->virt_addr_bits);
         if (IS_ERR(ret))
             return ret;
     }
