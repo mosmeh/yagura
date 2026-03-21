@@ -21,10 +21,10 @@ SRCS := \
 	kernel/console/screen/fb.c \
 	kernel/console/screen/screen.c \
 	kernel/console/screen/vga_text.c \
-	kernel/console/serial_console.c \
-	kernel/console/system_console.c \
+	kernel/console/serial.c \
+	kernel/console/system.c \
 	kernel/console/tty.c \
-	kernel/console/virtual_console.c \
+	kernel/console/virtual.c \
 	kernel/console/vt.c \
 	kernel/containers/vec.c \
 	kernel/cpu.c \
