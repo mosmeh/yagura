@@ -399,6 +399,29 @@ struct inode* vfs_create(const struct path* base, const char* pathname,
     return inode;
 }
 
+struct inode* vfs_mknod(const struct path* base, const char* pathname,
+                        mode_t mode, dev_t dev) {
+    switch (mode & S_IFMT) {
+    case S_IFREG:
+    case S_IFCHR:
+    case S_IFBLK:
+    case S_IFIFO:
+    case S_IFSOCK:
+        break;
+    default:
+        return ERR_PTR(-EINVAL);
+    }
+
+    struct inode* inode = ASSERT(vfs_create(base, pathname, mode));
+    if (IS_ERR(inode))
+        return inode;
+
+    if (S_ISCHR(mode) || S_ISBLK(mode))
+        inode->rdev = dev;
+
+    return inode;
+}
+
 int vfs_sync(void) {
     SCOPED_LOCK(mutex, &mounts_lock);
     for (struct mount* it = mounts; it; it = it->next) {

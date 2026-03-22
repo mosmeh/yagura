@@ -83,6 +83,8 @@ NODISCARD int vfs_stat(const struct path* base, const char* pathname,
                        struct kstat* buf, int flags);
 NODISCARD struct inode* vfs_create(const struct path* base,
                                    const char* pathname, mode_t mode);
+NODISCARD struct inode* vfs_mknod(const struct path* base, const char* pathname,
+                                  mode_t mode, dev_t dev);
 struct path* vfs_resolve_path(const struct path* base, const char* pathname,
                               int flags);
 

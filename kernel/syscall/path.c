@@ -113,27 +113,15 @@ SYSCALL2(creat, const char*, user_pathname, mode_t, mode) {
 
 NODISCARD static int mknod(const struct path* base, const char* user_pathname,
                            mode_t mode, dev_t dev) {
-    switch (mode & S_IFMT) {
-    case S_IFREG:
-    case S_IFCHR:
-    case S_IFBLK:
-    case S_IFIFO:
-    case S_IFSOCK:
-        break;
-    default:
-        return -EINVAL;
-    }
-
     char pathname[PATH_MAX];
     ssize_t len = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(len))
         return len;
 
     struct inode* inode FREE(inode) =
-        ASSERT(vfs_create(base, pathname, apply_umask(mode)));
+        ASSERT(vfs_mknod(base, pathname, apply_umask(mode), dev));
     if (IS_ERR(inode))
         return PTR_ERR(inode);
-    inode->rdev = dev;
     return 0;
 }
 
