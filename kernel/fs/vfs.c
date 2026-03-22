@@ -126,7 +126,7 @@ int vfs_mount(const struct file_system* fs, const char* source,
 int vfs_mount_at(const struct file_system* fs, const struct path* base,
                  const char* source, const char* target) {
     struct path* target_path FREE(path) =
-        ASSERT(vfs_resolve_path_at(base, target, 0));
+        ASSERT(vfs_resolve_path(base, target, 0));
     if (IS_ERR(target_path))
         return PTR_ERR(target_path);
 
@@ -174,9 +174,8 @@ static bool is_absolute_path(const char* path) {
     return path[0] == PATH_SEPARATOR;
 }
 
-static struct path* resolve_path_at(const struct path* base,
-                                    const char* pathname, int flags,
-                                    unsigned symlink_depth);
+static struct path* resolve_path(const struct path* base, const char* pathname,
+                                 int flags, unsigned symlink_depth);
 
 static struct path* follow_symlink(const struct path* parent,
                                    struct inode* inode,
@@ -196,7 +195,7 @@ static struct path* follow_symlink(const struct path* parent,
     target[target_len] = '\0';
 
     if (!rest_pathname[0])
-        return resolve_path_at(parent, target, flags, depth + 1);
+        return resolve_path(parent, target, flags, depth + 1);
 
     char* pathname FREE(kfree) =
         kmalloc(target_len + 1 + strlen(rest_pathname) + 1);
@@ -206,12 +205,11 @@ static struct path* follow_symlink(const struct path* parent,
     pathname[target_len] = PATH_SEPARATOR;
     strcpy(pathname + target_len + 1, rest_pathname);
 
-    return resolve_path_at(parent, pathname, flags, depth + 1);
+    return resolve_path(parent, pathname, flags, depth + 1);
 }
 
-static struct path* resolve_path_at(const struct path* base,
-                                    const char* pathname, int flags,
-                                    unsigned symlink_depth) {
+static struct path* resolve_path(const struct path* base, const char* pathname,
+                                 int flags, unsigned symlink_depth) {
     if (pathname[0] == 0)
         return ERR_PTR(-ENOENT);
 
@@ -301,25 +299,25 @@ static struct path* resolve_path_at(const struct path* base,
     return TAKE_PTR(path);
 }
 
-struct path* vfs_resolve_path(const char* pathname, int flags) {
-    SCOPED_LOCK(fs_env, current->fs_env);
-    return vfs_resolve_path_at(current->fs_env->cwd, pathname, flags);
+struct path* vfs_resolve_path(const struct path* base, const char* pathname,
+                              int flags) {
+    ASSERT(base);
+    if (base == BASE_CWD) {
+        SCOPED_LOCK(fs_env, current->fs_env);
+        return vfs_resolve_path(current->fs_env->cwd, pathname, flags);
+    }
+    return resolve_path(base, pathname, flags, 0);
 }
 
-struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
-                                 int flags) {
-    return resolve_path_at(base, pathname, flags, 0);
-}
-
-static struct path* create_at(const struct path* base, const char* pathname,
-                              mode_t mode, bool exclusive) {
+static struct path* create(const struct path* base, const char* pathname,
+                           mode_t mode, bool exclusive) {
     ASSERT(mode & S_IFMT);
 
     int flags = O_ALLOW_NOENT;
     if (exclusive)
         flags |= O_NOFOLLOW | O_NOFOLLOW_NOERROR;
     struct path* path FREE(path) =
-        ASSERT(vfs_resolve_path_at(base, pathname, flags));
+        ASSERT(vfs_resolve_path(base, pathname, flags));
     if (IS_ERR(path))
         return path;
 
@@ -363,16 +361,11 @@ static struct path* create_at(const struct path* base, const char* pathname,
     return TAKE_PTR(path);
 }
 
-struct file* vfs_open(const char* pathname, int flags, mode_t mode) {
-    SCOPED_LOCK(fs_env, current->fs_env);
-    return vfs_open_at(current->fs_env->cwd, pathname, flags, mode);
-}
-
-struct file* vfs_open_at(const struct path* base, const char* pathname,
-                         int flags, mode_t mode) {
+struct file* vfs_open(const struct path* base, const char* pathname, int flags,
+                      mode_t mode) {
     struct path* path FREE(path) =
-        (flags & O_CREAT) ? create_at(base, pathname, mode, flags & O_EXCL)
-                          : vfs_resolve_path_at(base, pathname, flags);
+        (flags & O_CREAT) ? create(base, pathname, mode, flags & O_EXCL)
+                          : vfs_resolve_path(base, pathname, flags);
     ASSERT(path);
     if (IS_ERR(path))
         return ERR_CAST(path);
@@ -386,29 +379,19 @@ struct file* vfs_open_at(const struct path* base, const char* pathname,
     return file;
 }
 
-int vfs_stat(const char* pathname, struct kstat* buf, int flags) {
-    SCOPED_LOCK(fs_env, current->fs_env);
-    return vfs_stat_at(current->fs_env->cwd, pathname, buf, flags);
-}
-
-int vfs_stat_at(const struct path* base, const char* pathname,
-                struct kstat* buf, int flags) {
+int vfs_stat(const struct path* base, const char* pathname, struct kstat* buf,
+             int flags) {
     struct path* path FREE(path) =
-        ASSERT(vfs_resolve_path_at(base, pathname, flags));
+        ASSERT(vfs_resolve_path(base, pathname, flags));
     if (IS_ERR(path))
         return PTR_ERR(path);
     ASSERT_PTR(path->inode);
     return inode_stat(path->inode, buf);
 }
 
-struct inode* vfs_create(const char* pathname, mode_t mode) {
-    SCOPED_LOCK(fs_env, current->fs_env);
-    return vfs_create_at(current->fs_env->cwd, pathname, mode);
-}
-
-struct inode* vfs_create_at(const struct path* base, const char* pathname,
-                            mode_t mode) {
-    struct path* path = ASSERT(create_at(base, pathname, mode, true));
+struct inode* vfs_create(const struct path* base, const char* pathname,
+                         mode_t mode) {
+    struct path* path = ASSERT(create(base, pathname, mode, true));
     if (IS_ERR(path))
         return ERR_CAST(path);
     struct inode* inode = inode_ref(path->inode);

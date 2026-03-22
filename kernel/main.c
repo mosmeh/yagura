@@ -21,7 +21,8 @@
 #include <kernel/time.h>
 
 static void open_console(void) {
-    struct file* file FREE(file) = ASSERT(vfs_open("/dev/console", O_RDWR, 0));
+    struct file* file FREE(file) =
+        ASSERT(vfs_open(BASE_CWD, "/dev/console", O_RDWR, 0));
     if (IS_ERR(file)) {
         kprint("userland_init: warning: unable to open an initial console\n");
         return;

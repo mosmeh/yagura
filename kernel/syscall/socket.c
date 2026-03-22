@@ -67,7 +67,8 @@ NODISCARD static int bind(int sockfd, const struct sockaddr* user_addr,
     strlcpy(path, addr_un.sun_path, sizeof(path));
 
     mode_t mode = S_IFSOCK | (file->inode->mode & ~current->fs_env->umask);
-    struct inode* addr_inode FREE(inode) = ASSERT(vfs_create(path, mode));
+    struct inode* addr_inode FREE(inode) =
+        ASSERT(vfs_create(BASE_CWD, path, mode));
     if (IS_ERR(addr_inode)) {
         if (PTR_ERR(addr_inode) == -EEXIST)
             return -EADDRINUSE;
@@ -172,7 +173,8 @@ NODISCARD static int connect(int sockfd, const struct sockaddr* user_addr,
     char pathname[UNIX_PATH_MAX + 1];
     strlcpy(pathname, addr_un.sun_path, sizeof(pathname));
 
-    struct path* path FREE(path) = ASSERT(vfs_resolve_path(pathname, 0));
+    struct path* path FREE(path) =
+        ASSERT(vfs_resolve_path(BASE_CWD, pathname, 0));
     if (IS_ERR(path))
         return PTR_ERR(path);
 

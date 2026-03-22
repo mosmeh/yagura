@@ -45,7 +45,8 @@ SYSCALL3(ia32_truncate64, const char*, user_path, unsigned long, offset_low,
     ssize_t len = copy_pathname_from_user(path, user_path);
     if (IS_ERR(len))
         return len;
-    struct file* file FREE(file) = ASSERT(vfs_open(path, O_WRONLY, 0));
+    struct file* file FREE(file) =
+        ASSERT(vfs_open(BASE_CWD, path, O_WRONLY, 0));
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_truncate(file, ((uint64_t)offset_high << 32) | offset_low);

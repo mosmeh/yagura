@@ -45,7 +45,7 @@ static struct inode* resolve_inode_at(int dirfd, const char* user_pathname,
         if (flags & AT_SYMLINK_NOFOLLOW)
             vfs_flags |= O_NOFOLLOW | O_NOFOLLOW_NOERROR;
         struct path* path FREE(path) =
-            ASSERT(vfs_resolve_path_at(base, pathname, vfs_flags));
+            ASSERT(vfs_resolve_path(base, pathname, vfs_flags));
         if (IS_ERR(path))
             return ERR_CAST(path);
 
@@ -82,7 +82,7 @@ NODISCARD static int open(const struct path* base, const char* user_pathname,
     if (IS_ERR(len))
         return len;
 
-    struct file* file FREE(file) = ASSERT(vfs_open_at(
+    struct file* file FREE(file) = ASSERT(vfs_open(
         base, pathname, flags, apply_umask(mode & ALLPERMS) | S_IFREG));
     if (PTR_ERR(file) == -EINTR)
         return -ERESTARTSYS;
@@ -130,7 +130,7 @@ NODISCARD static int mknod(const struct path* base, const char* user_pathname,
         return len;
 
     struct inode* inode FREE(inode) =
-        ASSERT(vfs_create_at(base, pathname, apply_umask(mode)));
+        ASSERT(vfs_create(base, pathname, apply_umask(mode)));
     if (IS_ERR(inode))
         return PTR_ERR(inode);
     inode->rdev = dev;
@@ -157,7 +157,7 @@ NODISCARD static int mkdir(const struct path* base, const char* user_pathname,
     if (IS_ERR(len))
         return len;
     struct inode* inode FREE(inode) = ASSERT(
-        vfs_create_at(base, pathname, apply_umask(mode & ALLPERMS) | S_IFDIR));
+        vfs_create(base, pathname, apply_umask(mode & ALLPERMS) | S_IFDIR));
     if (IS_ERR(inode))
         return PTR_ERR(inode);
     return 0;
@@ -183,8 +183,7 @@ NODISCARD static int access(const struct path* base, const char* user_pathname,
     ssize_t len = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(len))
         return len;
-    struct path* path FREE(path) =
-        ASSERT(vfs_resolve_path_at(base, pathname, 0));
+    struct path* path FREE(path) = ASSERT(vfs_resolve_path(base, pathname, 0));
     if (IS_ERR(path))
         return PTR_ERR(path);
     return 0;
@@ -213,8 +212,8 @@ NODISCARD static int link(struct inode* old_inode, const struct path* new_base,
         return len;
 
     struct path* new_path FREE(path) = ASSERT(
-        vfs_resolve_path_at(new_base, new_pathname,
-                            O_ALLOW_NOENT | O_NOFOLLOW | O_NOFOLLOW_NOERROR));
+        vfs_resolve_path(new_base, new_pathname,
+                         O_ALLOW_NOENT | O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(new_path))
         return PTR_ERR(new_path);
     if (new_path->inode)
@@ -233,7 +232,7 @@ SYSCALL2(link, const char*, user_oldpath, const char*, user_newpath) {
 
     SCOPED_LOCK(fs_env, current->fs_env);
 
-    struct path* old_path FREE(path) = ASSERT(vfs_resolve_path_at(
+    struct path* old_path FREE(path) = ASSERT(vfs_resolve_path(
         current->fs_env->cwd, old_pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(old_path))
         return PTR_ERR(old_path);
@@ -268,7 +267,7 @@ static int unlink(const struct path* base, const char* user_pathname) {
         return len;
 
     struct path* path FREE(path) = ASSERT(
-        vfs_resolve_path_at(base, pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
+        vfs_resolve_path(base, pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(path))
         return PTR_ERR(path);
     if (!path->parent)
@@ -292,7 +291,7 @@ static int rmdir(const struct path* base, const char* user_pathname) {
         return len;
 
     struct path* path FREE(path) = ASSERT(
-        vfs_resolve_path_at(base, pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
+        vfs_resolve_path(base, pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(path))
         return PTR_ERR(path);
     if (!path->parent)
@@ -333,7 +332,7 @@ static int rename(const struct path* old_base, const char* user_oldpath,
     if (IS_ERR(len))
         return len;
 
-    struct path* old_path FREE(path) = ASSERT(vfs_resolve_path_at(
+    struct path* old_path FREE(path) = ASSERT(vfs_resolve_path(
         old_base, old_pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(old_path))
         return PTR_ERR(old_path);
@@ -341,8 +340,8 @@ static int rename(const struct path* old_base, const char* user_oldpath,
         return -EPERM;
 
     struct path* new_path FREE(path) = ASSERT(
-        vfs_resolve_path_at(new_base, new_pathname,
-                            O_ALLOW_NOENT | O_NOFOLLOW | O_NOFOLLOW_NOERROR));
+        vfs_resolve_path(new_base, new_pathname,
+                         O_ALLOW_NOENT | O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(new_path))
         return PTR_ERR(new_path);
     if (!new_path->parent)
@@ -425,8 +424,8 @@ NODISCARD static int symlink(const struct path* base, const char* user_target,
     if (IS_ERR(linkpath_len))
         return linkpath_len;
 
-    struct file* file FREE(file) = ASSERT(
-        vfs_open_at(base, linkpath, O_CREAT | O_EXCL | O_WRONLY, S_IFLNK));
+    struct file* file FREE(file) =
+        ASSERT(vfs_open(base, linkpath, O_CREAT | O_EXCL | O_WRONLY, S_IFLNK));
     if (IS_ERR(file))
         return PTR_ERR(file);
 
@@ -455,7 +454,7 @@ static ssize_t readlink(const struct path* base, const char* user_pathname,
         return len;
 
     struct path* path FREE(path) = ASSERT(
-        vfs_resolve_path_at(base, pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
+        vfs_resolve_path(base, pathname, O_NOFOLLOW | O_NOFOLLOW_NOERROR));
     if (IS_ERR(path))
         return PTR_ERR(path);
     if (!S_ISLNK(path->inode->mode))
@@ -505,7 +504,7 @@ SYSCALL2(chmod, const char*, user_pathname, mode_t, mode) {
 
     SCOPED_LOCK(fs_env, current->fs_env);
     struct path* path FREE(path) =
-        ASSERT(vfs_resolve_path_at(current->fs_env->cwd, pathname, 0));
+        ASSERT(vfs_resolve_path(current->fs_env->cwd, pathname, 0));
     if (IS_ERR(path))
         return PTR_ERR(path);
 
@@ -532,8 +531,7 @@ SYSCALL3(fchmodat, int, dirfd, const char*, user_pathname, mode_t, mode) {
     if (IS_ERR(base))
         return PTR_ERR(base);
 
-    struct path* path FREE(path) =
-        ASSERT(vfs_resolve_path_at(base, pathname, 0));
+    struct path* path FREE(path) = ASSERT(vfs_resolve_path(base, pathname, 0));
     if (IS_ERR(path))
         return PTR_ERR(path);
 
@@ -568,7 +566,8 @@ NODISCARD static int chown(const char* user_pathname, uid_t owner, gid_t group,
     if (IS_ERR(len))
         return len;
 
-    struct path* path FREE(path) = ASSERT(vfs_resolve_path(pathname, flags));
+    struct path* path FREE(path) =
+        ASSERT(vfs_resolve_path(BASE_CWD, pathname, flags));
     if (IS_ERR(path))
         return PTR_ERR(path);
 

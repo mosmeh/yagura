@@ -274,7 +274,8 @@ SYSCALL2(truncate, const char*, user_path, off_t, length) {
     ssize_t len = copy_pathname_from_user(path, user_path);
     if (IS_ERR(len))
         return len;
-    struct file* file FREE(file) = ASSERT(vfs_open(path, O_WRONLY, 0));
+    struct file* file FREE(file) =
+        ASSERT(vfs_open(BASE_CWD, path, O_WRONLY, 0));
     if (IS_ERR(file))
         return PTR_ERR(file);
     return file_truncate(file, length);

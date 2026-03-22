@@ -272,7 +272,7 @@ SYSCALL1(chroot, const char*, user_path) {
     SCOPED_LOCK(fs_env, fs_env);
 
     struct path* new_root FREE(path) =
-        ASSERT(vfs_resolve_path_at(fs_env->cwd, path, 0));
+        ASSERT(vfs_resolve_path(fs_env->cwd, path, 0));
     if (IS_ERR(new_root))
         return PTR_ERR(new_root);
 
@@ -311,7 +311,7 @@ SYSCALL1(chdir, const char*, user_path) {
     SCOPED_LOCK(fs_env, fs_env);
 
     struct path* new_cwd FREE(path) =
-        ASSERT(vfs_resolve_path_at(fs_env->cwd, path, 0));
+        ASSERT(vfs_resolve_path(fs_env->cwd, path, 0));
     if (IS_ERR(new_cwd))
         return PTR_ERR(new_cwd);
 

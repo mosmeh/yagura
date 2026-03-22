@@ -73,20 +73,18 @@ NODISCARD int vfs_mount_at(const struct file_system*, const struct path* base,
 
 #define O_KERNEL_INTERNAL_MASK (O_ALLOW_NOENT | O_NOFOLLOW_NOERROR)
 
-NODISCARD struct file* vfs_open(const char* pathname, int flags, mode_t mode);
-NODISCARD struct file* vfs_open_at(const struct path* base,
-                                   const char* pathname, int flags,
-                                   mode_t mode);
-NODISCARD int vfs_stat(const char* pathname, struct kstat* buf, int flags);
-NODISCARD int vfs_stat_at(const struct path* base, const char* pathname,
-                          struct kstat* buf, int flags);
-NODISCARD struct inode* vfs_create(const char* pathname, mode_t mode);
-NODISCARD struct inode* vfs_create_at(const struct path* base,
-                                      const char* pathname, mode_t mode);
+// Special value for the base path to indicate that the pathname is relative to
+// the current working directory.
+#define BASE_CWD ((struct path*)-1000)
 
-struct path* vfs_resolve_path(const char* pathname, int flags);
-struct path* vfs_resolve_path_at(const struct path* base, const char* pathname,
-                                 int flags);
+NODISCARD struct file* vfs_open(const struct path* base, const char* pathname,
+                                int flags, mode_t mode);
+NODISCARD int vfs_stat(const struct path* base, const char* pathname,
+                       struct kstat* buf, int flags);
+NODISCARD struct inode* vfs_create(const struct path* base,
+                                   const char* pathname, mode_t mode);
+struct path* vfs_resolve_path(const struct path* base, const char* pathname,
+                              int flags);
 
 // Writes back all dirty inodes.
 NODISCARD int vfs_sync(void);

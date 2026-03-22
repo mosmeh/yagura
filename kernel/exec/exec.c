@@ -85,7 +85,8 @@ static int copy_from_user_to_remote_vm(struct vm* vm, void* user_dest,
 }
 
 int exec_image_load(struct exec_image* image, const char* pathname) {
-    struct path* path FREE(path) = ASSERT(vfs_resolve_path(pathname, 0));
+    struct path* path FREE(path) =
+        ASSERT(vfs_resolve_path(BASE_CWD, pathname, 0));
     if (IS_ERR(path))
         return PTR_ERR(path);
 

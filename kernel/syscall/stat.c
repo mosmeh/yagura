@@ -14,7 +14,7 @@ NODISCARD static int stat(const char* user_pathname, struct kstat* buf) {
     ssize_t len = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(len))
         return len;
-    return vfs_stat(pathname, buf, 0);
+    return vfs_stat(BASE_CWD, pathname, buf, 0);
 }
 
 NODISCARD static int lstat(const char* user_pathname, struct kstat* buf) {
@@ -22,7 +22,7 @@ NODISCARD static int lstat(const char* user_pathname, struct kstat* buf) {
     ssize_t len = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(len))
         return len;
-    return vfs_stat(pathname, buf, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
+    return vfs_stat(BASE_CWD, pathname, buf, O_NOFOLLOW | O_NOFOLLOW_NOERROR);
 }
 
 NODISCARD static int fstat(int fd, struct kstat* buf) {
@@ -214,7 +214,7 @@ NODISCARD static int fstatat(int dirfd, const char* user_pathname,
         int vfs_flags = 0;
         if (flags & AT_SYMLINK_NOFOLLOW)
             vfs_flags |= O_NOFOLLOW | O_NOFOLLOW_NOERROR;
-        return vfs_stat_at(base, pathname, buf, vfs_flags);
+        return vfs_stat(base, pathname, buf, vfs_flags);
     }
 
     if (!(flags & AT_EMPTY_PATH))

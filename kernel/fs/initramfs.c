@@ -88,7 +88,7 @@ void initramfs_populate_root_fs(phys_addr_t phys_addr, size_t size) {
         switch (mode & S_IFMT) {
         case S_IFREG: {
             struct file* file FREE(file) =
-                ASSERT(vfs_open(filename, O_CREAT | O_WRONLY, mode));
+                ASSERT(vfs_open(BASE_CWD, filename, O_CREAT | O_WRONLY, mode));
             if (IS_ERR(file))
                 continue;
 
@@ -108,7 +108,7 @@ void initramfs_populate_root_fs(phys_addr_t phys_addr, size_t size) {
         }
         case S_IFLNK: {
             struct file* file FREE(file) =
-                ASSERT(vfs_open(filename, O_CREAT | O_WRONLY, mode));
+                ASSERT(vfs_open(BASE_CWD, filename, O_CREAT | O_WRONLY, mode));
             if (IS_ERR(file))
                 continue;
             int rc = file_symlink(file, (const char*)content, file_size);
@@ -117,7 +117,7 @@ void initramfs_populate_root_fs(phys_addr_t phys_addr, size_t size) {
             break;
         }
         default:
-            inode = ASSERT(vfs_create(filename, mode));
+            inode = ASSERT(vfs_create(BASE_CWD, filename, mode));
             if (IS_ERR(inode))
                 continue;
             break;
