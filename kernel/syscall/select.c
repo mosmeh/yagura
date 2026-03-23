@@ -306,24 +306,26 @@ NODISCARD static int select_fds(int nfds, unsigned long* user_readfds,
                 ++num_pollfds;
         }
 
-        pollfds = kmalloc(sizeof(struct pollfd) * num_pollfds);
-        if (!pollfds)
-            return -ENOMEM;
+        if (num_pollfds > 0) {
+            pollfds = kmalloc(sizeof(struct pollfd) * num_pollfds);
+            if (!pollfds)
+                return -ENOMEM;
 
-        struct pollfd* pollfd = pollfds;
-        for (int i = 0; i < nfds; ++i) {
-            if (!FD_ISSET(i, readfds) && !FD_ISSET(i, writefds) &&
-                !FD_ISSET(i, exceptfds))
-                continue;
+            struct pollfd* pollfd = pollfds;
+            for (int i = 0; i < nfds; ++i) {
+                if (!FD_ISSET(i, readfds) && !FD_ISSET(i, writefds) &&
+                    !FD_ISSET(i, exceptfds))
+                    continue;
 
-            *pollfd = (struct pollfd){.fd = i};
-            if (FD_ISSET(i, readfds))
-                pollfd->events |= READ_SET;
-            if (FD_ISSET(i, writefds))
-                pollfd->events |= WRITE_SET;
-            if (FD_ISSET(i, exceptfds))
-                pollfd->events |= EXCEPT_SET;
-            ++pollfd;
+                *pollfd = (struct pollfd){.fd = i};
+                if (FD_ISSET(i, readfds))
+                    pollfd->events |= READ_SET;
+                if (FD_ISSET(i, writefds))
+                    pollfd->events |= WRITE_SET;
+                if (FD_ISSET(i, exceptfds))
+                    pollfd->events |= EXCEPT_SET;
+                ++pollfd;
+            }
         }
     }
 

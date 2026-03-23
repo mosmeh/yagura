@@ -37,5 +37,9 @@ int main(void) {
     struct timespec ts_timeout = {.tv_sec = 0, .tv_nsec = 1000000};
     ASSERT(pselect(0, NULL, NULL, NULL, &ts_timeout, NULL) == 0);
 
+    FD_ZERO(&read_fds);
+    FD_ZERO(&write_fds);
+    ASSERT(select(1, &read_fds, &write_fds, NULL, &tv_timeout) == 0);
+
     return EXIT_SUCCESS;
 }
