@@ -1,3 +1,4 @@
+#include <common/stdio.h>
 #include <common/string.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/sys/syscall.h>
@@ -42,48 +43,49 @@ static enum log_level get_log_level(void) {
     return cached_level;
 }
 
-static void log(const struct syscall* syscall, unsigned long args[6]) {
-    ASSERT_PTR(syscall->name);
-
-    bool is_implemented = syscall->handler != sys_ni_syscall;
-    switch (get_log_level()) {
-    case LOG_NONE:
-        return;
-    case LOG_ALL:
-        break;
-    case LOG_IMPLEMENTED:
-        if (!is_implemented)
-            return;
-        break;
-    case LOG_UNIMPLEMENTED:
-        if (is_implemented)
-            return;
-        break;
-    default:
-        UNREACHABLE();
-    }
-
-    kprintf("syscall: %s(%#lx, %#lx, %#lx, %#lx, %#lx, %#lx)%s\n",
-            syscall->name, args[0], args[1], args[2], args[3], args[4], args[5],
-            is_implemented ? "" : " (unimplemented)");
-}
-
 NODISCARD static long dispatch(const struct syscall_abi* abi,
                                struct registers* regs) {
     unsigned long number;
     unsigned long args[6];
     abi->decode(regs, &number, args);
 
-    if (number >= abi->table_len)
-        return -ENOSYS;
+    const struct syscall* syscall =
+        number < abi->table_len ? &abi->table[number] : NULL;
 
-    const struct syscall* syscall = abi->table + number;
-    if (!syscall->handler)
-        return -ENOSYS;
+    syscall_fn handler = syscall ? syscall->handler : NULL;
+    if (!handler)
+        handler = sys_ni_syscall;
+    bool is_implemented = handler != sys_ni_syscall;
 
-    log(syscall, args);
+    switch (get_log_level()) {
+    case LOG_NONE:
+        return handler(regs, args);
+    case LOG_ALL:
+        break;
+    case LOG_IMPLEMENTED:
+        if (!is_implemented)
+            return handler(regs, args);
+        break;
+    case LOG_UNIMPLEMENTED:
+        if (is_implemented)
+            return handler(regs, args);
+        break;
+    default:
+        UNREACHABLE();
+    }
 
-    return syscall->handler(regs, args);
+    const char* name = syscall ? syscall->name : NULL;
+    char name_buf[32];
+    if (!name) {
+        ASSERT((size_t)snprintf(name_buf, sizeof(name_buf), "<%lu>", number) <
+               sizeof(name_buf));
+        name = name_buf;
+    }
+    kprintf("syscall: %s(%#lx, %#lx, %#lx, %#lx, %#lx, %#lx)%s\n", name,
+            args[0], args[1], args[2], args[3], args[4], args[5],
+            is_implemented ? "" : " (unimplemented)");
+
+    return handler(regs, args);
 }
 
 void syscall_handle(const struct syscall_abi* abi, struct registers* regs) {

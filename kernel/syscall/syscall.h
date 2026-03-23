@@ -13,9 +13,11 @@ struct registers;
 // without modification to the register.
 #define ERAWRETURN 1024
 
+typedef long (*syscall_fn)(struct registers*, const unsigned long args[6]);
+
 struct syscall {
     const char* name;
-    long (*handler)(struct registers*, const unsigned long args[6]);
+    syscall_fn handler;
 };
 
 struct syscall_abi {
