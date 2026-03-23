@@ -8,7 +8,9 @@
 
 static struct slab fs_env_slab;
 
-void task_fs_init(void) { SLAB_INIT(&fs_env_slab, "fs_env", struct fs_env); }
+void task_fs_init(void) {
+    SLAB_INIT_FOR_TYPE(&fs_env_slab, "fs_env", struct fs_env);
+}
 
 struct fs_env* fs_env_create(void) {
     struct fs_env* fs_env = ASSERT(slab_alloc(&fs_env_slab));

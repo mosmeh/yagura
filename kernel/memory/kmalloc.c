@@ -1,9 +1,46 @@
 #include <common/integer.h>
+#include <common/stdio.h>
 #include <common/string.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 
+#define SLAB_SHIFT_MIN 4
+static struct slab slabs[7];
+
+void kmalloc_init(void) {
+    for (size_t i = 0; i < ARRAY_SIZE(slabs); ++i) {
+        size_t size = 1UL << (i + SLAB_SHIFT_MIN);
+        char name[16];
+        ASSERT((size_t)snprintf(name, sizeof(name), "kmalloc-%zu", size) <
+               sizeof(name));
+        slab_init(&slabs[i], name, _Alignof(max_align_t), size);
+    }
+}
+
 void* kmalloc(size_t size) {
+    return kaligned_alloc(_Alignof(max_align_t), size);
+}
+
+void* kaligned_alloc(size_t alignment, size_t size) {
+    ASSERT(alignment);
+    ASSERT(is_power_of_two(alignment));
+    // TODO: support non-page-aligned allocations
+    ASSERT(PAGE_SIZE % alignment == 0);
+
+    if (size == 0)
+        return NULL;
+
+    if (alignment <= _Alignof(max_align_t)) {
+        size_t index = ilog2(size - 1) + 1;
+        index = MAX(index, SLAB_SHIFT_MIN) - SLAB_SHIFT_MIN;
+        if (index < ARRAY_SIZE(slabs)) {
+            void* ptr = slab_alloc(&slabs[index]);
+            if (IS_ERR(ptr))
+                return NULL;
+            return ptr;
+        }
+    }
+
     size_t npages = DIV_CEIL(size, PAGE_SIZE);
 
     struct vm_obj* anon FREE(vm_obj) = ASSERT(anon_create());
@@ -25,16 +62,26 @@ void* kmalloc(size_t size) {
     return addr;
 }
 
-void* kaligned_alloc(size_t alignment, size_t size) {
-    void* addr = kmalloc(size);
-    // TODO: support non-page-aligned allocations
-    ASSERT(((uintptr_t)addr % alignment) == 0);
-    return addr;
-}
-
 void* krealloc(void* ptr, size_t new_size) {
     if (!ptr)
         return kmalloc(new_size);
+
+    if (new_size == 0) {
+        kfree(ptr);
+        return NULL;
+    }
+
+    struct slab* slab = slab_lookup(ptr);
+    if (slab) {
+        if (slab->obj_size >= new_size)
+            return ptr;
+        void* new_ptr = kmalloc(new_size);
+        if (!new_ptr)
+            return NULL;
+        memcpy(new_ptr, ptr, slab->obj_size);
+        slab_free(slab, ptr);
+        return new_ptr;
+    }
 
     SCOPED_LOCK(vm, kernel_vm);
 
@@ -55,11 +102,18 @@ void* krealloc(void* ptr, size_t new_size) {
     if (IS_ERR(rc))
         return NULL;
 
-    // The region might have been moved
-    return vm_region_to_virt(region);
+    return vm_region_to_virt(region); // The region might have been moved
 }
 
-void kfree(void* ptr) { vm_obj_unmap(ptr); }
+void kfree(void* ptr) {
+    if (!ptr)
+        return;
+    struct slab* slab = slab_lookup(ptr);
+    if (slab)
+        slab_free(slab, ptr);
+    else
+        vm_obj_unmap(ptr);
+}
 
 char* kstrdup(const char* src) {
     if (!src)

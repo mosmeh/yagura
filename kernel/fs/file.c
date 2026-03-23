@@ -13,7 +13,7 @@
 
 static struct slab file_slab;
 
-void file_init(void) { SLAB_INIT(&file_slab, "file", struct file); }
+void file_init(void) { SLAB_INIT_FOR_TYPE(&file_slab, "file", struct file); }
 
 struct file* file_create(struct inode* inode, int flags) {
     struct file* file = ASSERT(slab_alloc(&file_slab));

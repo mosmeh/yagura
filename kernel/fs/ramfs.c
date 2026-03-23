@@ -281,8 +281,8 @@ int devtmpfs_mknod(const char* name, mode_t mode, dev_t dev) {
 }
 
 void ramfs_init(void) {
-    SLAB_INIT(&ramfs_inode_slab, "ramfs_inode", struct ramfs_inode);
-    SLAB_INIT(&ramfs_dentry_slab, "ramfs_dentry", struct ramfs_dentry);
+    SLAB_INIT_FOR_TYPE(&ramfs_inode_slab, "ramfs_inode", struct ramfs_inode);
+    SLAB_INIT_FOR_TYPE(&ramfs_dentry_slab, "ramfs_dentry", struct ramfs_dentry);
 
     static struct file_system ramfs = {
         .name = "ramfs",

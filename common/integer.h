@@ -3,6 +3,7 @@
 #include <common/ctype.h>
 #include <common/stdbool.h>
 #include <common/stddef.h>
+#include <common/stdint.h>
 
 #define ROUND_UP(x, align)                                                     \
     __extension__({                                                            \
@@ -20,6 +21,12 @@
 #define DIV_CEIL(lhs, rhs) (((lhs) + (rhs) - 1) / (rhs))
 
 static inline bool is_power_of_two(size_t x) { return x && (x & (x - 1)) == 0; }
+
+static inline size_t ilog2(size_t x) {
+    if (x == 0)
+        return 0;
+    return SIZE_WIDTH - __builtin_clzl(x) - 1;
+}
 
 static inline bool str_is_uint(const char* s) {
     while (*s) {

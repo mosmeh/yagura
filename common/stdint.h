@@ -40,3 +40,9 @@ typedef __INTMAX_TYPE__ intmax_t;
 #define PTRDIFF_MIN (-__PTRDIFF_MAX__ - 1)
 
 #define SIZE_MAX __SIZE_MAX__
+
+#define PTRDIFF_WIDTH __PTRDIFF_WIDTH__
+#define SIG_ATOMIC_WIDTH __SIG_ATOMIC_WIDTH__
+#define SIZE_WIDTH __SIZE_WIDTH__
+#define WCHAR_WIDTH __WCHAR_WIDTH__
+#define WINT_WIDTH __WINT_WIDTH__

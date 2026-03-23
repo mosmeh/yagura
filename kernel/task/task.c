@@ -29,7 +29,7 @@ void task_early_init(void) {
     struct cpu* cpu = cpu_get_bsp();
     cpu->current_task = cpu->idle_task = task_ref(&init_task);
 
-    SLAB_INIT(&thread_group_slab, "thread_group", struct thread_group);
+    SLAB_INIT_FOR_TYPE(&thread_group_slab, "thread_group", struct thread_group);
 
     task_fs_init();
     task_signal_init();

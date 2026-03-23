@@ -10,9 +10,13 @@ void phys_range_add_reserved(const char* type, phys_addr_t start, size_t size);
 
 #define PAGE_ALLOCATED 0x1 // Page is currently allocated
 #define PAGE_DIRTY 0x2     // Page has been modified since the last writeback
+#define PAGE_SLAB 0x4      // Page belongs to a slab
 
 struct page {
-    size_t index;
+    union {
+        size_t index;
+        struct slab* slab; // Valid if PAGE_SLAB is set
+    };
     unsigned flags; // PAGE_*
     struct tree_node tree_node;
     refcount_t refcount;

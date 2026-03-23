@@ -15,6 +15,7 @@ struct vm_obj;
 void phys_init(void);
 void vm_init(void);
 void vm_region_init(void);
+void kmalloc_init(void);
 void vm_obj_init(void);
 
 struct pagemap* pagemap_create(void);

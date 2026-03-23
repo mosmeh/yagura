@@ -14,8 +14,8 @@ struct slab_obj {
     struct slab_obj* next;
 };
 
-void __slab_init(struct slab* slab, const char* name, size_t obj_alignment,
-                 size_t obj_size) {
+void slab_init(struct slab* slab, const char* name, size_t obj_alignment,
+               size_t obj_size) {
     obj_alignment = MAX(obj_alignment, _Alignof(struct slab_obj));
     ASSERT(PAGE_SIZE % obj_alignment == 0);
 
@@ -30,12 +30,12 @@ void __slab_init(struct slab* slab, const char* name, size_t obj_alignment,
     ASSERT(objs_per_slab > 0);
 
     *slab = (struct slab){
-        .name = name,
         .obj_size = obj_size,
         .obj_alignment = obj_alignment,
         .objs_per_slab = objs_per_slab,
         .next = slabs,
     };
+    strlcpy(slab->name, name, sizeof(slab->name));
     slabs = slab;
 }
 
@@ -53,6 +53,8 @@ NODISCARD static int ensure_cache(struct slab* slab) {
         struct page* page = page_alloc();
         if (IS_ERR(page))
             return PTR_ERR(page);
+        page->flags |= PAGE_SLAB;
+        page->slab = slab;
 
         start_addr = (uintptr_t)start << PAGE_SHIFT;
         int ret = pagemap_map(kernel_pagemap, start_addr, page_to_pfn(page), 1,
@@ -111,11 +113,22 @@ void* slab_alloc(struct slab* slab) {
 void slab_free(struct slab* slab, void* obj) {
     if (!obj)
         return;
+    ASSERT((uintptr_t)obj % slab->obj_alignment == 0);
     memset(obj, 0xfe, slab->obj_size); // Poison the freed object
     SCOPED_LOCK(slab, slab);
     *(struct slab_obj*)obj = (struct slab_obj){.next = slab->free_list};
     slab->free_list = obj;
     --slab->num_active_objs;
+}
+
+struct slab* slab_lookup(void* ptr) {
+    ASSERT_PTR(ptr);
+    struct page* page FREE(page) = page_get(virt_to_phys(ptr) >> PAGE_SHIFT);
+    if (!page || !(page->flags & PAGE_SLAB))
+        return NULL;
+    struct slab* slab = ASSERT_PTR(page->slab);
+    ASSERT((uintptr_t)ptr % slab->obj_alignment == 0);
+    return slab;
 }
 
 int proc_print_slabinfo(struct file* file, struct vec* vec) {

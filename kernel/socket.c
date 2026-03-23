@@ -41,7 +41,7 @@ static struct slab unix_socket_slab;
 static struct mount* sock_mount;
 
 void socket_init(void) {
-    SLAB_INIT(&unix_socket_slab, "unix_socket", struct unix_socket);
+    SLAB_INIT_FOR_TYPE(&unix_socket_slab, "unix_socket", struct unix_socket);
 
     static struct file_system sock_fs = {
         .name = "sockfs",

@@ -6,7 +6,7 @@
 static struct slab region_slab;
 
 void vm_region_init(void) {
-    SLAB_INIT(&region_slab, "vm_region", struct vm_region);
+    SLAB_INIT_FOR_TYPE(&region_slab, "vm_region", struct vm_region);
 }
 
 struct vm_region* vm_region_create(struct vm* vm, size_t start, size_t end) {

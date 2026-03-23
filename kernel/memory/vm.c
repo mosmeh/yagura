@@ -21,7 +21,7 @@ void vm_init(void) {
     current->vm = kernel_vm;
     pagemap_switch(kernel_pagemap);
 
-    SLAB_INIT(&vm_slab, "vm", struct vm);
+    SLAB_INIT_FOR_TYPE(&vm_slab, "vm", struct vm);
 }
 
 struct vm* vm_create(void* start, void* end) {

@@ -102,7 +102,7 @@ NODISCARD void* kmap_page(struct page*, unsigned flags);
 void kunmap(void* virt_addr);
 
 struct slab {
-    const char* name;
+    char name[32];
     size_t obj_size;      // Size of each object in bytes
     size_t obj_alignment; // Alignment of each object in bytes
     size_t objs_per_slab; // Number of objects that can fit in a single slab
@@ -113,14 +113,18 @@ struct slab {
     struct slab* next;
 };
 
-#define SLAB_INIT(slab, name, type)                                            \
-    __slab_init(slab, name, _Alignof(type), sizeof(type))
+void slab_init(struct slab*, const char* name, size_t obj_alignment,
+               size_t obj_size);
 
-void __slab_init(struct slab*, const char* name, size_t obj_alignment,
-                 size_t obj_size);
+#define SLAB_INIT_FOR_TYPE(slab, name, type)                                   \
+    slab_init(slab, name, _Alignof(type), sizeof(type))
 
 void* slab_alloc(struct slab*);
 void slab_free(struct slab*, void*);
+
+// Returns the slab that the object belongs to, or NULL if the pointer is not
+// allocated by any slab.
+struct slab* slab_lookup(void*);
 
 int proc_print_slabinfo(struct file*, struct vec*);
 
