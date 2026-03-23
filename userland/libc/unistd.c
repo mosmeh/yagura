@@ -119,14 +119,7 @@ int access(const char* pathname, int mode) {
 }
 
 int faccessat(int dirfd, const char* pathname, int mode, int flags) {
-    if (flags & ~AT_SYMLINK_NOFOLLOW)
-        return __syscall_return(-EINVAL);
-    if (flags & AT_SYMLINK_NOFOLLOW) {
-        // File permissions are not implemented. Just check the existence.
-        struct stat buf;
-        return fstatat(dirfd, pathname, &buf, AT_SYMLINK_NOFOLLOW);
-    }
-    return __syscall_return(SYSCALL3(faccessat, dirfd, pathname, mode));
+    return __syscall_return(SYSCALL4(faccessat2, dirfd, pathname, mode, flags));
 }
 
 int close(int fd) { return __syscall_return(SYSCALL1(close, fd)); }

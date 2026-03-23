@@ -163,30 +163,48 @@ SYSCALL3(mkdirat, int, dirfd, const char*, user_pathname, mode_t, mode) {
     return mkdir(base, user_pathname, mode);
 }
 
-NODISCARD static int access(const struct path* base, const char* user_pathname,
-                            int mode) {
+SYSCALL2(access, const char*, user_pathname, int, mode) {
     (void)mode; // File permissions are not implemented in this system.
 
     char pathname[PATH_MAX];
     ssize_t len = copy_pathname_from_user(pathname, user_pathname);
     if (IS_ERR(len))
         return len;
-    struct path* path FREE(path) = ASSERT(vfs_resolve_path(base, pathname, 0));
+
+    struct path* path FREE(path) =
+        ASSERT(vfs_resolve_path(BASE_CWD, pathname, 0));
     if (IS_ERR(path))
         return PTR_ERR(path);
+
     return 0;
 }
 
-SYSCALL2(access, const char*, user_pathname, int, mode) {
-    SCOPED_LOCK(fs_env, current->fs_env);
-    return access(current->fs_env->cwd, user_pathname, mode);
+NODISCARD static int faccessat(int dirfd, const char* user_pathname, int mode,
+                               int flags) {
+    if (flags & ~(AT_SYMLINK_NOFOLLOW | AT_EACCESS | AT_EMPTY_PATH))
+        return -EINVAL;
+    if (!(flags & AT_SYMLINK_NOFOLLOW))
+        flags |= AT_SYMLINK_FOLLOW;
+
+    // File permissions are not implemented in this system.
+    (void)mode;
+    flags &= ~AT_EACCESS;
+
+    struct inode* inode FREE(inode) =
+        ASSERT(resolve_inode_at(dirfd, user_pathname, flags));
+    if (IS_ERR(inode))
+        return PTR_ERR(inode);
+
+    return 0;
 }
 
 SYSCALL3(faccessat, int, dirfd, const char*, user_pathname, int, mode) {
-    struct path* base FREE(path) = ASSERT(path_from_dirfd(dirfd));
-    if (IS_ERR(base))
-        return PTR_ERR(base);
-    return access(base, user_pathname, mode);
+    return faccessat(dirfd, user_pathname, mode, 0);
+}
+
+SYSCALL4(faccessat2, int, dirfd, const char*, user_pathname, int, mode, int,
+         flags) {
+    return faccessat(dirfd, user_pathname, mode, flags);
 }
 
 NODISCARD static int link(struct inode* old_inode, const struct path* new_base,

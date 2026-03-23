@@ -346,7 +346,7 @@
     F(close_range, sys_ni_syscall)                                             \
     F(openat2, sys_ni_syscall)                                                 \
     F(pidfd_getfd, sys_ni_syscall)                                             \
-    F(faccessat2, sys_ni_syscall)                                              \
+    F(faccessat2, sys_faccessat2)                                              \
     F(process_madvise, sys_ni_syscall)                                         \
     F(dbgprint, sys_dbgprint)
 

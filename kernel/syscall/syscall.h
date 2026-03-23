@@ -205,6 +205,7 @@ DECLARE_SYSCALL(getrandom)
 DECLARE_SYSCALL(preadv2)
 DECLARE_SYSCALL(pwritev2)
 DECLARE_SYSCALL(statx)
+DECLARE_SYSCALL(faccessat2)
 
 // Syscalls in arch/x86/entry/syscalls/syscall_64.tbl
 

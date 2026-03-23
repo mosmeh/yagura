@@ -45,5 +45,8 @@
 #define AT_STATX_FORCE_SYNC 0x2000
 #define AT_STATX_DONT_SYNC 0x4000
 
+// Test access permitted for effective IDs, not real IDs.
+#define AT_EACCESS 0x200
+
 // Reserved for future struct statx expansion
 #define STATX__RESERVED 0x80000000U
