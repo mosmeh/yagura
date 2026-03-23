@@ -20,7 +20,7 @@ void utsname_get(struct utsname* buf) {
     if (cmdline_contains("uname_compat")) {
         utsname = (struct utsname){
             .sysname = "Linux",
-            .release = "5.1.21",
+            .release = "5.10.0",
             .version = "#1 SMP PREEMPT yagura " YAGURA_VERSION,
         };
     } else {

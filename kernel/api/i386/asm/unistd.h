@@ -421,6 +421,19 @@
 #define SYS_io_uring_setup 425
 #define SYS_io_uring_enter 426
 #define SYS_io_uring_register 427
+#define SYS_open_tree 428
+#define SYS_move_mount 429
+#define SYS_fsopen 430
+#define SYS_fsconfig 431
+#define SYS_fsmount 432
+#define SYS_fspick 433
+#define SYS_pidfd_open 434
+#define SYS_clone3 435
+#define SYS_close_range 436
+#define SYS_openat2 437
+#define SYS_pidfd_getfd 438
+#define SYS_faccessat2 439
+#define SYS_process_madvise 440
 
 // Custom syscall
 #define SYS_dbgprint 1024

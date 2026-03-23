@@ -6,8 +6,7 @@
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>
 
-// Linux syscalls introduced up to Linux 5.1.
-// Keep this list in sync with arch/x86/entry/syscalls/syscall_64.tbl
+// This list should be in sync with arch/x86/entry/syscalls/syscall_64.tbl
 // in the Linux kernel source.
 // The unimplemented syscalls are mapped to sys_ni_syscall.
 #define ENUMERATE_SYSCALLS(F)                                                  \
@@ -336,6 +335,19 @@
     F(io_uring_setup, sys_ni_syscall)                                          \
     F(io_uring_enter, sys_ni_syscall)                                          \
     F(io_uring_register, sys_ni_syscall)                                       \
+    F(open_tree, sys_ni_syscall)                                               \
+    F(move_mount, sys_ni_syscall)                                              \
+    F(fsopen, sys_ni_syscall)                                                  \
+    F(fsconfig, sys_ni_syscall)                                                \
+    F(fsmount, sys_ni_syscall)                                                 \
+    F(fspick, sys_ni_syscall)                                                  \
+    F(pidfd_open, sys_ni_syscall)                                              \
+    F(clone3, sys_ni_syscall)                                                  \
+    F(close_range, sys_ni_syscall)                                             \
+    F(openat2, sys_ni_syscall)                                                 \
+    F(pidfd_getfd, sys_ni_syscall)                                             \
+    F(faccessat2, sys_ni_syscall)                                              \
+    F(process_madvise, sys_ni_syscall)                                         \
     F(dbgprint, sys_dbgprint)
 
 SYSCALL_RAW(x64_clone, regs) {
