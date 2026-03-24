@@ -580,9 +580,10 @@ static struct node* parse_execute(struct parser* parser) {
         parser->result = PARSE_NOMEM_ERROR;
         return NULL;
     }
-    node->type = CMD_EXECUTE;
+    *node = (struct node){.type = CMD_EXECUTE};
 
     struct execute_node* execute = &node->execute;
+    *execute = (struct execute_node){0};
     size_t i = 0;
     for (;; ++i) {
         if (i >= MAX_ARGC) {
@@ -640,15 +641,14 @@ static struct node* parse_redirect(struct parser* parser) {
             destroy_node(inner);
             return NULL;
         }
-        node->type = CMD_REDIRECT;
-
-        struct redirect_node* redirect = &node->redirect;
-        redirect->inner = inner;
-        redirect->pathname = pathname;
-        redirect->pathname_length = parser->cursor - pathname;
-        redirect->is_write = is_write;
-        redirect->fd = fd;
-
+        *node = (struct node){.type = CMD_REDIRECT,
+                              .redirect = {
+                                  .inner = inner,
+                                  .pathname = pathname,
+                                  .pathname_length = parser->cursor - pathname,
+                                  .is_write = is_write,
+                                  .fd = fd,
+                              }};
         inner = node;
         skip_whitespaces(parser);
     }
@@ -678,11 +678,11 @@ static struct node* parse_pipe(struct parser* parser) {
         destroy_node(left);
         return NULL;
     }
-    node->type = CMD_PIPE;
-
-    struct pipe_node* pipe = &node->pipe;
-    pipe->left = left;
-    pipe->right = right;
+    *node = (struct node){.type = CMD_PIPE,
+                          .pipe = {
+                              .left = left,
+                              .right = right,
+                          }};
     return node;
 }
 
@@ -699,8 +699,10 @@ static struct node* parse_juxtaposition(struct parser* parser) {
             destroy_node(left);
             return NULL;
         }
-        bg->type = CMD_BACKGROUND;
-        bg->background.inner = left;
+        *bg = (struct node){
+            .type = CMD_BACKGROUND,
+            .background.inner = left,
+        };
         left = bg;
     } else if (!consume_if(parser, ';')) {
         return left;
@@ -721,11 +723,11 @@ static struct node* parse_juxtaposition(struct parser* parser) {
         destroy_node(left);
         return NULL;
     }
-    node->type = CMD_JUXTAPOSITION;
-
-    struct juxtaposition_node* jux = &node->juxtaposition;
-    jux->left = left;
-    jux->right = right;
+    *node = (struct node){.type = CMD_JUXTAPOSITION,
+                          .juxtaposition = {
+                              .left = left,
+                              .right = right,
+                          }};
     return node;
 }
 
@@ -1069,7 +1071,7 @@ static int repl_main(void) {
             UNREACHABLE();
         }
 
-        // print 1 line worth of spaces so that we always ends up on a new line
+        // print 1 line worth of spaces so that we always end up on a new line
         size_t num_spaces = terminal_width - 1;
         char* spaces = malloc(num_spaces + 1);
         if (!spaces) {

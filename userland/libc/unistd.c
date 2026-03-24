@@ -282,7 +282,7 @@ int tcsetpgrp(int fd, pid_t pgrp) { return ioctl(fd, TIOCSPGRP, &pgrp); }
 
 unsigned int sleep(unsigned int seconds) {
     struct timespec req = {.tv_sec = seconds, .tv_nsec = 0};
-    struct timespec rem;
+    struct timespec rem = {0};
     if (nanosleep(&req, &rem) < 0)
         return rem.tv_sec;
     return 0;

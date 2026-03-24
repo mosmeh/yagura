@@ -112,7 +112,7 @@ int main(void) {
                     goto retry;
             }
 
-            nodes[i].value = value;
+            nodes[i] = (struct node){.value = value};
             *new_node = &nodes[i].tree_node;
             tree_insert(&tree, parent, *new_node);
         }

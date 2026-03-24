@@ -56,7 +56,7 @@ NODISCARD static int bind(int sockfd, const struct sockaddr* user_addr,
     if (addrlen <= sizeof(sa_family_t) || sizeof(struct sockaddr_un) < addrlen)
         return -EINVAL;
 
-    struct sockaddr_un addr_un;
+    struct sockaddr_un addr_un = {0};
     if (copy_from_user(&addr_un, user_addr, addrlen))
         return -EFAULT;
 
@@ -163,7 +163,7 @@ NODISCARD static int connect(int sockfd, const struct sockaddr* user_addr,
     if (addrlen <= sizeof(sa_family_t) || sizeof(struct sockaddr_un) < addrlen)
         return -EINVAL;
 
-    struct sockaddr_un addr_un;
+    struct sockaddr_un addr_un = {0};
     if (copy_from_user(&addr_un, user_addr, addrlen))
         return -EFAULT;
 

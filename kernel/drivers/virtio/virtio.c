@@ -237,6 +237,8 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
     *virtio = (struct virtio){
         .num_virtqs = num_virtqs,
     };
+    for (size_t i = 0; i < num_virtqs; ++i)
+        virtio->virtqs[i] = NULL;
 
     unsigned char* common_cfg_space =
         ASSERT(pci_map_bar(addr, common_cfg_cap.bar));
