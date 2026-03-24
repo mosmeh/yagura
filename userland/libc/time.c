@@ -9,7 +9,8 @@
 
 clock_t clock(void) {
     struct tms tms;
-    times(&tms);
+    if (times(&tms) == -1)
+        return -1;
     uint64_t ticks = (uint64_t)tms.tms_utime + tms.tms_stime;
     return ticks * CLOCKS_PER_SEC / getauxval(AT_CLKTCK);
 }
