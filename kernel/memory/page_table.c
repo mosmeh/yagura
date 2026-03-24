@@ -155,6 +155,9 @@ void pagemap_unmap_local(struct pagemap* pagemap, uintptr_t virt_addr,
 
 void pagemap_switch(struct pagemap* pagemap) {
     SCOPED_DISABLE_INTERRUPTS();
-    cpu_get_current()->active_pagemap = pagemap;
+    struct cpu* cpu = cpu_get_current();
+    if (cpu->active_pagemap == pagemap)
+        return;
+    cpu->active_pagemap = pagemap;
     arch_switch_pagemap(pagemap);
 }
