@@ -75,57 +75,82 @@ static void invalidate_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,
     }
 }
 
-int pagemap_map(struct pagemap* pagemap, uintptr_t virt_addr, size_t pfn,
-                size_t npages, unsigned flags) {
+NODISCARD static int map_pages(struct pagemap* pagemap, uintptr_t virt_addr,
+                               size_t pfn, size_t npages, unsigned flags,
+                               bool invalidate_global) {
     ASSERT(virt_addr % PAGE_SIZE == 0);
     if (npages == 0)
         return 0;
     int rc = 0;
-    size_t i = 0;
-    for (; i < npages; ++i) {
-        rc = arch_map_page(pagemap, virt_addr + (i << PAGE_SHIFT), pfn + i,
-                           flags);
-        if (IS_ERR(rc))
+    size_t invalidate_start = 0;
+    size_t invalidate_end = 0;
+    for (size_t i = 0; i < npages; ++i) {
+        int needs_invalidation = arch_map_page(
+            pagemap, virt_addr + (i << PAGE_SHIFT), pfn + i, flags);
+        if (IS_ERR(needs_invalidation)) {
+            rc = needs_invalidation;
             break;
+        }
+        if (needs_invalidation > 0) {
+            if (invalidate_start == invalidate_end)
+                invalidate_start = i;
+            invalidate_end = i + 1;
+        }
     }
-    invalidate_tlb_global(pagemap, virt_addr, i);
+    if (invalidate_start < invalidate_end) {
+        uintptr_t invalidate_addr =
+            virt_addr + (invalidate_start << PAGE_SHIFT);
+        size_t invalidate_npages = invalidate_end - invalidate_start;
+        if (invalidate_global)
+            invalidate_tlb_global(pagemap, invalidate_addr, invalidate_npages);
+        else
+            invalidate_tlb_local(pagemap, invalidate_addr, invalidate_npages);
+    }
     return rc;
+}
+
+int pagemap_map(struct pagemap* pagemap, uintptr_t virt_addr, size_t pfn,
+                size_t npages, unsigned flags) {
+    return map_pages(pagemap, virt_addr, pfn, npages, flags, true);
 }
 
 int pagemap_map_local(struct pagemap* pagemap, uintptr_t virt_addr, size_t pfn,
                       size_t npages, unsigned flags) {
-    ASSERT(virt_addr % PAGE_SIZE == 0);
-    if (npages == 0)
-        return 0;
-    int rc = 0;
-    size_t i = 0;
-    for (; i < npages; ++i) {
-        rc = arch_map_page(pagemap, virt_addr + (i << PAGE_SHIFT), pfn + i,
-                           flags);
-        if (IS_ERR(rc))
-            break;
-    }
-    invalidate_tlb_local(pagemap, virt_addr, i);
-    return rc;
+    return map_pages(pagemap, virt_addr, pfn, npages, flags, false);
 }
 
 static void unmap_pages(struct pagemap* pagemap, uintptr_t virt_addr,
-                        size_t npages) {
+                        size_t npages, bool invalidate_global) {
     ASSERT(virt_addr % PAGE_SIZE == 0);
-    for (size_t i = 0; i < npages; ++i)
-        arch_unmap_page(pagemap, virt_addr + (i << PAGE_SHIFT));
+    size_t invalidate_start = 0;
+    size_t invalidate_end = 0;
+    for (size_t i = 0; i < npages; ++i) {
+        bool unmapped = arch_unmap_page(pagemap, virt_addr + (i << PAGE_SHIFT));
+        if (unmapped) {
+            if (invalidate_start == invalidate_end)
+                invalidate_start = i;
+            invalidate_end = i + 1;
+        }
+    }
+    if (invalidate_start < invalidate_end) {
+        uintptr_t invalidate_addr =
+            virt_addr + (invalidate_start << PAGE_SHIFT);
+        size_t invalidate_npages = invalidate_end - invalidate_start;
+        if (invalidate_global)
+            invalidate_tlb_global(pagemap, invalidate_addr, invalidate_npages);
+        else
+            invalidate_tlb_local(pagemap, invalidate_addr, invalidate_npages);
+    }
 }
 
 void pagemap_unmap(struct pagemap* pagemap, uintptr_t virt_addr,
                    size_t npages) {
-    unmap_pages(pagemap, virt_addr, npages);
-    invalidate_tlb_global(pagemap, virt_addr, npages);
+    unmap_pages(pagemap, virt_addr, npages, true);
 }
 
 void pagemap_unmap_local(struct pagemap* pagemap, uintptr_t virt_addr,
                          size_t npages) {
-    unmap_pages(pagemap, virt_addr, npages);
-    invalidate_tlb_local(pagemap, virt_addr, npages);
+    unmap_pages(pagemap, virt_addr, npages, false);
 }
 
 void pagemap_switch(struct pagemap* pagemap) {

@@ -158,9 +158,7 @@ void* kmap(phys_addr_t phys_addr, unsigned flags) {
     ASSERT(!(*pte & PTE_PRESENT));
     *pte = phys_addr | vm_flags_to_pte_flags(flags);
 
-    uintptr_t kaddr = kmap_addr(cpu, index);
-    arch_invalidate_tlb_page(kaddr);
-    return (void*)kaddr;
+    return (void*)kmap_addr(cpu, index);
 }
 
 void kunmap(void* addr) {
@@ -277,23 +275,35 @@ int arch_map_page(struct pagemap* pagemap, uintptr_t virt_addr, size_t pfn,
     if (IS_ERR(pt_phys_addr))
         return pt_phys_addr;
 
-    pte_t* page_table = kmap(pt_phys_addr, VM_WRITE);
-    page_table[LEVEL_INDEX(virt_addr, 0)] = new_value;
-    kunmap(page_table);
-
-    return 0;
+    pte_t prev_value;
+    {
+        pte_t* page_table = kmap(pt_phys_addr, VM_READ | VM_WRITE);
+        pte_t* entry = page_table + LEVEL_INDEX(virt_addr, 0);
+        prev_value = *entry;
+        *entry = new_value;
+        kunmap(page_table);
+    }
+    if (!(prev_value & PTE_PRESENT))
+        return 0;
+    return new_value != prev_value ? 1 : 0;
 }
 
-void arch_unmap_page(struct pagemap* pagemap, uintptr_t virt_addr) {
+bool arch_unmap_page(struct pagemap* pagemap, uintptr_t virt_addr) {
     ASSERT(virt_addr % PAGE_SIZE == 0);
 
     phys_addr_t pt_phys_addr = get_page_table(pagemap, virt_addr);
     if (!pt_phys_addr)
-        return;
+        return false;
 
-    pte_t* page_table = kmap(pt_phys_addr, VM_WRITE);
-    page_table[LEVEL_INDEX(virt_addr, 0)] = 0;
-    kunmap(page_table);
+    pte_t prev_value;
+    {
+        pte_t* page_table = kmap(pt_phys_addr, VM_READ | VM_WRITE);
+        pte_t* entry = page_table + LEVEL_INDEX(virt_addr, 0);
+        prev_value = *entry;
+        *entry = 0;
+        kunmap(page_table);
+    }
+    return prev_value & PTE_PRESENT;
 }
 
 void arch_switch_pagemap(struct pagemap* to) { write_cr3(virt_to_phys(to)); }
