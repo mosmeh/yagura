@@ -75,4 +75,4 @@ run: kernel $(INITRAMFS)
 	./run.sh
 
 test: kernel $(INITRAMFS)
-	./run_tests.sh
+	./run.sh test
