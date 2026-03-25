@@ -55,7 +55,7 @@ function run_qemu() {
     KERNEL="${KERNEL:-${BUILD_DIR}/kernel.elf}"
     INITRAMFS="${INITRAMFS:-${BUILD_DIR}/initramfs.cpio}"
     MEMORY="${MEMORY:-512M}"
-    NUM_CPUS="${NUM_CPUS:-1}"
+    NUM_CPUS="${NUM_CPUS:-2}"
 
     configure_console
     configure_acceleration
