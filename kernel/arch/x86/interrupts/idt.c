@@ -68,7 +68,7 @@ void isr_handler(struct registers* regs) {
             lapic_eoi();
     }
 
-    cpu_process_messages();
+    cpu_dispatch_requests();
 
     interrupt_handler_fn handler = interrupt_handlers[interrupt_num];
     if (handler)

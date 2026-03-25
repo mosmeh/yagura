@@ -361,7 +361,10 @@ void cpu_init_smp(void) {
     }
 }
 
-void arch_cpu_broadcast_ipi(void) { lapic_broadcast_ipi(); }
+void arch_cpu_broadcast_ipi(void) {
+    ASSERT(!arch_interrupts_enabled());
+    lapic_broadcast_ipi();
+}
 
 void arch_cpu_unicast_ipi(struct cpu* dest) {
     lapic_unicast_ipi(dest->arch.apic_id);

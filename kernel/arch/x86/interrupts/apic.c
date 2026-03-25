@@ -127,6 +127,7 @@ static void wait_for_pending_ipi(void) {
 }
 
 void lapic_write_icr(uint32_t hi, uint32_t lo) {
+    SCOPED_DISABLE_INTERRUPTS();
     wait_for_pending_ipi();
     lapic_write(LAPIC_ICRHI, hi);
     lapic_write(LAPIC_ICRLO, lo);
@@ -134,12 +135,13 @@ void lapic_write_icr(uint32_t hi, uint32_t lo) {
 }
 
 void lapic_broadcast_ipi(void) {
-    lapic_write_icr(0xff << 24, LAPIC_ICRLO_ASSERT | LAPIC_ICRLO_LOGICAL |
-                                    LAPIC_ICRLO_ALL_EXCL_SELF | IPI_VECTOR);
+    ASSERT(!arch_interrupts_enabled());
+    lapic_write_icr(0xffU << 24, LAPIC_ICRLO_ASSERT | LAPIC_ICRLO_LOGICAL |
+                                     LAPIC_ICRLO_ALL_EXCL_SELF | IPI_VECTOR);
 }
 
 void lapic_unicast_ipi(uint8_t apic_id) {
-    lapic_write_icr(apic_id << 24,
+    lapic_write_icr((uint32_t)apic_id << 24,
                     LAPIC_ICRLO_ASSERT | LAPIC_ICRLO_LOGICAL | IPI_VECTOR);
 }
 

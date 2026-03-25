@@ -76,12 +76,6 @@ static inline size_t refcount_inc(refcount_t* refcount) {
     return c;
 }
 
-// Increments the reference count even if it's zero and returns the new count.
-static inline size_t refcount_inc_allowing_zero(refcount_t* refcount) {
-    ASSERT_PTR(refcount);
-    return atomic_fetch_add(&refcount->count, 1) + 1;
-}
-
 // Decrements the reference count and returns the new count.
 // Panics if the count was zero.
 static inline size_t refcount_dec(refcount_t* refcount) {

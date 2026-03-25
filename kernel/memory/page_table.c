@@ -24,16 +24,14 @@ static void invalidate_tlb_local(struct pagemap* pagemap, uintptr_t virt_addr,
         arch_invalidate_tlb_page(virt_addr + (i << PAGE_SHIFT));
 }
 
-static void invalidate_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,
-                                  size_t npages) {
-    ASSERT((virt_addr % PAGE_SIZE) == 0);
-    if (npages == 0)
-        return;
-
+static void invalidate_tlb_global_smp(struct pagemap* pagemap,
+                                      uintptr_t virt_addr, size_t npages) {
     bool is_user = is_user_range((void*)virt_addr, npages << PAGE_SHIFT);
 
-    struct ipi_message* msg = NULL;
-    if (arch_smp_active()) {
+    struct cpu_message* msg = NULL;
+    {
+        SCOPED_DISABLE_INTERRUPTS();
+
         unsigned long current_cpu_id = cpu_get_id();
         for (size_t i = 0; i < num_cpus; ++i) {
             if (i == current_cpu_id)
@@ -47,32 +45,39 @@ static void invalidate_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,
                     continue;
                 }
             }
-            if (msg) {
-                // Allows the reference count to be zero here because
-                // other CPUs might have already processed the message.
-                refcount_inc_allowing_zero(&msg->refcount);
-            } else {
-                msg = cpu_alloc_message();
-                *msg = (struct ipi_message){
-                    .type = IPI_MESSAGE_INVALIDATE_TLB_RANGE,
-                    .refcount = REFCOUNT_INIT_ONE,
+            if (!msg) {
+                msg = cpu_message_alloc();
+                *msg = (struct cpu_message){
+                    .type = CPU_MESSAGE_INVALIDATE_TLB_RANGE,
                     .invalidate_tlb_range = {.virt_addr = virt_addr,
                                              .npages = npages},
                 };
             }
-            cpu_unicast_message_queued(cpu, msg, true);
+            cpu_message_queue(msg, cpu);
         }
-    }
+        if (msg)
+            cpu_message_notify(msg);
 
-    // Invalidate this CPU's TLB while other CPUs are invalidating theirs
-    invalidate_tlb_local(pagemap, virt_addr, npages);
+        // Invalidate this CPU's TLB while other CPUs are invalidating theirs
+        invalidate_tlb_local(pagemap, virt_addr, npages);
+    }
 
     if (msg) {
         // Wait for other CPUs to finish processing INVALIDATE_TLB_RANGE
-        while (refcount_get(&msg->refcount) > 0)
-            cpu_relax();
-        cpu_free_message(msg);
+        cpu_message_wait(msg);
+        cpu_message_free(msg);
     }
+}
+
+static void invalidate_tlb_global(struct pagemap* pagemap, uintptr_t virt_addr,
+                                  size_t npages) {
+    ASSERT((virt_addr % PAGE_SIZE) == 0);
+    if (npages == 0)
+        return;
+    if (arch_smp_active())
+        invalidate_tlb_global_smp(pagemap, virt_addr, npages);
+    else
+        invalidate_tlb_local(pagemap, virt_addr, npages);
 }
 
 NODISCARD static int map_pages(struct pagemap* pagemap, uintptr_t virt_addr,

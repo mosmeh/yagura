@@ -15,8 +15,8 @@ struct cpu {
 
     struct task* idle_task;
 
-    struct mpsc* queued_msgs;
-    _Atomic(unsigned long) coalesced_msgs;
+    struct mpmc* queued_msgs;
+    _Atomic(unsigned long) events;
 
     struct kmap_ctrl kmap;
 
@@ -44,25 +44,36 @@ struct cpu* cpu_add(void);
 
 void cpu_relax(void);
 
-#define IPI_MESSAGE_HALT 0x1
-#define IPI_MESSAGE_INVALIDATE_TLB_RANGE 0x2
+// Processes all pending messages and events for the current CPU.
+void cpu_dispatch_requests(void);
 
-struct ipi_message {
+#define CPU_EVENT_HALT 0
+
+// Broadcasts an event to all other CPUs, immediately waking them up if they are
+// idle. Events with the same type may be coalesced.
+void cpu_broadcast_event(unsigned type);
+
+#define CPU_MESSAGE_INVALIDATE_TLB_RANGE 0
+
+struct cpu_message {
     unsigned type;
-    refcount_t refcount;
+    _Atomic(unsigned long) pending[DIV_CEIL(MAX_NUM_CPUS, LONG_WIDTH)];
     struct {
         uintptr_t virt_addr;
         size_t npages;
     } invalidate_tlb_range;
 };
 
-struct ipi_message* cpu_alloc_message(void);
-void cpu_free_message(struct ipi_message*);
+struct cpu_message* cpu_message_alloc(void);
+void cpu_message_free(struct cpu_message*);
 
-void cpu_broadcast_message_queued(struct ipi_message*, bool eager);
-void cpu_broadcast_message_coalesced(unsigned type, bool eager);
+// Queues a message to be processed by the destination CPU(s).
+// The destination CPU is not explicitly notified until cpu_message_notify() is
+// called.
+void cpu_message_queue(struct cpu_message*, struct cpu*);
 
-void cpu_unicast_message_queued(struct cpu*, struct ipi_message*, bool eager);
-void cpu_unicast_message_coalesced(struct cpu*, unsigned type, bool eager);
+// Notifies the destination CPU(s) to process the message.
+void cpu_message_notify(const struct cpu_message*);
 
-void cpu_process_messages(void);
+// Waits for the message to be processed by all destination CPUs.
+void cpu_message_wait(const struct cpu_message*);

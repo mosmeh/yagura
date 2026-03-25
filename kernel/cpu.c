@@ -1,5 +1,5 @@
 #include <kernel/arch/system.h>
-#include <kernel/containers/mpsc.h>
+#include <kernel/containers/mpmc.h>
 #include <kernel/cpu.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/memory.h>
@@ -11,20 +11,25 @@ static struct cpu bsp = {
 };
 size_t num_cpus = 1;
 struct cpu* cpus[MAX_NUM_CPUS] = {&bsp};
-static struct mpsc* msg_pool;
+
+#define NUM_MSGS_PER_CPU 4
+static struct mpmc* msg_pool;
 
 static void init_msg_queue(struct cpu* cpu) {
-    cpu->queued_msgs = ASSERT_PTR(mpsc_create(MAX_NUM_CPUS));
+    cpu->queued_msgs = ASSERT_PTR(mpmc_create(MAX_NUM_CPUS * NUM_MSGS_PER_CPU));
 
-    struct ipi_message* msg = ASSERT_PTR(kmalloc(sizeof(struct ipi_message)));
-    *msg = (struct ipi_message){0};
-    ASSERT(mpsc_enqueue(msg_pool, msg));
+    for (size_t i = 0; i < NUM_MSGS_PER_CPU; ++i) {
+        struct cpu_message* msg =
+            ASSERT_PTR(kmalloc(sizeof(struct cpu_message)));
+        *msg = (struct cpu_message){0};
+        ASSERT(mpmc_push(msg_pool, msg));
+    }
 }
 
 struct cpu* cpu_add(void) {
     if (!msg_pool) {
         // First AP is being added
-        msg_pool = ASSERT_PTR(mpsc_create(MAX_NUM_CPUS));
+        msg_pool = ASSERT_PTR(mpmc_create(MAX_NUM_CPUS * NUM_MSGS_PER_CPU));
         init_msg_queue(&bsp);
     }
 
@@ -44,79 +49,57 @@ struct cpu* cpu_add(void) {
 struct cpu* cpu_get_bsp(void) { return &bsp; }
 
 void cpu_relax(void) {
-    cpu_process_messages();
+    cpu_dispatch_requests();
     arch_cpu_relax();
 }
 
-struct ipi_message* cpu_alloc_message(void) {
-    for (;;) {
-        struct ipi_message* msg = mpsc_dequeue(msg_pool);
-        if (msg) {
-            ASSERT(refcount_get(&msg->refcount) == 0);
-            return msg;
-        }
-        cpu_relax();
+#define BITMAP_INDEX(i) ((i) / LONG_WIDTH)
+#define BITMAP_MASK(i) (1UL << ((i) % LONG_WIDTH))
+
+// Returns true if the pending bit was newly set, false if it was already set.
+static bool cpu_message_set_pending(struct cpu_message* msg, size_t cpu_id) {
+    ASSERT(cpu_id < num_cpus);
+    unsigned long mask = BITMAP_MASK(cpu_id);
+    unsigned long prev =
+        atomic_fetch_or(&msg->pending[BITMAP_INDEX(cpu_id)], mask);
+    return !(prev & mask);
+}
+
+// Returns true if the pending bit was cleared, false if it was already clear.
+static bool cpu_message_clear_pending(struct cpu_message* msg, size_t cpu_id) {
+    ASSERT(cpu_id < num_cpus);
+    unsigned long mask = BITMAP_MASK(cpu_id);
+    unsigned long prev =
+        atomic_fetch_and(&msg->pending[BITMAP_INDEX(cpu_id)], ~mask);
+    return prev & mask;
+}
+
+static bool cpu_message_is_pending(const struct cpu_message* msg,
+                                   size_t cpu_id) {
+    ASSERT(cpu_id < num_cpus);
+    return msg->pending[BITMAP_INDEX(cpu_id)] & BITMAP_MASK(cpu_id);
+}
+
+static size_t cpu_message_num_pending(const struct cpu_message* msg) {
+    size_t n = 0;
+    for (size_t i = 0; i < num_cpus; ++i) {
+        if (cpu_message_is_pending(msg, i))
+            ++n;
     }
+    return n;
 }
 
-void cpu_free_message(struct ipi_message* msg) {
-    ASSERT_PTR(msg);
-    ASSERT(refcount_get(&msg->refcount) == 0);
-    while (!mpsc_enqueue(msg_pool, msg))
-        cpu_relax();
-}
-
-void cpu_broadcast_message_queued(struct ipi_message* msg, bool eager) {
-    {
-        SCOPED_DISABLE_INTERRUPTS();
-        unsigned long cpu_id = cpu_get_id();
-        for (size_t i = 0; i < num_cpus; ++i) {
-            if (i == cpu_id)
-                continue;
-            while (!mpsc_enqueue(cpus[i]->queued_msgs, msg))
-                cpu_relax();
-        }
+static bool cpu_message_has_pending(const struct cpu_message* msg) {
+    for (size_t i = 0; i < ARRAY_SIZE(msg->pending); ++i) {
+        if (msg->pending[i])
+            return true;
     }
-    if (eager)
-        arch_cpu_broadcast_ipi();
+    return false;
 }
 
-void cpu_broadcast_message_coalesced(unsigned int type, bool eager) {
-    {
-        SCOPED_DISABLE_INTERRUPTS();
-        unsigned long cpu_id = cpu_get_id();
-        for (size_t i = 0; i < num_cpus; ++i) {
-            if (i == cpu_id)
-                continue;
-            struct cpu* cpu = cpus[i];
-            cpu->coalesced_msgs |= type;
-        }
-    }
-    if (eager)
-        arch_cpu_broadcast_ipi();
-}
+static void on_event_halt(void) { arch_cpu_halt(); }
 
-void cpu_unicast_message_queued(struct cpu* dest, struct ipi_message* msg,
-                                bool eager) {
-    while (!mpsc_enqueue(dest->queued_msgs, msg))
-        cpu_relax();
-    if (eager)
-        arch_cpu_unicast_ipi(dest);
-}
-
-void cpu_unicast_message_coalesced(struct cpu* dest, unsigned int type,
-                                   bool eager) {
-    dest->coalesced_msgs |= type;
-    if (eager)
-        arch_cpu_unicast_ipi(dest);
-}
-
-static void handle_halt(struct ipi_message* msg) {
-    (void)msg;
-    arch_cpu_halt();
-}
-
-static void handle_invalidate_tlb_range(struct ipi_message* msg) {
+static void on_message_invalidate_tlb_range(struct cpu_message* msg) {
     ASSERT_PTR(msg);
     size_t virt_addr = msg->invalidate_tlb_range.virt_addr;
     size_t npages = msg->invalidate_tlb_range.npages;
@@ -124,30 +107,115 @@ static void handle_invalidate_tlb_range(struct ipi_message* msg) {
         arch_invalidate_tlb_page(virt_addr + (i << PAGE_SHIFT));
 }
 
-static void (*const message_handlers[])(struct ipi_message*) = {
-    [IPI_MESSAGE_HALT] = handle_halt,
-    [IPI_MESSAGE_INVALIDATE_TLB_RANGE] = handle_invalidate_tlb_range,
-};
-
-void cpu_process_messages(void) {
+void cpu_dispatch_requests(void) {
     if (!arch_smp_active())
         return;
 
     SCOPED_DISABLE_INTERRUPTS();
     struct cpu* cpu = cpu_get_current();
     for (;;) {
-        int bit = __builtin_ffsl(cpu->coalesced_msgs);
+        int bit = __builtin_ffsl(cpu->events);
         if (bit == 0)
             break;
-        unsigned type = 1U << (bit - 1);
-        cpu->coalesced_msgs &= ~(unsigned long)type;
-        message_handlers[type](NULL);
+        unsigned type = bit - 1;
+        cpu->events &= ~(1UL << type);
+        switch (type) {
+        case CPU_EVENT_HALT:
+            on_event_halt();
+            break;
+        default:
+            UNREACHABLE();
+        }
     }
     for (;;) {
-        struct ipi_message* msg = mpsc_dequeue(cpu->queued_msgs);
+        struct cpu_message* msg = mpmc_pop(cpu->queued_msgs);
         if (!msg)
             break;
-        message_handlers[msg->type](msg);
-        refcount_dec(&msg->refcount);
+        switch (msg->type) {
+        case CPU_MESSAGE_INVALIDATE_TLB_RANGE:
+            on_message_invalidate_tlb_range(msg);
+            break;
+        default:
+            UNREACHABLE();
+        }
+        ASSERT(cpu_message_clear_pending(msg, cpu->id));
     }
+}
+
+void cpu_broadcast_event(unsigned type) {
+    if (!arch_smp_active())
+        return;
+
+    SCOPED_DISABLE_INTERRUPTS();
+    unsigned long cpu_id = cpu_get_id();
+    for (size_t i = 0; i < num_cpus; ++i) {
+        if (i != cpu_id)
+            cpus[i]->events |= 1UL << type;
+    }
+    arch_cpu_broadcast_ipi();
+}
+
+struct cpu_message* cpu_message_alloc(void) {
+    for (;;) {
+        struct cpu_message* msg = NULL;
+        {
+            SCOPED_DISABLE_INTERRUPTS();
+            msg = mpmc_pop(msg_pool);
+        }
+        if (msg) {
+            ASSERT(!cpu_message_has_pending(msg));
+            return msg;
+        }
+        cpu_relax();
+    }
+}
+
+void cpu_message_free(struct cpu_message* msg) {
+    ASSERT_PTR(msg);
+    ASSERT(!cpu_message_has_pending(msg));
+    for (;;) {
+        {
+            SCOPED_DISABLE_INTERRUPTS();
+            if (mpmc_push(msg_pool, msg))
+                return;
+        }
+        cpu_relax();
+    }
+}
+
+void cpu_message_queue(struct cpu_message* msg, struct cpu* dest) {
+    ASSERT(arch_smp_active());
+    ASSERT_PTR(msg);
+    ASSERT_PTR(dest);
+    ASSERT(cpu_message_set_pending(msg, dest->id));
+    for (;;) {
+        {
+            SCOPED_DISABLE_INTERRUPTS();
+            if (mpmc_push(dest->queued_msgs, msg))
+                return;
+        }
+        cpu_relax();
+    }
+}
+
+void cpu_message_notify(const struct cpu_message* msg) {
+    ASSERT(arch_smp_active());
+    ASSERT_PTR(msg);
+    ASSERT(!arch_interrupts_enabled());
+    if (cpu_message_num_pending(msg) * 2 >= num_cpus) {
+        // If we need to send to the majority of CPUs, use broadcast.
+        arch_cpu_broadcast_ipi();
+        return;
+    }
+    for (size_t i = 0; i < num_cpus; ++i) {
+        if (cpu_message_is_pending(msg, i))
+            arch_cpu_unicast_ipi(cpus[i]);
+    }
+}
+
+void cpu_message_wait(const struct cpu_message* msg) {
+    ASSERT(arch_smp_active());
+    ASSERT_PTR(msg);
+    while (cpu_message_has_pending(msg))
+        cpu_relax();
 }

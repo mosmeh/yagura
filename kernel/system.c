@@ -77,8 +77,7 @@ void poweroff(void) {
 void halt(void) {
     arch_disable_interrupts();
     kprint("System halted\n");
-    if (arch_smp_active())
-        cpu_broadcast_message_coalesced(IPI_MESSAGE_HALT, true);
+    cpu_broadcast_event(CPU_EVENT_HALT);
     arch_cpu_halt();
 }
 
