@@ -6,9 +6,8 @@
 #include <kernel/task/task.h>
 
 void mutex_lock(struct mutex* m) {
-    ASSERT(arch_interrupts_enabled());
-
     for (;;) {
+        ASSERT(arch_interrupts_enabled());
         bool expected = false;
         if (atomic_compare_exchange_strong_explicit(&m->lock, &expected, true,
                                                     memory_order_acq_rel,
@@ -26,9 +25,8 @@ void mutex_lock(struct mutex* m) {
 }
 
 void mutex_unlock(struct mutex* m) {
-    ASSERT(arch_interrupts_enabled());
-
     for (;;) {
+        ASSERT(arch_interrupts_enabled());
         bool expected = false;
         if (atomic_compare_exchange_strong_explicit(&m->lock, &expected, true,
                                                     memory_order_acq_rel,
