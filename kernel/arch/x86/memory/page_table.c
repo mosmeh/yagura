@@ -172,7 +172,7 @@ void kunmap(void* addr) {
     size_t index = offset >> PAGE_SHIFT;
     ASSERT(index < KMAP_MAX_NUM_PER_CPU);
 
-    struct kmap_ctrl* kmap = &cpu_get_current()->kmap;
+    struct kmap_ctrl* kmap = &cpu->kmap;
     ASSERT(kmap->num_mapped == index + 1);
     kmap->phys_addrs[index] = 0;
     --kmap->num_mapped;
@@ -183,9 +183,10 @@ void kunmap(void* addr) {
     arch_invalidate_tlb_page((uintptr_t)addr);
 
     if (kmap->num_mapped == 0) {
-        if (kmap->prev_int_flag)
-            arch_enable_interrupts();
+        bool prev_int_flag = kmap->prev_int_flag;
         kmap->prev_int_flag = false;
+        if (prev_int_flag)
+            arch_enable_interrupts();
     }
 }
 
