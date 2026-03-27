@@ -38,51 +38,60 @@ bool mutex_is_locked_by_current(const struct mutex* m) {
     return true;
 }
 
-#define SPINLOCK_LOCKED 0x1
-#define SPINLOCK_PREV_INT_FLAG 0x2
-#define SPINLOCK_CPU_ID_SHIFT 2
+// Bits | Description
+// 0-7  | CPU ID of the lock holder (0 if unlocked)
+// 8    | 1 if interrupts were enabled when the lock was acquired, 0 otherwise
+// 9-31 | Recursion level (0 means unlocked)
+
+#define FLAGS_SHIFT CPU_ID_SHIFT
+#define LEVEL_SHIFT (FLAGS_SHIFT + 1)
+
+#define CPU_ID(x) ((x) & ((1U << CPU_ID_SHIFT) - 1))
+#define PREV_INT_FLAG (1U << FLAGS_SHIFT)
+#define LEVEL(x) ((x) >> LEVEL_SHIFT)
+#define LEVEL_INCR (1U << LEVEL_SHIFT)
+
+STATIC_ASSERT(UINT_WIDTH > LEVEL_SHIFT);
 
 void spinlock_lock(struct spinlock* s) {
-    unsigned desired = SPINLOCK_LOCKED;
+    unsigned desired = LEVEL_INCR;
+
     if (arch_interrupts_enabled())
-        desired |= SPINLOCK_PREV_INT_FLAG;
+        desired |= PREV_INT_FLAG;
     arch_disable_interrupts();
+
     unsigned long cpu_id = cpu_get_id();
-    desired |= cpu_id << SPINLOCK_CPU_ID_SHIFT;
+    ASSERT(cpu_id < MAX_NUM_CPUS);
+    desired |= cpu_id;
+
     for (;;) {
         unsigned expected = 0;
-        if (atomic_compare_exchange_strong(&s->lock, &expected, desired)) {
-            ASSERT(s->level == 0);
-            break;
-        }
-        if ((expected >> SPINLOCK_CPU_ID_SHIFT) == cpu_id) {
-            ASSERT(expected & SPINLOCK_LOCKED);
-            break;
+        if (atomic_compare_exchange_strong(&s->lock, &expected, desired))
+            return;
+        if (CPU_ID(expected) == cpu_id) {
+            ASSERT(LEVEL(expected) > 0);
+            s->lock += LEVEL_INCR;
+            return;
         }
         cpu_relax();
     }
-    ++s->level;
 }
 
 void spinlock_unlock(struct spinlock* s) {
     ASSERT(!arch_interrupts_enabled());
     unsigned v = s->lock;
-    ASSERT(v & SPINLOCK_LOCKED);
-    ASSERT((v >> SPINLOCK_CPU_ID_SHIFT) == cpu_get_id());
-    ASSERT(s->level > 0);
-    if (--s->level == 0) {
-        atomic_store_explicit(&s->lock, 0, memory_order_release);
-        if (v & SPINLOCK_PREV_INT_FLAG)
+    ASSERT(LEVEL(v) > 0);
+    ASSERT(CPU_ID(v) == cpu_get_id());
+    if (LEVEL(v) == 1) {
+        s->lock = 0;
+        if (v & PREV_INT_FLAG)
             arch_enable_interrupts();
+    } else {
+        s->lock -= LEVEL_INCR;
     }
 }
 
 bool spinlock_is_locked_by_current(const struct spinlock* s) {
     unsigned v = s->lock;
-    if (!(v & SPINLOCK_LOCKED))
-        return false;
-    if ((v >> SPINLOCK_CPU_ID_SHIFT) != cpu_get_id())
-        return false;
-    ASSERT(s->level > 0);
-    return true;
+    return LEVEL(v) > 0 && CPU_ID(v) == cpu_get_id();
 }

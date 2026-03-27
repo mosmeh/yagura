@@ -22,7 +22,6 @@ struct mutex {
 DEFINE_LOCK(mutex)
 
 struct spinlock {
-    _Atomic(unsigned int) level;
     _Atomic(unsigned int) lock;
 };
 

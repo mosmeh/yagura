@@ -23,7 +23,8 @@ struct cpu {
     struct arch_cpu arch;
 };
 
-#define MAX_NUM_CPUS (UINT8_MAX + 1)
+#define CPU_ID_SHIFT 8
+#define MAX_NUM_CPUS (1UL << CPU_ID_SHIFT)
 
 extern size_t num_cpus;
 extern struct cpu* cpus[MAX_NUM_CPUS];
