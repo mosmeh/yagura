@@ -16,8 +16,7 @@
 
 struct mutex {
     _Atomic(struct task*) holder;
-    _Atomic(unsigned int) level;
-    _Atomic(bool) lock;
+    unsigned int level;
 };
 
 DEFINE_LOCK(mutex)

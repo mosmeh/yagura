@@ -6,40 +6,29 @@
 #include <kernel/task/task.h>
 
 void mutex_lock(struct mutex* m) {
+    struct task* task = current;
     for (;;) {
         ASSERT(arch_interrupts_enabled());
-        bool expected = false;
-        if (atomic_compare_exchange_strong_explicit(&m->lock, &expected, true,
-                                                    memory_order_acq_rel,
-                                                    memory_order_acquire)) {
-            if (!m->holder || m->holder == current) {
-                m->holder = current;
-                ++m->level;
-                atomic_store_explicit(&m->lock, false, memory_order_release);
-                return;
-            }
-            atomic_store_explicit(&m->lock, false, memory_order_release);
+        struct task* expected = NULL;
+        if (atomic_compare_exchange_strong(&m->holder, &expected, task)) {
+            ASSERT(m->level == 0);
+            break;
+        }
+        if (expected == task) {
+            ASSERT(m->level > 0);
+            break;
         }
         sched_yield();
     }
+    ++m->level;
 }
 
 void mutex_unlock(struct mutex* m) {
-    for (;;) {
-        ASSERT(arch_interrupts_enabled());
-        bool expected = false;
-        if (atomic_compare_exchange_strong_explicit(&m->lock, &expected, true,
-                                                    memory_order_acq_rel,
-                                                    memory_order_acquire)) {
-            ASSERT(m->holder == current);
-            ASSERT(m->level > 0);
-            if (--m->level == 0)
-                m->holder = NULL;
-            atomic_store_explicit(&m->lock, false, memory_order_release);
-            return;
-        }
-        sched_yield();
-    }
+    ASSERT(arch_interrupts_enabled());
+    ASSERT(m->holder == current);
+    ASSERT(m->level > 0);
+    if (--m->level == 0)
+        m->holder = NULL;
 }
 
 bool mutex_is_locked_by_current(const struct mutex* m) {
