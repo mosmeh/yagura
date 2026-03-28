@@ -71,6 +71,7 @@ BIN_TARGET_NAMES := \
 	tests/random \
 	tests/read-write \
 	tests/run \
+	tests/sched \
 	tests/select \
 	tests/signal \
 	tests/stat \

@@ -204,7 +204,7 @@
     F(time, sys_time)                                                          \
     F(futex, sys_ni_syscall)                                                   \
     F(sched_setaffinity, sys_ni_syscall)                                       \
-    F(sched_getaffinity, sys_ni_syscall)                                       \
+    F(sched_getaffinity, sys_sched_getaffinity)                                \
     F(io_setup, sys_ni_syscall)                                                \
     F(io_destroy, sys_ni_syscall)                                              \
     F(io_getevents, sys_ni_syscall)                                            \

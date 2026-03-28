@@ -250,7 +250,7 @@
     F(sendfile64, sys_ni_syscall)                                              \
     F(futex, sys_ni_syscall)                                                   \
     F(sched_setaffinity, sys_ni_syscall)                                       \
-    F(sched_getaffinity, sys_ni_syscall)                                       \
+    F(sched_getaffinity, sys_sched_getaffinity)                                \
     F(set_thread_area, sys_set_thread_area)                                    \
     F(get_thread_area, sys_get_thread_area)                                    \
     F(io_setup, sys_ni_syscall)                                                \

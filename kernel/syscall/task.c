@@ -60,6 +60,30 @@ SYSCALL1(getsid, pid_t, pid) {
     return 0;
 }
 
+SYSCALL3(sched_getaffinity, pid_t, pid, size_t, cpusetsize, unsigned long*,
+         user_mask) {
+    if (cpusetsize * CHAR_BIT < num_cpus ||
+        cpusetsize % sizeof(unsigned long) != 0)
+        return -EINVAL;
+
+    if (pid != 0) {
+        struct task* task FREE(task) = task_find_by_tid(pid);
+        if (!task)
+            return -ESRCH;
+    }
+
+    // Affinity mask with all CPUs set, as we don't implement CPU affinity yet.
+    unsigned long mask[DIV_CEIL(MAX_NUM_CPUS, ULONG_WIDTH)] = {0};
+    size_t mask_size = DIV_CEIL(num_cpus, ULONG_WIDTH) * sizeof(unsigned long);
+    for (size_t i = 0; i < num_cpus; ++i)
+        mask[i / ULONG_WIDTH] |= 1UL << (i % ULONG_WIDTH);
+
+    size_t to_copy = MIN(mask_size, cpusetsize);
+    if (copy_to_user(user_mask, &mask, to_copy))
+        return -EFAULT;
+    return to_copy;
+}
+
 SYSCALL0(sched_yield) {
     sched_yield();
     return 0;
