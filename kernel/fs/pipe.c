@@ -11,6 +11,8 @@
 #include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
+#define PIPE_DEF_BUFFERS 16
+
 struct pipe {
     struct inode vfs_inode;
     struct ring_buf* ring;
@@ -276,7 +278,8 @@ struct inode* pipe_create(void) {
         .vfs_inode = INODE_INIT,
     };
 
-    struct ring_buf* ring = ASSERT(ring_buf_create(PIPE_BUF));
+    struct ring_buf* ring =
+        ASSERT(ring_buf_create(PIPE_DEF_BUFFERS << PAGE_SHIFT));
     if (IS_ERR(ring)) {
         slab_free(&pipe_slab, pipe);
         return ERR_CAST(ring);
