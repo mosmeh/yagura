@@ -13,12 +13,11 @@
 
 struct pipe {
     struct inode vfs_inode;
-    struct ring_buf* buf;
+    struct ring_buf* ring;
+    struct spinlock ring_lock;
     _Atomic(size_t) num_readers;
     _Atomic(size_t) num_writers;
 };
-
-DEFINE_LOCKED(pipe, struct pipe, inode, vfs_inode)
 
 static struct slab pipe_slab;
 static struct mount* pipe_mount;
@@ -41,17 +40,19 @@ static struct pipe* pipe_from_inode(struct inode* inode) {
 
 static void pipe_destroy(struct inode* inode) {
     struct pipe* pipe = pipe_from_inode(inode);
-    ring_buf_destroy(pipe->buf);
+    ring_buf_destroy(pipe->ring);
     slab_free(&pipe_slab, pipe);
 }
 
 static struct pipe* pipe_from_file(struct file* file) {
+    if (file->fops != &pipe_fops)
+        return NULL;
     return file->private_data;
 }
 
 static bool wake_open(struct file* file, void* ctx) {
     (void)ctx;
-    const struct pipe* pipe = pipe_from_file(file);
+    const struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
         return pipe->num_writers > 0;
@@ -114,7 +115,7 @@ static int pipe_open(struct file* file) {
 }
 
 static void pipe_close(struct file* file) {
-    struct pipe* pipe = pipe_from_file(file);
+    struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
         --pipe->num_readers;
@@ -130,76 +131,118 @@ static void pipe_close(struct file* file) {
 
 static bool wake_read(struct file* file, void* ctx) {
     (void)ctx;
-    const struct pipe* pipe = pipe_from_file(file);
-    return pipe->num_writers == 0 || !ring_buf_is_empty(pipe->buf);
+    struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
+
+    if (pipe->num_writers == 0)
+        return true;
+
+    SCOPED_LOCK(spinlock, &pipe->ring_lock);
+    return !ring_buf_is_empty(pipe->ring);
 }
 
 static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
                           uint64_t offset) {
     (void)offset;
 
-    struct pipe* pipe = pipe_from_file(file);
-    struct ring_buf* buf = pipe->buf;
-
-    for (;;) {
+    struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
+    size_t nread = 0;
+    unsigned char* user_dest = user_buffer;
+    while (count > 0) {
         int rc = file_wait(file, wake_read, NULL);
+        if (nread > 0 && (rc == -EAGAIN || rc == -EINTR))
+            break;
         if (IS_ERR(rc))
             return rc;
 
-        SCOPED_LOCK(pipe, pipe);
-
-        if (!ring_buf_is_empty(buf)) {
-            ssize_t nread = ring_buf_read_to_user(buf, user_buffer, count);
-            return nread;
+        for (;;) {
+            // Ensure atomicity for reads <= PIPE_BUF
+            char buf[PIPE_BUF];
+            size_t n = 0;
+            {
+                SCOPED_LOCK(spinlock, &pipe->ring_lock);
+                n = ring_buf_read(pipe->ring, buf, MIN(count, sizeof(buf)));
+            }
+            if (n == 0)
+                break;
+            if (copy_to_user(user_dest, buf, n))
+                return -EFAULT;
+            nread += n;
+            user_dest += n;
+            count -= n;
         }
+        if (nread > 0)
+            break;
 
         if (pipe->num_writers == 0)
             return 0;
     }
+    return nread;
 }
 
 static bool wake_write(struct file* file, void* ctx) {
-    (void)ctx;
-    const struct pipe* pipe = pipe_from_file(file);
-    return pipe->num_readers == 0 || !ring_buf_is_full(pipe->buf);
+    struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
+    size_t requested_capacity = *(const size_t*)ctx;
+
+    if (pipe->num_readers == 0)
+        return true;
+
+    SCOPED_LOCK(spinlock, &pipe->ring_lock);
+    return ring_buf_remaining_capacity(pipe->ring) >= requested_capacity;
 }
 
 static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
                            size_t count, uint64_t offset) {
     (void)offset;
 
-    struct pipe* pipe = pipe_from_file(file);
-    struct ring_buf* buf = pipe->buf;
-
-    for (;;) {
-        int rc = file_wait(file, wake_write, NULL);
+    bool atomic = count <= PIPE_BUF;
+    struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
+    size_t nwritten = 0;
+    const unsigned char* user_src = user_buffer;
+    while (count > 0) {
+        size_t requested_capacity = atomic ? count : 1;
+        int rc = file_wait(file, wake_write, &requested_capacity);
+        if (nwritten > 0 && (rc == -EAGAIN || rc == -EINTR))
+            break;
         if (IS_ERR(rc))
             return rc;
 
-        SCOPED_LOCK(pipe, pipe);
+        if (pipe->num_readers == 0) {
+            rc = signal_send_to_tasks(0, current->tid, SIGPIPE);
+            if (IS_ERR(rc))
+                return rc;
+            if (nwritten > 0)
+                break;
+            return -EPIPE;
+        }
 
-        if (pipe->num_readers == 0)
-            break;
+        size_t to_write = MIN(count, PIPE_BUF);
+        char buf[PIPE_BUF];
+        if (copy_from_user(buf, user_src, to_write))
+            return -EFAULT;
 
-        if (ring_buf_is_full(buf))
-            continue;
-
-        return ring_buf_write_from_user(buf, user_buffer, count);
+        size_t n = 0;
+        {
+            SCOPED_LOCK(spinlock, &pipe->ring_lock);
+            if (!atomic || ring_buf_remaining_capacity(pipe->ring) >= to_write)
+                n = ring_buf_write(pipe->ring, buf, to_write);
+        }
+        nwritten += n;
+        user_src += n;
+        count -= n;
     }
-
-    int rc = signal_send_to_tasks(0, current->tid, SIGPIPE);
-    if (IS_ERR(rc))
-        return rc;
-    return -EPIPE;
+    return nwritten;
 }
 
 static short pipe_poll(struct file* file, short events) {
     short revents = 0;
-    const struct pipe* pipe = pipe_from_file(file);
-    if ((events & POLLIN) && !ring_buf_is_empty(pipe->buf))
-        revents |= POLLIN;
-    if ((events & POLLOUT) && !ring_buf_is_full(pipe->buf))
-        revents |= POLLOUT;
+    struct pipe* pipe = pipe_from_file(file);
+    {
+        SCOPED_LOCK(spinlock, &pipe->ring_lock);
+        if ((events & POLLIN) && !ring_buf_is_empty(pipe->ring))
+            revents |= POLLIN;
+        if ((events & POLLOUT) && !ring_buf_is_full(pipe->ring))
+            revents |= POLLOUT;
+    }
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
         if ((events & POLLHUP) && (pipe->num_writers == 0))
@@ -233,12 +276,12 @@ struct inode* pipe_create(void) {
         .vfs_inode = INODE_INIT,
     };
 
-    struct ring_buf* buf = ASSERT(ring_buf_create(PIPE_BUF));
-    if (IS_ERR(buf)) {
+    struct ring_buf* ring = ASSERT(ring_buf_create(PIPE_BUF));
+    if (IS_ERR(ring)) {
         slab_free(&pipe_slab, pipe);
-        return ERR_CAST(buf);
+        return ERR_CAST(ring);
     }
-    pipe->buf = buf;
+    pipe->ring = ring;
 
     struct inode* inode = &pipe->vfs_inode;
     inode->ino = atomic_fetch_add(&next_ino, 1);
@@ -256,4 +299,50 @@ struct inode* pipe_create(void) {
     }
 
     return inode;
+}
+
+int pipe_fcntl(struct file* file, int cmd, unsigned long arg) {
+    struct pipe* pipe = pipe_from_file(file);
+    if (!pipe)
+        return -EBADF;
+
+    switch (cmd) {
+    case F_SETPIPE_SZ: {
+        if (arg > (1UL << 31))
+            return -EINVAL;
+        size_t new_capacity = next_power_of_two(MAX(arg, PAGE_SIZE));
+        if (new_capacity < PAGE_SIZE || new_capacity < arg)
+            return -EINVAL;
+
+        struct ring_buf* new_ring FREE(ring_buf) =
+            ASSERT(ring_buf_create(new_capacity));
+        if (IS_ERR(new_ring))
+            return PTR_ERR(new_ring);
+
+        struct ring_buf* old_ring FREE(ring_buf) = NULL;
+        {
+            SCOPED_LOCK(spinlock, &pipe->ring_lock);
+
+            if (ring_buf_size(pipe->ring) > new_capacity)
+                return -EBUSY;
+
+            while (!ring_buf_is_empty(pipe->ring)) {
+                char buf[PAGE_SIZE];
+                size_t n = ring_buf_read(pipe->ring, buf, sizeof(buf));
+                ASSERT(ring_buf_write(new_ring, buf, n) == n);
+            }
+
+            old_ring = pipe->ring;
+            pipe->ring = TAKE_PTR(new_ring);
+        }
+
+        return new_capacity;
+    }
+    case F_GETPIPE_SZ: {
+        SCOPED_LOCK(spinlock, &pipe->ring_lock);
+        return ring_buf_capacity(pipe->ring);
+    }
+    default:
+        return -EINVAL;
+    }
 }

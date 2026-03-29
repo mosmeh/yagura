@@ -94,6 +94,7 @@ NODISCARD int vfs_sync(void);
 NODISCARD int devtmpfs_mknod(const char* name, mode_t mode, dev_t dev);
 
 struct inode* pipe_create(void);
+NODISCARD int pipe_fcntl(struct file*, int cmd, unsigned long arg);
 
 int proc_print_filesystems(struct file*, struct vec*);
 int proc_print_mounts(struct file*, struct vec*);

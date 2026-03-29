@@ -42,6 +42,13 @@ NODISCARD static int fcntl(int fd, int cmd, unsigned long arg) {
         file->flags = (file->flags & ~SETFL_MASK) | (arg & SETFL_MASK);
         return 0;
     }
+    case F_SETPIPE_SZ:
+    case F_GETPIPE_SZ: {
+        struct file* file FREE(file) = ASSERT(fd_table_ref_file(fd_table, fd));
+        if (IS_ERR(file))
+            return PTR_ERR(file);
+        return pipe_fcntl(file, cmd, arg);
+    }
     default:
         return -EINVAL;
     }

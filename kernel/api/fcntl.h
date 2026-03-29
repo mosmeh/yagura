@@ -1,22 +1,17 @@
 #pragma once
 
-// Duplicate file descriptor.
-#define F_DUPFD 0
+#define F_DUPFD 0 // Duplicate file descriptor.
 
 // Duplicate file descriptor with close-on-exit set.
 #define F_DUPFD_CLOEXEC 1030
 
-// Get file descriptor flags.
-#define F_GETFD 1
+#define F_GETFD 1 // Get file descriptor flags.
+#define F_SETFD 2 // Set file descriptor flags.
+#define F_GETFL 3 // Get file status flags.
+#define F_SETFL 4 // Set file status flags.
 
-// Set file descriptor flags.
-#define F_SETFD 2
-
-// Get file status flags.
-#define F_GETFL 3
-
-// Set file status flags.
-#define F_SETFL 4
+#define F_SETPIPE_SZ 1031 // Set pipe page size array.
+#define F_GETPIPE_SZ 1032 // Set pipe page size array.
 
 #define O_ACCMODE 00000003
 #define O_RDONLY 00000000

@@ -28,6 +28,14 @@ static inline size_t ilog2(size_t x) {
     return SIZE_WIDTH - __builtin_clzl(x) - 1;
 }
 
+static inline size_t next_power_of_two(size_t x) {
+    if (x == 0)
+        return 1;
+    if (is_power_of_two(x))
+        return x;
+    return 1ULL << (ilog2(x) + 1);
+}
+
 static inline bool str_is_uint(const char* s) {
     while (*s) {
         if (!isdigit(*s))

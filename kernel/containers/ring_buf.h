@@ -35,6 +35,20 @@ static inline bool ring_buf_is_full(const struct ring_buf* b) {
     return (b->write_index + 1) % b->len == b->read_index;
 }
 
+static inline size_t ring_buf_capacity(const struct ring_buf* b) {
+    return b->len - 1;
+}
+
+static inline size_t ring_buf_size(const struct ring_buf* b) {
+    if (b->write_index >= b->read_index)
+        return b->write_index - b->read_index;
+    return b->len - (b->read_index - b->write_index);
+}
+
+static inline size_t ring_buf_remaining_capacity(const struct ring_buf* b) {
+    return ring_buf_capacity(b) - ring_buf_size(b);
+}
+
 NODISCARD static inline size_t ring_buf_read(struct ring_buf* b, void* bytes,
                                              size_t count) {
     size_t nread = 0;
