@@ -23,12 +23,19 @@ void sched_reschedule(struct task*);
 // Should be called on every timer tick.
 void sched_tick(struct registers*);
 
-#define BLOCK_UNINTERRUPTIBLE 1
-
 // Returns true if the task should be unblocked.
-typedef bool (*unblock_fn)(void*);
+typedef bool (*wake_fn)(void* ctx);
 
-// Blocks the current task until the unblock function returns true.
-// If unblock is NULL, the task will never be unblocked unless interrupted.
-// Returns -EINTR if the task was interrupted.
-NODISCARD int sched_block(unblock_fn, void* data, int flags);
+struct wait_state {
+    wake_fn wake;
+    void* ctx;
+    bool interrupted;
+};
+
+// Blocks the current task until the wake function returns true.
+// If wake function is NULL, the task will be blocked forever.
+void sched_wait(wake_fn, void* ctx);
+
+// Same as `sched_wait()` except that it can be interrupted by signals.
+// Returns -EINTR if interrupted by a signal.
+NODISCARD int sched_wait_interruptible(wake_fn, void* ctx);

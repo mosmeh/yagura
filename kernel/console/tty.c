@@ -106,7 +106,8 @@ static bool can_read(const struct tty* tty) {
     return !ring_buf_is_empty(tty->input_buf);
 }
 
-static bool unblock_read(struct file* file) {
+static bool wake_read(struct file* file, void* ctx) {
+    (void)ctx;
     return can_read(tty_from_file(file));
 }
 
@@ -119,7 +120,7 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
 
     struct tty* tty = tty_from_file(file);
     for (;;) {
-        int rc = file_block(file, unblock_read, 0);
+        int rc = file_wait(file, wake_read, NULL);
         if (IS_ERR(rc))
             return rc;
 

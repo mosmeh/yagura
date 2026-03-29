@@ -118,8 +118,8 @@ void virtq_desc_chain_push_buf(struct virtq_desc_chain* chain,
     ++chain->num_pushed;
 }
 
-static bool unblock_submit(void* data) {
-    struct virtq* virtq = data;
+static bool wake_submit(void* ctx) {
+    const struct virtq* virtq = ctx;
     return virtq_is_ready(virtq);
 }
 
@@ -162,7 +162,7 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
     if (!(virtq->used->flags & VIRTQ_USED_F_NO_NOTIFY))
         *virtq->notify = virtq->index;
 
-    int rc = sched_block(unblock_submit, virtq, BLOCK_UNINTERRUPTIBLE);
+    sched_wait(wake_submit, virtq);
     arch_full_memory_barrier();
 
     // Return the descriptors to the free list.
@@ -173,7 +173,7 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
     // Reset the chain.
     chain->num_pushed = 0;
 
-    return rc;
+    return 0;
 }
 
 static struct virtio_pci_cap read_cap(const struct pci_addr* addr,

@@ -314,7 +314,7 @@ void __thread_group_destroy(struct thread_group* tg) {
     slab_free(&thread_group_slab, tg);
 }
 
-static bool unblock_vfork(void* ctx) {
+static bool wake_vfork(void* ctx) {
     struct task* task = ctx;
     return task->state == TASK_DEAD;
 }
@@ -352,11 +352,8 @@ pid_t clone_user_task(struct registers* regs, unsigned long flags,
 
     sched_register(task);
 
-    if (flags & CLONE_VFORK) {
-        rc = sched_block(unblock_vfork, task, TASK_UNINTERRUPTIBLE);
-        if (IS_ERR(rc))
-            return rc;
-    }
+    if (flags & CLONE_VFORK)
+        sched_wait(wake_vfork, task);
 
     return tid;
 }

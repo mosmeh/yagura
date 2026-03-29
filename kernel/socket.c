@@ -106,6 +106,11 @@ static bool is_readable(struct file* file) {
     return !ring_buf_is_empty(buf);
 }
 
+static bool wake_read(struct file* file, void* ctx) {
+    (void)ctx;
+    return is_readable(file);
+}
+
 static ssize_t unix_socket_pread(struct file* file, void* user_buffer,
                                  size_t count, uint64_t offset) {
     (void)offset;
@@ -116,7 +121,7 @@ static ssize_t unix_socket_pread(struct file* file, void* user_buffer,
 
     struct ring_buf* buf = buf_to_read(file);
     for (;;) {
-        int rc = file_block(file, is_readable, 0);
+        int rc = file_wait(file, wake_read, NULL);
         if (IS_ERR(rc))
             return rc;
 
@@ -145,6 +150,11 @@ static bool is_writable(struct file* file) {
     return !ring_buf_is_full(buf);
 }
 
+static bool wake_write(struct file* file, void* ctx) {
+    (void)ctx;
+    return is_writable(file);
+}
+
 static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
                                   size_t count, uint64_t offset) {
     (void)offset;
@@ -155,7 +165,7 @@ static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
 
     struct ring_buf* buf = buf_to_write(file);
     for (;;) {
-        int rc = file_block(file, is_writable, 0);
+        int rc = file_wait(file, wake_write, NULL);
         if (IS_ERR(rc))
             return rc;
 
@@ -282,7 +292,8 @@ int unix_socket_listen(struct inode* inode, int backlog) {
     return 0;
 }
 
-static bool is_acceptable(struct file* file) {
+static bool wake_accept(struct file* file, void* ctx) {
+    (void)ctx;
     return unix_socket_from_file(file)->num_pending > 0;
 }
 
@@ -299,7 +310,7 @@ struct inode* unix_socket_accept(struct file* file) {
     }
 
     for (;;) {
-        int rc = file_block(file, is_acceptable, 0);
+        int rc = file_wait(file, wake_accept, NULL);
         if (IS_ERR(rc))
             return ERR_PTR(rc);
 
@@ -324,7 +335,8 @@ struct inode* unix_socket_accept(struct file* file) {
     }
 }
 
-static bool is_connectable(struct file* file) {
+static bool wake_connect(struct file* file, void* ctx) {
+    (void)ctx;
     return unix_socket_from_file(file)->is_connected;
 }
 
@@ -377,7 +389,7 @@ int unix_socket_connect(struct file* file, struct inode* addr_inode) {
         }
     }
 
-    return file_block(file, is_connectable, 0);
+    return file_wait(file, wake_connect, NULL);
 }
 
 int unix_socket_shutdown(struct file* file, int how) {

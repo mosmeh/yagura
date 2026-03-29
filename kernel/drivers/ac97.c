@@ -146,8 +146,9 @@ static void dsp_reset(void) {
     sample_buf_index = current_sample_buf_size = buffer_descriptor_index = 0;
 }
 
-static bool unblock_sync(struct file* file) {
+static bool wake_sync(struct file* file, void* ctx) {
     (void)file;
+    (void)ctx;
     return !dma_is_running;
 }
 
@@ -155,7 +156,7 @@ NODISCARD static int dsp_sync(struct file* file) {
     SCOPED_LOCK(mutex, &lock);
     // Drop buffered samples that haven't been submitted yet.
     current_sample_buf_size = 0;
-    return file_block(file, unblock_sync, 0);
+    return file_wait(file, wake_sync, NULL);
 }
 
 static void ac97_dsp_close(struct file* file) {
@@ -163,8 +164,9 @@ static void ac97_dsp_close(struct file* file) {
     (void)rc;
 }
 
-static bool unblock_write(struct file* file) {
+static bool wake_write(struct file* file, void* ctx) {
     (void)file;
+    (void)ctx;
     return can_write();
 }
 
@@ -194,7 +196,7 @@ write_single_buffer(struct file* file, const void* user_buffer, size_t count) {
 
         mutex_unlock(&lock);
 
-        int rc = file_block(file, unblock_write, 0);
+        int rc = file_wait(file, wake_write, NULL);
         if (IS_ERR(rc))
             return rc;
 

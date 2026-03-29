@@ -18,8 +18,8 @@ struct fd_waiter {
     size_t num_events;
 };
 
-static bool unblock_wait_fds(void* data) {
-    struct fd_waiter* waiter = data;
+static bool wake_wait_fds(void* ctx) {
+    struct fd_waiter* waiter = ctx;
     for (nfds_t i = 0; i < waiter->nfds; ++i) {
         struct file* file = waiter->files[i];
         if (!file)
@@ -103,7 +103,7 @@ NODISCARD static int wait_fds(nfds_t nfds, struct pollfd pollfds[nfds],
         waiter.deadline = deadline;
     }
 
-    int ret = sched_block(unblock_wait_fds, &waiter, 0);
+    int ret = sched_wait_interruptible(wake_wait_fds, &waiter);
     if (IS_ERR(ret))
         return ret;
 

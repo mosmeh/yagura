@@ -49,7 +49,8 @@ static struct pipe* pipe_from_file(struct file* file) {
     return file->private_data;
 }
 
-static bool unblock_open(struct file* file) {
+static bool wake_open(struct file* file, void* ctx) {
+    (void)ctx;
     const struct pipe* pipe = pipe_from_file(file);
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
@@ -101,7 +102,7 @@ static int pipe_open(struct file* file) {
     file->private_data = pipe;
 
     if (is_fifo) {
-        int rc = file_block(file, unblock_open, 0);
+        int rc = file_wait(file, wake_open, NULL);
         if (rc == -EAGAIN && (file->flags & O_ACCMODE) == O_WRONLY) {
             file->private_data = NULL;
             return -ENXIO;
@@ -127,7 +128,8 @@ static void pipe_close(struct file* file) {
     inode_unref(&pipe->vfs_inode);
 }
 
-static bool unblock_read(struct file* file) {
+static bool wake_read(struct file* file, void* ctx) {
+    (void)ctx;
     const struct pipe* pipe = pipe_from_file(file);
     return pipe->num_writers == 0 || !ring_buf_is_empty(pipe->buf);
 }
@@ -140,7 +142,7 @@ static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
     struct ring_buf* buf = pipe->buf;
 
     for (;;) {
-        int rc = file_block(file, unblock_read, 0);
+        int rc = file_wait(file, wake_read, NULL);
         if (IS_ERR(rc))
             return rc;
 
@@ -156,7 +158,8 @@ static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
     }
 }
 
-static bool unblock_write(struct file* file) {
+static bool wake_write(struct file* file, void* ctx) {
+    (void)ctx;
     const struct pipe* pipe = pipe_from_file(file);
     return pipe->num_readers == 0 || !ring_buf_is_full(pipe->buf);
 }
@@ -169,7 +172,7 @@ static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
     struct ring_buf* buf = pipe->buf;
 
     for (;;) {
-        int rc = file_block(file, unblock_write, 0);
+        int rc = file_wait(file, wake_write, NULL);
         if (IS_ERR(rc))
             return rc;
 

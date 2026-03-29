@@ -18,14 +18,14 @@ static struct virtio_blk* blk_from_block_dev(struct block_dev* block_dev) {
     return CONTAINER_OF(block_dev, struct virtio_blk, block_dev);
 }
 
-struct unblock_ctx {
+struct waker {
     struct virtq* virtq;
     size_t num_descriptors;
 };
 
-static bool unblock_request(void* raw_ctx) {
-    struct unblock_ctx* ctx = raw_ctx;
-    return ctx->virtq->num_free_descs >= ctx->num_descriptors;
+static bool wake_request(void* ctx) {
+    const struct waker* waker = ctx;
+    return waker->virtq->num_free_descs >= waker->num_descriptors;
 }
 
 NODISCARD
@@ -44,16 +44,13 @@ static int submit_request(struct block_dev* block_dev, phys_addr_t buffer,
     size_t num_descriptors = 2;
     if (buffer)
         ++num_descriptors;
-    struct unblock_ctx unblock_ctx = {
+    struct waker waker = {
         .virtq = blk->virtio->virtqs[0],
         .num_descriptors = num_descriptors,
     };
 
     for (;;) {
-        int rc =
-            sched_block(unblock_request, &unblock_ctx, BLOCK_UNINTERRUPTIBLE);
-        if (IS_ERR(rc))
-            return rc;
+        sched_wait(wake_request, &waker);
 
         SCOPED_LOCK(block_dev, block_dev);
 
@@ -66,7 +63,7 @@ static int submit_request(struct block_dev* block_dev, phys_addr_t buffer,
             virtq_desc_chain_push_buf(&chain, buffer, count, device_writable);
         virtq_desc_chain_push_buf(&chain, virt_to_phys(&footer), sizeof(footer),
                                   true);
-        rc = virtq_desc_chain_submit(&chain);
+        int rc = virtq_desc_chain_submit(&chain);
         if (IS_ERR(rc))
             return rc;
         break;

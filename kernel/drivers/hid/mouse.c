@@ -64,8 +64,9 @@ static bool can_read(void) {
     return read_index != write_index;
 }
 
-static bool unblock_read(struct file* file) {
+static bool wake_read(struct file* file, void* ctx) {
     (void)file;
+    (void)ctx;
     return can_read();
 }
 
@@ -77,7 +78,7 @@ static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
     count = MIN(count, sizeof(buf));
 
     for (;;) {
-        int rc = file_block(file, unblock_read, 0);
+        int rc = file_wait(file, wake_read, NULL);
         if (IS_ERR(rc))
             return rc;
 

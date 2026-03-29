@@ -174,16 +174,16 @@ SYSCALL2(clock_getres_time32, clockid_t, clockid, struct timespec32*,
     return 0;
 }
 
-struct sleep_blocker {
+struct waker {
     clockid_t clock_id;
     struct timespec deadline;
 };
 
-static bool unblock_sleep(void* data) {
-    const struct sleep_blocker* blocker = data;
+static bool wake(void* ctx) {
+    const struct waker* waker = ctx;
     struct timespec now;
-    ASSERT_OK(time_now(blocker->clock_id, &now));
-    return timespec_compare(&now, &blocker->deadline) >= 0;
+    ASSERT_OK(time_now(waker->clock_id, &now));
+    return timespec_compare(&now, &waker->deadline) >= 0;
 }
 
 NODISCARD static int clock_nanosleep(clockid_t clockid, int flags,
@@ -210,11 +210,11 @@ NODISCARD static int clock_nanosleep(clockid_t clockid, int flags,
         return -EINVAL;
     }
 
-    struct sleep_blocker blocker = {
+    struct waker waker = {
         .clock_id = clockid,
         .deadline = deadline,
     };
-    rc = sched_block(unblock_sleep, &blocker, 0);
+    rc = sched_wait_interruptible(wake, &waker);
     if (IS_ERR(rc))
         return rc;
     if (remain && flags != TIMER_ABSTIME) {

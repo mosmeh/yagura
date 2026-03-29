@@ -310,24 +310,27 @@ struct vm_obj* file_mmap(struct file* file) {
     return vm_obj_ref(&file->filemap->inode->vm_obj);
 }
 
-struct block_ctx {
+struct waker {
     struct file* file;
-    bool (*unblock)(struct file*);
+    bool (*wake)(struct file*, void* ctx);
+    void* ctx;
 };
 
-static bool should_unblock(void* data) {
-    struct block_ctx* ctx = data;
-    return ctx->unblock(ctx->file);
+static bool raw_wake(void* ctx) {
+    const struct waker* waker = ctx;
+    return waker->wake(waker->file, waker->ctx);
 }
 
-int file_block(struct file* file, bool (*unblock)(struct file*), int flags) {
-    if (unblock(file))
+int file_wait(struct file* file, bool (*wake)(struct file*, void* ctx),
+              void* ctx) {
+    if (wake(file, ctx))
         return 0;
     if (file->flags & O_NONBLOCK)
         return -EAGAIN;
-    struct block_ctx ctx = {
+    struct waker waker = {
         .file = file,
-        .unblock = unblock,
+        .wake = wake,
+        .ctx = ctx,
     };
-    return sched_block(should_unblock, &ctx, flags);
+    return sched_wait_interruptible(raw_wake, &waker);
 }

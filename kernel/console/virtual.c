@@ -222,8 +222,8 @@ static void set_font(struct virtual_console* console, struct font* font) {
     flush_if_active(console);
 }
 
-static bool unblock_waitactive(void* ctx) {
-    struct virtual_console* console = ctx;
+static bool wake_waitactive(void* ctx) {
+    const struct virtual_console* console = ctx;
     return active_console == console;
 }
 
@@ -481,7 +481,7 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
     case VT_WAITACTIVE: {
         if (arg == 0 || arg > NUM_CONSOLES)
             return -ENXIO;
-        int rc = sched_block(unblock_waitactive, consoles[arg - 1], 0);
+        int rc = sched_wait_interruptible(wake_waitactive, consoles[arg - 1]);
         if (IS_ERR(rc))
             return rc;
         break;

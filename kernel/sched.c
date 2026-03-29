@@ -110,26 +110,27 @@ static void get_pending_signals(struct task* task, sigset_t* out_set) {
     task_get_pending_signals(task, out_set);
 }
 
-static void unblock_tasks(void) {
+static void wake_tasks(void) {
     SCOPED_LOCK(spinlock, &blocked_tasks_lock);
 
     struct task* prev = NULL;
     for (struct task* task = blocked_tasks; task;) {
         bool ready = false;
         switch (task->state) {
-        case TASK_UNINTERRUPTIBLE:
-        case TASK_INTERRUPTIBLE: {
-            ASSERT_PTR(task->unblock);
+        case TASK_INTERRUPTIBLE:
+        case TASK_UNINTERRUPTIBLE: {
+            struct wait_state* wait = &task->wait_state;
+            ASSERT_PTR(wait->wake);
+
             bool interrupted = false;
             if (task->state == TASK_INTERRUPTIBLE) {
                 sigset_t signals;
                 get_pending_signals(task, &signals);
                 interrupted = !sigisemptyset(&signals);
             }
-            if (interrupted || task->unblock(task->block_data)) {
-                task->unblock = NULL;
-                task->block_data = NULL;
-                task->interrupted = interrupted;
+
+            if (interrupted || wait->wake(wait->ctx)) {
+                *wait = (struct wait_state){.interrupted = interrupted};
                 ready = true;
             }
             break;
@@ -192,7 +193,7 @@ void sched_yield(void) {
     struct task* prev_task = cpu->current_task;
     ASSERT_PTR(prev_task);
 
-    unblock_tasks();
+    wake_tasks();
 
     if (!ready_queue && prev_task->state == TASK_RUNNING) {
         // No other task is ready to run. Continue running the current task.
@@ -224,8 +225,8 @@ void sched_reschedule(struct task* task) {
         if (task != cpu_get_current()->idle_task)
             enqueue_ready(task);
         break;
-    case TASK_UNINTERRUPTIBLE:
     case TASK_INTERRUPTIBLE:
+    case TASK_UNINTERRUPTIBLE:
     case TASK_STOPPED:
         add_blocked(task);
         break;
@@ -257,27 +258,43 @@ void sched_tick(struct registers* regs) {
         signal_handle(regs, signum, &act);
 }
 
-static bool never_unblock(void* data) {
-    (void)data;
+static bool never_wake(void* ctx) {
+    (void)ctx;
     return false;
 }
 
-int sched_block(unblock_fn unblock, void* data, int flags) {
-    ASSERT(!current->unblock);
-    ASSERT(!current->block_data);
-    current->interrupted = false;
+NODISCARD static int wait(wake_fn wake, void* ctx, unsigned state) {
+    ASSERT(current->state == TASK_RUNNING);
 
-    if (unblock && unblock(data))
+    struct wait_state* wait = &current->wait_state;
+    ASSERT(!wait->wake);
+    ASSERT(!wait->ctx);
+    *wait = (struct wait_state){0};
+
+    if (wake && wake(ctx))
         return 0;
 
     SCOPED_DISABLE_INTERRUPTS();
 
-    current->unblock = unblock ? unblock : never_unblock;
-    current->block_data = data;
-    current->state = (flags & BLOCK_UNINTERRUPTIBLE) ? TASK_UNINTERRUPTIBLE
-                                                     : TASK_INTERRUPTIBLE;
+    *wait = (struct wait_state){
+        .wake = wake ? wake : never_wake,
+        .ctx = ctx,
+    };
+    current->state = state;
 
     sched_yield();
 
-    return current->interrupted ? -EINTR : 0;
+    ASSERT(current->state == TASK_RUNNING);
+
+    int rc = wait->interrupted ? -EINTR : 0;
+    *wait = (struct wait_state){0};
+    return rc;
+}
+
+void sched_wait(wake_fn wake, void* ctx) {
+    ASSERT_OK(wait(wake, ctx, TASK_UNINTERRUPTIBLE));
+}
+
+int sched_wait_interruptible(wake_fn wake, void* ctx) {
+    return wait(wake, ctx, TASK_INTERRUPTIBLE);
 }

@@ -16,13 +16,11 @@
 #include <kernel/system.h>
 #include <kernel/task/workqueue.h>
 
-enum {
-    TASK_RUNNING,
-    TASK_UNINTERRUPTIBLE,
-    TASK_INTERRUPTIBLE,
-    TASK_STOPPED,
-    TASK_DEAD,
-};
+#define TASK_RUNNING 0x0
+#define TASK_INTERRUPTIBLE 0x1
+#define TASK_UNINTERRUPTIBLE 0x2
+#define TASK_STOPPED 0x4
+#define TASK_DEAD 0x80
 
 struct task {
     pid_t tid;
@@ -43,9 +41,7 @@ struct task {
     sigset_t pending_signals;
     sigset_t blocked_signals;
 
-    unblock_fn unblock;
-    void* block_data;
-    bool interrupted;
+    struct wait_state wait_state;
 
     struct thread_group* thread_group;
 

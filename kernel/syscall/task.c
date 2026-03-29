@@ -124,8 +124,8 @@ struct pid_waiter {
     int status;
 };
 
-static bool unblock_waitpid(void* data) {
-    struct pid_waiter* waiter = data;
+static bool wake_waitpid(void* ctx) {
+    struct pid_waiter* waiter = ctx;
     SCOPED_LOCK(spinlock, &tasks_lock);
     for (;;) {
         struct task* prev = NULL;
@@ -230,10 +230,10 @@ NODISCARD static pid_t wait4(pid_t pid, int* user_wstatus, int options,
     }
 
     if (options & WNOHANG) {
-        if (!unblock_waitpid(&waiter))
+        if (!wake_waitpid(&waiter))
             return 0;
     } else {
-        int rc = sched_block(unblock_waitpid, &waiter, 0);
+        int rc = sched_wait_interruptible(wake_waitpid, &waiter);
         if (rc == -EINTR)
             return -ERESTARTSYS;
         if (IS_ERR(rc))

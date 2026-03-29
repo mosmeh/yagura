@@ -45,8 +45,8 @@ void workqueue_submit_delayed(struct workqueue* wq, struct work* work,
     tree_insert(&wq->works, parent, *new_node);
 }
 
-static bool unblock_dispatch(void* data) {
-    struct workqueue* wq = data;
+static bool wake_dispatch(void* ctx) {
+    struct workqueue* wq = ctx;
 
     SCOPED_LOCK(spinlock, &wq->lock);
 
@@ -96,6 +96,6 @@ void workqueue_dispatch(struct workqueue* wq) {
             executed = true;
         if (executed)
             return;
-        ASSERT_OK(sched_block(unblock_dispatch, wq, BLOCK_UNINTERRUPTIBLE));
+        sched_wait(wake_dispatch, wq);
     }
 }

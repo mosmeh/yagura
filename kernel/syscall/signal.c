@@ -235,7 +235,9 @@ SYSCALL4(rt_sigprocmask, int, how, const sigset_t*, user_set, sigset_t*,
     return 0;
 }
 
-NODISCARD static int pause(void) { return sched_block(NULL, NULL, 0); }
+NODISCARD static int pause(void) {
+    return sched_wait_interruptible(NULL, NULL);
+}
 
 SYSCALL0(pause) { return pause(); }
 
