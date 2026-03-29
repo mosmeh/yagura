@@ -427,6 +427,76 @@ static void handle_csi_el(struct vt* vt) {
     }
 }
 
+// Returns the index of the last parameter parsed.
+static size_t handle_t416_color(struct vt* vt, size_t param_index, bool fg) {
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+
+    if (param_index + 1 >= vt->num_params)
+        return param_index;
+    switch (vt->params[++param_index]) {
+    case 2: // 24-bit color
+        if (param_index + 3 >= vt->num_params)
+            return param_index;
+        r = vt->params[++param_index];
+        g = vt->params[++param_index];
+        b = vt->params[++param_index];
+        break;
+    case 5: { // 8-bit color
+        if (param_index + 1 >= vt->num_params)
+            return param_index;
+        unsigned color = vt->params[++param_index];
+        if (color < 8) {
+            r = (color & 1) ? 0xaa : 0;
+            g = (color & 2) ? 0xaa : 0;
+            b = (color & 4) ? 0xaa : 0;
+        } else if (color < 16) {
+            r = (color & 1) ? 0xff : 0x55;
+            g = (color & 2) ? 0xff : 0x55;
+            b = (color & 4) ? 0xff : 0x55;
+        } else if (color < 232) {
+            color -= 16;
+            b = color % 6 * 255 / 6;
+            color /= 6;
+            g = color % 6 * 255 / 6;
+            color /= 6;
+            r = color * 255 / 6;
+        } else {
+            r = g = b = color * 10 - 2312;
+        }
+        break;
+    }
+    default:
+        return param_index;
+    }
+
+    if (fg) {
+        uint8_t hue = 0;
+        uint8_t max = MAX(r, MAX(g, b));
+        if (r > max / 2)
+            hue |= 1;
+        if (g > max / 2)
+            hue |= 2;
+        if (b > max / 2)
+            hue |= 4;
+        if (hue == 7 && max <= 0x55) {
+            hue = 0;
+            vt->intensity = VT_INTENSITY_BOLD;
+        } else if (max > 0xaa) {
+            vt->intensity = VT_INTENSITY_BOLD;
+        } else {
+            vt->intensity = VT_INTENSITY_NORMAL;
+        }
+        vt->fg_color = hue;
+    } else {
+        vt->bg_color =
+            ((r & 0x80) >> 7) | ((g & 0x80) >> 6) | ((b & 0x80) >> 5);
+    }
+
+    return param_index;
+}
+
 // Select Graphic Rendition
 __extension__ static void handle_csi_sgr(struct vt* vt) {
     for (size_t i = 0; i < vt->num_params; ++i) {
@@ -476,11 +546,17 @@ __extension__ static void handle_csi_sgr(struct vt* vt) {
         case 30 ... 37:
             vt->fg_color = p - 30;
             break;
+        case 38:
+            i = handle_t416_color(vt, i, true);
+            break;
         case 39:
             vt->fg_color = DEFAULT_FG_COLOR;
             break;
         case 40 ... 47:
             vt->bg_color = p - 40;
+            break;
+        case 48:
+            i = handle_t416_color(vt, i, false);
             break;
         case 49:
             vt->bg_color = DEFAULT_BG_COLOR;
