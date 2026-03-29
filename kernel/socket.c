@@ -28,8 +28,8 @@ struct unix_socket {
     _Atomic(bool) is_connected;
     _Atomic(struct file*) connector_file;
 
-    struct ring_buf* to_connector_buf;
-    struct ring_buf* to_acceptor_buf;
+    struct ring_buf* ring_to_connector;
+    struct ring_buf* ring_to_acceptor;
 
     _Atomic(bool) is_open_for_writing_to_connector;
     _Atomic(bool) is_open_for_writing_to_acceptor;
@@ -66,8 +66,8 @@ static struct unix_socket* unix_socket_from_file(struct file* file) {
 
 static void unix_socket_destroy(struct inode* inode) {
     struct unix_socket* socket = unix_socket_from_inode(inode);
-    ring_buf_destroy(socket->to_connector_buf);
-    ring_buf_destroy(socket->to_acceptor_buf);
+    ring_buf_destroy(socket->ring_to_connector);
+    ring_buf_destroy(socket->ring_to_acceptor);
     slab_free(&unix_socket_slab, socket);
 }
 
@@ -82,28 +82,28 @@ static bool is_connector(struct file* file) {
 }
 
 static bool is_open_for_reading(struct file* file) {
-    struct unix_socket* socket = unix_socket_from_file(file);
+    const struct unix_socket* socket = unix_socket_from_file(file);
     return is_connector(file) ? socket->is_open_for_writing_to_connector
                               : socket->is_open_for_writing_to_acceptor;
 }
 
-static struct ring_buf* buf_to_read(struct file* file) {
-    struct unix_socket* socket = unix_socket_from_file(file);
-    return is_connector(file) ? socket->to_connector_buf
-                              : socket->to_acceptor_buf;
+static struct ring_buf* ring_to_read(struct file* file) {
+    const struct unix_socket* socket = unix_socket_from_file(file);
+    return is_connector(file) ? socket->ring_to_connector
+                              : socket->ring_to_acceptor;
 }
 
-static struct ring_buf* buf_to_write(struct file* file) {
-    struct unix_socket* socket = unix_socket_from_file(file);
-    return is_connector(file) ? socket->to_acceptor_buf
-                              : socket->to_connector_buf;
+static struct ring_buf* ring_to_write(struct file* file) {
+    const struct unix_socket* socket = unix_socket_from_file(file);
+    return is_connector(file) ? socket->ring_to_acceptor
+                              : socket->ring_to_connector;
 }
 
 static bool is_readable(struct file* file) {
     if (!is_open_for_reading(file))
         return true;
-    struct ring_buf* buf = buf_to_read(file);
-    return !ring_buf_is_empty(buf);
+    const struct ring_buf* ring = ring_to_read(file);
+    return !ring_buf_is_empty(ring);
 }
 
 static bool wake_read(struct file* file, void* ctx) {
@@ -119,7 +119,7 @@ static ssize_t unix_socket_pread(struct file* file, void* user_buffer,
     if (!socket->is_connected)
         return -EINVAL;
 
-    struct ring_buf* buf = buf_to_read(file);
+    struct ring_buf* ring = ring_to_read(file);
     for (;;) {
         int rc = file_wait(file, wake_read, NULL);
         if (IS_ERR(rc))
@@ -127,10 +127,8 @@ static ssize_t unix_socket_pread(struct file* file, void* user_buffer,
 
         {
             SCOPED_LOCK(unix_socket, socket);
-            if (!ring_buf_is_empty(buf)) {
-                ssize_t nread = ring_buf_read_to_user(buf, user_buffer, count);
-                return nread;
-            }
+            if (!ring_buf_is_empty(ring))
+                return ring_buf_read_to_user(ring, user_buffer, count);
         }
 
         if (!is_open_for_reading(file))
@@ -146,8 +144,8 @@ static bool is_writable(struct file* file) {
     } else if (!socket->is_open_for_writing_to_connector) {
         return true;
     }
-    struct ring_buf* buf = buf_to_write(file);
-    return !ring_buf_is_full(buf);
+    const struct ring_buf* ring = ring_to_write(file);
+    return !ring_buf_is_full(ring);
 }
 
 static bool wake_write(struct file* file, void* ctx) {
@@ -163,7 +161,7 @@ static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
     if (!socket->is_connected)
         return -ENOTCONN;
 
-    struct ring_buf* buf = buf_to_write(file);
+    struct ring_buf* ring = ring_to_write(file);
     for (;;) {
         int rc = file_wait(file, wake_write, NULL);
         if (IS_ERR(rc))
@@ -177,11 +175,8 @@ static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
         }
 
         SCOPED_LOCK(unix_socket, socket);
-        if (!ring_buf_is_full(buf)) {
-            ssize_t nwritten =
-                ring_buf_write_from_user(buf, user_buffer, count);
-            return nwritten;
-        }
+        if (!ring_buf_is_full(ring))
+            return ring_buf_write_from_user(ring, user_buffer, count);
     }
 }
 
@@ -234,22 +229,22 @@ struct inode* unix_socket_create(void) {
     socket->is_open_for_writing_to_connector = true;
     socket->is_open_for_writing_to_acceptor = true;
 
-    struct ring_buf* to_acceptor_buf FREE(ring_buf) =
+    struct ring_buf* ring_to_acceptor FREE(ring_buf) =
         ASSERT(ring_buf_create(PAGE_SIZE));
-    if (IS_ERR(to_acceptor_buf)) {
+    if (IS_ERR(ring_to_acceptor)) {
         slab_free(&unix_socket_slab, socket);
-        return ERR_CAST(to_acceptor_buf);
+        return ERR_CAST(ring_to_acceptor);
     }
 
-    struct ring_buf* to_connector_buf FREE(ring_buf) =
+    struct ring_buf* ring_to_connector FREE(ring_buf) =
         ASSERT(ring_buf_create(PAGE_SIZE));
-    if (IS_ERR(to_connector_buf)) {
+    if (IS_ERR(ring_to_connector)) {
         slab_free(&unix_socket_slab, socket);
-        return ERR_CAST(to_connector_buf);
+        return ERR_CAST(ring_to_connector);
     }
 
-    socket->to_acceptor_buf = TAKE_PTR(to_acceptor_buf);
-    socket->to_connector_buf = TAKE_PTR(to_connector_buf);
+    socket->ring_to_acceptor = TAKE_PTR(ring_to_acceptor);
+    socket->ring_to_connector = TAKE_PTR(ring_to_connector);
 
     int rc = mount_commit_inode(sock_mount, inode);
     if (IS_ERR(rc)) {
