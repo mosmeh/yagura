@@ -133,10 +133,8 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
 
             while (count) {
                 struct attr_char ac;
-                ssize_t n = ring_buf_read(tty->input_buf, &ac, sizeof(ac));
-                if (IS_ERR(n))
-                    return n;
-                if (!n)
+                size_t n = ring_buf_read(tty->input_buf, &ac, sizeof(ac));
+                if (n == 0)
                     break;
                 ASSERT(n == sizeof(ac));
                 if (ac.ch) {

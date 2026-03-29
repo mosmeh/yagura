@@ -35,8 +35,8 @@ static inline bool ring_buf_is_full(const struct ring_buf* b) {
     return (b->write_index + 1) % b->len == b->read_index;
 }
 
-NODISCARD static inline ssize_t ring_buf_read(struct ring_buf* b, void* bytes,
-                                              size_t count) {
+NODISCARD static inline size_t ring_buf_read(struct ring_buf* b, void* bytes,
+                                             size_t count) {
     size_t nread = 0;
     unsigned char* dest = bytes;
     const unsigned char* src = b->ring;
@@ -66,8 +66,8 @@ ring_buf_read_to_user(struct ring_buf* b, void* user_bytes, size_t count) {
     return nread;
 }
 
-NODISCARD static inline ssize_t
-ring_buf_write(struct ring_buf* b, const void* bytes, size_t count) {
+NODISCARD static inline size_t ring_buf_write(struct ring_buf* b,
+                                              const void* bytes, size_t count) {
     size_t nwritten = 0;
     unsigned char* dest = b->ring;
     const unsigned char* src = bytes;
@@ -98,9 +98,9 @@ NODISCARD static inline ssize_t ring_buf_write_from_user(struct ring_buf* b,
     return nwritten;
 }
 
-static inline ssize_t ring_buf_write_evicting_oldest(struct ring_buf* b,
-                                                     const void* bytes,
-                                                     size_t count) {
+static inline size_t ring_buf_write_evicting_oldest(struct ring_buf* b,
+                                                    const void* bytes,
+                                                    size_t count) {
     size_t nwritten = 0;
     unsigned char* dest = b->ring;
     const unsigned char* src = bytes;
