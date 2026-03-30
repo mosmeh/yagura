@@ -535,6 +535,8 @@ int proc_print_meminfo(struct file* file, struct vec* vec) {
     memory_get_stats(&stats);
     return vec_printf(vec,
                       "MemTotal: %8zu kB\n"
-                      "MemFree:  %8zu kB\n",
-                      stats.total_kibibytes, stats.free_kibibytes);
+                      "MemFree:  %8zu kB\n"
+                      "MemAvailable: %8zu kB\n",
+                      stats.total_kibibytes, stats.free_kibibytes,
+                      stats.free_kibibytes);
 }
