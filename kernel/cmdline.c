@@ -1,4 +1,5 @@
 #include <common/string.h>
+#include <kernel/containers/vec.h>
 #include <kernel/kmsg.h>
 #include <kernel/system.h>
 
@@ -45,8 +46,6 @@ void cmdline_init(const char* str) {
     }
 }
 
-const char* cmdline_get_raw(void) { return raw; }
-
 const char* cmdline_lookup(const char* key) {
     for (size_t i = 0; i < num_keys; ++i) {
         if (!strcmp(keys[i], key))
@@ -61,4 +60,9 @@ bool cmdline_contains(const char* key) {
             return true;
     }
     return false;
+}
+
+int proc_print_cmdline(struct file* file, struct vec* vec) {
+    (void)file;
+    return vec_printf(vec, "%s\n", raw);
 }

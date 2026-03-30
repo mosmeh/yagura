@@ -1,4 +1,5 @@
 #include <common/stdint.h>
+#include <kernel/containers/vec.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
@@ -62,12 +63,14 @@ const struct symbol* ksyms_lookup(uintptr_t addr) {
     return NULL;
 }
 
-const struct symbol* ksyms_next(const struct symbol* symbol) {
-    if (num_symbols == 0)
-        return NULL;
-    if (symbol == NULL || symbol < symbols)
-        return symbols;
-    if (symbol >= symbols + num_symbols - 1)
-        return NULL;
-    return symbol + 1;
+int proc_print_kallsyms(struct file* file, struct vec* vec) {
+    (void)file;
+    for (const struct symbol* symbol = symbols; symbol < symbols + num_symbols;
+         ++symbol) {
+        int rc = vec_printf(vec, "%p %c %s\n", (void*)symbol->addr,
+                            symbol->type, symbol->name);
+        if (IS_ERR(rc))
+            return rc;
+    }
+    return 0;
 }

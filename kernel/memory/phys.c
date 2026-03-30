@@ -2,6 +2,7 @@
 #include <common/limits.h>
 #include <common/stdlib.h>
 #include <common/string.h>
+#include <kernel/containers/vec.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/phys.h>
 #include <kernel/memory/vm.h>
@@ -526,4 +527,14 @@ void memory_get_stats(struct memory_stats* out_stats) {
         .total_kibibytes = (total_pages << PAGE_SHIFT) / 1024,
         .free_kibibytes = (free_pages << PAGE_SHIFT) / 1024,
     };
+}
+
+int proc_print_meminfo(struct file* file, struct vec* vec) {
+    (void)file;
+    struct memory_stats stats;
+    memory_get_stats(&stats);
+    return vec_printf(vec,
+                      "MemTotal: %8zu kB\n"
+                      "MemFree:  %8zu kB\n",
+                      stats.total_kibibytes, stats.free_kibibytes);
 }

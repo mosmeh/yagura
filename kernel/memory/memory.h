@@ -126,6 +126,7 @@ void slab_free(struct slab*, void*);
 // allocated by any slab.
 struct slab* slab_lookup(void*);
 
+int proc_print_meminfo(struct file*, struct vec*);
 int proc_print_slabinfo(struct file*, struct vec*);
 
 #endif

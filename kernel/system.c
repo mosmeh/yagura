@@ -3,6 +3,7 @@
 #include <kernel/arch/context.h>
 #include <kernel/arch/io.h>
 #include <kernel/arch/system.h>
+#include <kernel/containers/vec.h>
 #include <kernel/cpu.h>
 #include <kernel/fs/vfs.h>
 #include <kernel/interrupts.h>
@@ -55,6 +56,14 @@ int utsname_set_domainname(const char* domainname, size_t len) {
     memcpy(uts_domainname, domainname, len);
     memset(uts_domainname + len, 0, sizeof(uts_domainname) - len);
     return 0;
+}
+
+int proc_print_version(struct file* file, struct vec* vec) {
+    (void)file;
+    struct utsname utsname;
+    utsname_get(&utsname);
+    return vec_printf(vec, "%s version %s %s\n", utsname.sysname,
+                      utsname.release, utsname.version);
 }
 
 void reboot(const char* cmd) {

@@ -3,43 +3,13 @@
 #include <common/stdio.h>
 #include <common/stdlib.h>
 #include <kernel/api/dirent.h>
-#include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
-#include <kernel/cpu.h>
-#include <kernel/device/device.h>
+#include <kernel/fs/inode.h>
 #include <kernel/fs/vfs.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
 #include <kernel/task/task.h>
 #include <kernel/time.h>
-
-static int print_cmdline(struct file* file, struct vec* vec) {
-    (void)file;
-    return vec_printf(vec, "%s\n", cmdline_get_raw());
-}
-
-static int print_kallsyms(struct file* file, struct vec* vec) {
-    (void)file;
-    const struct symbol* symbol = NULL;
-    while ((symbol = ksyms_next(symbol))) {
-        int rc = vec_printf(vec, "%p %c %s\n", (void*)symbol->addr,
-                            symbol->type, symbol->name);
-        if (IS_ERR(rc))
-            return rc;
-    }
-    return 0;
-}
-
-static int print_meminfo(struct file* file, struct vec* vec) {
-    (void)file;
-    struct memory_stats stats;
-    memory_get_stats(&stats);
-
-    return vec_printf(vec,
-                      "MemTotal: %8zu kB\n"
-                      "MemFree:  %8zu kB\n",
-                      stats.total_kibibytes, stats.free_kibibytes);
-}
 
 static int print_self(struct file* file, struct vec* vec) {
     (void)file;
@@ -78,25 +48,17 @@ static int print_uptime(struct file* file, struct vec* vec) {
     return vec_append(vec, "\n", 1);
 }
 
-static int print_version(struct file* file, struct vec* vec) {
-    (void)file;
-    struct utsname utsname;
-    utsname_get(&utsname);
-    return vec_printf(vec, "%s version %s %s\n", utsname.sysname,
-                      utsname.release, utsname.version);
-}
-
 static const struct proc_entry entries[] = {
-    {"cmdline", S_IFREG, print_cmdline},
+    {"cmdline", S_IFREG, proc_print_cmdline},
     {"cpuinfo", S_IFREG, proc_print_cpuinfo},
     {"filesystems", S_IFREG, proc_print_filesystems},
-    {"kallsyms", S_IFREG, print_kallsyms},
-    {"meminfo", S_IFREG, print_meminfo},
+    {"kallsyms", S_IFREG, proc_print_kallsyms},
+    {"meminfo", S_IFREG, proc_print_meminfo},
     {"mounts", S_IFREG, proc_print_mounts},
     {"self", S_IFLNK, print_self},
     {"slabinfo", S_IFREG, proc_print_slabinfo},
     {"uptime", S_IFREG, print_uptime},
-    {"version", S_IFREG, print_version},
+    {"version", S_IFREG, proc_print_version},
 };
 
 struct inode* proc_root_lookup(struct inode* parent, const char* name) {
@@ -131,9 +93,8 @@ int proc_root_getdents(struct file* file, getdents_callback_fn callback,
             if (!task)
                 break;
         }
-        for (; task && ntids < ARRAY_SIZE(tids); task = task->tasks_next) {
+        for (; task && ntids < ARRAY_SIZE(tids); task = task->tasks_next)
             tids[ntids++] = task->tid;
-        }
     }
 
     for (size_t i = 0; i < ntids; ++i) {
