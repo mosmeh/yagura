@@ -24,7 +24,7 @@
 
 static const uint16_t to_vga_color[] = {
     0,  // black
-    4,  // read
+    4,  // red
     2,  // green
     6,  // brown
     1,  // blue

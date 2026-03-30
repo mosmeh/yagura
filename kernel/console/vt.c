@@ -11,7 +11,10 @@
 // ANSI escape code colors
 #define DEFAULT_FG_COLOR 7 // White
 #define DEFAULT_BG_COLOR 0 // Black
-#define BRIGHTEN_COLOR 0x8
+#define ITALIC_COLOR 2     // Green
+#define UNDERLINE_COLOR 6  // Cyan
+#define FAINT_COLOR 8      // Bright black
+#define COLOR_BRIGHT 0x8
 
 struct cell {
     char ch;
@@ -22,8 +25,10 @@ struct cell {
 
 #define VT_STOMP 0x1
 #define VT_CURSOR_VISIBLE 0x2
-#define VT_BOLD 0x4
-#define VT_COLOR_REVERSED 0x8
+#define VT_ITALIC 0x4
+#define VT_UNDERLINE 0x8
+#define VT_BLINK 0x10
+#define VT_COLOR_REVERSED 0x20
 
 #define VT_WHOLE_SCREEN_DIRTY 0x100
 #define VT_CURSOR_DIRTY 0x200
@@ -32,6 +37,12 @@ struct cell {
 
 #define VT_ALL_DIRTY                                                           \
     (VT_WHOLE_SCREEN_DIRTY | VT_CURSOR_DIRTY | VT_PALETTE_DIRTY | VT_FONT_DIRTY)
+
+enum {
+    VT_INTENSITY_NORMAL,
+    VT_INTENSITY_BOLD,
+    VT_INTENSITY_FAINT,
+};
 
 struct vt {
     struct screen* screen;
@@ -61,6 +72,7 @@ struct vt {
 
     struct cell* cells;
     unsigned flags;
+    unsigned char intensity;
 };
 
 static void invalidate_cell(struct vt* vt, size_t x, size_t y) {
@@ -115,11 +127,25 @@ static void write_char_at(struct vt* vt, size_t x, size_t y, char c) {
     ASSERT(x < vt->num_columns);
     ASSERT(y < vt->num_rows);
 
-    uint8_t new_fg_color =
-        ((vt->flags & VT_COLOR_REVERSED) ? vt->bg_color : vt->fg_color) |
-        ((vt->flags & VT_BOLD) ? BRIGHTEN_COLOR : 0);
-    uint8_t new_bg_color =
-        (vt->flags & VT_COLOR_REVERSED) ? vt->fg_color : vt->bg_color;
+    uint8_t new_fg_color = vt->fg_color;
+    uint8_t new_bg_color = vt->bg_color;
+    if (vt->flags & VT_ITALIC)
+        new_fg_color = ITALIC_COLOR;
+    else if (vt->flags & VT_UNDERLINE)
+        new_fg_color = UNDERLINE_COLOR;
+    else if (vt->intensity == VT_INTENSITY_FAINT)
+        new_fg_color = FAINT_COLOR;
+    if (vt->flags & VT_COLOR_REVERSED) {
+        // Swap colors but keep the COLOR_BRIGHT bit unchanged.
+        uint8_t fg = new_fg_color;
+        uint8_t bg = new_bg_color;
+        new_fg_color = (fg & COLOR_BRIGHT) | (bg & ~COLOR_BRIGHT);
+        new_bg_color = (bg & COLOR_BRIGHT) | (fg & ~COLOR_BRIGHT);
+    }
+    if (vt->flags & VT_BLINK)
+        new_bg_color ^= COLOR_BRIGHT;
+    if (vt->intensity == VT_INTENSITY_BOLD)
+        new_fg_color ^= COLOR_BRIGHT;
 
     struct cell* cell = vt->cells + x + y * vt->num_columns;
     if (cell->ch == c && cell->fg_color == new_fg_color &&
@@ -402,34 +428,71 @@ static void handle_csi_el(struct vt* vt) {
 }
 
 // Select Graphic Rendition
-static void handle_csi_sgr(struct vt* vt) {
+__extension__ static void handle_csi_sgr(struct vt* vt) {
     for (size_t i = 0; i < vt->num_params; ++i) {
         unsigned p = vt->params[i];
-        if (p == 0) {
+        switch (p) {
+        case 0:
             vt->fg_color = DEFAULT_FG_COLOR;
             vt->bg_color = DEFAULT_BG_COLOR;
-            vt->flags &= ~(VT_BOLD | VT_COLOR_REVERSED);
-        } else if (p == 1) {
-            vt->flags |= VT_BOLD;
-        } else if (p == 7) {
+            vt->flags &=
+                ~(VT_ITALIC | VT_UNDERLINE | VT_BLINK | VT_COLOR_REVERSED);
+            vt->intensity = VT_INTENSITY_NORMAL;
+            break;
+        case 1:
+            vt->intensity = VT_INTENSITY_BOLD;
+            break;
+        case 2:
+            vt->intensity = VT_INTENSITY_FAINT;
+            break;
+        case 3:
+            vt->flags |= VT_ITALIC;
+            break;
+        case 4:  // Underline
+        case 21: // Double underline
+            vt->flags |= VT_UNDERLINE;
+            break;
+        case 5:
+            vt->flags |= VT_BLINK;
+            break;
+        case 7:
             vt->flags |= VT_COLOR_REVERSED;
-        } else if (p == 22) {
-            vt->flags &= ~VT_BOLD;
-        } else if (p == 27) {
+            break;
+        case 22:
+            vt->intensity = VT_INTENSITY_NORMAL;
+            break;
+        case 23:
+            vt->flags &= ~VT_ITALIC;
+            break;
+        case 24:
+            vt->flags &= ~VT_UNDERLINE;
+            break;
+        case 25:
+            vt->flags &= ~VT_BLINK;
+            break;
+        case 27:
             vt->flags &= ~VT_COLOR_REVERSED;
-        } else if (30 <= p && p <= 37) {
+            break;
+        case 30 ... 37:
             vt->fg_color = p - 30;
-        } else if (p == 39) {
+            break;
+        case 39:
             vt->fg_color = DEFAULT_FG_COLOR;
-        } else if (40 <= p && p <= 47) {
+            break;
+        case 40 ... 47:
             vt->bg_color = p - 40;
-        } else if (p == 49) {
+            break;
+        case 49:
             vt->bg_color = DEFAULT_BG_COLOR;
-        } else if (90 <= p && p <= 97) {
-            vt->fg_color = (p - 90) | BRIGHTEN_COLOR;
-        } else if (100 <= p && p <= 107) {
-            // Linux does not support bright background colors
+            break;
+        case 90 ... 97:
+            vt->fg_color = p - 90;
+            vt->intensity = VT_INTENSITY_BOLD;
+            break;
+        case 100 ... 107:
+            // Linux does not support bold intensity for background colors
             vt->bg_color = p - 100;
+            break;
         }
     }
 }
