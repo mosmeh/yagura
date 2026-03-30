@@ -5,6 +5,8 @@
 
 struct task;
 struct registers;
+struct file;
+struct vec;
 
 void sched_init_smp(void);
 
@@ -36,6 +38,16 @@ struct wait_state {
 // If wake function is NULL, the task will be blocked forever.
 void sched_wait(wake_fn, void* ctx);
 
+// Same as `sched_wait()` except that the task will not contribute to
+// load average while waiting.
+void sched_wait_as_idle(wake_fn, void* ctx);
+
 // Same as `sched_wait()` except that it can be interrupted by signals.
 // Returns -EINTR if interrupted by a signal.
 NODISCARD int sched_wait_interruptible(wake_fn, void* ctx);
+
+// Gets the 1, 5, and 15 minute load averages in the format used by
+// the `loads` field of `struct sysinfo`.
+void sched_get_loads(unsigned long out_loads[3]);
+
+int proc_print_loadavg(struct file*, struct vec*);

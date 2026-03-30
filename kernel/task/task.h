@@ -16,11 +16,15 @@
 #include <kernel/system.h>
 #include <kernel/task/workqueue.h>
 
-#define TASK_RUNNING 0x0
-#define TASK_INTERRUPTIBLE 0x1
-#define TASK_UNINTERRUPTIBLE 0x2
-#define TASK_STOPPED 0x4
-#define TASK_DEAD 0x80
+#define TASK_RUNNING 0x0         // Running or runnable
+#define TASK_INTERRUPTIBLE 0x1   // Sleeping and can be woken by a signal
+#define TASK_UNINTERRUPTIBLE 0x2 // Sleeping and cannot be woken by a signal
+#define TASK_STOPPED 0x4         // Stopped and can be woken by SIGCONT
+#define TASK_DEAD 0x80           // Exiting or exited
+
+#define TASK_NOLOAD 0x400 // Task should not be counted in load average
+
+#define TASK_IDLE (TASK_UNINTERRUPTIBLE | TASK_NOLOAD)
 
 struct task {
     pid_t tid;
@@ -84,7 +88,10 @@ DEFINE_REFCOUNTED_BASE(task, struct task, refcount, __task_destroy)
 // by `flags` (`CLONE_*`).
 NODISCARD int task_unshare(unsigned long flags);
 
-pid_t task_generate_next_tid(void);
+// Allocates `n` consecutive tids and returns the last one.
+pid_t task_alloc_tid(size_t n);
+
+// Finds a task by its tid. Returns NULL if not found.
 struct task* task_find_by_tid(pid_t);
 
 _Noreturn void task_exit(int status);

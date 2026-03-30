@@ -10,8 +10,6 @@
 #include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
-static _Atomic(pid_t) next_tid = 1;
-
 struct task* tasks;
 struct spinlock tasks_lock;
 
@@ -159,7 +157,7 @@ pid_t task_spawn(const char* comm, void (*entry_point)(void)) {
     struct task* task FREE(task) = ASSERT(task_create(comm, entry_point));
     if (IS_ERR(task))
         return PTR_ERR(task);
-    task->tid = task->thread_group->tgid = task_generate_next_tid();
+    task->tid = task->thread_group->tgid = task_alloc_tid(1);
     sched_register(task);
     return task->tid;
 }
@@ -216,7 +214,10 @@ int task_unshare(unsigned long flags) {
     return 0;
 }
 
-pid_t task_generate_next_tid(void) { return atomic_fetch_add(&next_tid, 1); }
+pid_t task_alloc_tid(size_t n) {
+    static _Atomic(pid_t) last_tid = 0;
+    return atomic_fetch_add(&last_tid, n) + n;
+}
 
 struct task* task_find_by_tid(pid_t tid) {
     SCOPED_LOCK(spinlock, &tasks_lock);
@@ -334,7 +335,7 @@ pid_t clone_user_task(struct registers* regs, unsigned long flags,
     if (IS_ERR(rc))
         return rc;
 
-    pid_t tid = task_generate_next_tid();
+    pid_t tid = task_alloc_tid(1);
     task->tid = tid;
     if (!(flags & CLONE_THREAD))
         task->thread_group->tgid = tid;

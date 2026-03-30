@@ -96,6 +96,6 @@ void workqueue_dispatch(struct workqueue* wq) {
             executed = true;
         if (executed)
             return;
-        sched_wait(wake_dispatch, wq);
+        sched_wait_as_idle(wake_dispatch, wq);
     }
 }

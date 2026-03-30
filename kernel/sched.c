@@ -1,5 +1,7 @@
 #include <common/stdio.h>
 #include <common/string.h>
+#include <kernel/api/sys/sysinfo.h>
+#include <kernel/containers/vec.h>
 #include <kernel/cpu.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/memory.h>
@@ -9,6 +11,7 @@
 #include <kernel/system.h>
 #include <kernel/task/signal.h>
 #include <kernel/task/task.h>
+#include <kernel/time.h>
 
 static _Noreturn void do_idle(void) {
     for (;;) {
@@ -118,7 +121,8 @@ static void wake_tasks(void) {
         bool ready = false;
         switch (task->state) {
         case TASK_INTERRUPTIBLE:
-        case TASK_UNINTERRUPTIBLE: {
+        case TASK_UNINTERRUPTIBLE:
+        case TASK_IDLE: {
             struct wait_state* wait = &task->wait_state;
             ASSERT_PTR(wait->wake);
 
@@ -227,6 +231,7 @@ void sched_reschedule(struct task* task) {
         break;
     case TASK_INTERRUPTIBLE:
     case TASK_UNINTERRUPTIBLE:
+    case TASK_IDLE:
     case TASK_STOPPED:
         add_blocked(task);
         break;
@@ -238,6 +243,83 @@ void sched_reschedule(struct task* task) {
     task_unref(task);
 }
 
+#define FIXED_SHIFT 11
+#define FIXED_1 (1 << FIXED_SHIFT)
+#define FIXED_INT(x) ((x) >> FIXED_SHIFT)
+#define FIXED_FRAC(x) FIXED_INT(((x) & (FIXED_1 - 1)) * 100)
+
+#define LOAD_FREQ (5 * CLK_TCK + 1)
+#define EXP_1 1884
+#define EXP_5 2014
+#define EXP_15 2037
+
+static unsigned long fold_load(unsigned long load, unsigned long exp,
+                               unsigned long active) {
+    unsigned long x = load * exp + active * (FIXED_1 - exp);
+    if (active >= load)
+        x += FIXED_1 - 1;
+    return x / FIXED_1;
+}
+
+static _Atomic(unsigned long) loads[3];
+
+static void update_loads(void) {
+    static unsigned long next_update_time;
+    if (!next_update_time)
+        next_update_time = uptime + LOAD_FREQ;
+    if ((long)(uptime - next_update_time) < 0)
+        return;
+
+    size_t num_active = 0;
+    {
+        SCOPED_LOCK(spinlock, &tasks_lock);
+        for (struct task* task = tasks; task; task = task->tasks_next) {
+            switch (task->state) {
+            case TASK_RUNNING:
+            case TASK_UNINTERRUPTIBLE:
+                ++num_active;
+                break;
+            }
+        }
+    }
+
+    unsigned long active = num_active * FIXED_1;
+    loads[0] = fold_load(loads[0], EXP_1, active);
+    loads[1] = fold_load(loads[1], EXP_5, active);
+    loads[2] = fold_load(loads[2], EXP_15, active);
+
+    next_update_time += LOAD_FREQ;
+}
+
+void sched_get_loads(unsigned long out_loads[3]) {
+    for (size_t i = 0; i < 3; ++i)
+        out_loads[i] = loads[i] << (SI_LOAD_SHIFT - FIXED_SHIFT);
+}
+
+int proc_print_loadavg(struct file* file, struct vec* vec) {
+    (void)file;
+
+    unsigned long v[3];
+    for (size_t i = 0; i < 3; ++i)
+        v[i] = loads[i] + FIXED_1 / 200;
+
+    size_t num_tasks = 0;
+    size_t num_running = 0;
+    {
+        SCOPED_LOCK(spinlock, &tasks_lock);
+        for (struct task* task = tasks; task; task = task->tasks_next) {
+            ++num_tasks;
+            if (task->state == TASK_RUNNING)
+                ++num_running;
+        }
+    }
+
+    return vec_printf(vec, "%lu.%02lu %lu.%02lu %lu.%02lu %zu/%zu %d\n",
+                      FIXED_INT(v[0]), FIXED_FRAC(v[0]), FIXED_INT(v[1]),
+                      FIXED_FRAC(v[1]), FIXED_INT(v[2]), FIXED_FRAC(v[2]),
+                      num_running, num_tasks, task_alloc_tid(0));
+}
+
 void sched_tick(struct registers* regs) {
     ASSERT(!arch_interrupts_enabled());
 
@@ -246,6 +328,9 @@ void sched_tick(struct registers* regs) {
         ++current->user_ticks;
     else
         ++current->kernel_ticks;
+
+    if (cpu_get_current() == cpu_get_bsp())
+        update_loads();
 
     sched_yield();
 
@@ -293,6 +378,10 @@ NODISCARD static int wait(wake_fn wake, void* ctx, unsigned state) {
 
 void sched_wait(wake_fn wake, void* ctx) {
     ASSERT_OK(wait(wake, ctx, TASK_UNINTERRUPTIBLE));
+}
+
+void sched_wait_as_idle(wake_fn wake, void* ctx) {
+    ASSERT_OK(wait(wake, ctx, TASK_IDLE));
 }
 
 int sched_wait_interruptible(wake_fn wake, void* ctx) {

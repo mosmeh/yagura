@@ -139,20 +139,22 @@ SYSCALL1(sysinfo, struct sysinfo*, user_info) {
     struct memory_stats memory_stats;
     memory_get_stats(&memory_stats);
 
-    size_t num_procs = 0;
+    size_t num_tasks = 0;
     {
         SCOPED_LOCK(spinlock, &tasks_lock);
         for (struct task* task = tasks; task; task = task->tasks_next)
-            ++num_procs;
+            ++num_tasks;
     }
 
     struct sysinfo info = {
         .uptime = uptime / CLK_TCK,
         .totalram = memory_stats.total_kibibytes,
         .freeram = memory_stats.free_kibibytes,
-        .procs = num_procs,
+        .procs = num_tasks,
         .mem_unit = 1024,
     };
+    sched_get_loads(info.loads);
+
     if (copy_to_user(user_info, &info, sizeof(struct sysinfo)))
         return -EFAULT;
     return 0;

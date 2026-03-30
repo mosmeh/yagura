@@ -53,6 +53,7 @@ static const struct proc_entry entries[] = {
     {"cpuinfo", S_IFREG, proc_print_cpuinfo},
     {"filesystems", S_IFREG, proc_print_filesystems},
     {"kallsyms", S_IFREG, proc_print_kallsyms},
+    {"loadavg", S_IFREG, proc_print_loadavg},
     {"meminfo", S_IFREG, proc_print_meminfo},
     {"mounts", S_IFREG, proc_print_mounts},
     {"self", S_IFLNK, print_self},
