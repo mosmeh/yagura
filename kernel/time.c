@@ -41,7 +41,7 @@ _Atomic(unsigned long) uptime;
 static struct timespec now;
 static struct spinlock now_lock;
 
-void time_init(void) { arch_time(&now); }
+void time_init(void) { arch_time_now(&now); }
 
 void time_tick(void) {
     ++uptime;

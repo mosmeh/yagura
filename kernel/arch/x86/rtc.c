@@ -1,6 +1,7 @@
 #include <common/calendar.h>
 #include <kernel/api/time.h>
 #include <kernel/arch/io.h>
+#include <kernel/arch/system.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
 
@@ -77,7 +78,7 @@ static time_t rtc_now(void) {
     return minutes * 60 + second;
 }
 
-void arch_time(struct timespec* ts) {
+void arch_time_now(struct timespec* ts) {
     *ts = (struct timespec){
         .tv_sec = rtc_now(),
     };

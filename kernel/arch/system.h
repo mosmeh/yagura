@@ -27,6 +27,7 @@ void arch_poweroff(void);
 NODISCARD bool arch_random_init(void);
 NODISCARD ssize_t arch_random_get(void* buffer, size_t count);
 
-void arch_time(struct timespec*);
+// Retrieves the current wall-clock time.
+void arch_time_now(struct timespec*);
 
 bool arch_smp_active(void);
