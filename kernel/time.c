@@ -38,41 +38,42 @@ int timespec_compare(const struct timespec* a, const struct timespec* b) {
 }
 
 _Atomic(unsigned long) uptime;
-static struct timespec now;
-static struct spinlock now_lock;
+static struct timespec realtime, monotonic;
+static struct spinlock lock;
 
-void time_init(void) { arch_time_now(&now); }
+void time_init(void) {
+    struct timespec now;
+    arch_time_now(&now);
+    SCOPED_LOCK(spinlock, &lock);
+    realtime = now;
+}
 
 void time_tick(void) {
     ++uptime;
 
-    SCOPED_LOCK(spinlock, &now_lock);
-    now.tv_nsec += NANOS_PER_SEC / CLK_TCK;
-    if (now.tv_nsec >= NANOS_PER_SEC) {
-        ++now.tv_sec;
-        now.tv_nsec -= NANOS_PER_SEC;
-    }
+    static const struct timespec increment = {
+        .tv_nsec = NANOS_PER_SEC / CLK_TCK,
+    };
+
+    SCOPED_LOCK(spinlock, &lock);
+    timespec_add(&realtime, &increment);
+    timespec_add(&monotonic, &increment);
 }
 
 int time_now(clockid_t clock_id, struct timespec* out_tp) {
     switch (clock_id) {
-    case CLOCK_REALTIME: {
+    case CLOCK_REALTIME:
         if (out_tp) {
-            SCOPED_LOCK(spinlock, &now_lock);
-            *out_tp = now;
+            SCOPED_LOCK(spinlock, &lock);
+            *out_tp = realtime;
         }
         break;
-    }
-    case CLOCK_MONOTONIC: {
+    case CLOCK_MONOTONIC:
         if (out_tp) {
-            unsigned long t = uptime;
-            out_tp->tv_sec = t / CLK_TCK;
-            out_tp->tv_nsec =
-                ((uint64_t)t - (uint64_t)out_tp->tv_sec * CLK_TCK) *
-                NANOS_PER_SEC / CLK_TCK;
+            SCOPED_LOCK(spinlock, &lock);
+            *out_tp = monotonic;
         }
         break;
-    }
     default:
         return -EINVAL;
     }
@@ -85,8 +86,8 @@ int time_set(clockid_t clock_id, const struct timespec* tp) {
 
     switch (clock_id) {
     case CLOCK_REALTIME: {
-        SCOPED_LOCK(spinlock, &now_lock);
-        now = *tp;
+        SCOPED_LOCK(spinlock, &lock);
+        realtime = *tp;
         break;
     }
     default:
