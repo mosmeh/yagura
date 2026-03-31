@@ -87,7 +87,7 @@
     F(sethostname, sys_sethostname)                                            \
     F(setrlimit, sys_ni_syscall)                                               \
     F(getrlimit, sys_ni_syscall)                                               \
-    F(getrusage, sys_ni_syscall)                                               \
+    F(getrusage, sys_getrusage)                                                \
     F(gettimeofday, sys_gettimeofday)                                          \
     F(settimeofday, sys_settimeofday)                                          \
     F(getgroups, sys_getgroups16)                                              \

@@ -2,6 +2,9 @@
 
 #include <kernel/api/sys/time.h>
 
+#define RUSAGE_SELF 0
+#define RUSAGE_THREAD 1
+
 struct linux_rusage {
     struct linux_timeval ru_utime; // user time used
     struct linux_timeval ru_stime; // system time used

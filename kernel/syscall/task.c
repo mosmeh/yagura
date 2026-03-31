@@ -203,6 +203,16 @@ static void ticks_to_timeval(size_t ticks, struct linux_timeval* out_tv) {
     out_tv->tv_usec = (ticks % CLK_TCK) * MICROS_PER_SEC / CLK_TCK;
 }
 
+NODISCARD static int getrusage(struct task* task,
+                               struct linux_rusage* user_usage) {
+    struct linux_rusage usage = {0};
+    ticks_to_timeval(task->user_ticks, &usage.ru_utime);
+    ticks_to_timeval(task->kernel_ticks, &usage.ru_stime);
+    if (copy_to_user(user_usage, &usage, sizeof(struct linux_rusage)))
+        return -EFAULT;
+    return 0;
+}
+
 NODISCARD static pid_t wait4(pid_t pid, int* user_wstatus, int options,
                              struct linux_rusage* user_rusage) {
     if (options & ~(WNOHANG | WUNTRACED))
@@ -249,11 +259,9 @@ NODISCARD static pid_t wait4(pid_t pid, int* user_wstatus, int options,
             return -EFAULT;
     }
     if (user_rusage) {
-        struct linux_rusage rusage = {0};
-        ticks_to_timeval(task->user_ticks, &rusage.ru_utime);
-        ticks_to_timeval(task->kernel_ticks, &rusage.ru_stime);
-        if (copy_to_user(user_rusage, &rusage, sizeof(struct linux_rusage)))
-            return -EFAULT;
+        int rc = getrusage(task, user_rusage);
+        if (IS_ERR(rc))
+            return rc;
     }
 
     return task->tid;
@@ -281,6 +289,18 @@ SYSCALL1(times, struct tms*, user_buf) {
 }
 
 SYSCALL1(unshare, unsigned long, flags) { return task_unshare(flags); }
+
+SYSCALL2(getrusage, int, who, struct linux_rusage*, user_usage) {
+    switch (who) {
+    case RUSAGE_SELF:
+        // TODO: Sum resource usage of all threads in the thread group.
+    case RUSAGE_THREAD:
+        break;
+    default:
+        return -EINVAL;
+    }
+    return getrusage(current, user_usage);
+}
 
 SYSCALL1(umask, mode_t, mask) {
     return atomic_exchange(&current->fs_env->umask, mask & ACCESSPERMS);

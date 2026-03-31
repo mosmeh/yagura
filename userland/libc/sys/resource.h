@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kernel/api/sys/resource.h>
 #include <sys/time.h>
 
 struct rusage {
@@ -20,3 +21,5 @@ struct rusage {
     long ru_nvcsw;           // voluntary context switches
     long ru_nivcsw;          // involuntary context switches
 };
+
+int getrusage(int who, struct rusage* usage);

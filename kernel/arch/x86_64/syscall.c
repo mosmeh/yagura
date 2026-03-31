@@ -108,7 +108,7 @@
     F(umask, sys_umask)                                                        \
     F(gettimeofday, sys_gettimeofday)                                          \
     F(getrlimit, sys_ni_syscall)                                               \
-    F(getrusage, sys_ni_syscall)                                               \
+    F(getrusage, sys_getrusage)                                                \
     F(sysinfo, sys_sysinfo)                                                    \
     F(times, sys_times)                                                        \
     F(ptrace, sys_ni_syscall)                                                  \

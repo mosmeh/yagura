@@ -70,6 +70,7 @@ BIN_TARGET_NAMES := \
 	tests/pthread \
 	tests/random \
 	tests/read-write \
+	tests/resource \
 	tests/run \
 	tests/sched \
 	tests/select \
@@ -120,6 +121,7 @@ LIBC_SRCS := \
 	userland/libc/sys/poll.c \
 	userland/libc/sys/prctl.c \
 	userland/libc/sys/random.c \
+	userland/libc/sys/resource.c \
 	userland/libc/sys/select.c \
 	userland/libc/sys/socket.c \
 	userland/libc/sys/stat.c \
