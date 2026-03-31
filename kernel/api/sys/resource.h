@@ -2,7 +2,7 @@
 
 #include <kernel/api/sys/time.h>
 
-struct rusage {
+struct linux_rusage {
     struct linux_timeval ru_utime; // user time used
     struct linux_timeval ru_stime; // system time used
     long ru_maxrss;                // maximum resident set size

@@ -4,6 +4,11 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 
+struct rusage;
+struct timeval;
+struct linux_rusage;
+struct linux_timeval;
+
 extern size_t __tls_size;
 struct pthread* __init_tls(void* tls);
 
@@ -35,3 +40,8 @@ unsigned long __syscall_return(unsigned long rc);
 
 int __clone(int (*fn)(void*), void* stack, int flags, void* arg,
             pid_t* parent_tid, pid_t* child_tid, void* tls);
+
+void __linux_timeval_to_timeval(const struct linux_timeval*, struct timeval*);
+void __timeval_to_linux_timeval(const struct timeval*, struct linux_timeval*);
+
+void __linux_rusage_to_rusage(const struct linux_rusage*, struct rusage*);

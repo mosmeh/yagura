@@ -9,16 +9,13 @@
 int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
            struct timeval* timeout) {
     struct linux_timeval linux_timeout;
-    if (timeout) {
-        linux_timeout.tv_sec = timeout->tv_sec;
-        linux_timeout.tv_usec = timeout->tv_usec;
-    }
+    if (timeout)
+        __timeval_to_linux_timeval(timeout, &linux_timeout);
     int rc = SYSCALL5(select, nfds, readfds, writefds, exceptfds,
                       timeout ? &linux_timeout : NULL);
     if (timeout) {
         // Update the timeout regardless of whether the syscall was successful.
-        timeout->tv_sec = linux_timeout.tv_sec;
-        timeout->tv_usec = linux_timeout.tv_usec;
+        __linux_timeval_to_timeval(&linux_timeout, timeout);
     }
     return __syscall_return(rc);
 }

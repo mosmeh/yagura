@@ -204,7 +204,7 @@ static void ticks_to_timeval(size_t ticks, struct linux_timeval* out_tv) {
 }
 
 NODISCARD static pid_t wait4(pid_t pid, int* user_wstatus, int options,
-                             struct rusage* user_rusage) {
+                             struct linux_rusage* user_rusage) {
     if (options & ~(WNOHANG | WUNTRACED))
         return -EINVAL;
 
@@ -249,18 +249,18 @@ NODISCARD static pid_t wait4(pid_t pid, int* user_wstatus, int options,
             return -EFAULT;
     }
     if (user_rusage) {
-        struct rusage rusage = {0};
+        struct linux_rusage rusage = {0};
         ticks_to_timeval(task->user_ticks, &rusage.ru_utime);
         ticks_to_timeval(task->kernel_ticks, &rusage.ru_stime);
-        if (copy_to_user(user_rusage, &rusage, sizeof(struct rusage)))
+        if (copy_to_user(user_rusage, &rusage, sizeof(struct linux_rusage)))
             return -EFAULT;
     }
 
     return task->tid;
 }
 
-SYSCALL4(wait4, pid_t, pid, int*, user_wstatus, int, options, struct rusage*,
-         user_rusage) {
+SYSCALL4(wait4, pid_t, pid, int*, user_wstatus, int, options,
+         struct linux_rusage*, user_rusage) {
     return wait4(pid, user_wstatus, options, user_rusage);
 }
 
