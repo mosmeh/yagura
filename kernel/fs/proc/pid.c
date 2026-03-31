@@ -5,6 +5,7 @@
 #include <kernel/containers/vec.h>
 #include <kernel/fs/inode.h>
 #include <kernel/fs/path.h>
+#include <kernel/fs/vfs.h>
 #include <kernel/memory/phys.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/memory/vm.h>
@@ -173,11 +174,18 @@ static int print_maps(struct file* file, struct vec* vec) {
     return 0;
 }
 
+static int print_mounts(struct file* file, struct vec* vec) {
+    pid_t pid = pid_from_ino(file->inode->ino);
+    struct task* task FREE(task) = task_find_by_tid(pid);
+    if (!task)
+        return -ENOENT;
+    return proc_print_mounts(file, vec);
+}
+
 static const struct proc_entry entries[] = {
     {"cmdline", S_IFREG, print_cmdline}, {"comm", S_IFREG, print_comm},
     {"cwd", S_IFLNK, print_cwd},         {"environ", S_IFREG, print_environ},
-    {"maps", S_IFREG, print_maps},
-};
+    {"maps", S_IFREG, print_maps},       {"mounts", S_IFREG, print_mounts}};
 
 struct inode* proc_pid_lookup(struct inode* parent, const char* name) {
     return proc_lookup(parent, name, entries, ARRAY_SIZE(entries));

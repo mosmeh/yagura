@@ -11,6 +11,11 @@
 #include <kernel/task/task.h>
 #include <kernel/time.h>
 
+static int print_mounts(struct file* file, struct vec* vec) {
+    (void)file;
+    return vec_printf(vec, "self/mounts");
+}
+
 static int print_self(struct file* file, struct vec* vec) {
     (void)file;
     return vec_printf(vec, "%d", current->thread_group->tgid);
@@ -55,7 +60,7 @@ static const struct proc_entry entries[] = {
     {"kallsyms", S_IFREG, proc_print_kallsyms},
     {"loadavg", S_IFREG, proc_print_loadavg},
     {"meminfo", S_IFREG, proc_print_meminfo},
-    {"mounts", S_IFREG, proc_print_mounts},
+    {"mounts", S_IFLNK, print_mounts},
     {"self", S_IFLNK, print_self},
     {"slabinfo", S_IFREG, proc_print_slabinfo},
     {"uptime", S_IFREG, print_uptime},
