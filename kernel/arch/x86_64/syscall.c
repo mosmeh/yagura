@@ -113,7 +113,7 @@
     F(times, sys_times)                                                        \
     F(ptrace, sys_ni_syscall)                                                  \
     F(getuid, sys_getuid)                                                      \
-    F(syslog, sys_ni_syscall)                                                  \
+    F(syslog, sys_syslog)                                                      \
     F(getgid, sys_getgid)                                                      \
     F(setuid, sys_ni_syscall)                                                  \
     F(setgid, sys_ni_syscall)                                                  \

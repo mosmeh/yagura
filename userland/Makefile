@@ -58,6 +58,7 @@ BIN_TARGET_NAMES := \
 	tests/env \
 	tests/execve \
 	tests/framebuffer \
+	tests/klog \
 	tests/libgen \
 	tests/link \
 	tests/malloc \
@@ -116,6 +117,7 @@ LIBC_SRCS := \
 	userland/libc/stdlib.c \
 	userland/libc/string.c \
 	userland/libc/sys/ioctl.c \
+	userland/libc/sys/klog.c \
 	userland/libc/sys/mman.c \
 	userland/libc/sys/mount.c \
 	userland/libc/sys/poll.c \

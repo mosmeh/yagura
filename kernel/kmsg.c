@@ -33,35 +33,35 @@ int kvprintf(const char* format, va_list args) {
     return len;
 }
 
-#define RING_BUF_SIZE (KMSG_BUF_SIZE + 1) // +1 to distinguish full vs empty
+#define RING_BUF_LEN (KMSG_BUF_CAPACITY + 1) // +1 to distinguish full vs empty
 
-static char ring_buf[RING_BUF_SIZE];
+static char ring_buf[RING_BUF_LEN];
 static size_t read_index = 0;
 static size_t write_index = 0;
 static struct spinlock lock;
 
 size_t kmsg_read(char* buf, size_t count, size_t offset) {
-    if (offset >= KMSG_BUF_SIZE)
+    if (offset >= KMSG_BUF_CAPACITY)
         return 0;
 
     SCOPED_LOCK(spinlock, &lock);
 
-    size_t size = (write_index + RING_BUF_SIZE - read_index) % RING_BUF_SIZE;
+    size_t size = kmsg_size();
     if (offset >= size)
         return 0;
 
     size_t to_read = MIN(count, size - offset);
     for (size_t i = 0; i < to_read; ++i)
-        buf[i] = ring_buf[(read_index + offset + i) % RING_BUF_SIZE];
+        buf[i] = ring_buf[(read_index + offset + i) % RING_BUF_LEN];
     return to_read;
 }
 
 static void write(const char* buf, size_t count) {
     for (size_t i = 0; i < count; ++i) {
         ring_buf[write_index] = buf[i];
-        write_index = (write_index + 1) % RING_BUF_SIZE;
+        write_index = (write_index + 1) % RING_BUF_LEN;
         if (write_index == read_index)
-            read_index = (read_index + 1) % RING_BUF_SIZE;
+            read_index = (read_index + 1) % RING_BUF_LEN;
     }
     system_console_echo(buf, count);
 }
@@ -92,4 +92,14 @@ void kmsg_write(const char* buf, size_t count) {
         log(timestamp, p, line_end - p + 1);
         p = line_end + 1;
     }
+}
+
+size_t kmsg_size(void) {
+    SCOPED_LOCK(spinlock, &lock);
+    return (write_index + RING_BUF_LEN - read_index) % RING_BUF_LEN;
+}
+
+void kmsg_clear(void) {
+    SCOPED_LOCK(spinlock, &lock);
+    read_index = write_index = 0;
 }

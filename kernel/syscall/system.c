@@ -245,6 +245,64 @@ SYSCALL3(getrandom, void*, user_buf, size_t, buflen, unsigned int, flags) {
     return random_get_user(user_buf, buflen);
 }
 
+// Close the log.  Currently a NOP.
+#define SYSLOG_ACTION_CLOSE 0
+
+// Open the log. Currently a NOP.
+#define SYSLOG_ACTION_OPEN 1
+
+// Read all messages remaining in the ring buffer.
+#define SYSLOG_ACTION_READ_ALL 3
+
+// Read and clear all messages remaining in the ring buffer
+#define SYSLOG_ACTION_READ_CLEAR 4
+
+// Clear ring buffer.
+#define SYSLOG_ACTION_CLEAR 5
+
+// Return number of unread characters in the log buffer
+#define SYSLOG_ACTION_SIZE_UNREAD 9
+
+// Return size of the log buffer
+#define SYSLOG_ACTION_SIZE_BUFFER 10
+
+SYSCALL3(syslog, int, type, char*, bufp, int, len) {
+    switch (type) {
+    case SYSLOG_ACTION_CLOSE:
+    case SYSLOG_ACTION_OPEN:
+        return 0;
+    case SYSLOG_ACTION_READ_ALL:
+    case SYSLOG_ACTION_READ_CLEAR: {
+        if (!bufp || len < 0)
+            return -EINVAL;
+        if (len == 0)
+            return 0;
+
+        size_t count = MIN((size_t)len, KMSG_BUF_CAPACITY);
+        char* buf FREE(kfree) = kmalloc(count);
+        if (!buf)
+            return -ENOMEM;
+
+        size_t n = kmsg_read(buf, count, 0);
+        if (type == SYSLOG_ACTION_READ_CLEAR)
+            kmsg_clear();
+
+        if (copy_to_user(bufp, buf, n))
+            return -EFAULT;
+
+        return n;
+    }
+    case SYSLOG_ACTION_CLEAR:
+        kmsg_clear();
+        return 0;
+    case SYSLOG_ACTION_SIZE_UNREAD:
+        return kmsg_size();
+    case SYSLOG_ACTION_SIZE_BUFFER:
+        return KMSG_BUF_CAPACITY;
+    }
+    return -EINVAL;
+}
+
 SYSCALL1(dbgprint, const char*, user_str) {
     char str[1024];
     ssize_t str_len = strncpy_from_user(str, user_str, sizeof(str));

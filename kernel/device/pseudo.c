@@ -112,7 +112,7 @@ static void kmsg_close(struct file* file) { kfree(file->private_data); }
 static ssize_t kmsg_pread(struct file* file, void* user_buffer, size_t count,
                           uint64_t offset) {
     struct kmsg {
-        char data[KMSG_BUF_SIZE];
+        char data[KMSG_BUF_CAPACITY];
         size_t size;
     };
 
@@ -124,7 +124,7 @@ static ssize_t kmsg_pread(struct file* file, void* user_buffer, size_t count,
             kmsg = kmalloc(sizeof(struct kmsg));
             if (!kmsg)
                 return -ENOMEM;
-            kmsg->size = kmsg_read(kmsg->data, KMSG_BUF_SIZE, 0);
+            kmsg->size = kmsg_read(kmsg->data, KMSG_BUF_CAPACITY, 0);
             file->private_data = kmsg;
         }
     }
@@ -143,7 +143,7 @@ static ssize_t kmsg_pwrite(struct file* file, const void* user_buffer,
     (void)file;
     (void)offset;
 
-    if (count > KMSG_BUF_SIZE)
+    if (count > KMSG_BUF_CAPACITY)
         return -EINVAL;
 
     if (count == 0) {
