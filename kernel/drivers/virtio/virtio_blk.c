@@ -7,7 +7,7 @@
 #include <kernel/drivers/virtio/virtio_blk.h>
 #include <kernel/kmsg.h>
 #include <kernel/panic.h>
-#include <kernel/sched.h>
+#include <kernel/task/sched.h>
 
 struct virtio_blk {
     struct block_dev block_dev;

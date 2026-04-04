@@ -14,7 +14,7 @@
 #include <kernel/fs/file.h>
 #include <kernel/interrupts.h>
 #include <kernel/panic.h>
-#include <kernel/sched.h>
+#include <kernel/task/sched.h>
 
 #define NUM_CONSOLES 12
 #define NR_TYPES 15

@@ -1,7 +1,7 @@
 #include <common/stdatomic.h>
 #include <kernel/api/err.h>
 #include <kernel/panic.h>
-#include <kernel/sched.h>
+#include <kernel/task/sched.h>
 #include <kernel/task/workqueue.h>
 #include <kernel/time.h>
 

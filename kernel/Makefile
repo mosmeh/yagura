@@ -73,7 +73,6 @@ SRCS := \
 	kernel/memory/vm_region.c \
 	kernel/memory/vm.c \
 	kernel/random.c \
-	kernel/sched.c \
 	kernel/socket.c \
 	kernel/syscall/dir.c \
 	kernel/syscall/file_ctrl.c \
@@ -91,9 +90,10 @@ SRCS := \
 	kernel/syscall/time.c \
 	kernel/system.c \
 	kernel/task/fs.c \
-	kernel/task/workqueue.c \
+	kernel/task/sched.c \
 	kernel/task/signal.c \
 	kernel/task/task.c \
+	kernel/task/workqueue.c \
 	kernel/time.c
 
 X86_SRCS := \

@@ -1,6 +1,6 @@
 #include <kernel/arch/io.h>
 #include <kernel/interrupts.h>
-#include <kernel/sched.h>
+#include <kernel/task/sched.h>
 #include <kernel/time.h>
 
 #define TIMER0_CTL 0x40

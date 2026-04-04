@@ -14,7 +14,6 @@
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
-#include <kernel/sched.h>
 #include <kernel/socket.h>
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/task.h>

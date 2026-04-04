@@ -4,7 +4,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/vm.h>
-#include <kernel/sched.h>
+#include <kernel/task/sched.h>
 #include <kernel/time.h>
 
 #define LAPIC_ID 0x0020      // ID

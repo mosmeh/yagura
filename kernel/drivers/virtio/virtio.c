@@ -10,8 +10,8 @@
 #include <kernel/memory/memory.h>
 #include <kernel/memory/vm.h>
 #include <kernel/panic.h>
-#include <kernel/sched.h>
 #include <kernel/system.h>
+#include <kernel/task/sched.h>
 
 // virtio spec: https://docs.oasis-open.org/virtio/virtio/v1.3/virtio-v1.3.html
 

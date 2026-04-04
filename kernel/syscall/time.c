@@ -4,8 +4,8 @@
 #include <kernel/api/time.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
-#include <kernel/sched.h>
 #include <kernel/syscall/syscall.h>
+#include <kernel/task/sched.h>
 #include <kernel/time.h>
 
 NODISCARD static int time(time_t* tloc) {

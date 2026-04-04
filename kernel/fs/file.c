@@ -9,7 +9,7 @@
 #include <kernel/fs/path.h>
 #include <kernel/memory/phys.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/sched.h>
+#include <kernel/task/sched.h>
 
 static struct slab file_slab;
 

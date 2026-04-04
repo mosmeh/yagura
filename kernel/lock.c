@@ -2,7 +2,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/lock.h>
 #include <kernel/panic.h>
-#include <kernel/sched.h>
+#include <kernel/task/sched.h>
 #include <kernel/task/task.h>
 
 void mutex_lock(struct mutex* m) {

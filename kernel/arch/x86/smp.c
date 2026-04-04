@@ -11,7 +11,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/vm.h>
-#include <kernel/sched.h>
+#include <kernel/task/sched.h>
 #include <kernel/task/task.h>
 
 extern unsigned char ap_trampoline_start[];

@@ -12,8 +12,8 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/arch/context.h>
 #include <kernel/cpu.h>
-#include <kernel/sched.h>
 #include <kernel/system.h>
+#include <kernel/task/sched.h>
 #include <kernel/task/workqueue.h>
 
 #define TASK_RUNNING 0x0         // Running or runnable
