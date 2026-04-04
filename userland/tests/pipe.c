@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <sys/limits.h>
 #include <sys/poll.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -159,6 +160,10 @@ int main(void) {
 
     ASSERT_OK(close(send_fds[1]));
     ASSERT_OK(close(recv_fds[0]));
+
+    ASSERT_OK(mkfifo("/tmp/test-pipe", 0644));
+    int fd = ASSERT_OK(open("/tmp/test-pipe", O_RDWR | O_NONBLOCK));
+    ASSERT_OK(close(fd));
 
     return EXIT_SUCCESS;
 }

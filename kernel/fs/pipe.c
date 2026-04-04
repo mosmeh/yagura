@@ -60,6 +60,10 @@ static bool wake_open(struct file* file, void* ctx) {
         return pipe->num_writers > 0;
     case O_WRONLY:
         return pipe->num_readers > 0;
+    case O_RDWR:
+        ASSERT(pipe->num_readers > 0);
+        ASSERT(pipe->num_writers > 0);
+        return true;
     default:
         UNREACHABLE();
     }
@@ -99,8 +103,12 @@ static int pipe_open(struct file* file) {
     case O_WRONLY:
         ++pipe->num_writers;
         break;
+    case O_RDWR:
+        ++pipe->num_readers;
+        ++pipe->num_writers;
+        break;
     default:
-        return -EINVAL;
+        UNREACHABLE();
     }
     file->private_data = pipe;
 
@@ -123,6 +131,10 @@ static void pipe_close(struct file* file) {
         --pipe->num_readers;
         break;
     case O_WRONLY:
+        --pipe->num_writers;
+        break;
+    case O_RDWR:
+        --pipe->num_readers;
         --pipe->num_writers;
         break;
     default:
@@ -253,6 +265,10 @@ static short pipe_poll(struct file* file, short events) {
     case O_WRONLY:
         if ((events & POLLERR) && (pipe->num_readers == 0))
             revents |= POLLERR;
+        break;
+    case O_RDWR:
+        ASSERT(pipe->num_readers > 0);
+        ASSERT(pipe->num_writers > 0);
         break;
     default:
         UNREACHABLE();
