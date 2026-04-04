@@ -60,10 +60,6 @@ static bool wake_open(struct file* file, void* ctx) {
         return pipe->num_writers > 0;
     case O_WRONLY:
         return pipe->num_readers > 0;
-    case O_RDWR:
-        ASSERT(pipe->num_readers > 0);
-        ASSERT(pipe->num_writers > 0);
-        return true;
     default:
         UNREACHABLE();
     }
@@ -96,12 +92,32 @@ static int pipe_open(struct file* file) {
     inode_ref(pipe_inode);
 
     struct pipe* pipe = pipe_from_inode(pipe_inode);
+    file->private_data = pipe;
+
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
         ++pipe->num_readers;
+        if (is_fifo) {
+            int rc = file_wait(file, wake_open, NULL);
+            if (IS_ERR(rc) && rc != -EAGAIN) {
+                --pipe->num_readers;
+                file->private_data = NULL;
+                return rc;
+            }
+        }
         break;
     case O_WRONLY:
         ++pipe->num_writers;
+        if (is_fifo) {
+            int rc = file_wait(file, wake_open, NULL);
+            if (rc == -EAGAIN)
+                rc = -ENXIO;
+            if (IS_ERR(rc)) {
+                --pipe->num_writers;
+                file->private_data = NULL;
+                return rc;
+            }
+        }
         break;
     case O_RDWR:
         ++pipe->num_readers;
@@ -109,15 +125,6 @@ static int pipe_open(struct file* file) {
         break;
     default:
         UNREACHABLE();
-    }
-    file->private_data = pipe;
-
-    if (is_fifo) {
-        int rc = file_wait(file, wake_open, NULL);
-        if (rc == -EAGAIN && (file->flags & O_ACCMODE) == O_WRONLY) {
-            file->private_data = NULL;
-            return -ENXIO;
-        }
     }
 
     TAKE_PTR(pipe_inode);

@@ -164,6 +164,9 @@ int main(void) {
     ASSERT_OK(mkfifo("/tmp/test-pipe", 0644));
     int fd = ASSERT_OK(open("/tmp/test-pipe", O_RDWR | O_NONBLOCK));
     ASSERT_OK(close(fd));
+    fd = ASSERT_OK(open("/tmp/test-pipe", O_RDONLY | O_NONBLOCK));
+    ASSERT_OK(close(fd));
+    ASSERT_ERRNO(open("/tmp/test-pipe", O_WRONLY | O_NONBLOCK), ENXIO);
 
     return EXIT_SUCCESS;
 }
