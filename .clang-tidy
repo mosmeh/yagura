@@ -1,5 +1,4 @@
 Checks: >
-    -*,
     bugprone-*,
     cert-*,
     clang-analyzer-*,
@@ -24,6 +23,7 @@ Checks: >
     -readability-inconsistent-declaration-parameter-name,
     -readability-function-cognitive-complexity,
     -readability-math-missing-parentheses,
+    -readability-implicit-bool-conversion,
 CheckOptions:
     - key: bugprone-narrowing-conversions.WarnOnIntegerNarrowingConversion
       value: false
