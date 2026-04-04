@@ -5,6 +5,7 @@
 #include <common/stddef.h>
 #include <common/stdint.h>
 #include <kernel/memory/phys.h>
+#include <kernel/task/sched.h>
 
 struct virtq_desc {
     /* Address (guest-physical). */
@@ -65,6 +66,8 @@ struct virtq {
     volatile struct virtq_used* used;
 
     volatile uint16_t* notify; // The notification address
+
+    struct waitqueue wait;
 };
 
 bool virtq_is_ready(const struct virtq*);

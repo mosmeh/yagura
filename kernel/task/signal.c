@@ -36,21 +36,18 @@ void __sighand_destroy(struct sighand* sighand) {
     slab_free(&sighand_slab, sighand);
 }
 
-static struct sighand* get_sighand(struct task* task) {
-    // Ensure task->sighand is not changed by execve() while we are using it.
-    ASSERT(task == current ||
-           // execve() takes tasks_lock when changing task->sighand
-           spinlock_is_locked_by_current(&tasks_lock));
-    return task->sighand;
+void task_get_pending_signals(sigset_t* out_set) {
+    SCOPED_LOCK(sighand, current->sighand);
+    for (size_t i = 0; i < ARRAY_SIZE(out_set->sig); ++i)
+        out_set->sig[i] = (current->pending_signals.sig[i] |
+                           current->thread_group->pending_signals.sig[i]) &
+                          ~current->blocked_signals.sig[i];
 }
 
-void task_get_pending_signals(struct task* task, sigset_t* out_set) {
-    struct sighand* sighand = get_sighand(task);
-    SCOPED_LOCK(sighand, sighand);
-    for (size_t i = 0; i < ARRAY_SIZE(out_set->sig); ++i)
-        out_set->sig[i] = (task->pending_signals.sig[i] |
-                           task->thread_group->pending_signals.sig[i]) &
-                          ~task->blocked_signals.sig[i];
+bool task_has_pending_signals(void) {
+    sigset_t pending;
+    task_get_pending_signals(&pending);
+    return !sigisemptyset(&pending);
 }
 
 void task_set_blocked_signals(const sigset_t* sigset) {
@@ -86,6 +83,14 @@ __extension__ static enum {
 };
 
 STATIC_ASSERT(ARRAY_SIZE(default_dispositions) == NSIG);
+
+static struct sighand* get_sighand(struct task* task) {
+    // Ensure task->sighand is not changed by execve() while we are using it.
+    ASSERT(task == current ||
+           // execve() takes tasks_lock when changing task->sighand
+           spinlock_is_locked_by_current(&tasks_lock));
+    return task->sighand;
+}
 
 static void clear_pending_signal(struct task* task, int signum) {
     struct sighand* sighand = get_sighand(task);
@@ -124,7 +129,8 @@ static void send_signal_to_task(struct task* task, int signum,
         break;
     }
 
-    if (sigismember(&task->blocked_signals, signum)) {
+    bool is_blocked = sigismember(&task->blocked_signals, signum);
+    if (is_blocked) {
         // Signal handlers may be changed while the signal is blocked,
         // so this signal should not be ignored.
     } else {
@@ -143,6 +149,17 @@ static void send_signal_to_task(struct task* task, int signum,
         sigaddset(&task->thread_group->pending_signals, signum);
     else
         sigaddset(&task->pending_signals, signum);
+
+    switch (task->state) {
+    case TASK_INTERRUPTIBLE:
+        if (!is_blocked)
+            sched_wake(task);
+        break;
+    case TASK_STOPPED:
+        if (signum == SIGCONT)
+            sched_wake(task);
+        break;
+    }
 }
 
 int signal_send_to_thread_groups(pid_t pgid, pid_t tgid, int signum) {
@@ -224,7 +241,7 @@ static int pop_one_signal(void) {
     ASSERT(sighand_is_locked_by_current(current->sighand));
 
     sigset_t pending;
-    task_get_pending_signals(current, &pending);
+    task_get_pending_signals(&pending);
     for (size_t i = 0; i < ARRAY_SIZE(pending.sig); i++) {
         if (!pending.sig[i])
             continue;
@@ -239,6 +256,7 @@ static int pop_one_signal(void) {
 }
 
 int signal_pop(struct sigaction* out_action) {
+    SCOPED_DISABLE_INTERRUPTS();
     struct sighand* sighand = current->sighand;
     sighand_lock(sighand);
     for (;;) {
@@ -264,20 +282,20 @@ int signal_pop(struct sigaction* out_action) {
         case DISP_CORE:
             sighand_unlock(sighand);
             task_terminate(signum);
-        case DISP_STOP: {
+        case DISP_STOP:
+            ASSERT(!arch_interrupts_enabled());
+            // Transition to TASK_STOPPED before unlocking the sighand
+            // so that the task won't miss the wake-up from SIGCONT.
+            current->exit_status = W_STOPCODE(signum);
+            current->state = TASK_STOPPED;
             sighand_unlock(sighand);
 
-            {
-                SCOPED_DISABLE_INTERRUPTS();
-                current->exit_status = W_STOPCODE(signum);
-                current->state = TASK_STOPPED;
-                sched_yield();
-            }
-            // Here we were resumed by SIGCONT.
+            waitqueue_wake_all(&tasks_wait);
+            sched_yield();
+            // We return here after being woken up by SIGCONT.
 
             sighand_lock(sighand);
             break;
-        }
         case DISP_CONT:
         case DISP_IGN:
             break;

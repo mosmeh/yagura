@@ -18,16 +18,6 @@ static struct virtio_blk* blk_from_block_dev(struct block_dev* block_dev) {
     return CONTAINER_OF(block_dev, struct virtio_blk, block_dev);
 }
 
-struct waker {
-    struct virtq* virtq;
-    size_t num_descriptors;
-};
-
-static bool wake_request(void* ctx) {
-    const struct waker* waker = ctx;
-    return waker->virtq->num_free_descs >= waker->num_descriptors;
-}
-
 NODISCARD
 static int submit_request(struct block_dev* block_dev, phys_addr_t buffer,
                           uint64_t sector, size_t nsectors, uint32_t type,
@@ -44,13 +34,13 @@ static int submit_request(struct block_dev* block_dev, phys_addr_t buffer,
     size_t num_descriptors = 2;
     if (buffer)
         ++num_descriptors;
-    struct waker waker = {
-        .virtq = blk->virtio->virtqs[0],
-        .num_descriptors = num_descriptors,
-    };
 
     for (;;) {
-        sched_wait(wake_request, &waker);
+        {
+            SCOPED_WAIT(waiter, &virtq->wait);
+            while (virtq->num_free_descs < num_descriptors)
+                sched_wait(&waiter);
+        }
 
         SCOPED_LOCK(block_dev, block_dev);
 

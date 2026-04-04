@@ -1,6 +1,7 @@
 #include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/err.h>
+#include <kernel/api/fcntl.h>
 #include <kernel/api/linux/major.h>
 #include <kernel/api/linux/sound.h>
 #include <kernel/api/linux/soundcard.h>
@@ -16,6 +17,7 @@
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
+#include <kernel/task/sched.h>
 
 #define PCI_CLASS_MULTIMEDIA 4
 #define PCI_SUBCLASS_AUDIO_CONTROLLER 1
@@ -80,6 +82,7 @@ static void pci_device_callback(const struct pci_addr* addr, uint16_t vendor_id,
 
 static _Atomic(bool) dma_is_running;
 static _Atomic(bool) buffer_descriptor_list_is_full;
+static struct waitqueue wait;
 
 static void irq_handler(struct registers* regs) {
     (void)regs;
@@ -96,6 +99,7 @@ static void irq_handler(struct registers* regs) {
         dma_is_running = false;
 
     buffer_descriptor_list_is_full = false;
+    waitqueue_wake_all(&wait);
 }
 
 #define SAMPLE_STORAGE_NUM_PAGES 4
@@ -143,30 +147,29 @@ static void dsp_reset(void) {
 
     dma_is_running = buffer_descriptor_list_is_full = false;
     sample_buf_index = current_sample_buf_size = buffer_descriptor_index = 0;
-}
-
-static bool wake_sync(struct file* file, void* ctx) {
-    (void)file;
-    (void)ctx;
-    return !dma_is_running;
+    waitqueue_wake_all(&wait);
 }
 
 NODISCARD static int dsp_sync(struct file* file) {
-    SCOPED_LOCK(mutex, &lock);
-    // Drop buffered samples that haven't been submitted yet.
-    current_sample_buf_size = 0;
-    return file_wait(file, wake_sync, NULL);
+    (void)file;
+
+    {
+        SCOPED_LOCK(mutex, &lock);
+        // Drop buffered samples that haven't been submitted yet.
+        current_sample_buf_size = 0;
+    }
+
+    SCOPED_WAIT(waiter, &wait);
+    while (dma_is_running) {
+        if (sched_wait_interruptible(&waiter))
+            return -EINTR;
+    }
+    return 0;
 }
 
 static void ac97_dsp_close(struct file* file) {
     int rc = dsp_sync(file);
     (void)rc;
-}
-
-static bool wake_write(struct file* file, void* ctx) {
-    (void)file;
-    (void)ctx;
-    return can_write();
 }
 
 NODISCARD static ssize_t
@@ -195,9 +198,15 @@ write_single_buffer(struct file* file, const void* user_buffer, size_t count) {
 
         mutex_unlock(&lock);
 
-        int rc = file_wait(file, wake_write, NULL);
-        if (IS_ERR(rc))
-            return rc;
+        {
+            SCOPED_WAIT(waiter, &wait);
+            while (!can_write()) {
+                if (file->flags & O_NONBLOCK)
+                    return -EAGAIN;
+                if (sched_wait_interruptible(&waiter))
+                    return -EINTR;
+            }
+        }
 
         mutex_lock(&lock);
 

@@ -1,3 +1,4 @@
+#include <kernel/api/fcntl.h>
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/socket.h>
@@ -33,6 +34,8 @@ struct unix_socket {
 
     _Atomic(bool) is_open_for_writing_to_connector;
     _Atomic(bool) is_open_for_writing_to_acceptor;
+
+    struct waitqueue wait;
 };
 
 DEFINE_LOCKED(unix_socket, struct unix_socket, inode, vfs_inode)
@@ -75,6 +78,7 @@ static void unix_socket_close(struct file* file) {
     struct unix_socket* socket = unix_socket_from_file(file);
     socket->is_open_for_writing_to_connector = false;
     socket->is_open_for_writing_to_acceptor = false;
+    waitqueue_wake_all(&socket->wait);
 }
 
 static bool is_connector(struct file* file) {
@@ -106,11 +110,6 @@ static bool is_readable(struct file* file) {
     return !ring_buf_is_empty(ring);
 }
 
-static bool wake_read(struct file* file, void* ctx) {
-    (void)ctx;
-    return is_readable(file);
-}
-
 static ssize_t unix_socket_pread(struct file* file, void* user_buffer,
                                  size_t count, uint64_t offset) {
     (void)offset;
@@ -121,14 +120,24 @@ static ssize_t unix_socket_pread(struct file* file, void* user_buffer,
 
     struct ring_buf* ring = ring_to_read(file);
     for (;;) {
-        int rc = file_wait(file, wake_read, NULL);
-        if (IS_ERR(rc))
-            return rc;
+        {
+            SCOPED_WAIT(waiter, &socket->wait);
+            while (!is_readable(file)) {
+                if (file->flags & O_NONBLOCK)
+                    return -EAGAIN;
+                if (sched_wait_interruptible(&waiter))
+                    return -EINTR;
+            }
+        }
 
         {
             SCOPED_LOCK(unix_socket, socket);
-            if (!ring_buf_is_empty(ring))
-                return ring_buf_read_to_user(ring, user_buffer, count);
+            if (!ring_buf_is_empty(ring)) {
+                ssize_t n = ring_buf_read_to_user(ring, user_buffer, count);
+                if (n > 0)
+                    waitqueue_wake_all(&socket->wait);
+                return n;
+            }
         }
 
         if (!is_open_for_reading(file))
@@ -148,11 +157,6 @@ static bool is_writable(struct file* file) {
     return !ring_buf_is_full(ring);
 }
 
-static bool wake_write(struct file* file, void* ctx) {
-    (void)ctx;
-    return is_writable(file);
-}
-
 static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
                                   size_t count, uint64_t offset) {
     (void)offset;
@@ -163,20 +167,30 @@ static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
 
     struct ring_buf* ring = ring_to_write(file);
     for (;;) {
-        int rc = file_wait(file, wake_write, NULL);
-        if (IS_ERR(rc))
-            return rc;
+        {
+            SCOPED_WAIT(waiter, &socket->wait);
+            while (!is_writable(file)) {
+                if (file->flags & O_NONBLOCK)
+                    return -EAGAIN;
+                if (sched_wait_interruptible(&waiter))
+                    return -EINTR;
+            }
+        }
 
         if (!is_connector(file) && !socket->is_open_for_writing_to_connector) {
-            rc = signal_send_to_tasks(0, current->tid, SIGPIPE);
+            int rc = signal_send_to_tasks(0, current->tid, SIGPIPE);
             if (IS_ERR(rc))
                 return rc;
             return -EPIPE;
         }
 
         SCOPED_LOCK(unix_socket, socket);
-        if (!ring_buf_is_full(ring))
-            return ring_buf_write_from_user(ring, user_buffer, count);
+        if (!ring_buf_is_full(ring)) {
+            ssize_t n = ring_buf_write_from_user(ring, user_buffer, count);
+            if (n > 0)
+                waitqueue_wake_all(&socket->wait);
+            return n;
+        }
     }
 }
 
@@ -287,11 +301,6 @@ int unix_socket_listen(struct inode* inode, int backlog) {
     return 0;
 }
 
-static bool wake_accept(struct file* file, void* ctx) {
-    (void)ctx;
-    return unix_socket_from_file(file)->num_pending > 0;
-}
-
 struct inode* unix_socket_accept(struct file* file) {
     if (!is_unix_socket(file->inode))
         return ERR_PTR(-ENOTSOCK);
@@ -305,9 +314,15 @@ struct inode* unix_socket_accept(struct file* file) {
     }
 
     for (;;) {
-        int rc = file_wait(file, wake_accept, NULL);
-        if (IS_ERR(rc))
-            return ERR_PTR(rc);
+        {
+            SCOPED_WAIT(waiter, &listener->wait);
+            while (listener->num_pending == 0) {
+                if (file->flags & O_NONBLOCK)
+                    return ERR_PTR(-EAGAIN);
+                if (sched_wait_interruptible(&waiter))
+                    return ERR_PTR(-EINTR);
+            }
+        }
 
         struct unix_socket* connector;
         {
@@ -326,13 +341,11 @@ struct inode* unix_socket_accept(struct file* file) {
         ASSERT(connector->state == SOCKET_STATE_PENDING);
         connector->state = SOCKET_STATE_CONNECTED;
         connector->is_connected = true;
+
+        waitqueue_wake_all(&connector->wait);
+
         return &connector->vfs_inode;
     }
-}
-
-static bool wake_connect(struct file* file, void* ctx) {
-    (void)ctx;
-    return unix_socket_from_file(file)->is_connected;
 }
 
 int unix_socket_connect(struct file* file, struct inode* addr_inode) {
@@ -384,7 +397,17 @@ int unix_socket_connect(struct file* file, struct inode* addr_inode) {
         }
     }
 
-    return file_wait(file, wake_connect, NULL);
+    waitqueue_wake_all(&listener->wait);
+
+    SCOPED_WAIT(waiter, &connector->wait);
+    while (!connector->is_connected) {
+        if (file->flags & O_NONBLOCK)
+            return -EAGAIN;
+        if (sched_wait_interruptible(&waiter))
+            return -EINTR;
+    }
+
+    return 0;
 }
 
 int unix_socket_shutdown(struct file* file, int how) {
@@ -402,12 +425,21 @@ int unix_socket_shutdown(struct file* file, int how) {
 
     bool shut_read = how == SHUT_RD || how == SHUT_RDWR;
     bool shut_write = how == SHUT_WR || how == SHUT_RDWR;
+
     bool conn = is_connector(file);
     struct unix_socket* socket = unix_socket_from_file(file);
-    if ((conn && shut_read) || (!conn && shut_write))
+
+    bool closed = false;
+    if ((conn && shut_read) || (!conn && shut_write)) {
         socket->is_open_for_writing_to_connector = false;
-    if ((conn && shut_write) || (!conn && shut_read))
+        closed = true;
+    }
+    if ((conn && shut_write) || (!conn && shut_read)) {
         socket->is_open_for_writing_to_acceptor = false;
+        closed = true;
+    }
+    if (closed)
+        waitqueue_wake_all(&socket->wait);
 
     return 0;
 }

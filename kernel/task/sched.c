@@ -17,6 +17,7 @@ static _Noreturn void do_idle(void) {
     for (;;) {
         ASSERT(arch_interrupts_enabled());
         arch_wait_for_interrupt();
+        sched_yield();
     }
 }
 
@@ -40,8 +41,8 @@ static struct spinlock ready_queue_lock;
 static void enqueue_ready(struct task* task) {
     ASSERT_PTR(task);
     ASSERT(task->state == TASK_RUNNING);
+    ASSERT(!task->cpu);
     ASSERT(!task->ready_queue_next);
-    ASSERT(!task->blocked_next);
     task_ref(task);
 
     SCOPED_LOCK(spinlock, &ready_queue_lock);
@@ -97,94 +98,23 @@ void sched_register(struct task* task) {
     enqueue_ready(task);
 }
 
-static struct task* blocked_tasks;
-static struct spinlock blocked_tasks_lock;
-
-static void add_blocked(struct task* task) {
-    ASSERT_PTR(task);
-    ASSERT(!task->blocked_next);
-    SCOPED_LOCK(spinlock, &blocked_tasks_lock);
-    task->blocked_next = blocked_tasks;
-    blocked_tasks = task_ref(task);
-}
-
-static void get_pending_signals(struct task* task, sigset_t* out_set) {
-    SCOPED_LOCK(spinlock, &tasks_lock);
-    task_get_pending_signals(task, out_set);
-}
-
-static void wake_tasks(void) {
-    SCOPED_LOCK(spinlock, &blocked_tasks_lock);
-
-    struct task* prev = NULL;
-    for (struct task* task = blocked_tasks; task;) {
-        bool ready = false;
-        switch (task->state) {
-        case TASK_INTERRUPTIBLE:
-        case TASK_UNINTERRUPTIBLE:
-        case TASK_IDLE: {
-            struct wait_state* wait = &task->wait_state;
-            ASSERT_PTR(wait->wake);
-
-            bool interrupted = false;
-            if (task->state == TASK_INTERRUPTIBLE) {
-                sigset_t signals;
-                get_pending_signals(task, &signals);
-                interrupted = !sigisemptyset(&signals);
-            }
-
-            if (interrupted || wait->wake(wait->ctx)) {
-                *wait = (struct wait_state){.interrupted = interrupted};
-                ready = true;
-            }
-            break;
-        }
-        case TASK_STOPPED: {
-            sigset_t signals;
-            get_pending_signals(task, &signals);
-            if (sigismember(&signals, SIGCONT))
-                ready = true;
-            break;
-        }
-        default:
-            UNREACHABLE();
-        }
-
-        if (!ready) {
-            prev = task;
-            task = task->blocked_next;
-            continue;
-        }
-
-        if (prev)
-            prev->blocked_next = task->blocked_next;
-        else
-            blocked_tasks = task->blocked_next;
-
-        struct task* next = task->blocked_next;
-        task->blocked_next = NULL;
-        task->state = TASK_RUNNING;
-        task->exit_status = 0;
-        enqueue_ready(task);
-        task_unref(task);
-        task = next;
-    }
-}
-
 void sched_start(void) {
     arch_disable_interrupts();
     struct cpu* cpu = cpu_get_current();
+    struct task* idle_task;
     if (cpu->current_task) {
         // Turn this task into the idle task for this CPU.
-        cpu->idle_task = cpu->current_task;
+        idle_task = cpu->idle_task = cpu->current_task;
     } else if (cpu->idle_task) {
         // No current task. Run the idle task.
-        cpu->current_task = task_ref(cpu->idle_task);
-        cpu->current_task->state = TASK_RUNNING;
+        idle_task = cpu->current_task = task_ref(cpu->idle_task);
+        idle_task->state = TASK_RUNNING;
     } else {
         UNREACHABLE();
     }
-    pagemap_switch(cpu->current_task->vm->pagemap);
+    idle_task->cpu = cpu;
+    pagemap_switch(idle_task->vm->pagemap);
+
     arch_enable_interrupts();
     sched_yield();
     do_idle();
@@ -197,7 +127,12 @@ void sched_yield(void) {
     struct task* prev_task = cpu->current_task;
     ASSERT_PTR(prev_task);
 
-    wake_tasks();
+    if (prev_task->state == TASK_WAKING) {
+        // The task was woken up after preparing to sleep but before actually
+        // sleeping. Continue running the current task.
+        prev_task->state = TASK_RUNNING;
+        return;
+    }
 
     if (!ready_queue && prev_task->state == TASK_RUNNING) {
         // No other task is ready to run. Continue running the current task.
@@ -214,33 +149,87 @@ void sched_yield(void) {
         next_task = task_ref(cpu->idle_task);
         next_task->state = TASK_RUNNING;
     }
+    ASSERT(!next_task->cpu);
     ASSERT(next_task != prev_task);
 
+    next_task->cpu = cpu;
     cpu->current_task = next_task;
     pagemap_switch(next_task->vm->pagemap);
     arch_switch_context(prev_task, next_task);
 }
 
 void sched_reschedule(struct task* task) {
+    ASSERT(!arch_interrupts_enabled());
+
     if (!task)
         return;
-    switch (task->state) {
-    case TASK_RUNNING:
-        if (task != cpu_get_current()->idle_task)
-            enqueue_ready(task);
-        break;
-    case TASK_INTERRUPTIBLE:
-    case TASK_UNINTERRUPTIBLE:
-    case TASK_IDLE:
-    case TASK_STOPPED:
-        add_blocked(task);
-        break;
-    case TASK_DEAD:
-        break;
-    default:
-        UNREACHABLE();
+
+    ASSERT_PTR(task->cpu);
+    bool was_running = task->state == TASK_RUNNING;
+    task->cpu = NULL;
+
+    bool is_ready = false;
+    if (was_running) {
+        // The task continues to be runnable.
+        is_ready = true;
+    } else {
+        unsigned state = TASK_WAKING;
+        if (atomic_compare_exchange_strong(&task->state, &state,
+                                           TASK_RUNNING)) {
+            // The task was woken up after preparing to sleep but before
+            // actually sleeping. Make it runnable again.
+            is_ready = true;
+        }
     }
+
+    if (is_ready && task != cpu_get_current()->idle_task)
+        enqueue_ready(task);
+
     task_unref(task);
+}
+
+void sched_wake(struct task* task) {
+    unsigned state = task->state;
+    for (;;) {
+        switch (state) {
+        case TASK_INTERRUPTIBLE:
+        case TASK_UNINTERRUPTIBLE:
+        case TASK_IDLE:
+        case TASK_STOPPED:
+            // Sleeping
+            break;
+        case TASK_RUNNING:
+        case TASK_DEAD:
+        case TASK_WAKING:
+            // Not sleeping
+            return;
+        default:
+            UNREACHABLE();
+        }
+
+        if (task->cpu) {
+            // The task changed its state to the sleeping state, but it is still
+            // running on a CPU. Let the task itself wake up when it yields.
+            if (!atomic_compare_exchange_weak(&task->state, &state,
+                                              TASK_WAKING))
+                continue;
+            state = TASK_WAKING;
+            if (task->cpu) {
+                // The task is still running on a CPU, so it will handle
+                // the wakeup itself.
+                return;
+            }
+            // The task finished running on the CPU in the meantime, so we need
+            // to wake it up ourselves.
+        }
+        if (atomic_compare_exchange_strong(&task->state, &state,
+                                           TASK_RUNNING)) {
+            // The task is not running on any CPU, and we are the first one to
+            // wake it up, so we can put it in the ready queue.
+            enqueue_ready(task);
+            return;
+        }
+    }
 }
 
 #define FIXED_SHIFT 11
@@ -343,47 +332,142 @@ void sched_tick(struct registers* regs) {
         signal_handle(regs, signum, &act);
 }
 
-static bool never_wake(void* ctx) {
-    (void)ctx;
+DEFINE_LOCKED(waitqueue, struct waitqueue, spinlock, lock)
+
+size_t waitqueue_wake_n(struct waitqueue* wq, size_t n) {
+    SCOPED_LOCK(waitqueue, wq);
+    size_t count = 0;
+    for (; count < n; ++count) {
+        struct waiter* waiter = wq->head;
+        if (!waiter)
+            break;
+        ASSERT(!waiter->prev);
+        struct task* task = waiter->task;
+        waiter->task = NULL;
+        wq->head = waiter->next;
+        if (wq->head)
+            wq->head->prev = NULL;
+        else
+            wq->tail = NULL;
+        waiter->next = NULL;
+        sched_wake(task);
+    }
+    return count;
+}
+
+size_t waitqueue_wake_all(struct waitqueue* wq) {
+    SCOPED_LOCK(waitqueue, wq);
+    size_t count = 0;
+    for (struct waiter* waiter = wq->head; waiter;) {
+        struct task* task = waiter->task;
+        waiter->task = NULL;
+        struct waiter* next = waiter->next;
+        waiter->prev = waiter->next = NULL;
+        sched_wake(task);
+        waiter = next;
+        ++count;
+    }
+    wq->head = wq->tail = NULL;
+    return count;
+}
+
+// Returns true if the caller should call `sched_yield()`.
+NODISCARD static bool waiter_wait(struct waiter* waiter, unsigned state) {
+    ASSERT(!arch_interrupts_enabled());
+
+    struct waitqueue* wq = ASSERT_PTR(waiter->wq);
+    SCOPED_LOCK(waitqueue, wq);
+
+    if (waiter->task) {
+        current->state = state;
+        return true;
+    }
+
+    // Add the waiter to the end of the queue to ensure FIFO order of wakeups.
+    waiter->published = true;
+    waiter->next = NULL;
+    waiter->prev = wq->tail;
+    if (waiter->prev)
+        waiter->prev->next = waiter;
+    else
+        wq->head = waiter;
+    wq->tail = waiter;
+    waiter->task = current;
+
+    // In the first call to `waiter_wait()`, do not immediately sleep.
+    // Otherwise, if the task was woken up after preparing to sleep but before
+    // actually sleeping, it would miss the wakeup and sleep indefinitely.
+    // Instead, after we registered ourselves in the waitqueue, let the caller
+    // decide whether to sleep or not. If the caller calls `waiter_wait()`
+    // again, then we know for sure that the task was not woken up in the
+    // meantime, and we can safely sleep.
     return false;
 }
 
-NODISCARD static int wait(wake_fn wake, void* ctx, unsigned state) {
-    ASSERT(current->state == TASK_RUNNING);
+static void waiter_cancel(struct waiter* waiter) {
+    if (!waiter->published)
+        return;
+    struct waitqueue* wq = ASSERT_PTR(waiter->wq);
+    SCOPED_LOCK(waitqueue, wq);
+    if (waiter->task) {
+        if (waiter->prev)
+            waiter->prev->next = waiter->next;
+        else
+            wq->head = waiter->next;
+        if (waiter->next)
+            waiter->next->prev = waiter->prev;
+        else
+            wq->tail = waiter->prev;
+        waiter->task = NULL;
+        waiter->prev = waiter->next = NULL;
+    }
+    current->state = TASK_RUNNING;
+    waiter->published = false;
+}
 
-    struct wait_state* wait = &current->wait_state;
-    ASSERT(!wait->wake);
-    ASSERT(!wait->ctx);
-    *wait = (struct wait_state){0};
+// Returns true if the wait was cancelled due to a signal.
+NODISCARD static bool waiter_cancel_if_interrupted(struct waiter* waiter) {
+    if (task_has_pending_signals()) {
+        waiter_cancel(waiter);
+        return true;
+    }
+    return false;
+}
 
-    if (wake && wake(ctx))
-        return 0;
+void __waiter_deinit(struct waiter* waiter) {
+    waiter_cancel(waiter);
+    *waiter = (struct waiter){0};
+}
 
+void sched_wait(struct waiter* waiter) {
+    ASSERT(arch_interrupts_enabled());
+    SCOPED_DISABLE_INTERRUPTS();
+    if (waiter_wait(waiter, TASK_UNINTERRUPTIBLE))
+        sched_yield();
+}
+
+void sched_wait_as_idle(struct waiter* waiter) {
+    ASSERT(arch_interrupts_enabled());
+    SCOPED_DISABLE_INTERRUPTS();
+    if (waiter_wait(waiter, TASK_IDLE))
+        sched_yield();
+}
+
+int sched_wait_interruptible(struct waiter* waiter) {
+    ASSERT(arch_interrupts_enabled());
     SCOPED_DISABLE_INTERRUPTS();
 
-    *wait = (struct wait_state){
-        .wake = wake ? wake : never_wake,
-        .ctx = ctx,
-    };
-    current->state = state;
+    if (waiter_cancel_if_interrupted(waiter))
+        return -EINTR;
 
-    sched_yield();
+    if (waiter_wait(waiter, TASK_INTERRUPTIBLE)) {
+        if (waiter_cancel_if_interrupted(waiter))
+            return -EINTR;
+        sched_yield();
+    }
 
-    ASSERT(current->state == TASK_RUNNING);
+    if (waiter_cancel_if_interrupted(waiter))
+        return -EINTR;
 
-    int rc = wait->interrupted ? -EINTR : 0;
-    *wait = (struct wait_state){0};
-    return rc;
-}
-
-void sched_wait(wake_fn wake, void* ctx) {
-    ASSERT_OK(wait(wake, ctx, TASK_UNINTERRUPTIBLE));
-}
-
-void sched_wait_as_idle(wake_fn wake, void* ctx) {
-    ASSERT_OK(wait(wake, ctx, TASK_IDLE));
-}
-
-int sched_wait_interruptible(wake_fn wake, void* ctx) {
-    return wait(wake, ctx, TASK_INTERRUPTIBLE);
+    return 0;
 }

@@ -59,9 +59,6 @@ NODISCARD short file_poll(struct file*, short events);
 
 NODISCARD struct vm_obj* file_mmap(struct file*);
 
-NODISCARD int file_wait(struct file*, bool (*wake)(struct file*, void* ctx),
-                        void* ctx);
-
 NODISCARD ssize_t default_file_pread(struct file* file, void* user_buffer,
                                      size_t count, uint64_t offset);
 NODISCARD ssize_t default_file_pwrite(struct file* file,

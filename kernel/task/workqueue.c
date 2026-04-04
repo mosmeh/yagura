@@ -1,15 +1,12 @@
 #include <common/stdatomic.h>
-#include <kernel/api/err.h>
 #include <kernel/panic.h>
 #include <kernel/task/sched.h>
 #include <kernel/task/workqueue.h>
-#include <kernel/time.h>
 
 static struct workqueue __global_workqueue;
 struct workqueue* global_workqueue = &__global_workqueue;
 
-void workqueue_submit_delayed(struct workqueue* wq, struct work* work,
-                              work_fn func, const struct timespec* delay) {
+void workqueue_submit(struct workqueue* wq, struct work* work, work_fn func) {
     ASSERT_PTR(work);
     ASSERT_PTR(func);
 
@@ -17,64 +14,30 @@ void workqueue_submit_delayed(struct workqueue* wq, struct work* work,
     work_fn expected_func = NULL;
     ASSERT(atomic_compare_exchange_strong(&work->func, &expected_func, func));
 
-    struct timespec deadline;
-    ASSERT_OK(time_now(CLOCK_MONOTONIC, &deadline));
-    if (delay)
-        timespec_add(&deadline, delay);
+    *work = (struct work){.func = func};
 
-    *work = (struct work){
-        .func = func,
-        .deadline = deadline,
-    };
-
-    SCOPED_LOCK(spinlock, &wq->lock);
-    struct tree_node** new_node = &wq->works.root;
-    struct tree_node* parent = NULL;
-    while (*new_node) {
-        parent = *new_node;
-        struct work* w = CONTAINER_OF(parent, struct work, tree_node);
-        if (timespec_compare(&work->deadline, &w->deadline) < 0) {
-            new_node = &parent->left;
-        } else {
-            // If the deadlines are the same, the new work will be executed
-            // after the existing one (FIFO order).
-            new_node = &parent->right;
-        }
+    {
+        SCOPED_LOCK(spinlock, &wq->lock);
+        if (wq->tail)
+            wq->tail->next = work;
+        else
+            wq->head = work;
+        wq->tail = work;
     }
-    *new_node = &work->tree_node;
-    tree_insert(&wq->works, parent, *new_node);
-}
 
-static bool wake_dispatch(void* ctx) {
-    struct workqueue* wq = ctx;
-
-    SCOPED_LOCK(spinlock, &wq->lock);
-
-    struct tree_node* node = tree_first(&wq->works);
-    if (!node)
-        return false;
-
-    struct work* work = CONTAINER_OF(node, struct work, tree_node);
-
-    struct timespec now;
-    ASSERT_OK(time_now(CLOCK_MONOTONIC, &now));
-    return timespec_compare(&now, &work->deadline) >= 0;
+    waitqueue_wake_one(&wq->wait);
 }
 
 NODISCARD static bool execute_one(struct workqueue* wq) {
-    struct timespec now;
-    ASSERT_OK(time_now(CLOCK_MONOTONIC, &now));
-
     struct work* work = NULL;
     {
         SCOPED_LOCK(spinlock, &wq->lock);
-        struct tree_node* node = tree_first(&wq->works);
-        if (!node)
+        work = wq->head;
+        if (!work)
             return false;
-        work = CONTAINER_OF(node, struct work, tree_node);
-        if (timespec_compare(&now, &work->deadline) < 0)
-            return false;
-        tree_remove(&wq->works, node);
+        wq->head = work->next;
+        if (!wq->head)
+            wq->tail = NULL;
     }
 
     work_fn func = work->func;
@@ -83,19 +46,20 @@ NODISCARD static bool execute_one(struct workqueue* wq) {
     // Mark the work as not pending.
     // This must be done before executing the work to allow re-submitting the
     // work from the func.
-    work->func = NULL;
+    *work = (struct work){0};
 
     func(work);
     return true;
 }
 
 void workqueue_dispatch(struct workqueue* wq) {
+    SCOPED_WAIT(waiter, &wq->wait);
     for (;;) {
         bool executed = false;
         while (execute_one(wq))
             executed = true;
         if (executed)
             return;
-        sched_wait_as_idle(wake_dispatch, wq);
+        sched_wait_as_idle(&waiter);
     }
 }

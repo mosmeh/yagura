@@ -12,6 +12,7 @@
 #include <kernel/panic.h>
 #include <kernel/system.h>
 #include <kernel/task/sched.h>
+#include <kernel/time.h>
 
 // virtio spec: https://docs.oasis-open.org/virtio/virtio/v1.3/virtio-v1.3.html
 
@@ -118,11 +119,6 @@ void virtq_desc_chain_push_buf(struct virtq_desc_chain* chain,
     ++chain->num_pushed;
 }
 
-static bool wake_submit(void* ctx) {
-    const struct virtq* virtq = ctx;
-    return virtq_is_ready(virtq);
-}
-
 int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
     if (chain->num_pushed == 0)
         return 0;
@@ -162,7 +158,17 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
     if (!(virtq->used->flags & VIRTQ_USED_F_NO_NOTIFY))
         *virtq->notify = virtq->index;
 
-    sched_wait(wake_submit, virtq);
+    {
+        // FIXME: Implement an interrupt-driven wait
+        static const struct timespec poll_interval = {.tv_nsec = 10000000LL};
+        struct timer timer CLEANUP(timer_disarm);
+        ASSERT_OK(timer_init(&timer, CLOCK_MONOTONIC, NULL));
+        while (!virtq_is_ready(virtq)) {
+            timer_arm_after(&timer, &poll_interval);
+            ASSERT(timer_wait(&timer));
+        }
+    }
+
     arch_full_memory_barrier();
 
     // Return the descriptors to the free list.
@@ -172,6 +178,8 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
 
     // Reset the chain.
     chain->num_pushed = 0;
+
+    waitqueue_wake_all(&virtq->wait);
 
     return 0;
 }

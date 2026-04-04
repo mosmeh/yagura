@@ -9,49 +9,17 @@
 #include <kernel/task/task.h>
 #include <kernel/time.h>
 
-struct fd_waiter {
-    nfds_t nfds;
-    struct pollfd* pollfds;
-    struct file** files;
-    bool has_timeout;
-    struct timespec deadline;
-    size_t num_events;
+struct files {
+    struct file** array;
+    nfds_t count;
 };
 
-static bool wake_wait_fds(void* ctx) {
-    struct fd_waiter* waiter = ctx;
-    for (nfds_t i = 0; i < waiter->nfds; ++i) {
-        struct file* file = waiter->files[i];
-        if (!file)
-            continue;
-
-        struct pollfd* pollfd = waiter->pollfds + i;
-        pollfd->revents = ASSERT_OK(file_poll(file, pollfd->events));
-        ASSERT((pollfd->revents & ~pollfd->events) == 0);
-        if (pollfd->revents)
-            ++waiter->num_events;
-    }
-    if (waiter->num_events > 0)
-        return true;
-
-    // Check timeout AFTER polling files to update revents even when
-    // it immediately times out.
-    if (waiter->has_timeout) {
-        struct timespec now;
-        ASSERT_OK(time_now(CLOCK_MONOTONIC, &now));
-        if (timespec_compare(&now, &waiter->deadline) >= 0)
-            return true;
-    }
-
-    return false;
-}
-
-static void fd_waiter_deinit(struct fd_waiter* waiter) {
-    if (!waiter->files)
+static void files_deinit(struct files* files) {
+    if (!files->array)
         return;
-    for (nfds_t i = 0; i < waiter->nfds; ++i)
-        file_unref(waiter->files[i]);
-    kfree(waiter->files);
+    for (nfds_t i = 0; i < files->count; ++i)
+        file_unref(files->array[i]);
+    kfree(files->array);
 }
 
 // The differences from poll(2) are:
@@ -66,57 +34,91 @@ NODISCARD static int wait_fds(nfds_t nfds, struct pollfd pollfds[nfds],
             return -EINVAL;
     }
 
-    struct fd_waiter waiter CLEANUP(fd_waiter_deinit) = {
-        .nfds = nfds,
-        .pollfds = pollfds,
-    };
+    struct files files CLEANUP(files_deinit) = {.count = nfds};
+    size_t num_events = 0;
 
     if (nfds > 0) {
-        waiter.files = kmalloc(sizeof(struct file*) * nfds);
-        if (!waiter.files)
+        files.array = kmalloc(sizeof(struct file*) * nfds);
+        if (!files.array)
             return -ENOMEM;
 
         struct fd_table* fd_table = current->fd_table;
         for (nfds_t i = 0; i < nfds; ++i) {
             struct pollfd* pollfd = pollfds + i;
             pollfd->revents = 0;
-            waiter.files[i] = NULL;
+            files.array[i] = NULL;
             if (pollfd->fd < 0)
                 continue;
             struct file* file = ASSERT(fd_table_ref_file(fd_table, pollfd->fd));
             if (IS_ERR(file)) {
                 pollfd->revents = POLLNVAL;
-                ++waiter.num_events;
+                ++num_events;
                 continue;
             }
-            waiter.files[i] = file;
+            files.array[i] = file;
         }
     }
 
+    struct timespec deadline;
     if (timeout) {
-        struct timespec deadline;
         int ret = time_now(CLOCK_MONOTONIC, &deadline);
         if (IS_ERR(ret))
             return ret;
         timespec_add(&deadline, timeout);
-        waiter.has_timeout = true;
-        waiter.deadline = deadline;
     }
 
-    int ret = sched_wait_interruptible(wake_wait_fds, &waiter);
-    if (IS_ERR(ret))
-        return ret;
+    {
+        struct timer timer CLEANUP(timer_disarm);
+        ASSERT_OK(timer_init(&timer, CLOCK_MONOTONIC, NULL));
+        for (;;) {
+            for (nfds_t i = 0; i < nfds; ++i) {
+                struct file* file = files.array[i];
+                if (!file)
+                    continue;
+
+                struct pollfd* pollfd = pollfds + i;
+                pollfd->revents = ASSERT_OK(file_poll(file, pollfd->events));
+                ASSERT((pollfd->revents & ~pollfd->events) == 0);
+                if (pollfd->revents)
+                    ++num_events;
+            }
+            if (num_events > 0)
+                break;
+
+            // FIXME: Implement a more efficient way to wait for multiple files
+            static const struct timespec poll_interval = {.tv_nsec = 1000000LL};
+            struct timespec wait_duration = poll_interval;
+
+            // Check timeout AFTER polling files to update revents even when
+            // it immediately times out.
+            if (timeout) {
+                struct timespec now;
+                ASSERT_OK(time_now(CLOCK_MONOTONIC, &now));
+                if (timespec_compare(&now, &deadline) >= 0)
+                    break;
+                struct timespec remaining = deadline;
+                timespec_saturating_sub(&remaining, &now);
+                if (timespec_compare(&remaining, &wait_duration) < 0)
+                    wait_duration = remaining;
+            }
+
+            timer_arm_after(&timer, &wait_duration);
+            int ret = timer_wait_interruptible(&timer);
+            if (IS_ERR(ret))
+                return ret;
+        }
+    }
 
     if (timeout) {
-        *timeout = waiter.deadline;
+        *timeout = deadline;
         struct timespec now;
-        ret = time_now(CLOCK_MONOTONIC, &now);
+        int ret = time_now(CLOCK_MONOTONIC, &now);
         if (IS_ERR(ret))
             return ret;
         timespec_saturating_sub(timeout, &now);
     }
 
-    return waiter.num_events;
+    return num_events;
 }
 
 NODISCARD static int

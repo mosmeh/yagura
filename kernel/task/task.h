@@ -21,6 +21,7 @@
 #define TASK_UNINTERRUPTIBLE 0x2 // Sleeping and cannot be woken by a signal
 #define TASK_STOPPED 0x4         // Stopped and can be woken by SIGCONT
 #define TASK_DEAD 0x80           // Exiting or exited
+#define TASK_WAKING 0x200        // Waking up from sleep
 
 #define TASK_NOLOAD 0x400 // Task should not be counted in load average
 
@@ -45,19 +46,18 @@ struct task {
     sigset_t pending_signals;
     sigset_t blocked_signals;
 
-    struct wait_state wait_state;
-
     struct thread_group* thread_group;
 
+    _Atomic(struct cpu*) cpu;
     _Atomic(size_t) user_ticks;
     _Atomic(size_t) kernel_ticks;
 
     struct task* tasks_next; // global tasks list
     struct task* ready_queue_next;
-    struct task* blocked_next;
 
     struct arch_task arch;
 
+    struct waitqueue wait;
     struct work destroy_work;
 
     struct mutex lock;
@@ -66,6 +66,10 @@ struct task {
 
 extern struct task* tasks;
 extern struct spinlock tasks_lock;
+
+// A waitqueue that is woken when a possibly waited-on task changes state.
+// FIXME: Replace with more fine-grained waitqueues.
+extern struct waitqueue tasks_wait;
 
 void task_early_init(void);
 void task_late_init(void);
@@ -185,7 +189,10 @@ DEFINE_REFCOUNTED_BASE(thread_group, struct thread_group, refcount,
 
 // Returns the set of pending signals for the current task,
 // excluding blocked signals.
-void task_get_pending_signals(struct task*, sigset_t* out_set);
+void task_get_pending_signals(sigset_t* out_set);
+
+// Returns true if the current task has pending signals that are not blocked.
+bool task_has_pending_signals(void);
 
 void task_set_blocked_signals(const sigset_t*);
 

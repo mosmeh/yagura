@@ -16,10 +16,12 @@
 struct pipe {
     struct inode vfs_inode;
     struct ring_buf* ring;
-    struct spinlock ring_lock;
-    _Atomic(size_t) num_readers;
-    _Atomic(size_t) num_writers;
+    size_t num_readers;
+    size_t num_writers;
+    struct waitqueue wait;
 };
+
+DEFINE_LOCKED(pipe, struct pipe, inode, vfs_inode)
 
 static struct slab pipe_slab;
 static struct mount* pipe_mount;
@@ -52,19 +54,6 @@ static struct pipe* pipe_from_file(struct file* file) {
     return file->private_data;
 }
 
-static bool wake_open(struct file* file, void* ctx) {
-    (void)ctx;
-    const struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
-    switch (file->flags & O_ACCMODE) {
-    case O_RDONLY:
-        return pipe->num_writers > 0;
-    case O_WRONLY:
-        return pipe->num_readers > 0;
-    default:
-        UNREACHABLE();
-    }
-}
-
 static int pipe_open(struct file* file) {
     bool is_fifo = false;
     struct inode* pipe_inode FREE(inode) = NULL;
@@ -92,73 +81,82 @@ static int pipe_open(struct file* file) {
     inode_ref(pipe_inode);
 
     struct pipe* pipe = pipe_from_inode(pipe_inode);
-    file->private_data = pipe;
 
-    switch (file->flags & O_ACCMODE) {
-    case O_RDONLY:
-        ++pipe->num_readers;
-        if (is_fifo) {
-            int rc = file_wait(file, wake_open, NULL);
-            if (IS_ERR(rc) && rc != -EAGAIN) {
-                --pipe->num_readers;
-                file->private_data = NULL;
-                return rc;
+    {
+        SCOPED_LOCK(pipe, pipe);
+        switch (file->flags & O_ACCMODE) {
+        case O_RDONLY:
+            ++pipe->num_readers;
+            if (is_fifo && !(file->flags & O_NONBLOCK)) {
+                SCOPED_WAIT(waiter, &pipe->wait);
+                while (pipe->num_writers == 0) {
+                    pipe_unlock(pipe);
+                    int rc = sched_wait_interruptible(&waiter);
+                    pipe_lock(pipe);
+                    if (IS_ERR(rc)) {
+                        --pipe->num_readers;
+                        return rc;
+                    }
+                }
             }
-        }
-        break;
-    case O_WRONLY:
-        ++pipe->num_writers;
-        if (is_fifo) {
-            int rc = file_wait(file, wake_open, NULL);
-            if (rc == -EAGAIN)
-                rc = -ENXIO;
-            if (IS_ERR(rc)) {
-                --pipe->num_writers;
-                file->private_data = NULL;
-                return rc;
+            break;
+        case O_WRONLY:
+            ++pipe->num_writers;
+            if (is_fifo) {
+                SCOPED_WAIT(waiter, &pipe->wait);
+                for (;;) {
+                    if (pipe->num_readers > 0)
+                        break;
+                    if (file->flags & O_NONBLOCK) {
+                        --pipe->num_writers;
+                        return -ENXIO;
+                    }
+                    pipe_unlock(pipe);
+                    int rc = sched_wait_interruptible(&waiter);
+                    pipe_lock(pipe);
+                    if (IS_ERR(rc)) {
+                        --pipe->num_writers;
+                        return rc;
+                    }
+                }
             }
+            break;
+        case O_RDWR:
+            ++pipe->num_readers;
+            ++pipe->num_writers;
+            break;
+        default:
+            UNREACHABLE();
         }
-        break;
-    case O_RDWR:
-        ++pipe->num_readers;
-        ++pipe->num_writers;
-        break;
-    default:
-        UNREACHABLE();
     }
+    waitqueue_wake_all(&pipe->wait);
 
+    file->private_data = pipe;
     TAKE_PTR(pipe_inode);
     return 0;
 }
 
 static void pipe_close(struct file* file) {
     struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
-    switch (file->flags & O_ACCMODE) {
-    case O_RDONLY:
-        --pipe->num_readers;
-        break;
-    case O_WRONLY:
-        --pipe->num_writers;
-        break;
-    case O_RDWR:
-        --pipe->num_readers;
-        --pipe->num_writers;
-        break;
-    default:
-        UNREACHABLE();
+    {
+        SCOPED_LOCK(pipe, pipe);
+        switch (file->flags & O_ACCMODE) {
+        case O_RDONLY:
+            --pipe->num_readers;
+            break;
+        case O_WRONLY:
+            --pipe->num_writers;
+            break;
+        case O_RDWR:
+            --pipe->num_readers;
+            --pipe->num_writers;
+            break;
+        default:
+            UNREACHABLE();
+        }
     }
+    waitqueue_wake_all(&pipe->wait);
     inode_unref(&pipe->vfs_inode);
-}
-
-static bool wake_read(struct file* file, void* ctx) {
-    (void)ctx;
-    struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
-
-    if (pipe->num_writers == 0)
-        return true;
-
-    SCOPED_LOCK(spinlock, &pipe->ring_lock);
-    return !ring_buf_is_empty(pipe->ring);
 }
 
 static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
@@ -166,49 +164,66 @@ static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
     (void)offset;
 
     struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
-    size_t nread = 0;
-    unsigned char* user_dest = user_buffer;
-    while (count > 0) {
-        int rc = file_wait(file, wake_read, NULL);
-        if (nread > 0 && (rc == -EAGAIN || rc == -EINTR))
-            break;
-        if (IS_ERR(rc))
-            return rc;
-
-        for (;;) {
-            // Ensure atomicity for reads <= PIPE_BUF
-            char buf[PIPE_BUF];
-            size_t n = 0;
-            {
-                SCOPED_LOCK(spinlock, &pipe->ring_lock);
-                n = ring_buf_read(pipe->ring, buf, MIN(count, sizeof(buf)));
+    if (count == 0)
+        return 0;
+    for (;;) {
+        {
+            SCOPED_WAIT(waiter, &pipe->wait);
+            for (;;) {
+                pipe_lock(pipe);
+                if (!ring_buf_is_empty(pipe->ring))
+                    break;
+                if (pipe->num_writers == 0) {
+                    pipe_unlock(pipe);
+                    return 0;
+                }
+                pipe_unlock(pipe);
+                if (file->flags & O_NONBLOCK)
+                    return -EAGAIN;
+                if (sched_wait_interruptible(&waiter))
+                    return -EINTR;
             }
-            if (n == 0)
-                break;
-            if (copy_to_user(user_dest, buf, n))
-                return -EFAULT;
-            nread += n;
-            user_dest += n;
-            count -= n;
         }
-        if (nread > 0)
-            break;
-
-        if (pipe->num_writers == 0)
-            return 0;
+        ssize_t n = ring_buf_read_to_user(pipe->ring, user_buffer, count);
+        pipe_unlock(pipe);
+        if (IS_ERR(n))
+            return n;
+        if (n > 0) {
+            waitqueue_wake_all(&pipe->wait);
+            return n;
+        }
     }
-    return nread;
 }
 
-static bool wake_write(struct file* file, void* ctx) {
+NODISCARD static ssize_t do_write(struct file* file, const void* user_src,
+                                  size_t count, bool atomic) {
     struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
-    size_t requested_capacity = *(const size_t*)ctx;
-
-    if (pipe->num_readers == 0)
-        return true;
-
-    SCOPED_LOCK(spinlock, &pipe->ring_lock);
-    return ring_buf_remaining_capacity(pipe->ring) >= requested_capacity;
+    {
+        SCOPED_WAIT(waiter, &pipe->wait);
+        for (;;) {
+            pipe_lock(pipe);
+            if (pipe->num_readers == 0) {
+                pipe_unlock(pipe);
+                int rc = signal_send_to_tasks(0, current->tid, SIGPIPE);
+                if (IS_ERR(rc))
+                    return rc;
+                return -EPIPE;
+            }
+            if (ring_buf_remaining_capacity(pipe->ring) >= (atomic ? count : 1))
+                break;
+            pipe_unlock(pipe);
+            if (file->flags & O_NONBLOCK)
+                return -EAGAIN;
+            if (sched_wait_interruptible(&waiter))
+                return -EINTR;
+        }
+    }
+    ssize_t n = 0;
+    if (!atomic ||
+        ring_buf_remaining_capacity(pipe->ring) >= MIN(count, PIPE_BUF))
+        n = ring_buf_write_from_user(pipe->ring, user_src, count);
+    pipe_unlock(pipe);
+    return n;
 }
 
 static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
@@ -220,36 +235,18 @@ static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
     size_t nwritten = 0;
     const unsigned char* user_src = user_buffer;
     while (count > 0) {
-        size_t requested_capacity = atomic ? count : 1;
-        int rc = file_wait(file, wake_write, &requested_capacity);
-        if (nwritten > 0 && (rc == -EAGAIN || rc == -EINTR))
-            break;
-        if (IS_ERR(rc))
-            return rc;
-
-        if (pipe->num_readers == 0) {
-            rc = signal_send_to_tasks(0, current->tid, SIGPIPE);
-            if (IS_ERR(rc))
-                return rc;
+        ssize_t n = do_write(file, user_src, count, atomic);
+        if (IS_ERR(n)) {
             if (nwritten > 0)
                 break;
-            return -EPIPE;
+            return n;
         }
-
-        size_t to_write = MIN(count, PIPE_BUF);
-        char buf[PIPE_BUF];
-        if (copy_from_user(buf, user_src, to_write))
-            return -EFAULT;
-
-        size_t n = 0;
-        {
-            SCOPED_LOCK(spinlock, &pipe->ring_lock);
-            if (!atomic || ring_buf_remaining_capacity(pipe->ring) >= to_write)
-                n = ring_buf_write(pipe->ring, buf, to_write);
+        if (n > 0) {
+            nwritten += n;
+            user_src += n;
+            count -= n;
+            waitqueue_wake_all(&pipe->wait);
         }
-        nwritten += n;
-        user_src += n;
-        count -= n;
     }
     return nwritten;
 }
@@ -257,13 +254,11 @@ static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
 static short pipe_poll(struct file* file, short events) {
     short revents = 0;
     struct pipe* pipe = pipe_from_file(file);
-    {
-        SCOPED_LOCK(spinlock, &pipe->ring_lock);
-        if ((events & POLLIN) && !ring_buf_is_empty(pipe->ring))
-            revents |= POLLIN;
-        if ((events & POLLOUT) && !ring_buf_is_full(pipe->ring))
-            revents |= POLLOUT;
-    }
+    SCOPED_LOCK(pipe, pipe);
+    if ((events & POLLIN) && !ring_buf_is_empty(pipe->ring))
+        revents |= POLLIN;
+    if ((events & POLLOUT) && !ring_buf_is_full(pipe->ring))
+        revents |= POLLOUT;
     switch (file->flags & O_ACCMODE) {
     case O_RDONLY:
         if ((events & POLLHUP) && (pipe->num_writers == 0))
@@ -340,17 +335,15 @@ int pipe_fcntl(struct file* file, int cmd, unsigned long arg) {
         if (new_capacity < PAGE_SIZE || new_capacity < arg)
             return -EINVAL;
 
-        struct ring_buf* new_ring FREE(ring_buf) =
-            ASSERT(ring_buf_create(new_capacity));
-        if (IS_ERR(new_ring))
-            return PTR_ERR(new_ring);
-
-        struct ring_buf* old_ring FREE(ring_buf) = NULL;
         {
-            SCOPED_LOCK(spinlock, &pipe->ring_lock);
-
+            SCOPED_LOCK(pipe, pipe);
             if (ring_buf_size(pipe->ring) > new_capacity)
                 return -EBUSY;
+
+            struct ring_buf* new_ring FREE(ring_buf) =
+                ASSERT(ring_buf_create(new_capacity));
+            if (IS_ERR(new_ring))
+                return PTR_ERR(new_ring);
 
             while (!ring_buf_is_empty(pipe->ring)) {
                 char buf[PAGE_SIZE];
@@ -358,14 +351,16 @@ int pipe_fcntl(struct file* file, int cmd, unsigned long arg) {
                 ASSERT(ring_buf_write(new_ring, buf, n) == n);
             }
 
-            old_ring = pipe->ring;
+            ring_buf_destroy(pipe->ring);
             pipe->ring = TAKE_PTR(new_ring);
         }
+
+        waitqueue_wake_all(&pipe->wait);
 
         return new_capacity;
     }
     case F_GETPIPE_SZ: {
-        SCOPED_LOCK(spinlock, &pipe->ring_lock);
+        SCOPED_LOCK(pipe, pipe);
         return ring_buf_capacity(pipe->ring);
     }
     default:

@@ -9,7 +9,6 @@
 #include <kernel/fs/path.h>
 #include <kernel/memory/phys.h>
 #include <kernel/memory/safe_string.h>
-#include <kernel/task/sched.h>
 
 static struct slab file_slab;
 
@@ -308,29 +307,4 @@ struct vm_obj* file_mmap(struct file* file) {
     if (file->fops->mmap)
         return file->fops->mmap(file);
     return vm_obj_ref(&file->filemap->inode->vm_obj);
-}
-
-struct waker {
-    struct file* file;
-    bool (*wake)(struct file*, void* ctx);
-    void* ctx;
-};
-
-static bool raw_wake(void* ctx) {
-    const struct waker* waker = ctx;
-    return waker->wake(waker->file, waker->ctx);
-}
-
-int file_wait(struct file* file, bool (*wake)(struct file*, void* ctx),
-              void* ctx) {
-    if (wake(file, ctx))
-        return 0;
-    if (file->flags & O_NONBLOCK)
-        return -EAGAIN;
-    struct waker waker = {
-        .file = file,
-        .wake = wake,
-        .ctx = ctx,
-    };
-    return sched_wait_interruptible(raw_wake, &waker);
 }

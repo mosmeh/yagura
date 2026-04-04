@@ -47,6 +47,7 @@ SYSCALL2(setpgid, pid_t, pid, pid_t, pgid) {
         return -ESRCH;
 
     target->thread_group->pgid = pgid ? pgid : target_tgid;
+    waitqueue_wake_all(&tasks_wait);
     return 0;
 }
 
@@ -109,7 +110,7 @@ SYSCALL_RAW(vfork, regs) {
                            NULL, NULL);
 }
 
-struct pid_waiter {
+struct wait {
     // Parameters
     int options;
     enum pid_type {
@@ -124,8 +125,7 @@ struct pid_waiter {
     int status;
 };
 
-static bool wake_waitpid(void* ctx) {
-    struct pid_waiter* waiter = ctx;
+NODISCARD static bool find_waitee(struct wait* wait) {
     SCOPED_LOCK(spinlock, &tasks_lock);
     for (;;) {
         struct task* prev = NULL;
@@ -135,16 +135,16 @@ static bool wake_waitpid(void* ctx) {
         while (task) {
             struct thread_group* tg = task->thread_group;
             bool is_target = false;
-            if (tg->ppid == waiter->current_tgid) {
-                switch (waiter->pid_type) {
+            if (tg->ppid == wait->current_tgid) {
+                switch (wait->pid_type) {
                 case PIDTYPE_ANY:
                     is_target = true;
                     break;
                 case PIDTYPE_TGID:
-                    is_target |= tg->tgid == waiter->waited_pid;
+                    is_target |= tg->tgid == wait->waited_pid;
                     break;
                 case PIDTYPE_PGID:
-                    is_target |= tg->pgid == waiter->waited_pid;
+                    is_target |= tg->pgid == wait->waited_pid;
                     break;
                 default:
                     UNREACHABLE();
@@ -155,7 +155,7 @@ static bool wake_waitpid(void* ctx) {
                 any_target_exists |= true;
                 if (task->state == TASK_DEAD)
                     break;
-                if ((waiter->options & WUNTRACED) &&
+                if ((wait->options & WUNTRACED) &&
                     task->state == TASK_STOPPED && task->exit_status)
                     break;
             }
@@ -175,16 +175,16 @@ static bool wake_waitpid(void* ctx) {
                 prev->tasks_next = task->tasks_next;
             else
                 tasks = task->tasks_next;
-            waiter->task = task; // The caller will free the task
-            waiter->status = task->exit_status;
+            wait->task = task; // The caller will free the task
+            wait->status = task->exit_status;
             return true;
         case TASK_STOPPED:
-            ASSERT(waiter->options & WUNTRACED);
+            ASSERT(wait->options & WUNTRACED);
             int status = task->exit_status;
             if (status) {
                 // The task is still alive, so don't free it yet.
-                waiter->task = task_ref(task);
-                waiter->status = status;
+                wait->task = task_ref(task);
+                wait->status = status;
                 // Do not report the same stopped child twice.
                 task->exit_status = 0;
                 return true;
@@ -221,41 +221,41 @@ NODISCARD static pid_t wait4(pid_t pid, int* user_wstatus, int options,
     if (pid == INT_MIN) // -pid overflows
         return -EINVAL;
 
-    struct pid_waiter waiter = {
+    struct wait wait = {
         .options = options,
         .current_tgid = current->thread_group->tgid,
         .waited_pid = -1,
     };
     if (pid < -1) {
-        waiter.pid_type = PIDTYPE_PGID;
-        waiter.waited_pid = -pid;
+        wait.pid_type = PIDTYPE_PGID;
+        wait.waited_pid = -pid;
     } else if (pid == -1) {
-        waiter.pid_type = PIDTYPE_ANY;
+        wait.pid_type = PIDTYPE_ANY;
     } else if (pid == 0) {
-        waiter.pid_type = PIDTYPE_PGID;
-        waiter.waited_pid = current->thread_group->pgid;
+        wait.pid_type = PIDTYPE_PGID;
+        wait.waited_pid = current->thread_group->pgid;
     } else {
-        waiter.pid_type = PIDTYPE_TGID;
-        waiter.waited_pid = pid;
+        wait.pid_type = PIDTYPE_TGID;
+        wait.waited_pid = pid;
     }
 
     if (options & WNOHANG) {
-        if (!wake_waitpid(&waiter))
+        if (!find_waitee(&wait))
             return 0;
     } else {
-        int rc = sched_wait_interruptible(wake_waitpid, &waiter);
-        if (rc == -EINTR)
-            return -ERESTARTSYS;
-        if (IS_ERR(rc))
-            return rc;
+        SCOPED_WAIT(waiter, &tasks_wait);
+        while (!find_waitee(&wait)) {
+            if (sched_wait_interruptible(&waiter))
+                return -ERESTARTSYS;
+        }
     }
 
-    struct task* task FREE(task) = waiter.task;
+    struct task* task FREE(task) = wait.task;
     if (!task)
         return -ECHILD;
 
     if (user_wstatus) {
-        if (copy_to_user(user_wstatus, &waiter.status, sizeof(int)))
+        if (copy_to_user(user_wstatus, &wait.status, sizeof(int)))
             return -EFAULT;
     }
     if (user_rusage) {

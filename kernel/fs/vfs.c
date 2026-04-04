@@ -15,6 +15,7 @@
 #include <kernel/memory/memory.h>
 #include <kernel/panic.h>
 #include <kernel/task/task.h>
+#include <kernel/time.h>
 
 static struct file_system* file_systems;
 
@@ -453,10 +454,17 @@ static void sync(struct work* work) {
     schedule_sync();
 }
 
-static void schedule_sync(void) {
+static void submit_sync(struct timer* timer) {
+    (void)timer;
     static struct work work;
+    workqueue_submit(global_workqueue, &work, sync);
+}
+
+static struct timer sync_timer;
+
+static void schedule_sync(void) {
     static const struct timespec sync_interval = {.tv_sec = 5};
-    workqueue_submit_delayed(global_workqueue, &work, sync, &sync_interval);
+    timer_arm_after(&sync_timer, &sync_interval);
 }
 
 void vfs_init(void) {
@@ -465,5 +473,7 @@ void vfs_init(void) {
     mount_root();
     initramfs_populate_root_fs(boot_params.initramfs_addr,
                                boot_params.initramfs_size);
+
+    ASSERT_OK(timer_init(&sync_timer, CLOCK_MONOTONIC, submit_sync));
     schedule_sync();
 }

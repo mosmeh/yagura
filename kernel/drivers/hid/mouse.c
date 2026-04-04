@@ -1,3 +1,4 @@
+#include <kernel/api/fcntl.h>
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
@@ -8,6 +9,7 @@
 #include <kernel/kmsg.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
+#include <kernel/task/sched.h>
 
 static void write_mouse(uint8_t data) {
     ps2_write(PS2_COMMAND, 0xd4);
@@ -27,6 +29,7 @@ static unsigned char queue[QUEUE_SIZE];
 static size_t read_index = 0;
 static size_t write_index = 0;
 static struct spinlock queue_lock;
+static struct waitqueue wait;
 
 static void irq_handler(struct registers* reg) {
     (void)reg;
@@ -45,13 +48,17 @@ static void irq_handler(struct registers* reg) {
         ++state;
         return;
     case 2: {
-        SCOPED_LOCK(spinlock, &queue_lock);
-        for (size_t i = 0; i < sizeof(packet_buf); ++i) {
-            queue[write_index] = packet_buf[i];
-            write_index = (write_index + 1) % QUEUE_SIZE;
-            if (write_index == read_index)
-                read_index = (read_index + 1) % QUEUE_SIZE;
+        STATIC_ASSERT(sizeof(packet_buf) == 3);
+        {
+            SCOPED_LOCK(spinlock, &queue_lock);
+            for (size_t i = 0; i < sizeof(packet_buf); ++i) {
+                queue[write_index] = packet_buf[i];
+                write_index = (write_index + 1) % QUEUE_SIZE;
+                if (write_index == read_index)
+                    read_index = (read_index + 1) % QUEUE_SIZE;
+            }
         }
+        waitqueue_wake_all(&wait);
         state = 0;
         return;
     }
@@ -64,12 +71,6 @@ static bool can_read(void) {
     return read_index != write_index;
 }
 
-static bool wake_read(struct file* file, void* ctx) {
-    (void)file;
-    (void)ctx;
-    return can_read();
-}
-
 static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
                                size_t count, uint64_t offset) {
     (void)offset;
@@ -78,9 +79,15 @@ static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
     count = MIN(count, sizeof(buf));
 
     for (;;) {
-        int rc = file_wait(file, wake_read, NULL);
-        if (IS_ERR(rc))
-            return rc;
+        {
+            SCOPED_WAIT(waiter, &wait);
+            while (!can_read()) {
+                if (file->flags & O_NONBLOCK)
+                    return -EAGAIN;
+                if (sched_wait_interruptible(&waiter))
+                    return -EINTR;
+            }
+        }
 
         size_t nread = 0;
         {

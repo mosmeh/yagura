@@ -2,6 +2,7 @@
 
 #include <common/macros.h>
 #include <common/stdbool.h>
+#include <kernel/lock.h>
 
 struct task;
 struct registers;
@@ -25,26 +26,75 @@ void sched_reschedule(struct task*);
 // Should be called on every timer tick.
 void sched_tick(struct registers*);
 
-// Returns true if the task should be unblocked.
-typedef bool (*wake_fn)(void* ctx);
+// Wakes up a task that is sleeping.
+void sched_wake(struct task*);
 
-struct wait_state {
-    wake_fn wake;
-    void* ctx;
-    bool interrupted;
+// Example usage of waitqueues:
+//
+// bool condition = false;
+// struct waitqueue wq = {0};
+//
+// void wake(void) {
+//     condition = true;
+//     waitqueue_wake_all(&wq);
+// }
+//
+// void wait(void) {
+//     SCOPED_WAIT(waiter, &wq);
+//     while (!condition) {
+//         if (file->flags & O_NONBLOCK)
+//            return -EAGAIN;
+//
+//         sched_wait(&waiter);
+//
+//         // Or, if the wait should be interruptible:
+//         // if (sched_wait_interruptible(&waiter))
+//         //    return -EINTR;
+//     }
+//     // waiter is removed from the waitqueue when going out of scope
+// }
+
+#define SCOPED_WAIT(name, waitqueue)                                           \
+    struct waiter name CLEANUP(__waiter_deinit) = {.wq = (waitqueue)};
+
+struct waiter {
+    struct waitqueue* wq;
+    struct task* task;
+    struct waiter* prev;
+    struct waiter* next;
+    bool published;
 };
 
-// Blocks the current task until the wake function returns true.
-// If wake function is NULL, the task will be blocked forever.
-void sched_wait(wake_fn, void* ctx);
+void __waiter_deinit(struct waiter*);
 
-// Same as `sched_wait()` except that the task will not contribute to
-// load average while waiting.
-void sched_wait_as_idle(wake_fn, void* ctx);
+struct waitqueue {
+    struct waiter* head;
+    struct waiter* tail;
+    struct spinlock lock;
+};
 
-// Same as `sched_wait()` except that it can be interrupted by signals.
-// Returns -EINTR if interrupted by a signal.
-NODISCARD int sched_wait_interruptible(wake_fn, void* ctx);
+// Wakes at most `n` tasks waiting on the given waitqueue.
+// Returns the number of tasks that were woken up.
+size_t waitqueue_wake_n(struct waitqueue*, size_t n);
+
+// Wakes at most one task waiting on the given waitqueue.
+// Returns true if a task was woken up.
+static inline bool waitqueue_wake_one(struct waitqueue* wq) {
+    return waitqueue_wake_n(wq, 1) > 0;
+}
+
+// Wakes all tasks waiting on the given waitqueue.
+// Returns the number of tasks that were woken up.
+size_t waitqueue_wake_all(struct waitqueue*);
+
+// Sleeps until the waiter is woken up.
+void sched_wait(struct waiter*);
+
+// Like `sched_wait` but does not contribute to load average while waiting.
+void sched_wait_as_idle(struct waiter*);
+
+// Like `sched_wait` but returns -EINTR if the wait was interrupted by a signal.
+NODISCARD int sched_wait_interruptible(struct waiter*);
 
 // Gets the 1, 5, and 15 minute load averages in the format used by
 // the `loads` field of `struct sysinfo`.

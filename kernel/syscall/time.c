@@ -174,24 +174,11 @@ SYSCALL2(clock_getres_time32, clockid_t, clockid, struct timespec32*,
     return 0;
 }
 
-struct waker {
-    clockid_t clock_id;
-    struct timespec deadline;
-};
-
-static bool wake(void* ctx) {
-    const struct waker* waker = ctx;
-    struct timespec now;
-    ASSERT_OK(time_now(waker->clock_id, &now));
-    return timespec_compare(&now, &waker->deadline) >= 0;
-}
-
 NODISCARD static int clock_nanosleep(clockid_t clockid, int flags,
                                      const struct timespec* request,
                                      struct timespec* remain) {
-    struct timespec deadline = {0};
-    // Call time_now regardless of the flags to validate the clockid
-    int rc = time_now(clockid, &deadline);
+    struct timer timer CLEANUP(timer_disarm);
+    int rc = timer_init(&timer, clockid, NULL);
     if (IS_ERR(rc))
         return rc;
 
@@ -201,24 +188,21 @@ NODISCARD static int clock_nanosleep(clockid_t clockid, int flags,
 
     switch (flags) {
     case 0:
-        timespec_add(&deadline, request);
+        timer_arm_after(&timer, request);
         break;
     case TIMER_ABSTIME:
-        deadline = *request;
+        timer_arm_at(&timer, request);
         break;
     default:
         return -EINVAL;
     }
 
-    struct waker waker = {
-        .clock_id = clockid,
-        .deadline = deadline,
-    };
-    rc = sched_wait_interruptible(wake, &waker);
+    rc = timer_wait_interruptible(&timer);
     if (IS_ERR(rc))
         return rc;
+
     if (remain && flags != TIMER_ABSTIME) {
-        *remain = deadline;
+        *remain = timer.deadline;
         struct timespec now;
         rc = time_now(clockid, &now);
         if (IS_ERR(rc))

@@ -30,6 +30,7 @@ struct virtual_console {
 
 static struct virtual_console* consoles[NUM_CONSOLES];
 static _Atomic(struct virtual_console*) active_console;
+static struct waitqueue active_wait;
 
 // Protects the underlying screen, which is shared by all virtual_consoles
 static struct spinlock screen_lock;
@@ -55,6 +56,7 @@ static void activate_console(size_t index) {
     vt_flush(console->vt);
 
     active_console = console;
+    waitqueue_wake_all(&active_wait);
 }
 
 static void flush_if_active(struct virtual_console* console) {
@@ -220,11 +222,6 @@ static void set_font(struct virtual_console* console, struct font* font) {
     SCOPED_LOCK(tty, &console->tty);
     old_font = vt_swap_font(console->vt, font);
     flush_if_active(console);
-}
-
-static bool wake_waitactive(void* ctx) {
-    const struct virtual_console* console = ctx;
-    return active_console == console;
 }
 
 static int virtual_console_ioctl(struct tty* tty, struct file* file,
@@ -481,9 +478,11 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
     case VT_WAITACTIVE: {
         if (arg == 0 || arg > NUM_CONSOLES)
             return -ENXIO;
-        int rc = sched_wait_interruptible(wake_waitactive, consoles[arg - 1]);
-        if (IS_ERR(rc))
-            return rc;
+        SCOPED_WAIT(waiter, &active_wait);
+        while (active_console != consoles[arg - 1]) {
+            if (sched_wait_interruptible(&waiter))
+                return -EINTR;
+        }
         break;
     }
     default:

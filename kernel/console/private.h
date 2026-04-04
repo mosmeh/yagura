@@ -4,6 +4,7 @@
 #include <kernel/console/screen/screen.h>
 #include <kernel/containers/ring_buf.h>
 #include <kernel/device/device.h>
+#include <kernel/task/sched.h>
 
 struct screen;
 struct tty;
@@ -52,6 +53,8 @@ struct tty {
     size_t line_len;
 
     pid_t pgid;
+
+    struct waitqueue wait;
 
     struct spinlock lock;
 };

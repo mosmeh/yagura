@@ -12,6 +12,7 @@
 
 struct task* tasks;
 struct spinlock tasks_lock;
+struct waitqueue tasks_wait;
 
 static struct task init_task = {
     .state = TASK_RUNNING,
@@ -25,6 +26,7 @@ static struct slab thread_group_slab;
 
 void task_early_init(void) {
     struct cpu* cpu = cpu_get_bsp();
+    init_task.cpu = cpu;
     cpu->current_task = cpu->idle_task = task_ref(&init_task);
 
     SLAB_INIT_FOR_TYPE(&thread_group_slab, "thread_group", struct thread_group);
@@ -229,13 +231,17 @@ struct task* task_find_by_tid(pid_t tid) {
     return NULL;
 }
 
-static void notify_exit(struct task* task) {
-    struct thread_group* tg = task->thread_group;
+static void notify_exit(void) {
+    waitqueue_wake_all(&current->wait);
+
+    struct thread_group* tg = current->thread_group;
     ASSERT(tg->num_running_tasks > 0);
     size_t num_running_tasks = atomic_fetch_sub(&tg->num_running_tasks, 1);
     ASSERT(num_running_tasks > 0);
-    if (num_running_tasks > 1)
+    if (num_running_tasks > 1) {
+        waitqueue_wake_all(&tasks_wait);
         return;
+    }
 
     // This is the last task in this thread group.
 
@@ -250,6 +256,8 @@ static void notify_exit(struct task* task) {
 
     if (tg->ppid && tg->exit_signal && tg->exit_signal < NSIG)
         ASSERT_OK(signal_send_to_thread_groups(0, tg->ppid, tg->exit_signal));
+
+    waitqueue_wake_all(&tasks_wait);
 }
 
 static _Noreturn void exit(int exit_status) {
@@ -272,8 +280,8 @@ static _Noreturn void exit(int exit_status) {
     }
 
     arch_disable_interrupts();
-    notify_exit(current);
     current->state = TASK_DEAD;
+    notify_exit();
     sched_yield();
     UNREACHABLE();
 }
@@ -315,11 +323,6 @@ void __thread_group_destroy(struct thread_group* tg) {
     slab_free(&thread_group_slab, tg);
 }
 
-static bool wake_vfork(void* ctx) {
-    struct task* task = ctx;
-    return task->state == TASK_DEAD;
-}
-
 // NOLINTBEGIN(readability-non-const-parameter)
 pid_t clone_user_task(struct registers* regs, unsigned long flags,
                       void* user_stack, pid_t* user_parent_tid,
@@ -353,8 +356,11 @@ pid_t clone_user_task(struct registers* regs, unsigned long flags,
 
     sched_register(task);
 
-    if (flags & CLONE_VFORK)
-        sched_wait(wake_vfork, task);
+    if (flags & CLONE_VFORK) {
+        SCOPED_WAIT(waiter, &task->wait);
+        while (task->state != TASK_DEAD)
+            sched_wait(&waiter);
+    }
 
     return tid;
 }

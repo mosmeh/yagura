@@ -1,6 +1,7 @@
 #include "private.h"
 #include <common/integer.h>
 #include <common/string.h>
+#include <kernel/api/fcntl.h>
 #include <kernel/api/linux/major.h>
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/ioctl.h>
@@ -106,11 +107,6 @@ static bool can_read(const struct tty* tty) {
     return !ring_buf_is_empty(tty->input_buf);
 }
 
-static bool wake_read(struct file* file, void* ctx) {
-    (void)ctx;
-    return can_read(tty_from_file(file));
-}
-
 static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
                          uint64_t offset) {
     (void)offset;
@@ -120,9 +116,15 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
 
     struct tty* tty = tty_from_file(file);
     for (;;) {
-        int rc = file_wait(file, wake_read, NULL);
-        if (IS_ERR(rc))
-            return rc;
+        {
+            SCOPED_WAIT(waiter, &tty->wait);
+            while (!can_read(tty)) {
+                if (file->flags & O_NONBLOCK)
+                    return -EAGAIN;
+                if (sched_wait_interruptible(&waiter))
+                    return -EINTR;
+            }
+        }
 
         size_t nread = 0;
         bool eol = false;
@@ -327,6 +329,7 @@ static void commit_line(struct tty* tty) {
     ring_buf_write_evicting_oldest(tty->input_buf, tty->line_buf,
                                    tty->line_len * sizeof(struct attr_char));
     tty->line_len = 0;
+    waitqueue_wake_all(&tty->wait);
 }
 
 NODISCARD static int on_char(struct tty* tty, char ch) {
@@ -352,6 +355,7 @@ NODISCARD static int on_char(struct tty* tty, char ch) {
     if (!(termios->c_lflag & ICANON)) {
         struct attr_char ac = {.ch = ch, .eol = false};
         ring_buf_write_evicting_oldest(tty->input_buf, &ac, sizeof(ac));
+        waitqueue_wake_all(&tty->wait);
         if (termios->c_lflag & ECHO)
             processed_echo(tty, &ch, 1);
         return 0;
