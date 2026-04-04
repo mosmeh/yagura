@@ -72,8 +72,11 @@ ring_buf_read_to_user(struct ring_buf* b, void* user_bytes, size_t count) {
         if (ring_buf_is_empty(b))
             break;
         if (copy_to_user(user_dest + nread, &src[b->read_index],
-                         sizeof(unsigned char)))
+                         sizeof(unsigned char))) {
+            if (nread > 0)
+                return nread;
             return -EFAULT;
+        }
         ++nread;
         b->read_index = (b->read_index + 1) % b->len;
     }
@@ -104,8 +107,11 @@ NODISCARD static inline ssize_t ring_buf_write_from_user(struct ring_buf* b,
         if (ring_buf_is_full(b))
             break;
         if (copy_from_user(&dest[b->write_index], user_src + nwritten,
-                           sizeof(unsigned char)))
+                           sizeof(unsigned char))) {
+            if (nwritten > 0)
+                return nwritten;
             return -EFAULT;
+        }
         ++nwritten;
         b->write_index = (b->write_index + 1) % b->len;
     }
