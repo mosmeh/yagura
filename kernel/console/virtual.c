@@ -214,7 +214,7 @@ static uint32_t default_palette[NUM_COLORS] = {
     0x55ffff, // bright cyan
     0xffffff, // bright white
 };
-static struct spinlock default_palette_lock;
+static struct mutex default_palette_lock;
 
 static void set_font(struct virtual_console* console, struct font* font) {
     // Free outside the spinlock to avoid sleeping with the lock held
@@ -430,7 +430,7 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
     case GIO_CMAP: {
         unsigned char cmap[NUM_COLORS * 3];
         {
-            SCOPED_LOCK(spinlock, &default_palette_lock);
+            SCOPED_LOCK(mutex, &default_palette_lock);
             size_t i = 0;
             for (size_t c = 0; c < NUM_COLORS; ++c) {
                 uint32_t color = default_palette[c];
@@ -450,7 +450,7 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
             return -EFAULT;
 
         {
-            SCOPED_LOCK(spinlock, &default_palette_lock);
+            SCOPED_LOCK(mutex, &default_palette_lock);
             size_t i = 0;
             for (size_t c = 0; c < NUM_COLORS; ++c) {
                 uint32_t color = 0;
