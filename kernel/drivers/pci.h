@@ -9,6 +9,8 @@
 
 #define PCI_CAP_ID_VNDR 0x09
 
+#define PCI_INTERRUPT_LINE_NONE 0xff
+
 struct pci_addr {
     uint8_t bus;
     uint8_t slot;

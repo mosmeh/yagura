@@ -568,6 +568,12 @@ void ac97_init(void) {
     kprintf("ac97: detected device %x:%x:%x\n", device_addr.bus,
             device_addr.slot, device_addr.function);
 
+    uint8_t irq = pci_get_interrupt_line(&device_addr);
+    if (irq == PCI_INTERRUPT_LINE_NONE) {
+        kprint("ac97: device has no IRQ assigned\n");
+        return;
+    }
+
     pci_set_interrupt_line_enabled(&device_addr, true);
     pci_set_bus_mastering_enabled(&device_addr, true);
 
@@ -579,8 +585,7 @@ void ac97_init(void) {
     mixer_reset();
     dsp_reset();
 
-    uint8_t irq_num = pci_get_interrupt_line(&device_addr);
-    interrupt_register(IRQ(irq_num), irq_handler, NULL);
+    interrupt_register(IRQ(irq), irq_handler, NULL);
 
     static const struct file_ops mixer_fops = {
         .ioctl = ac97_mixer_ioctl,
