@@ -31,8 +31,9 @@ static size_t write_index = 0;
 static struct spinlock queue_lock;
 static struct waitqueue wait;
 
-static void irq_handler(struct registers* reg) {
+static void irq_handler(struct registers* reg, void* ctx) {
     (void)reg;
+    (void)ctx;
 
     uint8_t data = in8(PS2_DATA);
     packet_buf[state] = data;
@@ -122,7 +123,7 @@ void ps2_mouse_init(void) {
     ps2_write(PS2_COMMAND, PS2_ENABLE_PORT2);
     write_mouse(PS2_MOUSE_SET_DEFAULTS);
     write_mouse(PS2_MOUSE_ENABLE_PACKET_STREAMING);
-    arch_interrupts_set_handler(IRQ(12), irq_handler);
+    interrupt_register(IRQ(12), irq_handler, NULL);
 
     static const struct file_ops fops = {
         .pread = ps2_mouse_pread,

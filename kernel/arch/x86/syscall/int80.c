@@ -491,7 +491,8 @@ static const struct syscall_abi abi = {
     .restart = restart,
 };
 
-static void handler(struct registers* regs) {
+static void handler(struct registers* regs, void* ctx) {
+    (void)ctx;
     ASSERT((regs->cs & 3) == 3);
     ASSERT((regs->ss & 3) == 3);
     SCOPED_ENABLE_INTERRUPTS();
@@ -499,7 +500,7 @@ static void handler(struct registers* regs) {
 }
 
 void syscall_init_int80(void) {
-    arch_interrupts_set_handler(SYSCALL_VECTOR, handler);
+    interrupt_register(SYSCALL_VECTOR, handler, NULL);
     idt_set_gate_user_callable(SYSCALL_VECTOR);
     idt_flush();
 }

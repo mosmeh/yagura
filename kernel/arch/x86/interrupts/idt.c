@@ -44,11 +44,6 @@ struct idtr {
 #define NUM_IDT_ENTRIES 256
 
 static struct idt_gate idt[NUM_IDT_ENTRIES];
-static interrupt_handler_fn interrupt_handlers[NUM_IDT_ENTRIES];
-
-void arch_interrupts_set_handler(uint8_t num, interrupt_handler_fn handler) {
-    interrupt_handlers[num] = handler;
-}
 
 void isr_handler(struct registers* regs) {
     // We may have been interrupted while we were in the middle of accessing
@@ -70,9 +65,7 @@ void isr_handler(struct registers* regs) {
 
     cpu_dispatch_requests();
 
-    interrupt_handler_fn handler = interrupt_handlers[interrupt_num];
-    if (handler)
-        handler(regs);
+    interrupt_handle(interrupt_num, regs);
 }
 
 static void set_gate(uint8_t index, uintptr_t base, uint16_t selector,
@@ -133,7 +126,8 @@ static _Noreturn void crash(const struct registers* regs, int signum) {
             "jmp isr_entry\n");
 
 #define DEFINE_EXCEPTION(num, msg, signum)                                     \
-    static void handle_exception##num(struct registers* regs) {                \
+    static void handle_exception##num(struct registers* regs, void* ctx) {     \
+        (void)ctx;                                                             \
         kprint("exception: " msg "\n");                                        \
         crash(regs, signum);                                                   \
     }
@@ -168,7 +162,8 @@ DEFINE_EXCEPTION_WITHOUT_ERROR_CODE(20, "Virtualization exception", SIGSEGV)
 DEFINE_EXCEPTION_WITH_ERROR_CODE(21, "Control protection exception", SIGSEGV)
 
 DEFINE_ISR_WITH_ERROR_CODE(14) // Page fault
-static void handle_exception14(struct registers* regs) {
+static void handle_exception14(struct registers* regs, void* ctx) {
+    (void)ctx;
     void* addr = (void*)read_cr2();
     if (x86_handle_page_fault(regs, addr))
         return;
@@ -185,7 +180,7 @@ void idt_init(void) {
 
 #define REGISTER_EXCEPTION(num)                                                \
     REGISTER_ISR(num);                                                         \
-    arch_interrupts_set_handler(num, handle_exception##num);
+    interrupt_register(num, handle_exception##num, NULL);
 
     REGISTER_EXCEPTION(0);
     REGISTER_EXCEPTION(1);

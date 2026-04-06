@@ -1,4 +1,5 @@
 #include <kernel/arch/io.h>
+#include <kernel/arch/x86/interrupts/interrupts.h>
 #include <kernel/interrupts.h>
 #include <kernel/task/sched.h>
 #include <kernel/time.h>
@@ -12,7 +13,8 @@
 
 STATIC_ASSERT(CLK_TCK <= BASE_FREQUENCY);
 
-static void tick(struct registers* regs) {
+static void tick(struct registers* regs, void* ctx) {
+    (void)ctx;
     time_tick();
     sched_tick(regs);
 }
@@ -22,5 +24,10 @@ void pit_init(void) {
     out8(PIT_CTL, TIMER0_SELECT | WRITE_WORD | MODE_RATE_GENERATOR);
     out8(TIMER0_CTL, div & 0xff);
     out8(TIMER0_CTL, div >> 8);
-    arch_interrupts_set_handler(IRQ(0), tick);
+    interrupt_register(IRQ(0), tick, NULL);
+}
+
+void pit_deinit(void) {
+    out8(PIT_CTL, 0);
+    ASSERT(interrupt_unregister(IRQ(0), tick, NULL));
 }

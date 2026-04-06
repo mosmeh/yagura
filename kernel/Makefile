@@ -59,6 +59,7 @@ SRCS := \
 	kernel/fs/proc/root.c \
 	kernel/fs/ramfs.c \
 	kernel/fs/vfs.c \
+	kernel/interrupts.c \
 	kernel/kmsg.c \
 	kernel/ksyms.c \
 	kernel/lock.c \

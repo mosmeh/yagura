@@ -14,6 +14,7 @@ void i8259_disable(void);
 void i8259_eoi(uint8_t irq);
 
 void pit_init(void);
+void pit_deinit(void);
 
 void apic_init(void);
 

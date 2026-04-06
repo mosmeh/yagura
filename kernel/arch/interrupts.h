@@ -1,12 +1,6 @@
 #pragma once
 
 #include <arch/interrupts.h>
-#include <common/stdint.h>
-
-struct registers;
-
-typedef void (*interrupt_handler_fn)(struct registers*);
-void arch_interrupts_set_handler(uint8_t num, interrupt_handler_fn handler);
 
 bool arch_interrupts_enabled(void);
 void arch_enable_interrupts(void);

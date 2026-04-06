@@ -84,8 +84,9 @@ static _Atomic(bool) dma_is_running;
 static _Atomic(bool) buffer_descriptor_list_is_full;
 static struct waitqueue wait;
 
-static void irq_handler(struct registers* regs) {
+static void irq_handler(struct registers* regs, void* ctx) {
     (void)regs;
+    (void)ctx;
 
     uint16_t status = in16(bus_base + PCM_OUT_STATUS);
     if (!(status & STATUS_BUFFER_COMPLETION_INTERRUPT_STATUS))
@@ -579,7 +580,7 @@ void ac97_init(void) {
     dsp_reset();
 
     uint8_t irq_num = pci_get_interrupt_line(&device_addr);
-    arch_interrupts_set_handler(IRQ(irq_num), irq_handler);
+    interrupt_register(IRQ(irq_num), irq_handler, NULL);
 
     static const struct file_ops mixer_fops = {
         .ioctl = ac97_mixer_ioctl,

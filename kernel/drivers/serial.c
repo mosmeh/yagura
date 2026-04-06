@@ -56,14 +56,16 @@ static bool read_and_report(uint8_t index) {
     return false;
 }
 
-static void handle_com1_and_com3(struct registers* regs) {
+static void handle_com1_and_com3(struct registers* regs, void* ctx) {
     (void)regs;
+    (void)ctx;
     while (read_and_report(0) || read_and_report(2))
         ;
 }
 
-static void handle_com2_and_com4(struct registers* regs) {
+static void handle_com2_and_com4(struct registers* regs, void* ctx) {
     (void)regs;
+    (void)ctx;
     while (read_and_report(1) || read_and_report(3))
         ;
 }
@@ -88,11 +90,11 @@ static bool enable_port(uint8_t index) {
     switch (index) {
     case 0:
     case 2:
-        arch_interrupts_set_handler(IRQ(4), handle_com1_and_com3);
+        interrupt_register(IRQ(4), handle_com1_and_com3, NULL);
         break;
     case 1:
     case 3:
-        arch_interrupts_set_handler(IRQ(3), handle_com2_and_com4);
+        interrupt_register(IRQ(3), handle_com2_and_com4, NULL);
         break;
     default:
         UNREACHABLE();

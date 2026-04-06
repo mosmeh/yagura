@@ -36,8 +36,9 @@ static const unsigned char keycodes[256] = {
 
 static _Atomic(bool) received_e0 = false;
 
-static void irq_handler(struct registers* reg) {
+static void irq_handler(struct registers* reg, void* ctx) {
     (void)reg;
+    (void)ctx;
 
     const struct keyboard_events* handlers = event_handlers;
 
@@ -65,5 +66,5 @@ static void irq_handler(struct registers* reg) {
 
 void ps2_keyboard_init(void) {
     ps2_write(PS2_COMMAND, PS2_ENABLE_PORT1);
-    arch_interrupts_set_handler(IRQ(1), irq_handler);
+    interrupt_register(IRQ(1), irq_handler, NULL);
 }

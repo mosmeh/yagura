@@ -224,7 +224,8 @@ static void io_apic_init(void) {
     }
 }
 
-static void lapic_timer_tick(struct registers* regs) {
+static void lapic_timer_tick(struct registers* regs, void* ctx) {
+    (void)ctx;
     if (cpu_get_current() == cpu_get_bsp())
         time_tick();
     sched_tick(regs);
@@ -242,7 +243,6 @@ void apic_init(void) {
     lapic_init();
     io_apic_init();
     lapic_init_cpu();
-
-    arch_interrupts_set_handler(IRQ(0), NULL); // Disable PIT
-    arch_interrupts_set_handler(LAPIC_TIMER_VECTOR, lapic_timer_tick);
+    pit_deinit();
+    interrupt_register(LAPIC_TIMER_VECTOR, lapic_timer_tick, NULL);
 }
