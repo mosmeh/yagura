@@ -50,11 +50,13 @@ struct virtq_used {
 };
 
 struct virtq {
+    struct virtio* device;
     uint16_t index;                 // The index of the queue
     size_t size;                    // The number of descriptors
     _Atomic(size_t) num_free_descs; // The number of free descriptors
     size_t free_head;               // The index of the first free descriptor
     uint16_t avail_index_shadow;    // The copy of avail->idx
+    _Atomic(uint16_t) last_seen_used_idx; // The last seen value of used->idx
 
     // The actual descriptors (16 bytes each)
     struct virtq_desc* desc;
@@ -64,8 +66,6 @@ struct virtq {
 
     // A ring of used descriptor heads with free-running index.
     volatile struct virtq_used* used;
-
-    volatile uint16_t* notify; // The notification address
 
     struct waitqueue wait;
 };

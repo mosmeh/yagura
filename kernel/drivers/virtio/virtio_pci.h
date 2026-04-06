@@ -61,3 +61,6 @@ struct virtio_pci_notify_cap {
     struct virtio_pci_cap cap;
     uint32_t notify_off_multiplier; /* Multiplier for queue_notify_off. */
 };
+
+#define VIRTIO_PCI_ISR_QUEUE 0x1
+#define VIRTIO_PCI_ISR_CONFIG 0x2

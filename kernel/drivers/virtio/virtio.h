@@ -1,12 +1,16 @@
 #include <common/stddef.h>
+#include <kernel/drivers/pci.h>
 #include <kernel/drivers/virtio/virtio_pci.h>
 #include <kernel/drivers/virtio/virtio_queue.h>
 #include <kernel/resource.h>
 
-struct pci_addr;
-
 struct virtio {
+    struct pci_addr addr;
+    uint8_t irq;
     void* notify_space;
+    volatile uint16_t* notify;
+    void* isr_space;
+    volatile uint8_t* isr;
     size_t num_virtqs;
     struct virtq* virtqs[];
 };

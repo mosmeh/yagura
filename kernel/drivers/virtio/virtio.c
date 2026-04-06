@@ -6,6 +6,7 @@
 #include <kernel/drivers/virtio/virtio.h>
 #include <kernel/drivers/virtio/virtio_config.h>
 #include <kernel/drivers/virtio/virtio_pci.h>
+#include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/vm.h>
@@ -58,8 +59,7 @@ static struct virtq* virtq_create(uint16_t queue_size) {
         virtq->desc[i].next = i + 1;
     }
 
-    // virtq_wait_completion uses polling, not interrupts.
-    virtq->avail->flags = VIRTQ_AVAIL_F_NO_INTERRUPT;
+    virtq->avail->flags = 0; // Enable interrupts
 
     return virtq;
 }
@@ -156,17 +156,12 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
     // 7. The driver sends an available buffer notification to the device if
     //    such notifications are not suppressed.
     if (!(virtq->used->flags & VIRTQ_USED_F_NO_NOTIFY))
-        *virtq->notify = virtq->index;
+        *virtq->device->notify = virtq->index;
 
     {
-        // FIXME: Implement an interrupt-driven wait
-        static const struct timespec poll_interval = {.tv_nsec = 10000000LL};
-        struct timer timer CLEANUP(timer_disarm);
-        ASSERT_OK(timer_init(&timer, CLOCK_MONOTONIC, NULL));
-        while (!virtq_is_ready(virtq)) {
-            timer_arm_after(&timer, &poll_interval);
-            ASSERT(timer_wait(&timer));
-        }
+        SCOPED_WAIT(waiter, &virtq->wait);
+        while (!virtq_is_ready(virtq))
+            sched_wait(&waiter);
     }
 
     arch_full_memory_barrier();
@@ -230,6 +225,20 @@ bool virtio_find_pci_cap(const struct pci_addr* addr, uint8_t cfg_type,
     return true;
 }
 
+static void irq_handler(struct registers* regs, void* ctx) {
+    (void)regs;
+    struct virtio* virtio = ctx;
+    if (!(*virtio->isr & VIRTIO_PCI_ISR_QUEUE))
+        return;
+    for (size_t i = 0; i < virtio->num_virtqs; ++i) {
+        struct virtq* virtq = virtio->virtqs[i];
+        if (virtq->used->idx != virtq->last_seen_used_idx) {
+            virtq->last_seen_used_idx = virtq->used->idx;
+            waitqueue_wake_all(&virtq->wait);
+        }
+    }
+}
+
 struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
     struct virtio_pci_cap common_cfg_cap;
     if (!virtio_find_pci_cap(addr, VIRTIO_PCI_CAP_COMMON_CFG,
@@ -238,11 +247,19 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
         return ERR_PTR(-ENODEV);
     }
 
+    uint8_t irq = pci_get_interrupt_line(addr);
+    if (irq == PCI_INTERRUPT_LINE_NONE) {
+        kprint("virtio: device has no IRQ assigned\n");
+        return ERR_PTR(-ENODEV);
+    }
+
     struct virtio* virtio =
         kmalloc(sizeof(struct virtio) + num_virtqs * sizeof(struct virtq*));
     if (!virtio)
         return ERR_PTR(-ENOMEM);
     *virtio = (struct virtio){
+        .addr = *addr,
+        .irq = irq,
         .num_virtqs = num_virtqs,
     };
     for (size_t i = 0; i < num_virtqs; ++i)
@@ -259,7 +276,7 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
     if (!virtio_find_pci_cap(addr, VIRTIO_PCI_CAP_NOTIFY_CFG,
                              &notify_cap.cap)) {
         kprint("virtio: device is missing VIRTIO_PCI_CAP_NOTIFY_CFG\n");
-        goto fail_discovery_notify;
+        goto fail_discovery_capabilities;
     }
 
     uintptr_t notify_offset =
@@ -267,10 +284,23 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
         common_cfg->queue_notify_off * notify_cap.notify_off_multiplier;
     unsigned char* notify_space = ASSERT(pci_map_bar(addr, notify_cap.cap.bar));
     if (IS_ERR(notify_space))
-        goto fail_discovery_notify;
+        goto fail_discovery_capabilities;
 
     virtio->notify_space = notify_space;
-    volatile uint16_t* notify = (void*)(notify_space + notify_offset);
+    virtio->notify = (void*)(notify_space + notify_offset);
+
+    struct virtio_pci_cap isr_cap = {0};
+    if (!virtio_find_pci_cap(addr, VIRTIO_PCI_CAP_ISR_CFG, &isr_cap)) {
+        kprint("virtio: device is missing VIRTIO_PCI_CAP_ISR_CFG\n");
+        goto fail_discovery_capabilities;
+    }
+
+    unsigned char* isr_space = ASSERT(pci_map_bar(addr, isr_cap.bar));
+    if (IS_ERR(isr_space))
+        goto fail_discovery_capabilities;
+
+    virtio->isr_space = isr_space;
+    virtio->isr = (void*)(isr_space + isr_cap.offset);
 
     // 3.1.1 Driver Requirements: Device Initialization
 
@@ -329,8 +359,8 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
         struct virtq* virtq = ASSERT(virtq_create(queue_size));
         if (IS_ERR(virtq))
             goto fail_initialization;
+        virtq->device = virtio;
         virtq->index = i;
-        virtq->notify = notify;
 
         common_cfg->queue_desc = virt_to_phys(virtq->desc);
         common_cfg->queue_driver = virt_to_phys(virtq->avail);
@@ -341,6 +371,10 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
         virtio->virtqs[i] = virtq;
     }
 
+    pci_set_bus_mastering_enabled(addr, true);
+    pci_set_interrupt_line_enabled(addr, true);
+    interrupt_register(IRQ(virtio->irq), irq_handler, virtio);
+
     // 8. Set the DRIVER_OK status bit. At this point the device is “live”. If
     //    any of these steps go irrecoverably wrong, the driver SHOULD set the
     //    FAILED status bit to indicate that it has given up on the device (it
@@ -348,11 +382,13 @@ struct virtio* virtio_create(const struct pci_addr* addr, size_t num_virtqs) {
     //    continue initialization in that case.
     common_cfg->device_status |= VIRTIO_CONFIG_S_DRIVER_OK;
 
+    phys_unmap(common_cfg_space);
+
     return virtio;
 
 fail_initialization:
     common_cfg->device_status |= VIRTIO_CONFIG_S_FAILED;
-fail_discovery_notify:
+fail_discovery_capabilities:
     phys_unmap(common_cfg_space);
 fail_discovery_common_cfg:
     virtio_destroy(virtio);
@@ -362,6 +398,9 @@ fail_discovery_common_cfg:
 void virtio_destroy(struct virtio* virtio) {
     if (!virtio)
         return;
+    interrupt_unregister(IRQ(virtio->irq), irq_handler, virtio);
+    pci_set_interrupt_line_enabled(&virtio->addr, false);
+    pci_set_bus_mastering_enabled(&virtio->addr, false);
     for (size_t i = 0; i < virtio->num_virtqs; ++i) {
         struct virtq* virtq = virtio->virtqs[i];
         if (virtq) {
@@ -369,6 +408,7 @@ void virtio_destroy(struct virtio* virtio) {
             virtio->virtqs[i] = NULL;
         }
     }
+    phys_unmap(virtio->isr_space);
     phys_unmap(virtio->notify_space);
     kfree(virtio);
 }
