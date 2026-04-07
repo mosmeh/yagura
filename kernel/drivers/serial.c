@@ -3,7 +3,7 @@
 #include <kernel/drivers/serial.h>
 #include <kernel/interrupts.h>
 #include <kernel/kmsg.h>
-#include <kernel/lock.h>
+#include <kernel/lock/spinlock.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>
 

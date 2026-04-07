@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/lock.h>
+#include <kernel/lock/spinlock.h>
 #include <kernel/panic.h>
 #include <kernel/task/sched.h>
 

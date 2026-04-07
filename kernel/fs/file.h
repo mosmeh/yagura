@@ -1,7 +1,7 @@
 #pragma once
 
 #include <kernel/api/sys/types.h>
-#include <kernel/lock.h>
+#include <kernel/lock/mutex.h>
 #include <kernel/resource.h>
 
 // Open file description

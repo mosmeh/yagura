@@ -1,7 +1,7 @@
 #include <kernel/api/errno.h>
 #include <kernel/api/sys/time.h>
 #include <kernel/arch/system.h>
-#include <kernel/lock.h>
+#include <kernel/lock/spinlock.h>
 #include <kernel/panic.h>
 #include <kernel/task/sched.h>
 #include <kernel/time.h>

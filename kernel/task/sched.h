@@ -2,7 +2,7 @@
 
 #include <common/macros.h>
 #include <common/stdbool.h>
-#include <kernel/lock.h>
+#include <kernel/lock/spinlock.h>
 
 struct task;
 struct registers;

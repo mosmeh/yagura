@@ -1,6 +1,8 @@
 #include <kernel/cpu.h>
 #include <kernel/interrupts.h>
-#include <kernel/lock.h>
+#include <kernel/lock/lock.h>
+#include <kernel/lock/mutex.h>
+#include <kernel/lock/spinlock.h>
 #include <kernel/panic.h>
 #include <kernel/task/sched.h>
 #include <kernel/task/task.h>

@@ -2,8 +2,9 @@
 #include <common/string.h>
 #include <kernel/arch/system.h>
 #include <kernel/cpu.h>
-#include <kernel/lock.h>
+#include <kernel/lock/mutex.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/system.h>
 #include <kernel/time.h>
 
 static bool use_arch_random = false;

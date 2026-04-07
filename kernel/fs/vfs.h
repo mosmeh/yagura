@@ -1,7 +1,7 @@
 #pragma once
 
 #include <kernel/api/time.h>
-#include <kernel/lock.h>
+#include <kernel/lock/mutex.h>
 
 struct path;
 struct kstat;

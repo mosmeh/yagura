@@ -8,7 +8,7 @@
 #ifndef __ASSEMBLER__
 
 #include <common/macros.h>
-#include <kernel/lock.h>
+#include <kernel/lock/mutex.h>
 #include <kernel/resource.h>
 
 struct file;

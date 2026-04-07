@@ -2,8 +2,6 @@
 
 #include <common/macros.h>
 #include <common/stdbool.h>
-#include <common/stddef.h>
-#include <common/stdint.h>
 
 #define DEFINE_LOCK(name)                                                      \
     void __LOCK(name)(struct name*);                                           \
@@ -13,19 +11,6 @@
 #define __LOCK(name) CONCAT(name, _lock)
 #define __UNLOCK(name) CONCAT(name, _unlock)
 #define __CURRENT_LOCKS(name) CONCAT(name, _is_locked_by_current)
-
-struct mutex {
-    _Atomic(struct task*) holder;
-    unsigned int level;
-};
-
-DEFINE_LOCK(mutex)
-
-struct spinlock {
-    _Atomic(unsigned int) lock;
-};
-
-DEFINE_LOCK(spinlock)
 
 // Lock guard helper macros
 //
@@ -61,9 +46,6 @@ DEFINE_LOCK(spinlock)
         CLEANUP(__LOCK_GUARD_UNLOCK(name)) = {obj};
 
 #define __SCOPED_LOCK_UNIQUE(name) CONCAT(__LOCK_GUARD_ID(name), __COUNTER__)
-
-DEFINE_LOCK_GUARD(mutex, struct mutex)
-DEFINE_LOCK_GUARD(spinlock, struct spinlock)
 
 // Locked resource helper macro
 //

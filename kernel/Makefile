@@ -62,7 +62,7 @@ SRCS := \
 	kernel/interrupts.c \
 	kernel/kmsg.c \
 	kernel/ksyms.c \
-	kernel/lock.c \
+	kernel/lock/lock.c \
 	kernel/main.c \
 	kernel/memory/kmalloc.c \
 	kernel/memory/memory.c \

@@ -4,7 +4,7 @@
 #include <kernel/api/errno.h>
 #include <kernel/console/console.h>
 #include <kernel/kmsg.h>
-#include <kernel/lock.h>
+#include <kernel/lock/spinlock.h>
 #include <kernel/time.h>
 
 int kprint(const char* str) {

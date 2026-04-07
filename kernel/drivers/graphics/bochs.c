@@ -3,7 +3,7 @@
 #include <kernel/drivers/graphics/graphics.h>
 #include <kernel/drivers/pci.h>
 #include <kernel/kmsg.h>
-#include <kernel/lock.h>
+#include <kernel/lock/mutex.h>
 #include <kernel/memory/memory.h>
 
 #define VBE_DISPI_IOPORT_INDEX 0x01ce
