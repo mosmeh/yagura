@@ -9,6 +9,7 @@
 
 void mutex_lock(struct mutex* m) {
     struct task* task = current;
+    SCOPED_WAIT(waiter, &m->wait);
     for (;;) {
         ASSERT(arch_interrupts_enabled());
         struct task* expected = NULL;
@@ -20,17 +21,18 @@ void mutex_lock(struct mutex* m) {
             ASSERT(m->level > 0);
             break;
         }
-        sched_yield();
+        sched_wait(&waiter);
     }
     ++m->level;
 }
 
 void mutex_unlock(struct mutex* m) {
     ASSERT(arch_interrupts_enabled());
-    ASSERT(m->holder == current);
-    ASSERT(m->level > 0);
-    if (--m->level == 0)
-        m->holder = NULL;
+    ASSERT(mutex_is_locked_by_current(m));
+    if (--m->level > 0)
+        return;
+    m->holder = NULL;
+    waitqueue_wake_one(&m->wait);
 }
 
 bool mutex_is_locked_by_current(const struct mutex* m) {
