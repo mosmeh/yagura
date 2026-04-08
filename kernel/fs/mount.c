@@ -9,7 +9,6 @@ int mount_commit_inode(struct mount* mount, struct inode* inode) {
     ASSERT(inode->ino > 0);
     ASSERT(inode->mode & S_IFMT);
     ASSERT(refcount_get(&inode->vm_obj.refcount) > 0);
-    ASSERT(!inode->next);
 
     struct filemap* filemap = ASSERT(filemap_create(inode));
     if (IS_ERR(filemap))
@@ -21,10 +20,22 @@ int mount_commit_inode(struct mount* mount, struct inode* inode) {
     SCOPED_LOCK(mount, mount);
 
     inode->flags |= INODE_READY;
-    for (struct inode* it = mount->inodes; it; it = it->next)
-        ASSERT(it->ino != inode->ino);
-    inode->next = mount->inodes;
-    mount->inodes = inode_ref(inode);
+
+    struct tree_node** new_node = &mount->inodes.root;
+    struct tree_node* parent = NULL;
+    while (*new_node) {
+        parent = *new_node;
+        struct inode* n = CONTAINER_OF(parent, struct inode, tree_node);
+        if (inode->ino < n->ino)
+            new_node = &parent->left;
+        else if (inode->ino > n->ino)
+            new_node = &parent->right;
+        else
+            PANIC("Duplicate ino");
+    }
+    *new_node = &inode->tree_node;
+    inode_ref(inode);
+    tree_insert(&mount->inodes, parent, &inode->tree_node);
 
     return 0;
 }
@@ -50,9 +61,14 @@ struct inode* mount_create_inode(struct mount* mount, mode_t mode) {
 struct inode* mount_lookup_inode(struct mount* mount, ino_t ino) {
     ASSERT(ino > 0);
     SCOPED_LOCK(mount, mount);
-    struct inode* inode = mount->inodes;
-    for (; inode; inode = inode->next) {
-        if (inode->ino == ino)
+    struct tree_node* node = mount->inodes.root;
+    while (node) {
+        struct inode* inode = CONTAINER_OF(node, struct inode, tree_node);
+        if (ino < inode->ino)
+            node = node->left;
+        else if (ino > inode->ino)
+            node = node->right;
+        else
             return inode_ref(inode);
     }
     return NULL;
@@ -69,7 +85,9 @@ void mount_set_root(struct mount* mount, struct inode* inode) {
 
 int mount_sync(struct mount* mount) {
     SCOPED_LOCK(mount, mount);
-    for (struct inode* inode = mount->inodes; inode; inode = inode->next) {
+    for (struct tree_node* node = tree_first(&mount->inodes); node;
+         node = tree_next(node)) {
+        struct inode* inode = CONTAINER_OF(node, struct inode, tree_node);
         if (!(inode->flags & INODE_DIRTY))
             continue;
         int rc = inode_sync(inode, 0, UINT64_MAX);

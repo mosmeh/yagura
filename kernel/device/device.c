@@ -139,11 +139,13 @@ int block_dev_register(struct block_dev* block_dev) {
         PAGE_SHIFT < block_dev->block_bits)
         return -EINVAL;
 
-    for (struct inode* inode = bdev_mount->inodes; inode; inode = inode->next) {
-        struct block_dev* it = CONTAINER_OF(inode, struct block_dev, vfs_inode);
-        if (it->dev == block_dev->dev)
+    for (struct tree_node* node = tree_first(&bdev_mount->inodes); node;
+         node = tree_next(node)) {
+        struct block_dev* d =
+            CONTAINER_OF(node, struct block_dev, vfs_inode.tree_node);
+        if (d->dev == block_dev->dev)
             return -EEXIST;
-        if (!strcmp(it->name, block_dev->name))
+        if (!strcmp(d->name, block_dev->name))
             return -EEXIST;
     }
 
