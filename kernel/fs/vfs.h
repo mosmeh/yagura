@@ -1,5 +1,6 @@
 #pragma once
 
+#include <common/tree.h>
 #include <kernel/api/time.h>
 #include <kernel/lock/mutex.h>
 
@@ -14,7 +15,7 @@ struct mount {
     const struct file_system* fs;
     dev_t dev;
     struct inode* root;
-    struct inode* inodes; // inode cache
+    struct tree inodes; // inode cache
     unsigned flags;
     struct mount* next;
     struct mutex lock;

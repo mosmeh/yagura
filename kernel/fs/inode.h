@@ -39,7 +39,7 @@ struct inode {
     _Atomic(struct inode*) bound_socket;
     _Atomic(unsigned int) flags; // INODE_*
 
-    struct inode* next; // mount->inodes
+    struct tree_node tree_node; // mount->inodes
 };
 
 struct inode_ops {
