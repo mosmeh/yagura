@@ -8,6 +8,7 @@
 
 #include <common/integer.h>
 #include <common/limits.h>
+#include <common/tree.h>
 #include <kernel/api/signal.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/arch/context.h>
@@ -52,19 +53,19 @@ struct task {
     _Atomic(size_t) user_ticks;
     _Atomic(size_t) kernel_ticks;
 
-    struct task* tasks_next; // global tasks list
-    struct task* ready_queue_next;
-
     struct arch_task arch;
 
     struct waitqueue wait;
     struct work destroy_work;
 
+    struct tree_node tree_node; // tasks tree
+    struct task* next;          // ready queue
+
     struct mutex lock;
     refcount_t refcount;
 };
 
-extern struct task* tasks;
+extern struct tree tasks;
 extern struct spinlock tasks_lock;
 
 // A waitqueue that is woken when a possibly waited-on task changes state.

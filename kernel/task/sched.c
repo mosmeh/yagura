@@ -42,7 +42,7 @@ static void enqueue_ready(struct task* task) {
     ASSERT_PTR(task);
     ASSERT(task->state == TASK_RUNNING);
     ASSERT(!task->cpu);
-    ASSERT(!task->ready_queue_next);
+    ASSERT(!task->next);
     task_ref(task);
 
     SCOPED_LOCK(spinlock, &ready_queue_lock);
@@ -50,11 +50,11 @@ static void enqueue_ready(struct task* task) {
         struct task* it = ready_queue;
         for (;;) {
             ASSERT(it != task);
-            if (!it->ready_queue_next)
+            if (!it->next)
                 break;
-            it = it->ready_queue_next;
+            it = it->next;
         }
-        it->ready_queue_next = task;
+        it->next = task;
     } else {
         ready_queue = task;
     }
@@ -65,8 +65,8 @@ static struct task* dequeue_ready(void) {
     struct task* task = ready_queue;
     if (task) {
         ASSERT(task->state == TASK_RUNNING);
-        ready_queue = task->ready_queue_next;
-        task->ready_queue_next = NULL;
+        ready_queue = task->next;
+        task->next = NULL;
     }
     return task;
 }
@@ -74,25 +74,25 @@ static struct task* dequeue_ready(void) {
 void sched_register(struct task* task) {
     ASSERT_PTR(task);
     ASSERT(task->state == TASK_RUNNING);
-    task_ref(task);
     ++task->thread_group->num_running_tasks;
 
     {
         SCOPED_LOCK(spinlock, &tasks_lock);
-        struct task* prev = NULL;
-        struct task* it = tasks;
-        while (it && it->tid < task->tid) {
-            ASSERT(it != task);
-            prev = it;
-            it = it->tasks_next;
+        struct tree_node** new_node = &tasks.root;
+        struct tree_node* parent = NULL;
+        while (*new_node) {
+            parent = *new_node;
+            struct task* t = CONTAINER_OF(parent, struct task, tree_node);
+            if (task->tid < t->tid)
+                new_node = &parent->left;
+            else if (task->tid > t->tid)
+                new_node = &parent->right;
+            else
+                PANIC("Duplicate tid");
         }
-        if (prev) {
-            task->tasks_next = it;
-            prev->tasks_next = task;
-        } else {
-            task->tasks_next = tasks;
-            tasks = task;
-        }
+        *new_node = &task->tree_node;
+        task_ref(task);
+        tree_insert(&tasks, parent, *new_node);
     }
 
     enqueue_ready(task);
@@ -262,7 +262,9 @@ static void update_loads(void) {
     size_t num_active = 0;
     {
         SCOPED_LOCK(spinlock, &tasks_lock);
-        for (struct task* task = tasks; task; task = task->tasks_next) {
+        for (struct tree_node* node = tree_first(&tasks); node;
+             node = tree_next(node)) {
+            struct task* task = CONTAINER_OF(node, struct task, tree_node);
             switch (task->state) {
             case TASK_RUNNING:
             case TASK_UNINTERRUPTIBLE:
@@ -296,7 +298,9 @@ int proc_print_loadavg(struct file* file, struct vec* vec) {
     size_t num_running = 0;
     {
         SCOPED_LOCK(spinlock, &tasks_lock);
-        for (struct task* task = tasks; task; task = task->tasks_next) {
+        for (struct tree_node* node = tree_first(&tasks); node;
+             node = tree_next(node)) {
+            struct task* task = CONTAINER_OF(node, struct task, tree_node);
             ++num_tasks;
             if (task->state == TASK_RUNNING)
                 ++num_running;

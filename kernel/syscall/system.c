@@ -142,7 +142,8 @@ SYSCALL1(sysinfo, struct sysinfo*, user_info) {
     size_t num_tasks = 0;
     {
         SCOPED_LOCK(spinlock, &tasks_lock);
-        for (struct task* task = tasks; task; task = task->tasks_next)
+        for (struct tree_node* node = tree_first(&tasks); node;
+             node = tree_next(node))
             ++num_tasks;
     }
 

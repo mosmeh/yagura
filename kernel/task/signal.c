@@ -171,8 +171,10 @@ int signal_send_to_thread_groups(pid_t pgid, pid_t tgid, int signum) {
     SCOPED_LOCK(spinlock, &tasks_lock);
 
     bool found_task = false;
-    for (struct task* it = tasks; it; it = it->tasks_next) {
-        struct thread_group* tg = it->thread_group;
+    for (struct tree_node* node = tree_first(&tasks); node;
+         node = tree_next(node)) {
+        struct task* task = CONTAINER_OF(node, struct task, tree_node);
+        struct thread_group* tg = task->thread_group;
         if (pgid > 0) {
             if (tg->pgid != pgid)
                 continue;
@@ -194,7 +196,7 @@ int signal_send_to_thread_groups(pid_t pgid, pid_t tgid, int signum) {
             continue;
         }
 
-        send_signal_to_task(it, signum, true);
+        send_signal_to_task(task, signum, true);
     }
 
     return found_task ? 0 : -ESRCH;
@@ -209,19 +211,21 @@ int signal_send_to_tasks(pid_t tgid, pid_t tid, int signum) {
     SCOPED_LOCK(spinlock, &tasks_lock);
 
     bool found_task = false;
-    for (struct task* it = tasks; it; it = it->tasks_next) {
+    for (struct tree_node* node = tree_first(&tasks); node;
+         node = tree_next(node)) {
+        struct task* task = CONTAINER_OF(node, struct task, tree_node);
         if (tgid > 0) {
-            if (it->thread_group->tgid != tgid)
+            if (task->thread_group->tgid != tgid)
                 continue;
         } else if (tgid < 0) {
-            if (it->thread_group->tgid == -tgid)
+            if (task->thread_group->tgid == -tgid)
                 continue;
         }
         if (tid > 0) {
-            if (it->tid != tid)
+            if (task->tid != tid)
                 continue;
         } else if (tid < 0) {
-            if (it->tid == -tid)
+            if (task->tid == -tid)
                 continue;
         }
         found_task = true;
@@ -231,7 +235,7 @@ int signal_send_to_tasks(pid_t tgid, pid_t tid, int signum) {
             continue;
         }
 
-        send_signal_to_task(it, signum, false);
+        send_signal_to_task(task, signum, false);
     }
 
     return found_task ? 0 : -ESRCH;

@@ -128,11 +128,11 @@ struct wait {
 NODISCARD static bool find_waitee(struct wait* wait) {
     SCOPED_LOCK(spinlock, &tasks_lock);
     for (;;) {
-        struct task* prev = NULL;
-        struct task* task = tasks;
+        struct tree_node* node = tree_first(&tasks);
         bool any_target_exists = false;
 
-        while (task) {
+        for (; node; node = tree_next(node)) {
+            struct task* task = CONTAINER_OF(node, struct task, tree_node);
             struct thread_group* tg = task->thread_group;
             bool is_target = false;
             if (tg->ppid == wait->current_tgid) {
@@ -159,22 +159,16 @@ NODISCARD static bool find_waitee(struct wait* wait) {
                     task->state == TASK_STOPPED && task->exit_status)
                     break;
             }
-
-            prev = task;
-            task = task->tasks_next;
         }
-        if (!task) {
+        if (!node) {
             // Unblock if no more target children exist.
             return !any_target_exists;
         }
 
+        struct task* task = CONTAINER_OF(node, struct task, tree_node);
         switch (task->state) {
         case TASK_DEAD:
-            // Remove the task from the global tasks list
-            if (prev)
-                prev->tasks_next = task->tasks_next;
-            else
-                tasks = task->tasks_next;
+            tree_remove(&tasks, node);
             wait->task = task; // The caller will free the task
             wait->status = task->exit_status;
             return true;

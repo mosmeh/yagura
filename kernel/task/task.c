@@ -10,7 +10,7 @@
 #include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
-struct task* tasks;
+struct tree tasks;
 struct spinlock tasks_lock;
 struct waitqueue tasks_wait;
 
@@ -223,10 +223,15 @@ pid_t task_alloc_tid(size_t n) {
 
 struct task* task_find_by_tid(pid_t tid) {
     SCOPED_LOCK(spinlock, &tasks_lock);
-    struct task* it = tasks;
-    for (; it; it = it->tasks_next) {
-        if (it->tid == tid)
-            return task_ref(it);
+    struct tree_node* node = tasks.root;
+    while (node) {
+        struct task* task = CONTAINER_OF(node, struct task, tree_node);
+        if (tid < task->tid)
+            node = node->left;
+        else if (tid > task->tid)
+            node = node->right;
+        else
+            return task_ref(task);
     }
     return NULL;
 }
@@ -247,10 +252,12 @@ static void notify_exit(void) {
 
     {
         SCOPED_LOCK(spinlock, &tasks_lock);
-        for (struct task* it = tasks; it; it = it->tasks_next) {
+        for (struct tree_node* node = tree_first(&tasks); node;
+             node = tree_next(node)) {
+            struct task* task = CONTAINER_OF(node, struct task, tree_node);
             // Orphaned child procsses are adopted by the init process.
-            if (it->thread_group->ppid == tg->tgid)
-                it->thread_group->ppid = 1;
+            if (task->thread_group->ppid == tg->tgid)
+                task->thread_group->ppid = 1;
         }
     }
 

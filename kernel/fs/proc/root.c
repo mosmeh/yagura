@@ -70,10 +70,31 @@ static const struct proc_entry entries[] = {
 struct inode* proc_root_lookup(struct inode* parent, const char* name) {
     if (str_is_uint(name)) {
         pid_t pid = atoi(name);
+        struct task* task FREE(task) = task_find_by_tid(pid);
+        if (!task)
+            return ERR_PTR(-ENOENT);
         return proc_create_inode(parent->mount, pid << PROC_PID_INO_SHIFT,
                                  NULL);
     }
     return proc_lookup(parent, name, entries, ARRAY_SIZE(entries));
+}
+
+static struct tree_node* find_task_with_lower_bound(pid_t tid) {
+    ASSERT(spinlock_is_locked_by_current(&tasks_lock));
+    struct tree_node* node = tasks.root;
+    struct tree_node* result = NULL;
+    while (node) {
+        struct task* task = CONTAINER_OF(node, struct task, tree_node);
+        if (tid < task->tid) {
+            result = node;
+            node = node->left;
+        } else if (tid > task->tid) {
+            node = node->right;
+        } else {
+            return node;
+        }
+    }
+    return result;
 }
 
 int proc_root_getdents(struct file* file, getdents_callback_fn callback,
@@ -85,22 +106,22 @@ int proc_root_getdents(struct file* file, getdents_callback_fn callback,
         if (IS_ERR(rc))
             return rc;
     }
-    if (file->offset < ARRAY_SIZE(entries))
+
+    if (file->offset < ARRAY_SIZE(entries) ||
+        ARRAY_SIZE(entries) + INT_MAX < file->offset)
         return 0;
+
+    pid_t offset_tid = file->offset - ARRAY_SIZE(entries);
 
     pid_t tids[256];
     size_t ntids = 0;
     {
         SCOPED_LOCK(spinlock, &tasks_lock);
-        pid_t offset_pid = (pid_t)(file->offset - ARRAY_SIZE(entries));
-        struct task* task = tasks;
-        while (task->tid <= offset_pid) {
-            task = task->tasks_next;
-            if (!task)
-                break;
-        }
-        for (; task && ntids < ARRAY_SIZE(tids); task = task->tasks_next)
+        struct tree_node* node = find_task_with_lower_bound(offset_tid);
+        for (; node && ntids < ARRAY_SIZE(tids); node = tree_next(node)) {
+            struct task* task = CONTAINER_OF(node, struct task, tree_node);
             tids[ntids++] = task->tid;
+        }
     }
 
     for (size_t i = 0; i < ntids; ++i) {
@@ -112,7 +133,8 @@ int proc_root_getdents(struct file* file, getdents_callback_fn callback,
         if (!callback(name, ino, DT_DIR, ctx))
             break;
 
-        file->offset = tid + ARRAY_SIZE(entries);
+        // +1 to resume after this entry on next call
+        file->offset = ARRAY_SIZE(entries) + tid + 1;
     }
 
     return 0;
