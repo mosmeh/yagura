@@ -35,8 +35,13 @@ void sched_init_smp(void) {
     }
 }
 
-static _Atomic(struct task*) ready_queue;
-static struct spinlock ready_queue_lock;
+static struct ready_queue {
+    _Atomic(struct task*) head;
+    struct task* tail;
+    struct spinlock lock;
+} ready_queue;
+
+DEFINE_LOCKED(ready_queue, struct ready_queue, spinlock, lock)
 
 static void enqueue_ready(struct task* task) {
     ASSERT_PTR(task);
@@ -45,29 +50,25 @@ static void enqueue_ready(struct task* task) {
     ASSERT(!task->next);
     task_ref(task);
 
-    SCOPED_LOCK(spinlock, &ready_queue_lock);
-    if (ready_queue) {
-        struct task* it = ready_queue;
-        for (;;) {
-            ASSERT(it != task);
-            if (!it->next)
-                break;
-            it = it->next;
-        }
-        it->next = task;
+    SCOPED_LOCK(ready_queue, &ready_queue);
+    if (ready_queue.tail) {
+        ready_queue.tail->next = task;
+        ready_queue.tail = task;
     } else {
-        ready_queue = task;
+        ready_queue.head = ready_queue.tail = task;
     }
 }
 
 static struct task* dequeue_ready(void) {
-    SCOPED_LOCK(spinlock, &ready_queue_lock);
-    struct task* task = ready_queue;
-    if (task) {
-        ASSERT(task->state == TASK_RUNNING);
-        ready_queue = task->next;
-        task->next = NULL;
-    }
+    SCOPED_LOCK(ready_queue, &ready_queue);
+    struct task* task = ready_queue.head;
+    if (!task)
+        return NULL;
+    ASSERT(task->state == TASK_RUNNING);
+    ready_queue.head = task->next;
+    if (!ready_queue.head)
+        ready_queue.tail = NULL;
+    task->next = NULL;
     return task;
 }
 
@@ -134,7 +135,7 @@ void sched_yield(void) {
         return;
     }
 
-    if (!ready_queue && prev_task->state == TASK_RUNNING) {
+    if (!ready_queue.head && prev_task->state == TASK_RUNNING) {
         // No other task is ready to run. Continue running the current task.
         return;
     }
