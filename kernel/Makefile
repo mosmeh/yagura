@@ -9,6 +9,7 @@ LDFLAGS += -Wl,-T$(LINKER_SCRIPT)
 
 SRCS := \
 	common/libgen.c \
+	common/stack_protector.c \
 	common/stdio.c \
 	common/stdlib.c \
 	common/string.c \
