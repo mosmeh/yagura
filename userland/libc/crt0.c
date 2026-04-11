@@ -2,6 +2,7 @@
 #include <arch/tls.h>
 #include <common/integer.h>
 #include <common/macros.h>
+#include <common/stack_protector.h>
 #include <elf.h>
 #include <errno.h>
 #include <panic.h>
@@ -68,6 +69,13 @@ void __start(unsigned long* args) {
     while (*p++)
         ;
     auxv = (elf_auxv_t*)p;
+
+    unsigned long random = getauxval(AT_RANDOM);
+    if (random) {
+        uintptr_t canary;
+        memcpy(&canary, (void*)random, sizeof(canary));
+        STACK_CHK_GUARD_INIT(canary);
+    }
 
     // Initialize TLS
     tls_phdr = ASSERT(find_tls_phdr());

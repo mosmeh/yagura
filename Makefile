@@ -25,6 +25,7 @@ export CFLAGS := \
 	-nostdlib -nostdinc \
 	-fno-omit-frame-pointer \
 	-ffile-prefix-map=$(ROOT)/= \
+	-fstack-protector-strong -mstack-protector-guard=global \
 	-ftrivial-auto-var-init=pattern \
 	-Wall -Wextra -pedantic -Wshadow \
 	-O2 -g \

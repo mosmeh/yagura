@@ -1,3 +1,4 @@
+#include <common/stack_protector.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/sched.h>
 #include <kernel/arch/system.h>
@@ -83,9 +84,7 @@ static _Noreturn void kernel_init(void) {
     device_init();
     drivers_init();
     console_init();
-    random_init();
     socket_init();
-    time_init();
     arch_late_init();
 
     ASSERT_OK(task_spawn("kworker", kworker));
@@ -100,6 +99,16 @@ _Noreturn void kernel_main(void) {
     memory_init();
     arch_enable_interrupts(); // Allow sleeping for memory allocation
     task_late_init();
+    time_init();
+    random_init();
+
+    uintptr_t canary = 0;
+    ASSERT_OK(random_get(&canary, sizeof(canary)));
+    {
+        SCOPED_DISABLE_INTERRUPTS();
+        STACK_CHK_GUARD_INIT(canary);
+    }
+
     ASSERT_OK(task_spawn("init", kernel_init));
     sched_start();
 }
