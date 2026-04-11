@@ -37,7 +37,8 @@ static inline unsigned long __cpu_read(size_t offset) {
     unsigned long value;
     __asm__ volatile("mov %%" STRINGIFY(__CPU_SEGMENT) ":%a[offset], %[value]"
                      : [value] "=r"(value)
-                     : [offset] "ri"(offset));
+                     : [offset] "ri"(offset)
+                     : "memory");
     return value;
 }
 

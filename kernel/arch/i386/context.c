@@ -37,22 +37,21 @@ void arch_switch_context(struct task* prev, struct task* next) {
     // Call sched_reschedule(prev) only after switching to the stack of the next
     // task to prevent other CPUs from using the stack of the prev task while
     // we are still using it.
-    __asm__ volatile(
-        "pushl %%ebp\n"                    // ebp cannot be in the clobber list
-        "movl $1f, %c[ip_offset](%%eax)\n" // prev->arch.ip = $1f
-        "movl %%esp, %c[sp_offset](%%eax)\n" // prev->arch.sp = esp
-        "movl %c[sp_offset](%%ebx), %%esp\n" // esp = next->arch.sp
-        "pushl %%eax\n"
-        "call sched_reschedule\n"
-        "add $4, %%esp\n"
-        "movl %c[ip_offset](%%ebx), %%eax\n" // eax = next->arch.ip
-        "jmp *%%eax\n"
-        "1:\n"
-        "popl %%ebp\n"
-        :
-        : "a"(prev), "b"(next), [ip_offset] "i"(offsetof(struct task, arch.ip)),
-          [sp_offset] "i"(offsetof(struct task, arch.sp))
-        : "ecx", "edx", "esi", "edi", "memory");
+    __asm__ volatile("pushl %%ebp\n" // ebp cannot be in the clobber list
+                     "movl $1f, %c[ip_offset](%%eax)\n"   // prev->arch.ip = $1f
+                     "movl %%esp, %c[sp_offset](%%eax)\n" // prev->arch.sp = esp
+                     "movl %c[sp_offset](%%ebx), %%esp\n" // esp = next->arch.sp
+                     "pushl %%eax\n"
+                     "call sched_reschedule\n"
+                     "add $4, %%esp\n"
+                     "movl %c[ip_offset](%%ebx), %%eax\n" // eax = next->arch.ip
+                     "jmp *%%eax\n"
+                     "1:\n"
+                     "popl %%ebp\n"
+                     : "+a"(prev), "+b"(next)
+                     : [ip_offset] "i"(offsetof(struct task, arch.ip)), //
+                       [sp_offset] "i"(offsetof(struct task, arch.sp))
+                     : "ecx", "edx", "esi", "edi", "memory");
 }
 
 void arch_enter_user_mode(struct task* task, void* entry_point,
@@ -81,7 +80,8 @@ void arch_enter_user_mode(struct task* task, void* entry_point,
                      :
                      : [user_cs] "i"(USER_CS | 3),
                        [eflags] "i"(X86_EFLAGS_IF | X86_EFLAGS_FIXED),
-                       "a"(USER_DS | 3), "b"(user_stack), "c"(entry_point));
+                       "a"(USER_DS | 3), "b"(user_stack), "c"(entry_point)
+                     : "memory");
     UNREACHABLE();
 }
 

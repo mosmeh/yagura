@@ -22,27 +22,23 @@ NOINLINE int safe_memcpy(void* dest, const void* src, size_t n) {
     if (!is_canonical_addr(dest) || !is_canonical_addr(src))
         return -EFAULT;
 
-    size_t remainder;
-
     smap_begin_user_access();
     __asm__ volatile(".globl safe_memcpy_copy\n"
                      "safe_memcpy_copy:\n"
                      "rep movsb\n"
                      ".globl safe_memcpy_on_fault\n"
                      "safe_memcpy_on_fault:\n"
-                     : "=c"(remainder)
-                     : "S"(src), "D"(dest), "c"(n)
+                     : "+S"(src), "+D"(dest), "+c"(n)
+                     :
                      : "memory");
     smap_end_user_access();
 
-    return remainder == 0 ? 0 : -EFAULT;
+    return n == 0 ? 0 : -EFAULT;
 }
 
 NOINLINE int safe_memset(void* s, unsigned char c, size_t n) {
     if (!is_canonical_addr(s))
         return -EFAULT;
-
-    size_t remainder;
 
     smap_begin_user_access();
     __asm__ volatile(".globl safe_memset_write\n"
@@ -50,12 +46,12 @@ NOINLINE int safe_memset(void* s, unsigned char c, size_t n) {
                      "rep stosb\n"
                      ".globl safe_memset_on_fault\n"
                      "safe_memset_on_fault:\n"
-                     : "=c"(remainder)
-                     : "D"(s), "a"(c), "c"(n)
+                     : "+D"(s), "+a"(c), "+c"(n)
+                     :
                      : "memory");
     smap_end_user_access();
 
-    return remainder == 0 ? 0 : -EFAULT;
+    return n == 0 ? 0 : -EFAULT;
 }
 
 NOINLINE ssize_t safe_strnlen(const char* str, size_t n) {
@@ -79,8 +75,9 @@ NOINLINE ssize_t safe_strnlen(const char* str, size_t n) {
                      "safe_strnlen_on_fault:\n"
                      "mov $-1, %[count]\n"
                      "2:\n"
-                     : "=c"(count)
-                     : [str] "b"(str), [count] "c"(count), [n] "d"(n));
+                     : [count] "+c"(count), [n] "+d"(n)
+                     : [str] "b"(str)
+                     : "memory");
     smap_end_user_access();
 
     if (count < 0)
@@ -98,27 +95,26 @@ NOINLINE ssize_t safe_strncpy(char* dest, const char* src, size_t n) {
     ssize_t count = 0;
 
     smap_begin_user_access();
-    __asm__ volatile(
-        "1:\n"
-        ".globl safe_strncpy_read\n"
-        "safe_strncpy_read:\n"
-        "mov (%[src], %[count]), %%bl\n"
-        "test %%bl, %%bl\n"
-        "je 2f\n"
-        ".globl safe_strncpy_write\n"
-        "safe_strncpy_write:\n"
-        "mov %%bl, (%[dest], %[count])\n"
-        "inc %[count]\n"
-        "cmp %[count], %[n]\n"
-        "jne 1b\n"
-        "jmp 2f\n"
-        ".globl safe_strncpy_on_fault\n"
-        "safe_strncpy_on_fault:\n"
-        "mov $-1, %[count]\n"
-        "2:\n"
-        : "=c"(count)
-        : [dest] "D"(dest), [src] "S"(src), [n] "a"(n), [count] "c"(0L)
-        : "ebx", "memory");
+    __asm__ volatile("1:\n"
+                     ".globl safe_strncpy_read\n"
+                     "safe_strncpy_read:\n"
+                     "mov (%[src], %[count]), %%bl\n"
+                     "test %%bl, %%bl\n"
+                     "je 2f\n"
+                     ".globl safe_strncpy_write\n"
+                     "safe_strncpy_write:\n"
+                     "mov %%bl, (%[dest], %[count])\n"
+                     "inc %[count]\n"
+                     "cmp %[count], %[n]\n"
+                     "jne 1b\n"
+                     "jmp 2f\n"
+                     ".globl safe_strncpy_on_fault\n"
+                     "safe_strncpy_on_fault:\n"
+                     "mov $-1, %[count]\n"
+                     "2:\n"
+                     : [count] "+c"(count)
+                     : [dest] "D"(dest), [src] "S"(src), [n] "a"(n)
+                     : "ebx", "memory");
     smap_end_user_access();
 
     if (count < 0)
