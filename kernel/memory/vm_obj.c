@@ -47,8 +47,6 @@ int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
         return -EOVERFLOW;
     for (const struct vm_region* region = obj->shared_regions; region;
          region = region->shared_next) {
-        SCOPED_LOCK(vm, region->vm);
-
         size_t region_end = region->offset + (region->end - region->start);
         if (region_end <= offset || end <= region->offset)
             continue;
@@ -59,9 +57,9 @@ int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
         if (overlap_npages == 0)
             continue;
 
-        int rc = vm_region_invalidate(region, overlap_offset, overlap_npages);
-        if (IS_ERR(rc))
-            return rc;
+        pagemap_unmap(region->vm->pagemap,
+                      (region->start + overlap_offset) << PAGE_SHIFT,
+                      overlap_npages);
     }
     return 0;
 }

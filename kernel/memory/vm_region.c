@@ -24,8 +24,9 @@ struct vm_region* vm_region_create(struct vm* vm, size_t start, size_t end) {
 }
 
 static void vm_region_unset_obj(struct vm_region* region) {
-    struct vm_obj* obj = region->obj;
+    struct vm_obj* obj FREE(vm_obj) = ASSERT_PTR(region->obj);
     SCOPED_LOCK(vm_obj, obj);
+
     struct vm_region* prev = NULL;
     struct vm_region* it = obj->shared_regions;
     for (; it; it = it->shared_next) {
@@ -34,6 +35,14 @@ static void vm_region_unset_obj(struct vm_region* region) {
             break;
         prev = it;
     }
+
+    region->obj = NULL;
+
+    if (!(region->flags & VM_SHARED)) {
+        ASSERT(!it);
+        return;
+    }
+
     ASSERT_PTR(it);
     if (prev) {
         prev->shared_next = region->shared_next;
@@ -45,12 +54,8 @@ static void vm_region_unset_obj(struct vm_region* region) {
 }
 
 void vm_region_destroy(struct vm_region* region) {
-    struct vm_obj* obj = region->obj;
-    if (obj) {
-        if (region->flags & VM_SHARED)
-            vm_region_unset_obj(region);
-        vm_obj_unref(obj);
-    }
+    if (region->obj)
+        vm_region_unset_obj(region);
     if (region->flags & VM_SHARED)
         ASSERT(tree_is_empty(&region->private_pages));
     pages_clear(&region->private_pages);
@@ -100,10 +105,9 @@ void vm_region_set_obj(struct vm_region* region, struct vm_obj* obj,
     ASSERT(!region->shared_next);
     ASSERT_PTR(obj);
 
-    region->offset = offset;
-
     SCOPED_LOCK(vm_obj, obj);
     region->obj = vm_obj_ref(obj);
+    region->offset = offset;
     if (region->flags & VM_SHARED) {
         region->shared_next = obj->shared_regions;
         obj->shared_regions = region;
@@ -184,12 +188,18 @@ int vm_region_resize(struct vm_region* region, size_t new_npages) {
     if (new_end <= region->start)
         return -EOVERFLOW;
 
+    struct vm_obj* obj = region->obj;
+
     // Shrink the region
     if (new_npages < old_npages) {
-        if (region->obj)
+        if (obj)
+            vm_obj_lock(obj);
+        region->end = new_end;
+        if (obj) {
             pagemap_unmap(vm->pagemap, new_end << PAGE_SHIFT,
                           old_npages - new_npages);
-        region->end = new_end;
+            vm_obj_unlock(obj);
+        }
         return 0;
     }
 
@@ -198,7 +208,11 @@ int vm_region_resize(struct vm_region* region, size_t new_npages) {
     struct vm_region* next_region = vm_next_region(region);
     size_t next_start = next_region ? next_region->start : vm->end;
     if (new_end <= next_start) {
+        if (obj)
+            vm_obj_lock(obj);
         region->end = new_end;
+        if (obj)
+            vm_obj_unlock(obj);
         return 0;
     }
 
@@ -208,13 +222,17 @@ int vm_region_resize(struct vm_region* region, size_t new_npages) {
         return new_start;
 
     // Unmap the old range
-    if (region->obj)
-        pagemap_unmap(vm->pagemap, region->start << PAGE_SHIFT, old_npages);
+    size_t old_start = region->start;
+    if (obj)
+        vm_obj_lock(obj);
     vm_remove_region(region);
-
     region->start = new_start;
     region->end = new_start + new_npages;
     vm_insert_region(vm, region);
+    if (obj) {
+        pagemap_unmap(vm->pagemap, old_start << PAGE_SHIFT, old_npages);
+        vm_obj_unlock(obj);
+    }
 
     return 0;
 }
@@ -239,12 +257,21 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
     unsigned new_flags = (region->flags & ~mask) | flags;
     if (region->flags == new_flags)
         return 0;
-    if (region->obj && (region->flags & VM_SHARED) != (new_flags & VM_SHARED))
+
+    struct vm_obj* obj = region->obj;
+    if (obj && (region->flags & VM_SHARED) != (new_flags & VM_SHARED))
         return -EINVAL;
 
+    uintptr_t start_addr = start << PAGE_SHIFT;
     if (offset == 0 && end == region->end) {
         // Modify the whole region
+        if (obj)
+            vm_obj_lock(obj);
         region->flags = new_flags;
+        if (obj) {
+            pagemap_unmap(vm->pagemap, start_addr, npages);
+            vm_obj_unlock(obj);
+        }
     } else if (offset == 0) {
         // Split the region into two.
         // Left (`region`): [start, end) with new flags
@@ -263,14 +290,17 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
             .flags = region->flags,
             .private_pages = right_pages,
         };
+
+        if (obj)
+            vm_obj_lock(obj);
         region->end = end;
         region->flags = new_flags;
-
         vm_insert_region(vm, right_region);
-
-        if (region->obj)
-            vm_region_set_obj(right_region, region->obj,
-                              region->offset + npages);
+        if (obj) {
+            vm_region_set_obj(right_region, obj, region->offset + npages);
+            pagemap_unmap(vm->pagemap, start_addr, npages);
+            vm_obj_unlock(obj);
+        }
     } else if (end == region->end) {
         // Split the region into two.
         // Left (`region`): [region->start, start) with old flags
@@ -290,13 +320,16 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
             .flags = new_flags,
             .private_pages = right_pages,
         };
+
+        if (obj)
+            vm_obj_lock(obj);
         region->end = start;
-
         vm_insert_region(vm, right_region);
-
-        if (region->obj)
-            vm_region_set_obj(right_region, region->obj,
-                              region->offset + offset);
+        if (obj) {
+            vm_region_set_obj(right_region, obj, region->offset + offset);
+            pagemap_unmap(vm->pagemap, start_addr, npages);
+            vm_obj_unlock(obj);
+        }
     } else {
         // Split the region into three.
         // Left (`region`): [region->start, start) with old flags
@@ -331,21 +364,20 @@ int vm_region_set_flags(struct vm_region* region, size_t offset, size_t npages,
             .flags = region->flags,
             .private_pages = right_pages,
         };
-        region->end = start;
 
+        if (obj)
+            vm_obj_lock(obj);
+        region->end = start;
         vm_insert_region(vm, middle_region);
         vm_insert_region(vm, right_region);
-
-        if (region->obj) {
-            vm_region_set_obj(middle_region, region->obj,
-                              region->offset + offset);
-            vm_region_set_obj(right_region, region->obj,
+        if (obj) {
+            vm_region_set_obj(middle_region, obj, region->offset + offset);
+            vm_region_set_obj(right_region, obj,
                               region->offset + offset + npages);
+            pagemap_unmap(vm->pagemap, start_addr, npages);
+            vm_obj_unlock(obj);
         }
     }
-
-    if (region->obj)
-        pagemap_unmap(vm->pagemap, start << PAGE_SHIFT, npages);
 
     return 0;
 }
@@ -364,26 +396,57 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
     if (region->end < end)
         return -EINVAL;
 
+    size_t start_addr = start << PAGE_SHIFT;
+    struct vm_obj* obj = region->obj;
     if (region->start == start && region->end == end) {
         // Unmap the whole region
+        if (obj) {
+            vm_obj_ref(obj);
+            vm_obj_lock(obj);
+        }
         vm_remove_region(region);
+        if (obj) {
+            vm_region_unset_obj(region);
+            pagemap_unmap(vm->pagemap, start_addr, npages);
+            vm_obj_unlock(obj);
+            vm_obj_unref(obj);
+        }
         vm_region_destroy(region);
     } else if (region->start == start) {
         // Unmap the beginning of the region.
         // The region is shrunk to [start, region->end)
-        region->start += npages;
-        region->offset += npages;
 
         struct tree pages = {0};
         pages_split_off(&region->private_pages, &pages, npages);
-        pages_clear(&region->private_pages);
+        struct tree freed_pages = region->private_pages;
         region->private_pages = pages;
+
+        if (obj)
+            vm_obj_lock(obj);
+        region->start += npages;
+        region->offset += npages;
+        if (obj) {
+            pagemap_unmap(vm->pagemap, start_addr, npages);
+            vm_obj_unlock(obj);
+        }
+
+        pages_clear(&freed_pages);
     } else if (region->end == end) {
         // Unmap the end of the region.
         // The region is shrunk to [region->start, start)
-        region->end -= npages;
 
-        pages_truncate(&region->private_pages, offset);
+        struct tree freed_pages = {0};
+        pages_split_off(&region->private_pages, &freed_pages, offset);
+
+        if (obj)
+            vm_obj_lock(obj);
+        region->end -= npages;
+        if (obj) {
+            pagemap_unmap(vm->pagemap, start_addr, npages);
+            vm_obj_unlock(obj);
+        }
+
+        pages_clear(&freed_pages);
     } else {
         // Split the region into two, unmapping the middle part.
         // Left (`region`): [region->start, start)
@@ -397,7 +460,6 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
         pages_split_off(&region->private_pages, &middle_pages, offset);
         struct tree right_pages = {0};
         pages_split_off(&middle_pages, &right_pages, npages);
-        pages_clear(&middle_pages);
 
         *right_region = (struct vm_region){
             .vm = vm,
@@ -406,38 +468,20 @@ int vm_region_free(struct vm_region* region, size_t offset, size_t npages) {
             .flags = region->flags,
             .private_pages = right_pages,
         };
+
+        if (obj)
+            vm_obj_lock(obj);
         region->end = start;
-
         vm_insert_region(vm, right_region);
-
-        if (region->obj)
-            vm_region_set_obj(right_region, region->obj,
+        if (obj) {
+            vm_region_set_obj(right_region, obj,
                               region->offset + offset + npages);
+            pagemap_unmap(vm->pagemap, start_addr, npages);
+            vm_obj_unlock(obj);
+        }
+
+        pages_clear(&middle_pages);
     }
-
-    if (region->obj)
-        pagemap_unmap(vm->pagemap, start << PAGE_SHIFT, npages);
-
-    return 0;
-}
-
-int vm_region_invalidate(const struct vm_region* region, size_t offset,
-                         size_t npages) {
-    struct vm* vm = region->vm;
-    ASSERT(vm_is_locked_by_current(vm));
-
-    if (npages == 0)
-        return -EINVAL;
-
-    size_t start = region->start + offset;
-    size_t end = start + npages;
-    if (start < region->start || end <= start)
-        return -EOVERFLOW;
-    if (region->end < end)
-        return -EINVAL;
-
-    if (region->obj)
-        pagemap_unmap(vm->pagemap, start << PAGE_SHIFT, npages);
 
     return 0;
 }

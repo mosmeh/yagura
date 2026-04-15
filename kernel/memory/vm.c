@@ -147,6 +147,8 @@ NODISCARD static int map_page(struct vm* vm, void* virt_addr,
     if (!obj)
         return -EFAULT;
 
+    SCOPED_LOCK(vm_obj, obj);
+
     size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
     struct page* page FREE(page) = vm_region_get_page(region, index, request);
     if (IS_ERR(page))

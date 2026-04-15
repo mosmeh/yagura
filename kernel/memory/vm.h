@@ -184,9 +184,3 @@ NODISCARD int vm_region_set_flags(struct vm_region*, size_t offset,
 // Frees a virtual memory region.
 // If only a part of the region is freed, the region is shrunk or split.
 NODISCARD int vm_region_free(struct vm_region*, size_t offset, size_t npages);
-
-// Invalidates mappings of the given region.
-// The pages are removed from the page tables, causing page faults on the next
-// access.
-NODISCARD int vm_region_invalidate(const struct vm_region*, size_t offset,
-                                   size_t npages);
