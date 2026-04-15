@@ -176,7 +176,6 @@ int block_dev_register(struct block_dev* block_dev) {
                 "(error %d)\n",
                 block_dev->name, rc);
 
-    block_dev_unref(block_dev);
     return 0;
 }
 
