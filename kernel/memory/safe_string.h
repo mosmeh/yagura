@@ -23,6 +23,16 @@ NODISCARD ssize_t safe_strnlen(const char* str, size_t n);
 // Returns the shorter of the string length and n, or -EFAULT on failure.
 NODISCARD ssize_t safe_strncpy(char* dest, const char* src, size_t n);
 
+// Atomically loads a 32-bit value from the given pointer.
+// Returns 0 on success, -EINVAL if the pointer is not 4-byte aligned,
+// or -EFAULT on failure.
+NODISCARD int safe_atomic_load_u32(const uint32_t* ptr, uint32_t* out);
+
+// Atomically stores a 32-bit value to the given pointer.
+// Returns 0 on success, -EINVAL if the pointer is not 4-byte aligned,
+// or -EFAULT on failure.
+NODISCARD int safe_atomic_store_u32(uint32_t* ptr, uint32_t value);
+
 // Copies data from user space to kernel space.
 // Returns 0 on success, -EFAULT on failure.
 NODISCARD int copy_from_user(void* to, const void* user_from, size_t n);
@@ -50,3 +60,14 @@ NODISCARD ssize_t strncpy_from_user(char* dest, const char* user_src, size_t n);
 // or -EFAULT on failure.
 NODISCARD ssize_t copy_pathname_from_user(char dest[static PATH_MAX],
                                           const char* user_src);
+
+// Atomic load of a 32-bit value from user space.
+// Returns 0 on success, -EINVAL if the pointer is not 4-byte aligned,
+// or -EFAULT on failure.
+NODISCARD int atomic_load_u32_from_user(const uint32_t* user_ptr,
+                                        uint32_t* out);
+
+// Atomically stores a 32-bit value to user space.
+// Returns 0 on success, -EINVAL if the pointer is not 4-byte aligned,
+// or -EFAULT on failure.
+NODISCARD int atomic_store_u32_to_user(uint32_t* user_ptr, uint32_t value);

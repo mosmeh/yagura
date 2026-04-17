@@ -127,6 +127,60 @@ NOINLINE ssize_t safe_strncpy(char* dest, const char* src, size_t n) {
     return count;
 }
 
+// NOLINTNEXTLINE(readability-non-const-parameter)
+NOINLINE int safe_atomic_load_u32(const uint32_t* ptr, uint32_t* out) {
+    if (!is_canonical_addr(ptr))
+        return -EFAULT;
+    if ((uintptr_t)ptr % sizeof(uint32_t) != 0)
+        return -EINVAL;
+
+    int result = -EFAULT;
+    uint32_t value;
+
+    smap_begin_user_access();
+    __asm__ volatile(".globl safe_atomic_load_u32_read\n"
+                     "safe_atomic_load_u32_read:\n"
+                     "movl (%[ptr]), %[value]\n"
+                     "movl $0, %[result]\n"
+                     "jmp 1f\n"
+                     ".globl safe_atomic_load_u32_on_fault\n"
+                     "safe_atomic_load_u32_on_fault:\n"
+                     "1:\n"
+                     : [result] "+r"(result), [value] "=r"(value)
+                     : [ptr] "r"(ptr)
+                     : "memory");
+    smap_end_user_access();
+
+    if (out && result == 0)
+        *out = value;
+    return result;
+}
+
+NOINLINE int safe_atomic_store_u32(uint32_t* ptr, uint32_t value) {
+    if (!is_canonical_addr(ptr))
+        return -EFAULT;
+    if ((uintptr_t)ptr % sizeof(uint32_t) != 0)
+        return -EINVAL;
+
+    int result = -EFAULT;
+
+    smap_begin_user_access();
+    __asm__ volatile(".globl safe_atomic_store_u32_write\n"
+                     "safe_atomic_store_u32_write:\n"
+                     "movl %[value], (%[ptr])\n"
+                     "movl $0, %[result]\n"
+                     "jmp 1f\n"
+                     ".globl safe_atomic_store_u32_on_fault\n"
+                     "safe_atomic_store_u32_on_fault:\n"
+                     "1:\n"
+                     : [result] "+r"(result)
+                     : [ptr] "r"(ptr), [value] "r"(value)
+                     : "memory");
+    smap_end_user_access();
+
+    return result;
+}
+
 extern unsigned char safe_memcpy_copy[];
 extern unsigned char safe_memcpy_on_fault[];
 
@@ -139,6 +193,12 @@ extern unsigned char safe_strnlen_on_fault[];
 extern unsigned char safe_strncpy_read[];
 extern unsigned char safe_strncpy_write[];
 extern unsigned char safe_strncpy_on_fault[];
+
+extern unsigned char safe_atomic_load_u32_read[];
+extern unsigned char safe_atomic_load_u32_on_fault[];
+
+extern unsigned char safe_atomic_store_u32_write[];
+extern unsigned char safe_atomic_store_u32_on_fault[];
 
 bool safe_string_handle_page_fault(struct registers* regs,
                                    unsigned long error_code) {
@@ -161,6 +221,14 @@ bool safe_string_handle_page_fault(struct registers* regs,
     if (regs->ip == (uintptr_t)safe_strncpy_read ||
         regs->ip == (uintptr_t)safe_strncpy_write) {
         regs->ip = (uintptr_t)safe_strncpy_on_fault;
+        return true;
+    }
+    if (regs->ip == (uintptr_t)safe_atomic_load_u32_read) {
+        regs->ip = (uintptr_t)safe_atomic_load_u32_on_fault;
+        return true;
+    }
+    if (regs->ip == (uintptr_t)safe_atomic_store_u32_write) {
+        regs->ip = (uintptr_t)safe_atomic_store_u32_on_fault;
         return true;
     }
     return false;

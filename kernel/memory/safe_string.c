@@ -58,3 +58,16 @@ ssize_t copy_pathname_from_user(char dest[static PATH_MAX],
         return -ENAMETOOLONG;
     return len;
 }
+
+int atomic_load_u32_from_user(const uint32_t* user_ptr, uint32_t* out) {
+    ASSERT(is_kernel_range(out, sizeof(uint32_t)));
+    if (!is_user_range(user_ptr, sizeof(uint32_t)))
+        return -EFAULT;
+    return safe_atomic_load_u32(user_ptr, out);
+}
+
+int atomic_store_u32_to_user(uint32_t* user_ptr, uint32_t value) {
+    if (!is_user_range(user_ptr, sizeof(uint32_t)))
+        return -EFAULT;
+    return safe_atomic_store_u32(user_ptr, value);
+}
