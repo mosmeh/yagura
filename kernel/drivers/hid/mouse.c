@@ -80,14 +80,11 @@ static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
     count = MIN(count, sizeof(buf));
 
     for (;;) {
-        {
-            SCOPED_WAIT(waiter, &wait);
-            while (!can_read()) {
-                if (file->flags & O_NONBLOCK)
-                    return -EAGAIN;
-                if (sched_wait_interruptible(&waiter))
-                    return -EINTR;
-            }
+        if (!can_read()) {
+            if (file->flags & O_NONBLOCK)
+                return -EAGAIN;
+            if (WAIT_INTERRUPTIBLE(&wait, can_read()))
+                return -EINTR;
         }
 
         size_t nread = 0;

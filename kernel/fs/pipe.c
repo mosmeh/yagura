@@ -88,10 +88,12 @@ static int pipe_open(struct file* file) {
         case O_RDONLY:
             ++pipe->num_readers;
             if (is_fifo && !(file->flags & O_NONBLOCK)) {
-                SCOPED_WAIT(waiter, &pipe->wait);
-                while (pipe->num_writers == 0) {
+                for (;;) {
+                    SCOPED_WAIT(waiter, &pipe->wait, TASK_INTERRUPTIBLE);
+                    if (pipe->num_writers > 0)
+                        break;
                     pipe_unlock(pipe);
-                    int rc = sched_wait_interruptible(&waiter);
+                    int rc = waiter_wait_interruptible(&waiter);
                     pipe_lock(pipe);
                     if (IS_ERR(rc)) {
                         --pipe->num_readers;
@@ -103,8 +105,8 @@ static int pipe_open(struct file* file) {
         case O_WRONLY:
             ++pipe->num_writers;
             if (is_fifo) {
-                SCOPED_WAIT(waiter, &pipe->wait);
                 for (;;) {
+                    SCOPED_WAIT(waiter, &pipe->wait, TASK_INTERRUPTIBLE);
                     if (pipe->num_readers > 0)
                         break;
                     if (file->flags & O_NONBLOCK) {
@@ -112,7 +114,7 @@ static int pipe_open(struct file* file) {
                         return -ENXIO;
                     }
                     pipe_unlock(pipe);
-                    int rc = sched_wait_interruptible(&waiter);
+                    int rc = waiter_wait_interruptible(&waiter);
                     pipe_lock(pipe);
                     if (IS_ERR(rc)) {
                         --pipe->num_writers;
@@ -167,22 +169,20 @@ static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
     if (count == 0)
         return 0;
     for (;;) {
-        {
-            SCOPED_WAIT(waiter, &pipe->wait);
-            for (;;) {
-                pipe_lock(pipe);
-                if (!ring_buf_is_empty(pipe->ring))
-                    break;
-                if (pipe->num_writers == 0) {
-                    pipe_unlock(pipe);
-                    return 0;
-                }
+        for (;;) {
+            pipe_lock(pipe);
+            SCOPED_WAIT(waiter, &pipe->wait, TASK_INTERRUPTIBLE);
+            if (!ring_buf_is_empty(pipe->ring))
+                break;
+            if (pipe->num_writers == 0) {
                 pipe_unlock(pipe);
-                if (file->flags & O_NONBLOCK)
-                    return -EAGAIN;
-                if (sched_wait_interruptible(&waiter))
-                    return -EINTR;
+                return 0;
             }
+            pipe_unlock(pipe);
+            if (file->flags & O_NONBLOCK)
+                return -EAGAIN;
+            if (waiter_wait_interruptible(&waiter))
+                return -EINTR;
         }
         ssize_t n = ring_buf_read_to_user(pipe->ring, user_buffer, count);
         pipe_unlock(pipe);
@@ -198,25 +198,23 @@ static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
 NODISCARD static ssize_t do_write(struct file* file, const void* user_src,
                                   size_t count, bool atomic) {
     struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
-    {
-        SCOPED_WAIT(waiter, &pipe->wait);
-        for (;;) {
-            pipe_lock(pipe);
-            if (pipe->num_readers == 0) {
-                pipe_unlock(pipe);
-                int rc = signal_send_to_tasks(0, current->tid, SIGPIPE);
-                if (IS_ERR(rc))
-                    return rc;
-                return -EPIPE;
-            }
-            if (ring_buf_remaining_capacity(pipe->ring) >= (atomic ? count : 1))
-                break;
+    for (;;) {
+        pipe_lock(pipe);
+        SCOPED_WAIT(waiter, &pipe->wait, TASK_INTERRUPTIBLE);
+        if (pipe->num_readers == 0) {
             pipe_unlock(pipe);
-            if (file->flags & O_NONBLOCK)
-                return -EAGAIN;
-            if (sched_wait_interruptible(&waiter))
-                return -EINTR;
+            int rc = signal_send_to_tasks(0, current->tid, SIGPIPE);
+            if (IS_ERR(rc))
+                return rc;
+            return -EPIPE;
         }
+        if (ring_buf_remaining_capacity(pipe->ring) >= (atomic ? count : 1))
+            break;
+        pipe_unlock(pipe);
+        if (file->flags & O_NONBLOCK)
+            return -EAGAIN;
+        if (waiter_wait_interruptible(&waiter))
+            return -EINTR;
     }
     ssize_t n = 0;
     if (!atomic ||

@@ -36,11 +36,7 @@ static int submit_request(struct block_dev* block_dev, phys_addr_t buffer,
         ++num_descriptors;
 
     for (;;) {
-        {
-            SCOPED_WAIT(waiter, &virtq->wait);
-            while (virtq->num_free_descs < num_descriptors)
-                sched_wait(&waiter);
-        }
+        WAIT(&virtq->wait, virtq->num_free_descs >= num_descriptors);
 
         SCOPED_LOCK(block_dev, block_dev);
 

@@ -52,14 +52,13 @@ NODISCARD static bool execute_one(struct workqueue* wq) {
     return true;
 }
 
+NODISCARD static bool execute_all(struct workqueue* wq) {
+    bool executed = false;
+    while (execute_one(wq))
+        executed = true;
+    return executed;
+}
+
 void workqueue_dispatch(struct workqueue* wq) {
-    SCOPED_WAIT(waiter, &wq->wait);
-    for (;;) {
-        bool executed = false;
-        while (execute_one(wq))
-            executed = true;
-        if (executed)
-            return;
-        sched_wait_as_idle(&waiter);
-    }
+    WAIT_AS(&wq->wait, TASK_IDLE, execute_all(wq));
 }

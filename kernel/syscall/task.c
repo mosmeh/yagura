@@ -236,13 +236,8 @@ NODISCARD static pid_t wait4(pid_t pid, int* user_wstatus, int options,
     if (options & WNOHANG) {
         if (!find_waitee(&wait))
             return 0;
-    } else {
-        SCOPED_WAIT(waiter, &tasks_wait);
-        while (!find_waitee(&wait)) {
-            if (sched_wait_interruptible(&waiter))
-                return -ERESTARTSYS;
-        }
-    }
+    } else if (WAIT_INTERRUPTIBLE(&tasks_wait, find_waitee(&wait)))
+        return -ERESTARTSYS;
 
     struct task* task FREE(task) = wait.task;
     if (!task)

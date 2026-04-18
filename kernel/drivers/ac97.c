@@ -160,11 +160,8 @@ NODISCARD static int dsp_sync(struct file* file) {
         current_sample_buf_size = 0;
     }
 
-    SCOPED_WAIT(waiter, &wait);
-    while (dma_is_running) {
-        if (sched_wait_interruptible(&waiter))
-            return -EINTR;
-    }
+    if (WAIT_INTERRUPTIBLE(&wait, !dma_is_running))
+        return -EINTR;
     return 0;
 }
 
@@ -199,14 +196,11 @@ write_single_buffer(struct file* file, const void* user_buffer, size_t count) {
 
         mutex_unlock(&lock);
 
-        {
-            SCOPED_WAIT(waiter, &wait);
-            while (!can_write()) {
-                if (file->flags & O_NONBLOCK)
-                    return -EAGAIN;
-                if (sched_wait_interruptible(&waiter))
-                    return -EINTR;
-            }
+        if (!can_write()) {
+            if (file->flags & O_NONBLOCK)
+                return -EAGAIN;
+            if (WAIT_INTERRUPTIBLE(&wait, can_write()))
+                return -EINTR;
         }
 
         mutex_lock(&lock);

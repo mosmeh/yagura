@@ -176,8 +176,8 @@ void timer_disarm(struct timer* timer) {
 }
 
 bool timer_wait(struct timer* timer) {
-    SCOPED_WAIT(waiter, &timer->wait);
     for (;;) {
+        WAIT(&timer->wait, timer->state != TIMER_ARMED);
         switch (timer->state) {
         case TIMER_DISARMED:
             return false;
@@ -188,13 +188,13 @@ bool timer_wait(struct timer* timer) {
         default:
             UNREACHABLE();
         }
-        sched_wait(&waiter);
     }
 }
 
 int timer_wait_interruptible(struct timer* timer) {
-    SCOPED_WAIT(waiter, &timer->wait);
     for (;;) {
+        if (WAIT_INTERRUPTIBLE(&timer->wait, timer->state != TIMER_ARMED))
+            return -EINTR;
         switch (timer->state) {
         case TIMER_DISARMED:
             return 0;
@@ -205,8 +205,6 @@ int timer_wait_interruptible(struct timer* timer) {
         default:
             UNREACHABLE();
         }
-        if (sched_wait_interruptible(&waiter))
-            return -EINTR;
     }
 }
 

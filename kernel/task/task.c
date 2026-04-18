@@ -363,11 +363,8 @@ pid_t clone_user_task(struct registers* regs, unsigned long flags,
 
     sched_register(task);
 
-    if (flags & CLONE_VFORK) {
-        SCOPED_WAIT(waiter, &task->wait);
-        while (task->state != TASK_DEAD)
-            sched_wait(&waiter);
-    }
+    if (flags & CLONE_VFORK)
+        WAIT(&task->wait, task->state == TASK_DEAD);
 
     return tid;
 }
