@@ -2,6 +2,7 @@
 
 #include <common/macros.h>
 #include <common/stdbool.h>
+#include <kernel/interrupts.h>
 #include <kernel/lock/spinlock.h>
 
 struct task;
@@ -39,33 +40,60 @@ void sched_wake(struct task*);
 //     waitqueue_wake_all(&wq);
 // }
 //
-// void wait(void) {
-//     SCOPED_WAIT(waiter, &wq);
-//     while (!condition) {
+// int wait(struct file* file) {
+//     if (!condition) {
 //         if (file->flags & O_NONBLOCK)
-//            return -EAGAIN;
-//
-//         sched_wait(&waiter);
-//
+//             return -EAGAIN;
+//         WAIT(&wq, condition);
 //         // Or, if the wait should be interruptible:
-//         // if (sched_wait_interruptible(&waiter))
-//         //    return -EINTR;
+//         // if (WAIT_INTERRUPTIBLE(&wq, condition))
+//         //     return -EINTR;
 //     }
-//     // waiter is removed from the waitqueue when going out of scope
+//     return 0;
 // }
 
-#define SCOPED_WAIT(name, waitqueue)                                           \
-    struct waiter name CLEANUP(__waiter_deinit) = {.wq = (waitqueue)};
+#define WAIT(wq, condition)                                                    \
+    do {                                                                       \
+        ASSERT(arch_interrupts_enabled());                                     \
+        if (!(condition)) {                                                    \
+            for (;;) {                                                         \
+                SCOPED_WAIT(waiter, wq);                                       \
+                if (condition)                                                 \
+                    break;                                                     \
+                waiter_wait(&waiter);                                          \
+            }                                                                  \
+        }                                                                      \
+    } while (0)
 
-struct waiter {
-    struct waitqueue* wq;
-    struct task* task;
-    struct waiter* prev;
-    struct waiter* next;
-    bool published;
-};
+#define WAIT_AS_IDLE(wq, condition)                                            \
+    do {                                                                       \
+        ASSERT(arch_interrupts_enabled());                                     \
+        if (!(condition)) {                                                    \
+            for (;;) {                                                         \
+                SCOPED_WAIT(waiter, wq);                                       \
+                if (condition)                                                 \
+                    break;                                                     \
+                waiter_wait_as_idle(&waiter);                                  \
+            }                                                                  \
+        }                                                                      \
+    } while (0)
 
-void __waiter_deinit(struct waiter*);
+#define WAIT_INTERRUPTIBLE(wq, condition)                                      \
+    __extension__({                                                            \
+        ASSERT(arch_interrupts_enabled());                                     \
+        int __rc = 0;                                                          \
+        if (!(condition)) {                                                    \
+            for (;;) {                                                         \
+                SCOPED_WAIT(waiter, wq);                                       \
+                if (condition)                                                 \
+                    break;                                                     \
+                __rc = waiter_wait_interruptible(&waiter);                     \
+                if (__rc)                                                      \
+                    break;                                                     \
+            }                                                                  \
+        }                                                                      \
+        __rc;                                                                  \
+    })
 
 struct waitqueue {
     struct waiter* head;
@@ -87,14 +115,34 @@ static inline bool waitqueue_wake_one(struct waitqueue* wq) {
 // Returns the number of tasks that were woken up.
 size_t waitqueue_wake_all(struct waitqueue*);
 
+#define SCOPED_WAIT(name, wq)                                                  \
+    struct waiter name CLEANUP(__waiter_deinit);                               \
+    __waiter_init(&(name), wq)
+
+struct waiter {
+    struct waitqueue* wq;
+    struct task* task;
+    struct waiter* prev;
+    struct waiter* next;
+    bool published;
+};
+
+void __waiter_init(struct waiter*, struct waitqueue*);
+void __waiter_deinit(struct waiter*);
+
+// Wakes up a waiter and removes it from the waitqueue.
+// Returns true if the waiter was removed from the waitqueue,
+// false if the waiter was not enqueued or already removed.
+NODISCARD bool waiter_wake(struct waiter*);
+
 // Sleeps until the waiter is woken up.
-void sched_wait(struct waiter*);
+void waiter_wait(struct waiter*);
 
-// Like `sched_wait` but does not contribute to load average while waiting.
-void sched_wait_as_idle(struct waiter*);
+// Like `waiter_wait` but does not contribute to load average while waiting.
+void waiter_wait_as_idle(struct waiter*);
 
-// Like `sched_wait` but returns -EINTR if the wait was interrupted by a signal.
-NODISCARD int sched_wait_interruptible(struct waiter*);
+// Like `waiter_wait` but returns -EINTR if interrupted by a signal.
+NODISCARD int waiter_wait_interruptible(struct waiter*);
 
 // Gets the 1, 5, and 15 minute load averages in the format used by
 // the `loads` field of `struct sysinfo`.

@@ -120,14 +120,11 @@ static ssize_t unix_socket_pread(struct file* file, void* user_buffer,
 
     struct ring_buf* ring = ring_to_read(file);
     for (;;) {
-        {
-            SCOPED_WAIT(waiter, &socket->wait);
-            while (!is_readable(file)) {
-                if (file->flags & O_NONBLOCK)
-                    return -EAGAIN;
-                if (sched_wait_interruptible(&waiter))
-                    return -EINTR;
-            }
+        if (!is_readable(file)) {
+            if (file->flags & O_NONBLOCK)
+                return -EAGAIN;
+            if (WAIT_INTERRUPTIBLE(&socket->wait, is_readable(file)))
+                return -EINTR;
         }
 
         {
@@ -167,14 +164,11 @@ static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
 
     struct ring_buf* ring = ring_to_write(file);
     for (;;) {
-        {
-            SCOPED_WAIT(waiter, &socket->wait);
-            while (!is_writable(file)) {
-                if (file->flags & O_NONBLOCK)
-                    return -EAGAIN;
-                if (sched_wait_interruptible(&waiter))
-                    return -EINTR;
-            }
+        if (!is_writable(file)) {
+            if (file->flags & O_NONBLOCK)
+                return -EAGAIN;
+            if (WAIT_INTERRUPTIBLE(&socket->wait, is_writable(file)))
+                return -EINTR;
         }
 
         if (!is_connector(file) && !socket->is_open_for_writing_to_connector) {
@@ -314,14 +308,11 @@ struct inode* unix_socket_accept(struct file* file) {
     }
 
     for (;;) {
-        {
-            SCOPED_WAIT(waiter, &listener->wait);
-            while (listener->num_pending == 0) {
-                if (file->flags & O_NONBLOCK)
-                    return ERR_PTR(-EAGAIN);
-                if (sched_wait_interruptible(&waiter))
-                    return ERR_PTR(-EINTR);
-            }
+        if (listener->num_pending == 0) {
+            if (file->flags & O_NONBLOCK)
+                return ERR_PTR(-EAGAIN);
+            if (WAIT_INTERRUPTIBLE(&listener->wait, listener->num_pending > 0))
+                return ERR_PTR(-EINTR);
         }
 
         struct unix_socket* connector;
@@ -399,11 +390,10 @@ int unix_socket_connect(struct file* file, struct inode* addr_inode) {
 
     waitqueue_wake_all(&listener->wait);
 
-    SCOPED_WAIT(waiter, &connector->wait);
-    while (!connector->is_connected) {
+    if (!connector->is_connected) {
         if (file->flags & O_NONBLOCK)
             return -EAGAIN;
-        if (sched_wait_interruptible(&waiter))
+        if (WAIT_INTERRUPTIBLE(&connector->wait, connector->is_connected))
             return -EINTR;
     }
 

@@ -475,16 +475,13 @@ static int virtual_console_ioctl(struct tty* tty, struct file* file,
         activate_console(arg - 1);
         break;
     }
-    case VT_WAITACTIVE: {
+    case VT_WAITACTIVE:
         if (arg == 0 || arg > NUM_CONSOLES)
             return -ENXIO;
-        SCOPED_WAIT(waiter, &active_wait);
-        while (active_console != consoles[arg - 1]) {
-            if (sched_wait_interruptible(&waiter))
-                return -EINTR;
-        }
+        if (WAIT_INTERRUPTIBLE(&active_wait,
+                               active_console == consoles[arg - 1]))
+            return -EINTR;
         break;
-    }
     default:
         return -ENOTTY;
     }

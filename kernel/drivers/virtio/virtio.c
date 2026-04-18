@@ -158,11 +158,7 @@ int virtq_desc_chain_submit(struct virtq_desc_chain* chain) {
     if (!(virtq->used->flags & VIRTQ_USED_F_NO_NOTIFY))
         *virtq->device->notify = virtq->index;
 
-    {
-        SCOPED_WAIT(waiter, &virtq->wait);
-        while (!virtq_is_ready(virtq))
-            sched_wait(&waiter);
-    }
+    WAIT(&virtq->wait, virtq_is_ready(virtq));
 
     arch_full_memory_barrier();
 

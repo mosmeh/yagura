@@ -238,11 +238,9 @@ SYSCALL4(rt_sigprocmask, int, how, const sigset_t*, user_set, sigset_t*,
 NODISCARD static int pause(void) {
     // Wait on a wait queue that is never woken up.
     struct waitqueue wq = {0};
-    SCOPED_WAIT(waiter, &wq);
-    for (;;) {
-        if (sched_wait_interruptible(&waiter))
-            return -EINTR;
-    }
+    if (WAIT_INTERRUPTIBLE(&wq, false))
+        return -EINTR;
+    return 0;
 }
 
 SYSCALL0(pause) { return pause(); }

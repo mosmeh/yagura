@@ -116,14 +116,11 @@ static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
 
     struct tty* tty = tty_from_file(file);
     for (;;) {
-        {
-            SCOPED_WAIT(waiter, &tty->wait);
-            while (!can_read(tty)) {
-                if (file->flags & O_NONBLOCK)
-                    return -EAGAIN;
-                if (sched_wait_interruptible(&waiter))
-                    return -EINTR;
-            }
+        if (!can_read(tty)) {
+            if (file->flags & O_NONBLOCK)
+                return -EAGAIN;
+            if (WAIT_INTERRUPTIBLE(&tty->wait, can_read(tty)))
+                return -EINTR;
         }
 
         size_t nread = 0;

@@ -7,23 +7,25 @@
 #include <kernel/task/sched.h>
 #include <kernel/task/task.h>
 
-void mutex_lock(struct mutex* m) {
+NODISCARD static bool mutex_try_lock(struct mutex* m) {
     struct task* task = current;
-    SCOPED_WAIT(waiter, &m->wait);
-    for (;;) {
-        ASSERT(arch_interrupts_enabled());
-        struct task* expected = NULL;
-        if (atomic_compare_exchange_strong(&m->holder, &expected, task)) {
-            ASSERT(m->level == 0);
-            break;
-        }
-        if (expected == task) {
-            ASSERT(m->level > 0);
-            break;
-        }
-        sched_wait(&waiter);
+    struct task* expected = NULL;
+    if (atomic_compare_exchange_strong(&m->holder, &expected, task)) {
+        ASSERT(m->level == 0);
+        m->level = 1;
+        return true;
     }
-    ++m->level;
+    if (expected == task) {
+        ASSERT(m->level > 0);
+        ++m->level;
+        return true;
+    }
+    return false;
+}
+
+void mutex_lock(struct mutex* m) {
+    ASSERT(arch_interrupts_enabled());
+    WAIT(&m->wait, mutex_try_lock(m));
 }
 
 void mutex_unlock(struct mutex* m) {
