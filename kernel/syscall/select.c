@@ -28,11 +28,8 @@ static void files_deinit(struct files* files) {
 // - Does not poll for POLLERR or POLLHUP unless requested.
 NODISCARD static int wait_fds(nfds_t nfds, struct pollfd pollfds[nfds],
                               struct timespec* timeout) {
-    if (timeout) {
-        if (timeout->tv_sec < 0 || timeout->tv_nsec < 0 ||
-            timeout->tv_nsec >= NANOS_PER_SEC)
-            return -EINVAL;
-    }
+    if (timeout && !timespec_is_valid(timeout))
+        return -EINVAL;
 
     struct files files CLEANUP(files_deinit) = {.count = nfds};
     size_t num_events = 0;

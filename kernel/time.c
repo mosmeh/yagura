@@ -230,7 +230,7 @@ int time_now(clockid_t clock_id, struct timespec* out_tp) {
 }
 
 int time_set(clockid_t clock_id, const struct timespec* tp) {
-    if (tp->tv_sec < 0 || tp->tv_nsec < 0 || tp->tv_nsec >= NANOS_PER_SEC)
+    if (!timespec_is_valid(tp))
         return -EINVAL;
 
     switch (clock_id) {

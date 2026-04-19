@@ -182,8 +182,7 @@ NODISCARD static int clock_nanosleep(clockid_t clockid, int flags,
     if (IS_ERR(rc))
         return rc;
 
-    if (request->tv_sec < 0 || request->tv_nsec < 0 ||
-        request->tv_nsec >= NANOS_PER_SEC)
+    if (!timespec_is_valid(request))
         return -EINVAL;
 
     switch (flags) {

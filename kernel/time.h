@@ -20,6 +20,10 @@ void timespec_add(struct timespec*, const struct timespec*);
 void timespec_saturating_sub(struct timespec*, const struct timespec*);
 int timespec_compare(const struct timespec*, const struct timespec*);
 
+static inline bool timespec_is_valid(const struct timespec* ts) {
+    return ts->tv_sec >= 0 && 0 <= ts->tv_nsec && ts->tv_nsec < NANOS_PER_SEC;
+}
+
 void time_init(void);
 
 void time_tick(void);
