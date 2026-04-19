@@ -1,4 +1,5 @@
 #include "private.h"
+#include <common/string.h>
 #include <kernel/interrupts.h>
 #include <kernel/memory/phys.h>
 #include <kernel/memory/vm.h>
@@ -135,6 +136,70 @@ static struct vm* virt_addr_to_vm(void* virt_addr) {
     return NULL;
 }
 
+// Returns a positive value if the mapping to the page should be invalidated,
+// 0 if the mapping can be reused, or a negative error code on failure.
+NODISCARD static int get_page(struct vm_region* region, size_t index,
+                              unsigned request, struct page** out_page) {
+    ASSERT(vm_is_locked_by_current(region->vm));
+
+    struct vm_obj* obj = region->obj;
+    if (!obj)
+        return -EFAULT;
+
+    unsigned flags = region->flags | obj->flags;
+    if (request & ~flags)
+        return -EFAULT;
+
+    if (!(request & (VM_READ | VM_WRITE | VM_EXEC))) {
+        *out_page = NULL;
+        return 0;
+    }
+
+    struct tree_node** new_node = &region->private_pages.root;
+    struct tree_node* parent = NULL;
+    if (!(flags & VM_SHARED)) {
+        while (*new_node) {
+            parent = *new_node;
+            struct page* page = CONTAINER_OF(parent, struct page, tree_node);
+            if (index < page->index) {
+                new_node = &parent->left;
+            } else if (index > page->index) {
+                new_node = &parent->right;
+            } else {
+                *out_page = page_ref(page);
+                return 0;
+            }
+        }
+    }
+
+    const struct vm_ops* vm_ops = ASSERT_PTR(obj->vm_ops);
+    ASSERT_PTR(vm_ops->get_page);
+
+    struct page* shared_page FREE(page) =
+        vm_ops->get_page(obj, region->offset + index, request);
+    if (IS_ERR(shared_page))
+        return PTR_ERR(shared_page);
+    if (!shared_page)
+        return -EFAULT;
+
+    if (!(request & VM_WRITE) || (flags & VM_SHARED)) {
+        *out_page = TAKE_PTR(shared_page);
+        return 0;
+    }
+
+    // Copy on write
+    struct page* private_page = ASSERT(page_alloc());
+    if (IS_ERR(private_page))
+        return PTR_ERR(private_page);
+    private_page->index = index;
+    *new_node = &private_page->tree_node;
+    page_ref(private_page);
+    tree_insert(&region->private_pages, parent, *new_node);
+    page_copy(private_page, shared_page);
+    *out_page = private_page;
+    return 1;
+}
+
 NODISCARD static int map_page(struct vm* vm, void* virt_addr,
                               unsigned request) {
     ASSERT(vm_is_locked_by_current(vm));
@@ -150,9 +215,10 @@ NODISCARD static int map_page(struct vm* vm, void* virt_addr,
     SCOPED_LOCK(vm_obj, obj);
 
     size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
-    struct page* page FREE(page) = vm_region_get_page(region, index, request);
-    if (IS_ERR(page))
-        return PTR_ERR(page);
+    struct page* page FREE(page) = NULL;
+    int result = get_page(region, index, request, &page);
+    if (IS_ERR(result))
+        return result;
     if (!page)
         return -EFAULT;
 
@@ -231,7 +297,97 @@ struct page* vm_get_page(struct vm* vm, void* virt_addr, unsigned request) {
         return NULL;
 
     size_t index = ((uintptr_t)virt_addr >> PAGE_SHIFT) - region->start;
-    return vm_region_get_page(region, index, request);
+    struct page* page FREE(page) = NULL;
+    int invalidate = get_page(region, index, request, &page);
+    if (IS_ERR(invalidate))
+        return ERR_PTR(invalidate);
+    if (invalidate) {
+        uintptr_t page_addr = ROUND_DOWN((uintptr_t)virt_addr, PAGE_SIZE);
+        pagemap_unmap(vm->pagemap, page_addr, 1);
+    }
+    return TAKE_PTR(page);
+}
+
+int copy_from_vm(struct vm* vm, void* dest, const void* src, size_t n) {
+    ASSERT(vm_is_locked_by_current(vm));
+    size_t ncopied = 0;
+    size_t page_offset = (uintptr_t)src % PAGE_SIZE;
+    while (ncopied < n) {
+        struct page* page FREE(page) =
+            vm_get_page(vm, (unsigned char*)src + ncopied, VM_READ);
+        if (IS_ERR(page))
+            return PTR_ERR(page);
+        if (!page)
+            return -EFAULT;
+        size_t to_copy = MIN(PAGE_SIZE - page_offset, n - ncopied);
+        copy_from_page((unsigned char*)dest + ncopied, page, page_offset,
+                       to_copy);
+        ncopied += to_copy;
+        page_offset = 0;
+    }
+    return 0;
+}
+
+int copy_to_vm(struct vm* vm, void* dest, const void* src, size_t n) {
+    ASSERT(vm_is_locked_by_current(vm));
+    size_t ncopied = 0;
+    size_t page_offset = (uintptr_t)dest % PAGE_SIZE;
+    while (ncopied < n) {
+        struct page* page FREE(page) =
+            vm_get_page(vm, (unsigned char*)dest + ncopied, VM_WRITE);
+        if (IS_ERR(page))
+            return PTR_ERR(page);
+        if (!page)
+            return -EFAULT;
+        size_t to_copy = MIN(PAGE_SIZE - page_offset, n - ncopied);
+        copy_to_page(page, (const unsigned char*)src + ncopied, page_offset,
+                     to_copy);
+        ncopied += to_copy;
+        page_offset = 0;
+    }
+    return 0;
+}
+
+int vm_clear(struct vm* vm, void* to, size_t n) {
+    ASSERT(vm_is_locked_by_current(vm));
+    size_t ncleared = 0;
+    size_t page_offset = (uintptr_t)to % PAGE_SIZE;
+    while (ncleared < n) {
+        struct page* page FREE(page) =
+            vm_get_page(vm, (unsigned char*)to + ncleared, VM_WRITE);
+        if (IS_ERR(page))
+            return PTR_ERR(page);
+        if (!page)
+            return -EFAULT;
+        size_t to_clear = MIN(PAGE_SIZE - page_offset, n - ncleared);
+        page_clear(page, page_offset, to_clear);
+        ncleared += to_clear;
+        page_offset = 0;
+    }
+    return 0;
+}
+
+ssize_t vm_strnlen(struct vm* vm, const char* str, size_t n) {
+    ASSERT(vm_is_locked_by_current(vm));
+    size_t offset = 0;
+    size_t page_offset = (uintptr_t)str % PAGE_SIZE;
+    while (offset < n) {
+        struct page* page FREE(page) =
+            vm_get_page(vm, (unsigned char*)str + offset, VM_READ);
+        if (IS_ERR(page))
+            return PTR_ERR(page);
+        if (!page)
+            return -EFAULT;
+        size_t to_read = MIN(PAGE_SIZE - page_offset, n - offset);
+        char buffer[PAGE_SIZE];
+        copy_from_page(buffer, page, page_offset, to_read);
+        size_t len = strnlen(buffer, to_read);
+        if (len < to_read)
+            return offset + len;
+        offset += to_read;
+        page_offset = 0;
+    }
+    return n;
 }
 
 struct vm_region* vm_first_region(const struct vm* vm) {

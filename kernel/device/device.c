@@ -88,7 +88,7 @@ static int bdev_read(struct inode* inode, struct page* page,
 
     if (nblocks_to_read < nblocks_per_page) {
         size_t offset = nblocks_to_read << block_dev->block_bits;
-        page_fill(page, 0, offset, PAGE_SIZE - offset);
+        page_clear(page, offset, PAGE_SIZE - offset);
     }
 
     return 0;

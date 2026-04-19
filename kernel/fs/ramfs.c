@@ -168,7 +168,7 @@ static int ramfs_read(struct inode* inode, struct page* page,
                       size_t page_index) {
     (void)inode;
     (void)page_index;
-    page_fill(page, 0, 0, PAGE_SIZE);
+    page_clear(page, 0, PAGE_SIZE);
     return 0;
 }
 

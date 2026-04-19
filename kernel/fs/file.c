@@ -63,7 +63,7 @@ ssize_t default_file_pread(struct file* file, void* user_buffer, size_t count,
 
         unsigned char page_buf[PAGE_SIZE];
         size_t to_read = MIN(count - nread, PAGE_SIZE - page_offset);
-        page_copy_to_buffer(page, page_buf, page_offset, to_read);
+        copy_from_page(page_buf, page, page_offset, to_read);
         if (copy_to_user(user_dest, page_buf, to_read))
             return -EFAULT;
 
@@ -115,7 +115,7 @@ ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
         size_t to_write = MIN(count - nwritten, PAGE_SIZE - page_offset);
         if (copy_from_user(page_buf, user_src, to_write))
             return -EFAULT;
-        page_copy_from_buffer(page, page_buf, page_offset, to_write);
+        copy_to_page(page, page_buf, page_offset, to_write);
 
         user_src += to_write;
         nwritten += to_write;
@@ -225,7 +225,7 @@ NODISCARD static ssize_t default_file_readlink(struct file* file, char* buffer,
         if (IS_ERR(page))
             return PTR_ERR(page);
 
-        page_copy_to_buffer(page, page_buf, 0, bufsiz);
+        copy_from_page(page_buf, page, 0, bufsiz);
     }
 
     size_t len = strnlen(page_buf, bufsiz);

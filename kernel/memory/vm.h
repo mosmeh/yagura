@@ -29,7 +29,7 @@ struct vm_obj;
 
 struct vm_ops {
     void (*destroy_obj)(struct vm_obj*);
-    struct page* (*get_page)(struct vm_obj*, size_t index, bool write);
+    struct page* (*get_page)(struct vm_obj*, size_t index, unsigned request);
 };
 
 struct vm_obj {
@@ -51,6 +51,11 @@ DEFINE_REFCOUNTED_BASE(vm_obj, struct vm_obj, refcount, __vm_obj_destroy)
 void* vm_obj_map(struct vm_obj*, size_t offset, size_t npages, unsigned flags);
 
 void vm_obj_unmap(void*);
+
+NODISCARD ssize_t vm_obj_read(struct vm_obj*, void* buffer, size_t count,
+                              uint64_t offset);
+NODISCARD ssize_t vm_obj_write(struct vm_obj*, const void* buffer, size_t count,
+                               uint64_t offset);
 
 // Invalidates shared mappings of the given vm_obj in all vms.
 // The pages are removed from the page tables, causing page faults on the next
@@ -139,6 +144,23 @@ NODISCARD int vm_populate(struct vm*, void* virt_start_addr,
 // Returns the page corresponding to the given virtual address.
 // `request` is a combination of VM_* flags that the page should satisfy.
 struct page* vm_get_page(struct vm*, void* virt_addr, unsigned request);
+
+// Copies data from the src in the vm to the dest buffer.
+// Returns 0 on success, or a negative error code on failure.
+NODISCARD int copy_from_vm(struct vm*, void* dest, const void* src, size_t n);
+
+// Copies data from the src buffer to the dest in the vm.
+// Returns 0 on success, or a negative error code on failure.
+NODISCARD int copy_to_vm(struct vm*, void* dest, const void* src, size_t n);
+
+// Zeros a block of memory in the vm.
+// Returns 0 on success, or a negative error code on failure.
+NODISCARD int vm_clear(struct vm*, void* to, size_t n);
+
+// Gets the length of a string in the vm.
+// Returns the shorter of the string length and n,
+// or a negative error code on failure.
+NODISCARD ssize_t vm_strnlen(struct vm*, const char* str, size_t n);
 
 // Returns the first region in the vm.
 struct vm_region* vm_first_region(const struct vm*);

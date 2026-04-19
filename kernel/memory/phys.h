@@ -37,12 +37,11 @@ struct page* page_alloc(void);
 ssize_t page_alloc_raw(void);
 void page_free_raw(size_t pfn);
 
-void page_fill(struct page*, unsigned char value, size_t offset, size_t nbytes);
+void page_clear(struct page*, size_t offset, size_t nbytes);
 void page_copy(struct page* dest, struct page* src);
-void page_copy_from_buffer(struct page* dest, const void* src, size_t offset,
-                           size_t nbytes);
-void page_copy_to_buffer(struct page* src, void* dest, size_t offset,
-                         size_t nbytes);
+void copy_to_page(struct page* dest, const void* src, size_t offset,
+                  size_t nbytes);
+void copy_from_page(void* dest, struct page* src, size_t offset, size_t nbytes);
 
 // Returns the first page in the tree.
 struct page* pages_first(const struct tree*);

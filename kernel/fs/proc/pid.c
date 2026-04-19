@@ -18,27 +18,6 @@ static pid_t pid_from_ino(ino_t ino) {
     return pid;
 }
 
-static int copy_from_remote_vm(struct vm* vm, void* dst, const void* user_src,
-                               size_t size) {
-    SCOPED_LOCK(vm, vm);
-    size_t offset = 0;
-    while (offset < size) {
-        uintptr_t curr_addr = (uintptr_t)user_src + offset;
-        struct page* page FREE(page) =
-            vm_get_page(vm, (void*)curr_addr, VM_READ);
-        if (IS_ERR(page))
-            return PTR_ERR(page);
-        if (!page)
-            return -EFAULT;
-        size_t page_offset = curr_addr % PAGE_SIZE;
-        size_t to_copy = MIN(PAGE_SIZE - page_offset, size - offset);
-        page_copy_to_buffer(page, (unsigned char*)dst + offset, page_offset,
-                            to_copy);
-        offset += to_copy;
-    }
-    return 0;
-}
-
 static int print_cmdline(struct file* file, struct vec* vec) {
     pid_t pid = pid_from_ino(file->inode->ino);
     struct task* task FREE(task) = task_find_by_tid(pid);
@@ -55,8 +34,11 @@ static int print_cmdline(struct file* file, struct vec* vec) {
     if (!buf)
         return -ENOMEM;
 
-    if (copy_from_remote_vm(task->vm, buf, (void*)task->arg_start, len))
-        return -EFAULT;
+    {
+        SCOPED_LOCK(vm, task->vm);
+        if (copy_from_vm(task->vm, buf, (void*)task->arg_start, len))
+            return -EFAULT;
+    }
 
     return vec_append(vec, buf, len);
 }
@@ -126,8 +108,11 @@ static int print_environ(struct file* file, struct vec* vec) {
     if (!buf)
         return -ENOMEM;
 
-    if (copy_from_remote_vm(task->vm, buf, (void*)task->env_start, len))
-        return -EFAULT;
+    {
+        SCOPED_LOCK(vm, task->vm);
+        if (copy_from_vm(task->vm, buf, (void*)task->env_start, len))
+            return -EFAULT;
+    }
 
     return vec_append(vec, buf, len);
 }

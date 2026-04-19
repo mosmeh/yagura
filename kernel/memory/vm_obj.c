@@ -39,6 +39,67 @@ void vm_obj_unmap(void* virt_addr) {
     ASSERT_OK(vm_region_free(region, 0, region->end - region->start));
 }
 
+ssize_t vm_obj_read(struct vm_obj* obj, void* buffer, size_t count,
+                    uint64_t offset) {
+    SCOPED_LOCK(vm_obj, obj);
+
+    const struct vm_ops* ops = ASSERT_PTR(obj->vm_ops);
+    ASSERT_PTR(ops->get_page);
+
+    size_t nread = 0;
+    unsigned char* dest = buffer;
+    size_t index = offset >> PAGE_SHIFT;
+    size_t page_offset = offset % PAGE_SIZE;
+    while (count > 0) {
+        struct page* page FREE(page) = ops->get_page(obj, index, VM_READ);
+        if (IS_ERR(page))
+            return PTR_ERR(page);
+        if (!page)
+            break;
+
+        size_t to_copy = MIN(count, PAGE_SIZE - page_offset);
+        copy_from_page(dest, page, page_offset, to_copy);
+        count -= to_copy;
+        nread += to_copy;
+        dest += to_copy;
+        ++index;
+        page_offset = 0;
+    }
+    return nread;
+}
+
+ssize_t vm_obj_write(struct vm_obj* obj, const void* buffer, size_t count,
+                     uint64_t offset) {
+    SCOPED_LOCK(vm_obj, obj);
+
+    const struct vm_ops* ops = ASSERT_PTR(obj->vm_ops);
+    ASSERT_PTR(ops->get_page);
+
+    size_t nwritten = 0;
+    const unsigned char* src = buffer;
+    size_t index = offset >> PAGE_SHIFT;
+    size_t page_offset = offset % PAGE_SIZE;
+    while (count > 0) {
+        struct page* page FREE(page) = ops->get_page(obj, index, VM_WRITE);
+        if (IS_ERR(page))
+            return PTR_ERR(page);
+        if (!page) {
+            if (nwritten == 0)
+                return -ENOSPC;
+            break;
+        }
+
+        size_t to_copy = MIN(count, PAGE_SIZE - page_offset);
+        copy_to_page(page, src, page_offset, to_copy);
+        count -= to_copy;
+        nwritten += to_copy;
+        src += to_copy;
+        ++index;
+        page_offset = 0;
+    }
+    return nwritten;
+}
+
 int vm_obj_invalidate_mappings(const struct vm_obj* obj, size_t offset,
                                size_t npages) {
     ASSERT(vm_obj_is_locked_by_current(obj));
@@ -80,7 +141,7 @@ static void anon_destroy(struct vm_obj* obj) {
 static struct page* zero_page; // The page filled with zeros
 
 static struct page* anon_get_page(struct vm_obj* obj, size_t index,
-                                  bool write) {
+                                  unsigned request) {
     SCOPED_LOCK(vm_obj, obj);
     struct anon* anon = CONTAINER_OF(obj, struct anon, vm_obj);
 
@@ -97,7 +158,7 @@ static struct page* anon_get_page(struct vm_obj* obj, size_t index,
             return page_ref(page);
     }
 
-    if (!write)
+    if (!(request & VM_WRITE))
         return page_ref(zero_page);
 
     // Invalidate mappings to zero_page
@@ -109,7 +170,7 @@ static struct page* anon_get_page(struct vm_obj* obj, size_t index,
     if (IS_ERR(page))
         return page;
     page->index = index;
-    page_fill(page, 0, 0, PAGE_SIZE);
+    page_clear(page, 0, PAGE_SIZE);
 
     *new_node = &page->tree_node;
     page_ref(page);
@@ -151,12 +212,12 @@ static void phys_destroy(struct vm_obj* obj) {
 }
 
 static struct page* phys_get_page(struct vm_obj* obj, size_t index,
-                                  bool write) {
-    (void)write;
+                                  unsigned request) {
+    (void)request;
     struct phys* phys = CONTAINER_OF(obj, struct phys, vm_obj);
     size_t pfn = phys->start + index;
     if (phys->end <= pfn)
-        return ERR_PTR(-EFAULT);
+        return NULL;
     struct page* page = page_get(pfn);
     if (!page)
         return ERR_PTR(-EFAULT);
@@ -221,5 +282,5 @@ void vm_obj_init(void) {
     SLAB_INIT_FOR_TYPE(&phys_slab, "phys", struct phys);
 
     zero_page = ASSERT_PTR(page_alloc());
-    page_fill(zero_page, 0, 0, PAGE_SIZE);
+    page_clear(zero_page, 0, PAGE_SIZE);
 }

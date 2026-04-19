@@ -38,48 +38,27 @@ NODISCARD static ssize_t count_strings_user(const char* const* user_strings) {
 }
 
 NODISCARD
-static int copy_from_kernel_to_remote_vm(struct vm* vm, void* user_dest,
-                                         const void* src, size_t size) {
+static int copy_from_user_to_vm(struct vm* vm, void* dest, const void* user_src,
+                                size_t size) {
     ASSERT(vm_is_locked_by_current(vm));
     size_t offset = 0;
-    while (offset < size) {
-        uintptr_t curr_addr = (uintptr_t)user_dest + offset;
+    size_t page_offset = (uintptr_t)dest % PAGE_SIZE;
+    while (size > 0) {
         struct page* page FREE(page) =
-            vm_get_page(vm, (void*)curr_addr, VM_WRITE);
+            vm_get_page(vm, (unsigned char*)dest + offset, VM_WRITE);
         if (IS_ERR(page))
             return PTR_ERR(page);
         if (!page)
             return -EFAULT;
-        size_t page_offset = curr_addr % PAGE_SIZE;
-        size_t to_copy = MIN(PAGE_SIZE - page_offset, size - offset);
-        page_copy_from_buffer(page, (const unsigned char*)src + offset,
-                              page_offset, to_copy);
-        offset += to_copy;
-    }
-    return 0;
-}
-
-NODISCARD
-static int copy_from_user_to_remote_vm(struct vm* vm, void* user_dest,
-                                       const void* user_src, size_t size) {
-    ASSERT(vm_is_locked_by_current(vm));
-    size_t offset = 0;
-    while (offset < size) {
-        uintptr_t curr_addr = (uintptr_t)user_dest + offset;
-        struct page* page FREE(page) =
-            vm_get_page(vm, (void*)curr_addr, VM_WRITE);
-        if (IS_ERR(page))
-            return PTR_ERR(page);
-        if (!page)
-            return -EFAULT;
-        size_t page_offset = curr_addr % PAGE_SIZE;
-        size_t to_copy = MIN(PAGE_SIZE - page_offset, size - offset);
+        size_t to_copy = MIN(PAGE_SIZE - page_offset, size);
         unsigned char buffer[PAGE_SIZE];
         if (copy_from_user(buffer, (const unsigned char*)user_src + offset,
                            to_copy))
             return -EFAULT;
-        page_copy_from_buffer(page, buffer, page_offset, to_copy);
+        copy_to_page(page, buffer, page_offset, to_copy);
+        size -= to_copy;
         offset += to_copy;
+        page_offset = 0;
     }
     return 0;
 }
@@ -206,7 +185,7 @@ int loader_push_string_from_kernel(struct loader* loader, const char* str) {
 
     struct vm* vm = loader->vm;
     SCOPED_LOCK(vm, vm);
-    return copy_from_kernel_to_remote_vm(vm, new_sp, str, size);
+    return copy_to_vm(vm, new_sp, str, size);
 }
 
 int loader_push_string_from_user(struct loader* loader, const char* user_str) {
@@ -224,7 +203,7 @@ int loader_push_string_from_user(struct loader* loader, const char* user_str) {
 
     struct vm* vm = loader->vm;
     SCOPED_LOCK(vm, vm);
-    return copy_from_user_to_remote_vm(vm, new_sp, user_str, size);
+    return copy_from_user_to_vm(vm, new_sp, user_str, size);
 }
 
 int loader_pop_string(struct loader* loader) {

@@ -55,7 +55,7 @@ struct page* filemap_ensure_page(struct filemap* filemap, size_t index) {
         if (IS_ERR(rc))
             return ERR_PTR(rc);
     } else {
-        page_fill(page, 0, 0, PAGE_SIZE);
+        page_clear(page, 0, PAGE_SIZE);
     }
 
     *new_node = &page->tree_node;
@@ -174,7 +174,7 @@ int filemap_truncate(struct filemap* filemap, uint64_t length) {
     if (page_offset > 0) {
         struct page* page FREE(page) = pages_get(&filemap->pages, end - 1);
         if (page) {
-            page_fill(page, 0, page_offset, PAGE_SIZE - page_offset);
+            page_clear(page, page_offset, PAGE_SIZE - page_offset);
             page->flags |= PAGE_DIRTY;
         }
     }

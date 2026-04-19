@@ -145,11 +145,9 @@ static void on_regular_file(const struct entry* entry) {
         ASSERT_OK(file_truncate(file, entry->file_size));
 
         struct vm_obj* obj FREE(vm_obj) = ASSERT_PTR(file_mmap(file));
-        unsigned char* dest =
-            ASSERT_PTR(vm_obj_map(obj, 0, DIV_CEIL(entry->file_size, PAGE_SIZE),
-                                  VM_WRITE | VM_SHARED));
-        memcpy(dest, entry->content, entry->file_size);
-        vm_obj_unmap(dest);
+        size_t nwritten =
+            ASSERT_OK(vm_obj_write(obj, entry->content, entry->file_size, 0));
+        ASSERT(nwritten == entry->file_size);
     }
 
     copy_owner(file->inode, entry);

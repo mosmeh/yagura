@@ -286,9 +286,9 @@ static ssize_t process_vm_rw(pid_t pid, const struct iovec* user_local_iov,
         if (write) {
             if (copy_from_user(buf, local_iov.iov_base, to_copy))
                 return -EFAULT;
-            page_copy_from_buffer(page, buf, page_offset, to_copy);
+            copy_to_page(page, buf, page_offset, to_copy);
         } else {
-            page_copy_to_buffer(page, buf, page_offset, to_copy);
+            copy_from_page(buf, page, page_offset, to_copy);
             if (copy_to_user(local_iov.iov_base, buf, to_copy))
                 return -EFAULT;
         }

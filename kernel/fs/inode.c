@@ -17,15 +17,16 @@ static void inode_destroy(struct vm_obj* obj) {
 }
 
 static struct page* inode_get_page(struct vm_obj* obj, size_t index,
-                                   bool write) {
+                                   unsigned request) {
     struct inode* inode = CONTAINER_OF(obj, struct inode, vm_obj);
+    bool write = request & VM_WRITE;
     if (write && !inode->iops->write)
         return ERR_PTR(-EINVAL);
 
     SCOPED_LOCK(inode, inode);
 
     if (((uint64_t)index << PAGE_SHIFT) >= inode->size)
-        return ERR_PTR(-EFAULT);
+        return NULL;
 
     struct page* page = ASSERT(filemap_ensure_page(inode->filemap, index));
     if (IS_ERR(page))
