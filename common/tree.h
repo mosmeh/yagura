@@ -19,7 +19,11 @@ struct tree_node {
 
 void tree_insert(struct tree*, struct tree_node* parent,
                  struct tree_node* node);
-void tree_remove(struct tree*, struct tree_node*);
+
+// Removes the given node from the tree.
+// Returns true if the node was removed, false if the node is detached from any
+// tree.
+bool tree_remove(struct tree*, struct tree_node*);
 
 static inline bool tree_is_empty(const struct tree* tree) {
     return !tree->root;

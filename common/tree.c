@@ -210,8 +210,14 @@ static void balance_after_removal(struct tree* tree, struct tree_node* parent,
     set_color(node, COLOR_BLACK);
 }
 
-void tree_remove(struct tree* tree, struct tree_node* node) {
+bool tree_remove(struct tree* tree, struct tree_node* node) {
     ASSERT(node);
+
+    if (node->parent_and_color == 0) {
+        ASSERT(!node->left);
+        ASSERT(!node->right);
+        return false;
+    }
 
     if (node->left && node->right) {
         struct tree_node* successor = tree_next(node);
@@ -249,4 +255,5 @@ void tree_remove(struct tree* tree, struct tree_node* node) {
 
     node->parent_and_color = 0;
     node->left = node->right = NULL;
+    return true;
 }
