@@ -54,7 +54,11 @@ void* kaligned_alloc(size_t alignment, size_t);
 void* krealloc(void*, size_t new_size);
 void kfree(void*);
 
-static inline void __free_kfree(void* ptr) { kfree(*(void**)ptr); }
+static inline void __free_kfree(void* ptr) {
+    void* p = *(void**)ptr;
+    if (p && IS_OK(p))
+        kfree(p);
+}
 
 char* kstrdup(const char*);
 char* kstrndup(const char*, size_t n);

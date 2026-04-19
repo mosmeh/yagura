@@ -12,21 +12,30 @@
 
 #define INVALID_ADDR ((void*)(-1))
 
-NODISCARD static int validate_ehdr(const elf_ehdr_t* ehdr) {
+NODISCARD static elf_ehdr_t* load_ehdr(struct vm_obj* vm_obj) {
+    elf_ehdr_t* ehdr FREE(kfree) = kmalloc(sizeof(elf_ehdr_t));
+    if (!ehdr)
+        return ERR_PTR(-ENOMEM);
+    ssize_t nread = vm_obj_read(vm_obj, ehdr, sizeof(elf_ehdr_t), 0);
+    if (IS_ERR(nread))
+        return ERR_PTR(nread);
+    if ((size_t)nread < sizeof(elf_ehdr_t))
+        return ERR_PTR(-ENOEXEC);
+
     if (!IS_ELF(*ehdr) || ehdr->e_ident[EI_CLASS] != ELF_CLASS ||
         ehdr->e_ident[EI_DATA] != ELF_DATA ||
         ehdr->e_ident[EI_VERSION] != EV_CURRENT ||
         ehdr->e_ident[EI_ABIVERSION] != 0 || ehdr->e_machine != ELF_ARCH ||
-        ehdr->e_version != EV_CURRENT ||
+        ehdr->e_version != EV_CURRENT || ehdr->e_ehsize != sizeof(elf_ehdr_t) ||
         ehdr->e_phentsize != sizeof(elf_phdr_t))
-        return -ENOEXEC;
+        return ERR_PTR(-ENOEXEC);
 
     switch (ehdr->e_ident[EI_OSABI]) {
     case ELFOSABI_NONE:
     case ELFOSABI_GNU:
         break;
     default:
-        return -ENOEXEC;
+        return ERR_PTR(-ENOEXEC);
     }
 
     switch (ehdr->e_type) {
@@ -34,37 +43,59 @@ NODISCARD static int validate_ehdr(const elf_ehdr_t* ehdr) {
     case ET_DYN:
         break;
     default:
-        return -ENOEXEC;
+        return ERR_PTR(-ENOEXEC);
     }
 
-    return 0;
+    return TAKE_PTR(ehdr);
 }
 
-NODISCARD static const char* find_interp(const struct exec_image* image) {
-    const elf_ehdr_t* ehdr = (const void*)image->data;
-    const elf_phdr_t* phdr = (const void*)(image->data + ehdr->e_phoff);
+NODISCARD
+static elf_phdr_t* load_phdrs(struct vm_obj* vm_obj, const elf_ehdr_t* ehdr) {
+    if (ehdr->e_phnum == 0)
+        return ERR_PTR(-ENOEXEC);
+    size_t size = ehdr->e_phnum * sizeof(elf_phdr_t);
+    elf_phdr_t* phdrs FREE(kfree) = kmalloc(size);
+    if (!phdrs)
+        return ERR_PTR(-ENOMEM);
+    ssize_t nread = vm_obj_read(vm_obj, phdrs, size, ehdr->e_phoff);
+    if (IS_ERR(nread))
+        return ERR_PTR(nread);
+    if ((size_t)nread < size)
+        return ERR_PTR(-ENOEXEC);
+    return TAKE_PTR(phdrs);
+}
+
+NODISCARD
+static char* find_interp(struct vm_obj* vm_obj, const elf_ehdr_t* ehdr,
+                         const elf_phdr_t* phdrs) {
+    const elf_phdr_t* phdr = phdrs;
     for (size_t i = 0; i < ehdr->e_phnum; ++i, ++phdr) {
         if (phdr->p_type != PT_INTERP)
             continue;
         if (phdr->p_filesz == 0 || phdr->p_filesz > PATH_MAX)
             return ERR_PTR(-ENOEXEC);
-        const char* interp = (const void*)(image->data + phdr->p_offset);
-        if (interp[phdr->p_filesz - 1] != 0)
+        char* interp FREE(kfree) = kmalloc(phdr->p_filesz);
+        if (!interp)
+            return ERR_PTR(-ENOMEM);
+        ssize_t nread =
+            vm_obj_read(vm_obj, interp, phdr->p_filesz, phdr->p_offset);
+        if (IS_ERR(nread))
+            return ERR_PTR(nread);
+        if ((size_t)nread < phdr->p_filesz || interp[phdr->p_filesz - 1] != 0)
             return ERR_PTR(-ENOEXEC);
-        return interp;
+        return TAKE_PTR(interp);
     }
     return NULL;
 }
 
 NODISCARD
-static int load_segments(struct vm* vm, const struct exec_image* image,
+static int load_segments(struct vm* vm, struct vm_obj* vm_obj,
+                         const elf_ehdr_t* ehdr, const elf_phdr_t* phdrs,
                          bool fixed, size_t* inout_base, void** out_phdr_addr) {
-    const elf_ehdr_t* ehdr = (const void*)image->data;
-    const elf_phdr_t* phdr = (const void*)(image->data + ehdr->e_phoff);
-
     unsigned char* base_addr = INVALID_ADDR;
     unsigned char* phdr_addr = INVALID_ADDR;
 
+    const elf_phdr_t* phdr = phdrs;
     for (size_t i = 0; i < ehdr->e_phnum; ++i, ++phdr) {
         if (phdr->p_type != PT_LOAD)
             continue;
@@ -119,7 +150,7 @@ static int load_segments(struct vm* vm, const struct exec_image* image,
                 return rc;
 
             size_t offset_bytes = phdr->p_offset - page_offset;
-            vm_region_set_obj(region, image->obj, offset_bytes >> PAGE_SHIFT);
+            vm_region_set_obj(region, vm_obj, offset_bytes >> PAGE_SHIFT);
 
             uintptr_t zero_start = vaddr + phdr->p_filesz;
             uintptr_t zero_end = ROUND_UP(zero_start, PAGE_SIZE);
@@ -172,15 +203,22 @@ static int load_segments(struct vm* vm, const struct exec_image* image,
     return 0;
 }
 
-NODISCARD static ssize_t load_interp(struct loader* loader,
-                                     const struct exec_image* image) {
-    const elf_ehdr_t* ehdr = (const void*)image->data;
-    int rc = validate_ehdr(ehdr);
-    if (IS_ERR(rc))
-        return rc;
+NODISCARD
+static ssize_t load_interp(struct loader* loader, const char* interp) {
+    struct vm_obj* vm_obj FREE(vm_obj) = ASSERT(exec_open(interp));
+    if (IS_ERR(vm_obj))
+        return PTR_ERR(vm_obj);
+
+    const elf_ehdr_t* ehdr FREE(kfree) = ASSERT(load_ehdr(vm_obj));
+    if (IS_ERR(ehdr))
+        return PTR_ERR(ehdr);
+
+    const elf_phdr_t* phdrs FREE(kfree) = ASSERT(load_phdrs(vm_obj, ehdr));
+    if (IS_ERR(phdrs))
+        return PTR_ERR(phdrs);
 
     size_t base = 0;
-    rc = load_segments(loader->vm, image, false, &base, NULL);
+    int rc = load_segments(loader->vm, vm_obj, ehdr, phdrs, false, &base, NULL);
     if (IS_ERR(rc))
         return rc;
 
@@ -292,12 +330,16 @@ static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
 }
 
 int elf_load(struct loader* loader) {
-    const elf_ehdr_t* ehdr = (const void*)loader->image.data;
-    int rc = validate_ehdr(ehdr);
-    if (IS_ERR(rc))
-        return rc;
+    const elf_ehdr_t* ehdr FREE(kfree) = ASSERT(load_ehdr(loader->vm_obj));
+    if (IS_ERR(ehdr))
+        return PTR_ERR(ehdr);
 
-    const char* interp = find_interp(&loader->image);
+    const elf_phdr_t* phdrs FREE(kfree) =
+        ASSERT(load_phdrs(loader->vm_obj, ehdr));
+    if (IS_ERR(phdrs))
+        return PTR_ERR(phdrs);
+
+    const char* interp FREE(kfree) = find_interp(loader->vm_obj, ehdr, phdrs);
     if (IS_ERR(interp))
         return PTR_ERR(interp);
 
@@ -317,8 +359,8 @@ int elf_load(struct loader* loader) {
     default:
         return -ENOEXEC;
     }
-    rc = load_segments(loader->vm, &loader->image, exec_fixed, &exec_base,
-                       &phdr_addr);
+    int rc = load_segments(loader->vm, loader->vm_obj, ehdr, phdrs, exec_fixed,
+                           &exec_base, &phdr_addr);
     if (IS_ERR(rc))
         return rc;
 
@@ -327,12 +369,7 @@ int elf_load(struct loader* loader) {
 
     size_t interp_base = 0;
     if (interp) {
-        struct exec_image interp_image = {0};
-        rc = exec_image_load(&interp_image, interp);
-        if (IS_ERR(rc))
-            return rc;
-        ssize_t base = load_interp(loader, &interp_image);
-        exec_image_unload(&interp_image);
+        ssize_t base = load_interp(loader, interp);
         if (IS_ERR(base))
             return base;
         interp_base = base;

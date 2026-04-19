@@ -5,17 +5,11 @@
 #include <common/stddef.h>
 #include <kernel/api/sys/limits.h>
 
-struct exec_image {
-    struct vm_obj* obj;
-    unsigned char* data;
-};
-
-NODISCARD int exec_image_load(struct exec_image*, const char* pathname);
-void exec_image_unload(struct exec_image*);
+struct vm_obj* exec_open(const char* pathname);
 
 struct loader {
     char pathname[PATH_MAX];
-    struct exec_image image;
+    struct vm_obj* vm_obj;
 
     struct vm* vm;
     unsigned char* stack_base;
@@ -34,6 +28,7 @@ struct loader {
     bool commit;
 };
 
+NODISCARD int loader_open(struct loader*, const char* pathname);
 NODISCARD int loader_push_string_from_kernel(struct loader*, const char* str);
 NODISCARD int loader_push_string_from_user(struct loader*,
                                            const char* user_str);

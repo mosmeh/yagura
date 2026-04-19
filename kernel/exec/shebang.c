@@ -2,9 +2,9 @@
 #include <common/ctype.h>
 #include <common/string.h>
 #include <kernel/memory/memory.h>
+#include <kernel/memory/vm.h>
 
 #define SHEBANG_MAX_SIZE 255
-STATIC_ASSERT(SHEBANG_MAX_SIZE < PAGE_SIZE); // Ensure trailing null
 
 static char* strip_prefix(char* str, const char* last) {
     for (; str <= last; str++)
@@ -23,7 +23,14 @@ static char* find_terminator(char* str, const char* last) {
 int shebang_load(struct loader* loader) {
     // Parse `#!<interp> <arg>`
 
-    char* data = (void*)loader->image.data;
+    char* data FREE(kfree) = kmalloc(SHEBANG_MAX_SIZE + 2);
+    if (!data)
+        return -ENOMEM;
+    ssize_t nread = vm_obj_read(loader->vm_obj, data, SHEBANG_MAX_SIZE + 1, 0);
+    if (IS_ERR(nread))
+        return nread;
+    memset(data + nread, 0, SHEBANG_MAX_SIZE + 2 - nread);
+
     if (data[0] != '#' || data[1] != '!')
         return -ENOEXEC;
 
@@ -100,5 +107,5 @@ int shebang_load(struct loader* loader) {
     // argv[3] = "a"
     // argv[4] = "b"
 
-    return exec_image_load(&loader->image, interp);
+    return loader_open(loader, interp);
 }

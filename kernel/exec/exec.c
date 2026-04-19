@@ -63,48 +63,26 @@ static int copy_from_user_to_vm(struct vm* vm, void* dest, const void* user_src,
     return 0;
 }
 
-int exec_image_load(struct exec_image* image, const char* pathname) {
+struct vm_obj* exec_open(const char* pathname) {
     struct path* path FREE(path) =
         ASSERT(vfs_resolve_path(BASE_CWD, pathname, 0));
     if (IS_ERR(path))
-        return PTR_ERR(path);
-
-    struct kstat stat;
-    int rc = inode_stat(path->inode, &stat);
-    if (IS_ERR(rc))
-        return rc;
-    if (!S_ISREG(stat.st_mode))
-        return -EACCES;
-
+        return ERR_CAST(path);
+    if (!S_ISREG(path->inode->mode))
+        return ERR_PTR(-EACCES);
     struct file* file FREE(file) = ASSERT(inode_open(path->inode, O_RDONLY));
     if (IS_ERR(file))
-        return PTR_ERR(file);
-
-    struct vm_obj* vm_obj FREE(vm_obj) = ASSERT(file_mmap(file));
-    if (IS_ERR(vm_obj))
-        return PTR_ERR(vm_obj);
-
-    void* data = ASSERT(vm_obj_map(vm_obj, 0, DIV_CEIL(stat.st_size, PAGE_SIZE),
-                                   VM_READ | VM_WRITE));
-    if (IS_ERR(data))
-        return PTR_ERR(data);
-
-    exec_image_unload(image);
-
-    image->obj = TAKE_PTR(vm_obj);
-    image->data = data;
-    return rc;
+        return ERR_CAST(file);
+    return file_mmap(file);
 }
 
-void exec_image_unload(struct exec_image* image) {
-    if (image->data) {
-        vm_obj_unmap(image->data);
-        image->data = NULL;
-    }
-    if (image->obj) {
-        vm_obj_unref(image->obj);
-        image->obj = NULL;
-    }
+int loader_open(struct loader* loader, const char* pathname) {
+    struct vm_obj* vm_obj = ASSERT(exec_open(pathname));
+    if (IS_ERR(vm_obj))
+        return PTR_ERR(vm_obj);
+    vm_obj_unref(loader->vm_obj);
+    loader->vm_obj = vm_obj;
+    return 0;
 }
 
 NODISCARD static int loader_init_vm(struct loader* loader) {
@@ -145,13 +123,6 @@ NODISCARD static int loader_init_vm(struct loader* loader) {
     return rc;
 }
 
-static void loader_deinit_vm(struct loader* loader) {
-    if (loader->vm) {
-        vm_unref(loader->vm);
-        loader->vm = NULL;
-    }
-}
-
 NODISCARD static int loader_init(struct loader* loader, const char* pathname) {
     *loader = (struct loader){0};
 
@@ -160,7 +131,7 @@ NODISCARD static int loader_init(struct loader* loader, const char* pathname) {
         return -ENAMETOOLONG;
     strlcpy(loader->pathname, pathname, path_len + 1);
 
-    int rc = exec_image_load(&loader->image, pathname);
+    int rc = loader_open(loader, pathname);
     if (IS_ERR(rc))
         return rc;
 
@@ -168,8 +139,10 @@ NODISCARD static int loader_init(struct loader* loader, const char* pathname) {
 }
 
 static void loader_deinit(struct loader* loader) {
-    loader_deinit_vm(loader);
-    exec_image_unload(&loader->image);
+    vm_obj_unref(loader->vm_obj);
+    loader->vm_obj = NULL;
+    vm_unref(loader->vm);
+    loader->vm = NULL;
 }
 
 int loader_push_string_from_kernel(struct loader* loader, const char* str) {
