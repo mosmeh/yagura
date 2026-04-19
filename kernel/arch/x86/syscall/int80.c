@@ -248,7 +248,7 @@
     F(fremovexattr, sys_ni_syscall)                                            \
     F(tkill, sys_tkill)                                                        \
     F(sendfile64, sys_ni_syscall)                                              \
-    F(futex, sys_ni_syscall)                                                   \
+    F(futex, sys_futex_time32)                                                 \
     F(sched_setaffinity, sys_ni_syscall)                                       \
     F(sched_getaffinity, sys_sched_getaffinity)                                \
     F(set_thread_area, sys_set_thread_area)                                    \
@@ -421,7 +421,7 @@
     F(mq_timedreceive_time64, sys_ni_syscall)                                  \
     F(semtimedop_time64, sys_ni_syscall)                                       \
     F(rt_sigtimedwait_time64, sys_ni_syscall)                                  \
-    F(futex_time64, sys_ni_syscall)                                            \
+    F(futex_time64, sys_futex)                                                 \
     F(sched_rr_get_interval_time64, sys_ni_syscall)                            \
     F(pidfd_send_signal, sys_ni_syscall)                                       \
     F(io_uring_setup, sys_ni_syscall)                                          \

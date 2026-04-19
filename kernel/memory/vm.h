@@ -35,7 +35,8 @@ struct vm_ops {
 struct vm_obj {
     const struct vm_ops* vm_ops;
     struct vm_region* shared_regions; // Regions mapping this obj with VM_SHARED
-    unsigned flags;                   // VM_* flags applied to all regions
+    struct tree futexes; // Shared futexes keyed by offset within this obj
+    unsigned flags;      // VM_* flags applied to all regions
     struct mutex lock;
     refcount_t refcount;
 };
@@ -76,6 +77,7 @@ struct vm {
     struct tree regions;
     size_t cached_gap_start;
     size_t cached_gap_size;
+    struct tree futexes; // Private futexes keyed by user address
     struct mutex lock;
     refcount_t refcount;
 };

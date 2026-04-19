@@ -1,3 +1,4 @@
+#include "private.h"
 #include <common/string.h>
 #include <kernel/api/sched.h>
 #include <kernel/api/sys/prctl.h>
@@ -13,6 +14,7 @@
 #include <kernel/interrupts.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/syscall/syscall.h>
+#include <kernel/task/futex.h>
 #include <kernel/task/task.h>
 #include <kernel/time.h>
 
@@ -278,6 +280,33 @@ SYSCALL1(times, struct tms*, user_buf) {
 }
 
 SYSCALL1(unshare, unsigned long, flags) { return task_unshare(flags); }
+
+SYSCALL6(futex, uint32_t*, uaddr, int, futex_op, uint32_t, val,
+         const struct timespec*, user_timeout, uint32_t*, uaddr2, uint32_t,
+         val3) {
+    bool has_timeout = user_timeout && futex_op_has_timeout(futex_op);
+    struct timespec timeout;
+    if (has_timeout) {
+        if (copy_from_user(&timeout, user_timeout, sizeof(struct timespec)))
+            return -EFAULT;
+    }
+    return futex(uaddr, futex_op, val, has_timeout ? &timeout : NULL, uaddr2,
+                 val3);
+}
+
+SYSCALL6(futex_time32, uint32_t*, uaddr, int, futex_op, uint32_t, val,
+         const struct timespec32*, user_timeout, uint32_t*, uaddr2, uint32_t,
+         val3) {
+    bool has_timeout = user_timeout && futex_op_has_timeout(futex_op);
+    struct timespec timeout;
+    if (has_timeout) {
+        int rc = copy_timespec_from_user32(&timeout, user_timeout);
+        if (IS_ERR(rc))
+            return rc;
+    }
+    return futex(uaddr, futex_op, val, has_timeout ? &timeout : NULL, uaddr2,
+                 val3);
+}
 
 SYSCALL2(getrusage, int, who, struct linux_rusage*, user_usage) {
     switch (who) {

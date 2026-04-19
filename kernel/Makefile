@@ -92,6 +92,7 @@ SRCS := \
 	kernel/syscall/time.c \
 	kernel/system.c \
 	kernel/task/fs.c \
+	kernel/task/futex.c \
 	kernel/task/sched.c \
 	kernel/task/signal.c \
 	kernel/task/task.c \

@@ -1,3 +1,4 @@
+#include "private.h"
 #include <kernel/api/err.h>
 #include <kernel/api/errno.h>
 #include <kernel/api/sys/time.h>
@@ -7,6 +8,16 @@
 #include <kernel/syscall/syscall.h>
 #include <kernel/task/sched.h>
 #include <kernel/time.h>
+
+int copy_timespec_from_user32(struct timespec* ts,
+                              const struct timespec32* user_ts32) {
+    struct timespec32 ts32;
+    if (copy_from_user(&ts32, user_ts32, sizeof(struct timespec32)))
+        return -EFAULT;
+    ts->tv_sec = ts32.tv_sec;
+    ts->tv_nsec = ts32.tv_nsec;
+    return 0;
+}
 
 NODISCARD static int time(time_t* tloc) {
     struct timespec now;

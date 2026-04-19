@@ -1,3 +1,4 @@
+#include "private.h"
 #include <common/integer.h>
 #include <common/string.h>
 #include <kernel/api/sys/poll.h>
@@ -116,17 +117,6 @@ NODISCARD static int wait_fds(nfds_t nfds, struct pollfd pollfds[nfds],
     }
 
     return num_events;
-}
-
-NODISCARD static int
-copy_timespec_from_user32(struct timespec* ts,
-                          const struct timespec32* user_ts32) {
-    struct timespec32 ts32;
-    if (copy_from_user(&ts32, user_ts32, sizeof(struct timespec32)))
-        return -EFAULT;
-    ts->tv_sec = ts32.tv_sec;
-    ts->tv_nsec = ts32.tv_nsec;
-    return 0;
 }
 
 NODISCARD static int copy_timespec_to_user32(struct timespec32* user_ts32,

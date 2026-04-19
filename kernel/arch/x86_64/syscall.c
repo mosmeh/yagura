@@ -202,7 +202,7 @@
     F(fremovexattr, sys_ni_syscall)                                            \
     F(tkill, sys_tkill)                                                        \
     F(time, sys_time)                                                          \
-    F(futex, sys_ni_syscall)                                                   \
+    F(futex, sys_futex)                                                        \
     F(sched_setaffinity, sys_ni_syscall)                                       \
     F(sched_getaffinity, sys_sched_getaffinity)                                \
     F(io_setup, sys_ni_syscall)                                                \
