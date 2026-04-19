@@ -108,8 +108,8 @@ DEFINE_LOCKED(vm, struct vm, mutex, lock)
 void __vm_destroy(struct vm*);
 DEFINE_REFCOUNTED_BASE(vm, struct vm, refcount, __vm_destroy)
 
-// Switches to the virtual memory space. Returns the previous vm.
-struct vm* vm_enter(struct vm*);
+// Switches to the virtual memory space.
+void vm_enter(struct vm*);
 
 // Clones the virtual memory space.
 struct vm* vm_clone(struct vm*);

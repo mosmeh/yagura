@@ -156,7 +156,7 @@ static int load_segments(struct vm* vm, struct vm_obj* vm_obj,
             uintptr_t zero_end = ROUND_UP(zero_start, PAGE_SIZE);
             if (zero_start < zero_end && (vm_flags & VM_WRITE)) {
                 // Zero the remaining bytes in the last page
-                if (clear_user((void*)zero_start, zero_end - zero_start))
+                if (vm_clear(vm, (void*)zero_start, zero_end - zero_start))
                     return -EFAULT;
             }
         }
@@ -230,6 +230,8 @@ NODISCARD
 static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
                           void* phdr_addr, size_t interp_base,
                           void* entry_point) {
+    struct vm* vm = loader->vm;
+
     loader->stack_ptr = (void*)ROUND_DOWN((uintptr_t)loader->stack_ptr, 16);
 
     unsigned char* platform;
@@ -238,7 +240,7 @@ static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
         platform = loader->stack_ptr - size;
         if (platform < loader->stack_base)
             return -E2BIG;
-        if (copy_to_user(platform, ARCH_UTS_MACHINE, size))
+        if (copy_to_vm(vm, platform, ARCH_UTS_MACHINE, size))
             return -EFAULT;
     }
     loader->stack_ptr = platform;
@@ -252,7 +254,7 @@ static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
         random = loader->stack_ptr - sizeof(buf);
         if (random < loader->stack_base)
             return -E2BIG;
-        if (copy_to_user(random, buf, sizeof(buf)))
+        if (copy_to_vm(vm, random, buf, sizeof(buf)))
             return -EFAULT;
     }
     loader->stack_ptr = random;
@@ -292,38 +294,38 @@ static int populate_stack(struct loader* loader, const elf_ehdr_t* ehdr,
 
     char* null_ptr = NULL;
 
-    if (copy_to_user(cursor++, &loader->argc, sizeof(size_t)))
+    if (copy_to_vm(vm, cursor++, &loader->argc, sizeof(size_t)))
         return -EFAULT;
 
     char* arg_ptr = loader->arg_start;
     for (size_t i = 0; i < loader->argc; ++i) {
-        if (copy_to_user(cursor++, &arg_ptr, sizeof(char*)))
+        if (copy_to_vm(vm, cursor++, &arg_ptr, sizeof(char*)))
             return -EFAULT;
-        ssize_t len = strnlen_user(arg_ptr, ARG_MAX);
+        ssize_t len = vm_strnlen(vm, arg_ptr, ARG_MAX);
         if (IS_ERR(len))
             return len;
         if (len >= ARG_MAX)
             return -E2BIG;
         arg_ptr += len + 1;
     }
-    if (copy_to_user(cursor++, &null_ptr, sizeof(char*)))
+    if (copy_to_vm(vm, cursor++, &null_ptr, sizeof(char*)))
         return -EFAULT;
 
     char* env_ptr = loader->env_start;
     for (size_t i = 0; i < loader->envc; ++i) {
-        if (copy_to_user(cursor++, &env_ptr, sizeof(char*)))
+        if (copy_to_vm(vm, cursor++, &env_ptr, sizeof(char*)))
             return -EFAULT;
-        ssize_t len = strnlen_user(env_ptr, ARG_MAX);
+        ssize_t len = vm_strnlen(vm, env_ptr, ARG_MAX);
         if (IS_ERR(len))
             return len;
         if (len >= ARG_MAX)
             return -E2BIG;
         env_ptr += len + 1;
     }
-    if (copy_to_user(cursor++, &null_ptr, sizeof(char*)))
+    if (copy_to_vm(vm, cursor++, &null_ptr, sizeof(char*)))
         return -EFAULT;
 
-    if (copy_to_user(cursor, auxv, sizeof(auxv)))
+    if (copy_to_vm(vm, cursor, auxv, sizeof(auxv)))
         return -EFAULT;
 
     return 0;

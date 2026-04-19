@@ -63,17 +63,15 @@ void __vm_destroy(struct vm* vm) {
     slab_free(&vm_slab, vm);
 }
 
-struct vm* vm_enter(struct vm* vm) {
+void vm_enter(struct vm* vm) {
     if (vm == current->vm)
-        return vm;
-    struct vm* prev_vm = NULL;
-    {
-        SCOPED_LOCK(task, current);
-        prev_vm = current->vm;
-        current->vm = vm_ref(vm);
-    }
+        return;
+    // Defer destroying the old vm until switching to the new pagemap
+    struct vm* prev_vm FREE(vm) = NULL;
+    SCOPED_LOCK(task, current);
+    prev_vm = current->vm;
+    current->vm = vm_ref(vm);
     pagemap_switch(vm->pagemap);
-    return prev_vm;
 }
 
 struct vm* vm_clone(struct vm* vm) {

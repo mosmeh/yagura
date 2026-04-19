@@ -180,7 +180,8 @@ int loader_push_string_from_user(struct loader* loader, const char* user_str) {
 }
 
 int loader_pop_string(struct loader* loader) {
-    ssize_t len = strnlen_user((const char*)loader->stack_ptr, ARG_MAX);
+    ssize_t len =
+        vm_strnlen(loader->vm, (const char*)loader->stack_ptr, ARG_MAX);
     if (IS_ERR(len))
         return len;
     if (len >= ARG_MAX)
@@ -262,6 +263,7 @@ NODISCARD static int finalize_exec(struct loader* loader) {
     return 0;
 }
 
+// Point of no return.
 _Noreturn static void loader_commit(struct loader* loader) {
     ASSERT_PTR(loader->entry_point);
     ASSERT_PTR(loader->arg_start);
@@ -269,9 +271,8 @@ _Noreturn static void loader_commit(struct loader* loader) {
     ASSERT_PTR(loader->env_start);
     ASSERT_PTR(loader->env_end);
 
+    vm_enter(loader->vm);
     loader_deinit(loader);
-
-    // Point of no return
 
     int rc = finalize_exec(loader);
     if (IS_ERR(rc))
@@ -288,7 +289,6 @@ NODISCARD static int loader_load(struct loader* loader) {
     };
 
     int rc = 0;
-    struct vm* prev_vm = vm_enter(loader->vm);
     vm_lock(loader->vm);
 
     for (size_t depth = 0;; ++depth) {
@@ -304,7 +304,6 @@ NODISCARD static int loader_load(struct loader* loader) {
             if (IS_ERR(rc) || !loader->commit)
                 break;
             vm_unlock(loader->vm);
-            vm_unref(prev_vm);
             loader_commit(loader);
         }
         if (IS_ERR(rc)) {
@@ -315,8 +314,6 @@ NODISCARD static int loader_load(struct loader* loader) {
 
     ASSERT(IS_ERR(rc));
     vm_unlock(loader->vm);
-    vm_unref(vm_enter(prev_vm));
-    vm_unref(prev_vm);
     return rc;
 }
 
