@@ -361,10 +361,22 @@ pid_t clone_user_task(struct registers* regs, unsigned long flags,
             return -EFAULT;
     }
 
+    struct vm* vm FREE(vm) = vm_ref(task->vm);
+
     sched_register(task);
 
-    if (flags & CLONE_VFORK)
-        WAIT(&task->wait, task->state == TASK_DEAD);
+    if (flags & CLONE_VFORK) {
+        // Wait until the child either exits or execs
+        SCOPED_LOCK(task, task);
+        for (;;) {
+            SCOPED_WAIT(waiter, &task->wait);
+            if (task->state == TASK_DEAD || task->vm != vm)
+                break;
+            task_unlock(task);
+            waiter_wait(&waiter);
+            task_lock(task);
+        }
+    }
 
     return tid;
 }

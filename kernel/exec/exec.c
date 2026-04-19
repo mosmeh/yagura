@@ -260,6 +260,8 @@ NODISCARD static int finalize_exec(struct loader* loader) {
     task->env_start = (uintptr_t)loader->env_start;
     task->env_end = (uintptr_t)loader->env_end;
 
+    waitqueue_wake_all(&current->wait);
+
     return 0;
 }
 
