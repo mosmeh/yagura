@@ -14,12 +14,13 @@ struct pthread* __init_tls(void* tls);
 
 struct pthread {
     struct pthread* self;
+    pid_t tid;
     _Atomic(unsigned int) state;
     void* alloc_base;
     void* (*fn)(void*);
     void* arg;
-    pid_t tid;
     void* retval;
+    struct pthread* next;
 };
 
 long __syscall(long num, long, long, long, long, long, long);

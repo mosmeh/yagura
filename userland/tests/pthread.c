@@ -56,7 +56,6 @@ int main(void) {
 
     ASSERT(pthread_create(&thread, NULL, thread1, (void*)0x1234) == 0);
     ASSERT(pthread_join(thread, &retval) == 0);
-    ASSERT(pthread_join(thread, NULL) == ESRCH);
     ASSERT(retval == (void*)0x5678);
     ASSERT(global_var == 123);
     ASSERT(thread_local_var == 84);

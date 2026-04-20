@@ -1,5 +1,6 @@
 #include "private.h"
 #include <err.h>
+#include <linux/futex.h>
 #include <panic.h>
 #include <pthread.h>
 #include <sched.h>
@@ -68,8 +69,10 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* attrp,
     pth->arg = arg;
 
     int flags = CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND |
-                CLONE_THREAD | CLONE_SETTLS | CLONE_PARENT_SETTID;
-    ret = __clone(thread_start, stack_top, flags, pth, &pth->tid, NULL, pth);
+                CLONE_THREAD | CLONE_SETTLS | CLONE_PARENT_SETTID |
+                CLONE_CHILD_CLEARTID;
+    ret =
+        __clone(thread_start, stack_top, flags, pth, &pth->tid, &pth->tid, pth);
     if (IS_ERR(ret))
         goto fail;
 
@@ -81,6 +84,57 @@ fail:
     PTHREAD_RETURN(ret);
 }
 
+static pid_t thread_tid(pthread_t pth) {
+    return __atomic_load_n(&pth->tid, __ATOMIC_SEQ_CST);
+}
+
+NODISCARD static int futex_wait(void* uaddr, uint32_t val) {
+    return __syscall(SYS_futex, (long)uaddr, FUTEX_WAIT, val, 0, 0, 0);
+}
+
+NODISCARD static int wait_for_exit(struct pthread* pth) {
+    for (;;) {
+        pid_t tid = thread_tid(pth);
+        if (tid == 0)
+            return 0;
+        int ret = futex_wait(&pth->tid, tid);
+        if (ret == -EAGAIN || ret == -EINTR)
+            continue;
+        if (IS_ERR(ret))
+            return ret;
+    }
+}
+
+NODISCARD static int free_thread_sync(struct pthread* pth) {
+    int ret = wait_for_exit(pth);
+    if (IS_ERR(ret))
+        return ret;
+    free(pth->alloc_base);
+    return 0;
+}
+
+static _Atomic(struct pthread*) deferred_free_list;
+
+static void free_thread_async(struct pthread* pth) {
+    if (!pth->alloc_base)
+        return;
+    struct pthread* head = deferred_free_list;
+    for (;;) {
+        pth->next = head;
+        if (atomic_compare_exchange_weak(&deferred_free_list, &head, pth))
+            break;
+    }
+}
+
+static void process_deferred_free(void) {
+    struct pthread* pth = atomic_exchange(&deferred_free_list, NULL);
+    while (pth) {
+        struct pthread* next = pth->next;
+        ASSERT_OK(free_thread_sync(pth));
+        pth = next;
+    }
+}
+
 int pthread_detach(pthread_t thread) {
     unsigned expected = STATE_JOINABLE;
     if (atomic_compare_exchange_strong(&thread->state, &expected,
@@ -89,21 +143,28 @@ int pthread_detach(pthread_t thread) {
 
     expected = STATE_JOINABLE_EXITED;
     if (atomic_compare_exchange_strong(&thread->state, &expected,
-                                       STATE_DETACHED_EXITED))
+                                       STATE_DETACHED_EXITED)) {
+        free_thread_async(thread);
         return 0;
+    }
 
     return EINVAL;
 }
 
 void pthread_exit(void* retval) {
+    process_deferred_free();
+
     struct pthread* pth = pthread_self();
     pth->retval = retval;
 
-    unsigned expected = STATE_JOINABLE;
-    if (!atomic_compare_exchange_strong(&pth->state, &expected,
-                                        STATE_JOINABLE_EXITED)) {
-        ASSERT(expected == STATE_DETACHED);
+    unsigned state = STATE_JOINABLE;
+    if (atomic_compare_exchange_strong(&pth->state, &state,
+                                       STATE_JOINABLE_EXITED)) {
+        // Freed by the joining thread
+    } else {
+        ASSERT(state == STATE_DETACHED);
         pth->state = STATE_DETACHED_EXITED;
+        free_thread_async(pth);
     }
 
     SYSCALL1(exit, 0);
@@ -114,22 +175,26 @@ int pthread_join(pthread_t thread, void** retval) {
     if (thread == pthread_self())
         return EDEADLK;
 
-    // FIXME: struct pthread and stack are leaked because we are yet to
-    //        implement a way to know when it is safe to free it.
     for (;;) {
-        unsigned expected = STATE_JOINABLE_EXITED;
-        if (atomic_compare_exchange_weak(&thread->state, &expected,
+        unsigned state = STATE_JOINABLE_EXITED;
+        if (atomic_compare_exchange_weak(&thread->state, &state,
                                          STATE_JOINED)) {
             if (retval)
                 *retval = thread->retval;
+            int ret = free_thread_sync(thread);
+            if (IS_ERR(ret))
+                PTHREAD_RETURN(ret);
             return 0;
         }
-        switch (expected) {
-        case STATE_JOINABLE:
-            sched_yield();
-            continue;
+        switch (state) {
+        case STATE_JOINABLE: {
+            int ret = wait_for_exit(thread);
+            if (IS_ERR(ret))
+                PTHREAD_RETURN(ret);
+            break;
+        }
         case STATE_JOINABLE_EXITED:
-            continue;
+            break; // Spurious failure. Retry
         case STATE_DETACHED:
         case STATE_DETACHED_EXITED:
             return EINVAL;
@@ -144,7 +209,10 @@ int pthread_join(pthread_t thread, void** retval) {
 int pthread_equal(pthread_t t1, pthread_t t2) { return t1 == t2; }
 
 int pthread_kill(pthread_t thread, int sig) {
-    PTHREAD_RETURN(SYSCALL2(tkill, thread->tid, sig));
+    pid_t tid = thread_tid(thread);
+    if (tid == 0)
+        return ESRCH;
+    PTHREAD_RETURN(SYSCALL2(tkill, tid, sig));
 }
 
 int pthread_sigmask(int how, const sigset_t* set, sigset_t* oldset) {
