@@ -273,6 +273,7 @@ _Noreturn static void loader_commit(struct loader* loader) {
     ASSERT_PTR(loader->env_start);
     ASSERT_PTR(loader->env_end);
 
+    task_clear_child_tid();
     vm_enter(loader->vm);
     loader_deinit(loader);
 

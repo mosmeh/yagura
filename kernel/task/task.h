@@ -39,6 +39,7 @@ struct task {
     struct vm* vm;
     uintptr_t kernel_stack_base, kernel_stack_top;
     uintptr_t arg_start, arg_end, env_start, env_end;
+    void* clear_child_tid;
 
     struct fs_env* fs_env;
     struct fd_table* fd_table;
@@ -102,6 +103,8 @@ struct task* task_find_by_tid(pid_t);
 _Noreturn void task_exit(int status);
 _Noreturn void task_exit_thread_group(int status);
 _Noreturn void task_crash(int signum);
+
+void task_clear_child_tid(void);
 
 struct fs_env {
     struct path* root;

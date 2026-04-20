@@ -279,6 +279,11 @@ SYSCALL1(times, struct tms*, user_buf) {
     return uptime;
 }
 
+SYSCALL1(set_tid_address, pid_t*, user_tidptr) {
+    current->clear_child_tid = user_tidptr;
+    return current->tid;
+}
+
 SYSCALL1(unshare, unsigned long, flags) { return task_unshare(flags); }
 
 SYSCALL6(futex, uint32_t*, uaddr, int, futex_op, uint32_t, val,

@@ -23,3 +23,6 @@
 
 // Store TID in userlevel buffer before MM copy.
 #define CLONE_PARENT_SETTID 0x00100000
+
+// Register exit futex and memory location to clear.
+#define CLONE_CHILD_CLEARTID 0x00200000

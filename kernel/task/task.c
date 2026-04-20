@@ -7,6 +7,7 @@
 #include <kernel/kmsg.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/memory/vm.h>
+#include <kernel/task/futex.h>
 #include <kernel/task/signal.h>
 #include <kernel/task/task.h>
 
@@ -285,6 +286,7 @@ static _Noreturn void exit(int exit_status) {
         current->fs_env = NULL;
         fs_env_unref(fs_env);
     }
+    task_clear_child_tid();
 
     arch_disable_interrupts();
     current->state = TASK_DEAD;
@@ -330,13 +332,18 @@ void __thread_group_destroy(struct thread_group* tg) {
     slab_free(&thread_group_slab, tg);
 }
 
-// NOLINTBEGIN(readability-non-const-parameter)
+void task_clear_child_tid(void) {
+    if (!current->clear_child_tid)
+        return;
+    long rc = atomic_store_u32_to_user(current->clear_child_tid, 0);
+    rc = futex_wake(current->clear_child_tid, 1, 0);
+    (void)rc;
+    current->clear_child_tid = NULL;
+}
+
 pid_t clone_user_task(struct registers* regs, unsigned long flags,
                       void* user_stack, pid_t* user_parent_tid,
                       pid_t* user_child_tid, void* user_tls) {
-    // NOLINTEND(readability-non-const-parameter)
-    (void)user_child_tid;
-
     struct task* task FREE(task) = ASSERT(task_clone(flags));
     if (IS_ERR(task))
         return PTR_ERR(task);
@@ -360,6 +367,9 @@ pid_t clone_user_task(struct registers* regs, unsigned long flags,
         if (copy_to_user(user_parent_tid, &tid, sizeof(pid_t)))
             return -EFAULT;
     }
+
+    if (flags & CLONE_CHILD_CLEARTID)
+        task->clear_child_tid = user_child_tid;
 
     struct vm* vm FREE(vm) = vm_ref(task->vm);
 

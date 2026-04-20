@@ -265,7 +265,7 @@
     F(epoll_ctl, sys_ni_syscall)                                               \
     F(epoll_wait, sys_ni_syscall)                                              \
     F(remap_file_pages, sys_ni_syscall)                                        \
-    F(set_tid_address, sys_ni_syscall)                                         \
+    F(set_tid_address, sys_set_tid_address)                                    \
     F(timer_create, sys_ni_syscall)                                            \
     F(timer_settime, sys_ni_syscall)                                           \
     F(timer_gettime, sys_ni_syscall)                                           \

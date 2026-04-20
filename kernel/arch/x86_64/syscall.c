@@ -213,7 +213,7 @@
     F(epoll_create, sys_ni_syscall)                                            \
     F(remap_file_pages, sys_ni_syscall)                                        \
     F(getdents64, sys_getdents64)                                              \
-    F(set_tid_address, sys_ni_syscall)                                         \
+    F(set_tid_address, sys_set_tid_address)                                    \
     F(restart_syscall, sys_ni_syscall)                                         \
     F(semtimedop, sys_ni_syscall)                                              \
     F(fadvise64, sys_ni_syscall)                                               \
