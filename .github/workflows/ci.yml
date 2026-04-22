@@ -18,6 +18,7 @@ jobs:
         steps:
             - uses: actions/checkout@v6
             - run: sudo apt-get update && sudo apt-get install -y cpio qemu-system-x86 grub2 mtools xorriso
+              timeout-minutes: 3
             - run: make
             - run: make test
               timeout-minutes: 3
@@ -37,6 +38,7 @@ jobs:
         steps:
             - uses: actions/checkout@v6
             - run: sudo apt-get update && sudo apt-get install -y cpio qemu-system-x86
+              timeout-minutes: 3
             - run: make
             - run: make test
               timeout-minutes: 3
