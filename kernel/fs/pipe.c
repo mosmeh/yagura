@@ -161,8 +161,8 @@ static void pipe_close(struct file* file) {
     inode_unref(&pipe->vfs_inode);
 }
 
-static ssize_t pipe_pread(struct file* file, void* user_buffer, size_t count,
-                          uint64_t offset) {
+static ssize_t pipe_read(struct file* file, void* user_buffer, size_t count,
+                         uint64_t offset) {
     (void)offset;
 
     struct pipe* pipe = ASSERT_PTR(pipe_from_file(file));
@@ -224,8 +224,8 @@ NODISCARD static ssize_t do_write(struct file* file, const void* user_src,
     return n;
 }
 
-static ssize_t pipe_pwrite(struct file* file, const void* user_buffer,
-                           size_t count, uint64_t offset) {
+static ssize_t pipe_write(struct file* file, const void* user_buffer,
+                          size_t count, uint64_t offset) {
     (void)offset;
 
     bool atomic = count <= PIPE_BUF;
@@ -279,8 +279,8 @@ static short pipe_poll(struct file* file, short events) {
 const struct file_ops pipe_fops = {
     .open = pipe_open,
     .close = pipe_close,
-    .pread = pipe_pread,
-    .pwrite = pipe_pwrite,
+    .read = pipe_read,
+    .write = pipe_write,
     .poll = pipe_poll,
 };
 

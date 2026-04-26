@@ -72,8 +72,8 @@ static bool can_read(void) {
     return read_index != write_index;
 }
 
-static ssize_t ps2_mouse_pread(struct file* file, void* user_buffer,
-                               size_t count, uint64_t offset) {
+static ssize_t ps2_mouse_read(struct file* file, void* user_buffer,
+                              size_t count, uint64_t offset) {
     (void)offset;
 
     char buf[QUEUE_SIZE];
@@ -123,7 +123,7 @@ void ps2_mouse_init(void) {
     interrupt_register(IRQ(12), irq_handler, NULL);
 
     static const struct file_ops fops = {
-        .pread = ps2_mouse_pread,
+        .read = ps2_mouse_read,
         .poll = ps2_mouse_poll,
     };
     static struct char_dev char_dev = {

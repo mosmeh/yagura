@@ -73,8 +73,8 @@ NODISCARD static void* map(void) {
     return data;
 }
 
-static ssize_t fb_device_pread(struct file* file, void* user_buffer,
-                               size_t count, uint64_t offset) {
+static ssize_t fb_device_read(struct file* file, void* user_buffer,
+                              size_t count, uint64_t offset) {
     (void)file;
     SCOPED_LOCK(mutex, &fb.lock);
 
@@ -91,8 +91,8 @@ static ssize_t fb_device_pread(struct file* file, void* user_buffer,
     return count;
 }
 
-static ssize_t fb_device_pwrite(struct file* file, const void* user_buffer,
-                                size_t count, uint64_t offset) {
+static ssize_t fb_device_write(struct file* file, const void* user_buffer,
+                               size_t count, uint64_t offset) {
     (void)file;
     SCOPED_LOCK(mutex, &fb.lock);
 
@@ -196,8 +196,8 @@ void fb_init(void) {
     }
 
     static const struct file_ops fops = {
-        .pread = fb_device_pread,
-        .pwrite = fb_device_pwrite,
+        .read = fb_device_read,
+        .write = fb_device_write,
         .seek = default_file_seek,
         .ioctl = fb_device_ioctl,
         .mmap = fb_device_mmap,

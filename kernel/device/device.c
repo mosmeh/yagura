@@ -193,8 +193,8 @@ static void block_dev_close(struct file* file) {
     file->private_data = NULL;
 }
 
-static ssize_t block_dev_pwrite(struct file* file, const void* user_buffer,
-                                size_t count, uint64_t offset) {
+static ssize_t block_dev_write(struct file* file, const void* user_buffer,
+                               size_t count, uint64_t offset) {
     if (count == 0)
         return 0;
 
@@ -209,13 +209,13 @@ static ssize_t block_dev_pwrite(struct file* file, const void* user_buffer,
         return -ENOSPC;
 
     count = MIN(count, inode->size - offset);
-    return default_file_pwrite(file, user_buffer, count, offset);
+    return default_file_write(file, user_buffer, count, offset);
 }
 
 const struct file_ops block_dev_fops = {
     .open = block_dev_open,
     .close = block_dev_close,
-    .pwrite = block_dev_pwrite,
+    .write = block_dev_write,
 };
 
 struct block_dev* block_dev_get(dev_t rdev) {

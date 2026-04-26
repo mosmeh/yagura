@@ -24,10 +24,10 @@ typedef bool (*getdents_callback_fn)(const char* name, ino_t,
 struct file_ops {
     NODISCARD int (*open)(struct file*);
     void (*close)(struct file*);
-    NODISCARD ssize_t (*pread)(struct file*, void* user_buffer, size_t count,
-                               uint64_t offset);
-    NODISCARD ssize_t (*pwrite)(struct file*, const void* user_buffer,
-                                size_t count, uint64_t offset);
+    NODISCARD ssize_t (*read)(struct file*, void* user_buffer, size_t count,
+                              uint64_t offset);
+    NODISCARD ssize_t (*write)(struct file*, const void* user_buffer,
+                               size_t count, uint64_t offset);
     NODISCARD loff_t (*seek)(struct file*, loff_t offset, int whence);
     NODISCARD ssize_t (*readlink)(struct file*, char* buffer, size_t bufsiz);
     NODISCARD int (*ioctl)(struct file*, unsigned cmd, unsigned long arg);
@@ -41,10 +41,10 @@ DEFINE_LOCKED(file, struct file, mutex, lock)
 void __file_destroy(struct file*);
 DEFINE_REFCOUNTED_BASE(file, struct file, refcount, __file_destroy)
 
-NODISCARD ssize_t file_pread(struct file*, void* user_buffer, size_t count,
-                             uint64_t offset);
-NODISCARD ssize_t file_pwrite(struct file*, const void* user_buffer,
-                              size_t count, uint64_t offset);
+NODISCARD ssize_t file_read(struct file*, void* user_buffer, size_t count,
+                            uint64_t offset);
+NODISCARD ssize_t file_write(struct file*, const void* user_buffer,
+                             size_t count, uint64_t offset);
 
 NODISCARD int file_truncate(struct file*, uint64_t length);
 NODISCARD int file_sync(struct file*, uint64_t offset, uint64_t nbytes);
@@ -59,9 +59,8 @@ NODISCARD short file_poll(struct file*, short events);
 
 NODISCARD struct vm_obj* file_mmap(struct file*);
 
-NODISCARD ssize_t default_file_pread(struct file* file, void* user_buffer,
+NODISCARD ssize_t default_file_read(struct file*, void* user_buffer,
+                                    size_t count, uint64_t offset);
+NODISCARD ssize_t default_file_write(struct file*, const void* user_buffer,
                                      size_t count, uint64_t offset);
-NODISCARD ssize_t default_file_pwrite(struct file* file,
-                                      const void* user_buffer, size_t count,
-                                      uint64_t offset);
 NODISCARD loff_t default_file_seek(struct file*, loff_t offset, int whence);

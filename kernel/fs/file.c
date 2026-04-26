@@ -37,8 +37,8 @@ void __file_destroy(struct file* file) {
     inode_unref(inode);
 }
 
-ssize_t default_file_pread(struct file* file, void* user_buffer, size_t count,
-                           uint64_t offset) {
+ssize_t default_file_read(struct file* file, void* user_buffer, size_t count,
+                          uint64_t offset) {
     struct filemap* filemap = file->filemap;
     struct inode* inode = filemap->inode;
     if (!inode->iops->read)
@@ -76,8 +76,8 @@ ssize_t default_file_pread(struct file* file, void* user_buffer, size_t count,
     return nread;
 }
 
-ssize_t file_pread(struct file* file, void* user_buffer, size_t count,
-                   uint64_t offset) {
+ssize_t file_read(struct file* file, void* user_buffer, size_t count,
+                  uint64_t offset) {
     if ((file->flags & O_ACCMODE) == O_WRONLY)
         return -EBADF;
     if (S_ISDIR(file->inode->mode))
@@ -88,13 +88,13 @@ ssize_t file_pread(struct file* file, void* user_buffer, size_t count,
         return -EFAULT;
     if (offset + count < offset)
         return -EOVERFLOW;
-    if (file->fops->pread)
-        return file->fops->pread(file, user_buffer, count, offset);
-    return default_file_pread(file, user_buffer, count, offset);
+    if (file->fops->read)
+        return file->fops->read(file, user_buffer, count, offset);
+    return default_file_read(file, user_buffer, count, offset);
 }
 
-ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
-                            size_t count, uint64_t offset) {
+ssize_t default_file_write(struct file* file, const void* user_buffer,
+                           size_t count, uint64_t offset) {
     struct filemap* filemap = file->filemap;
     struct inode* inode = filemap->inode;
     if (!inode->iops->write)
@@ -129,8 +129,8 @@ ssize_t default_file_pwrite(struct file* file, const void* user_buffer,
     return nwritten;
 }
 
-ssize_t file_pwrite(struct file* file, const void* user_buffer, size_t count,
-                    uint64_t offset) {
+ssize_t file_write(struct file* file, const void* user_buffer, size_t count,
+                   uint64_t offset) {
     if ((file->flags & O_ACCMODE) == O_RDONLY)
         return -EBADF;
     if (S_ISDIR(file->inode->mode))
@@ -142,9 +142,9 @@ ssize_t file_pwrite(struct file* file, const void* user_buffer, size_t count,
     if (offset + count < offset)
         return -EOVERFLOW;
     ssize_t nwritten =
-        file->fops->pwrite
-            ? file->fops->pwrite(file, user_buffer, count, offset)
-            : default_file_pwrite(file, user_buffer, count, offset);
+        file->fops->write
+            ? file->fops->write(file, user_buffer, count, offset)
+            : default_file_write(file, user_buffer, count, offset);
     ASSERT(nwritten != 0);
     return nwritten;
 }

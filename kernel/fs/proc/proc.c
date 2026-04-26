@@ -50,14 +50,14 @@ static void proc_close(struct file* file) {
     slab_free(&vec_slab, vec);
 }
 
-static ssize_t proc_pread(struct file* file, void* user_buffer, size_t count,
-                          uint64_t offset) {
+static ssize_t proc_read(struct file* file, void* user_buffer, size_t count,
+                         uint64_t offset) {
     struct vec* vec = vec_from_file(file);
     unsigned char buf[256];
     unsigned char* user_dest = user_buffer;
     size_t nread = 0;
     while (nread < count) {
-        size_t n = vec_pread(vec, buf, MIN(sizeof(buf), count - nread), offset);
+        size_t n = vec_read(vec, buf, MIN(sizeof(buf), count - nread), offset);
         if (IS_ERR(n))
             return n;
         if (n == 0)
@@ -75,7 +75,7 @@ static ssize_t proc_readlink(struct file* file, char* buffer, size_t bufsiz) {
     if (!S_ISLNK(file->inode->mode))
         return -EINVAL;
     struct vec* vec = vec_from_file(file);
-    return vec_pread(vec, buffer, bufsiz, 0);
+    return vec_read(vec, buffer, bufsiz, 0);
 }
 
 static const struct inode_ops root_iops = {
@@ -100,7 +100,7 @@ static const struct inode_ops entry_iops = {
 static const struct file_ops entry_fops = {
     .open = proc_open,
     .close = proc_close,
-    .pread = proc_pread,
+    .read = proc_read,
     .readlink = proc_readlink,
 };
 

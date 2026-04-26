@@ -107,8 +107,8 @@ static bool can_read(const struct tty* tty) {
     return !ring_buf_is_empty(tty->input_buf);
 }
 
-static ssize_t tty_pread(struct file* file, void* user_buf, size_t count,
-                         uint64_t offset) {
+static ssize_t tty_read(struct file* file, void* user_buf, size_t count,
+                        uint64_t offset) {
     (void)offset;
 
     unsigned char buf[PAGE_SIZE];
@@ -183,8 +183,8 @@ static void processed_echo(struct tty* tty, const char* buf, size_t count) {
     }
 }
 
-static ssize_t tty_pwrite(struct file* file, const void* user_buf, size_t count,
-                          uint64_t offset) {
+static ssize_t tty_write(struct file* file, const void* user_buf, size_t count,
+                         uint64_t offset) {
     (void)offset;
 
     char buf[PAGE_SIZE];
@@ -299,8 +299,8 @@ static short tty_poll(struct file* file, short events) {
 
 const struct file_ops tty_fops = {
     .open = tty_open,
-    .pread = tty_pread,
-    .pwrite = tty_pwrite,
+    .read = tty_read,
+    .write = tty_write,
     .ioctl = tty_ioctl,
     .poll = tty_poll,
 };

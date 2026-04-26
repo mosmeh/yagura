@@ -10,7 +10,7 @@ void vec_deinit(struct vec* vec) {
     *vec = (struct vec){0};
 }
 
-ssize_t vec_pread(struct vec* vec, void* bytes, size_t count, uint64_t offset) {
+ssize_t vec_read(struct vec* vec, void* bytes, size_t count, uint64_t offset) {
     if (offset >= vec->size)
         return 0;
     if (offset + count >= vec->size)
@@ -41,8 +41,8 @@ NODISCARD static int grow_capacity(struct vec* vec, size_t requested_capacity) {
     return 0;
 }
 
-ssize_t vec_pwrite(struct vec* vec, const void* bytes, size_t count,
-                   uint64_t offset) {
+ssize_t vec_write(struct vec* vec, const void* bytes, size_t count,
+                  uint64_t offset) {
     uint64_t end = offset + count;
     if (end < offset)
         return -EOVERFLOW;
@@ -64,7 +64,7 @@ ssize_t vec_pwrite(struct vec* vec, const void* bytes, size_t count,
 }
 
 ssize_t vec_append(struct vec* vec, const void* bytes, size_t count) {
-    return vec_pwrite(vec, bytes, count, vec->size);
+    return vec_write(vec, bytes, count, vec->size);
 }
 
 int vec_printf(struct vec* vec, const char* format, ...) {

@@ -277,8 +277,8 @@ write_single_buffer(struct file* file, const void* user_buffer, size_t count) {
     return bytes_to_buffer;
 }
 
-static ssize_t ac97_dsp_pwrite(struct file* file, const void* user_buffer,
-                               size_t count, uint64_t offset) {
+static ssize_t ac97_dsp_write(struct file* file, const void* user_buffer,
+                              size_t count, uint64_t offset) {
     (void)offset;
     const unsigned char* user_src = user_buffer;
     size_t nwritten = 0;
@@ -593,7 +593,7 @@ void ac97_init(void) {
 
     static const struct file_ops dsp_fops = {
         .close = ac97_dsp_close,
-        .pwrite = ac97_dsp_pwrite,
+        .write = ac97_dsp_write,
         .ioctl = ac97_dsp_ioctl,
         .poll = ac97_dsp_poll,
     };

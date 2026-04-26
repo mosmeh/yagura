@@ -110,8 +110,8 @@ static bool is_readable(struct file* file) {
     return !ring_buf_is_empty(ring);
 }
 
-static ssize_t unix_socket_pread(struct file* file, void* user_buffer,
-                                 size_t count, uint64_t offset) {
+static ssize_t unix_socket_read(struct file* file, void* user_buffer,
+                                size_t count, uint64_t offset) {
     (void)offset;
 
     struct unix_socket* socket = unix_socket_from_file(file);
@@ -154,8 +154,8 @@ static bool is_writable(struct file* file) {
     return !ring_buf_is_full(ring);
 }
 
-static ssize_t unix_socket_pwrite(struct file* file, const void* user_buffer,
-                                  size_t count, uint64_t offset) {
+static ssize_t unix_socket_write(struct file* file, const void* user_buffer,
+                                 size_t count, uint64_t offset) {
     (void)offset;
 
     struct unix_socket* socket = unix_socket_from_file(file);
@@ -225,8 +225,8 @@ struct inode* unix_socket_create(void) {
     };
     static const struct file_ops fops = {
         .close = unix_socket_close,
-        .pread = unix_socket_pread,
-        .pwrite = unix_socket_pwrite,
+        .read = unix_socket_read,
+        .write = unix_socket_write,
         .poll = unix_socket_poll,
     };
     inode->iops = &iops;

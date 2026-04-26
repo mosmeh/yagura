@@ -12,10 +12,10 @@ struct vec {
 
 void vec_deinit(struct vec*);
 
-NODISCARD ssize_t vec_pread(struct vec*, void* bytes, size_t count,
+NODISCARD ssize_t vec_read(struct vec*, void* bytes, size_t count,
+                           uint64_t offset);
+NODISCARD ssize_t vec_write(struct vec*, const void* bytes, size_t count,
                             uint64_t offset);
-NODISCARD ssize_t vec_pwrite(struct vec*, const void* bytes, size_t count,
-                             uint64_t offset);
 NODISCARD ssize_t vec_append(struct vec*, const void* bytes, size_t count);
 
 NODISCARD int vec_printf(struct vec*, const char* format, ...)

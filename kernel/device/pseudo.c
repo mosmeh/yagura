@@ -53,8 +53,8 @@ static loff_t seek_to_start(struct file* file, loff_t offset, int whence) {
 }
 
 static const struct file_ops null_fops = {
-    .pread = read_nothing,
-    .pwrite = write_to_bit_bucket,
+    .read = read_nothing,
+    .write = write_to_bit_bucket,
     .seek = seek_to_start,
 };
 static struct char_dev null = {
@@ -64,8 +64,8 @@ static struct char_dev null = {
 };
 
 static const struct file_ops zero_fops = {
-    .pread = read_zeros,
-    .pwrite = write_to_bit_bucket,
+    .read = read_zeros,
+    .write = write_to_bit_bucket,
     .seek = seek_to_start,
 };
 static struct char_dev zero = {
@@ -75,8 +75,8 @@ static struct char_dev zero = {
 };
 
 static const struct file_ops full_fops = {
-    .pread = read_zeros,
-    .pwrite = write_to_full_disk,
+    .read = read_zeros,
+    .write = write_to_full_disk,
     .seek = seek_to_start,
 };
 static struct char_dev full = {
@@ -85,16 +85,16 @@ static struct char_dev full = {
     .fops = &full_fops,
 };
 
-static ssize_t random_pread(struct file* file, void* user_buffer, size_t count,
-                            uint64_t offset) {
+static ssize_t random_read(struct file* file, void* user_buffer, size_t count,
+                           uint64_t offset) {
     (void)file;
     (void)offset;
     return random_get_user(user_buffer, count);
 }
 
 static const struct file_ops random_fops = {
-    .pread = random_pread,
-    .pwrite = write_to_bit_bucket,
+    .read = random_read,
+    .write = write_to_bit_bucket,
 };
 static struct char_dev random = {
     .name = "random",
@@ -107,10 +107,10 @@ static struct char_dev urandom = {
     .fops = &random_fops,
 };
 
-static void kmsg_close(struct file* file) { kfree(file->private_data); }
+static void kmsg_device_close(struct file* file) { kfree(file->private_data); }
 
-static ssize_t kmsg_pread(struct file* file, void* user_buffer, size_t count,
-                          uint64_t offset) {
+static ssize_t kmsg_device_read(struct file* file, void* user_buffer,
+                                size_t count, uint64_t offset) {
     struct kmsg {
         char data[KMSG_BUF_CAPACITY];
         size_t size;
@@ -138,8 +138,8 @@ static ssize_t kmsg_pread(struct file* file, void* user_buffer, size_t count,
     return count;
 }
 
-static ssize_t kmsg_pwrite(struct file* file, const void* user_buffer,
-                           size_t count, uint64_t offset) {
+static ssize_t kmsg_device_write(struct file* file, const void* user_buffer,
+                                 size_t count, uint64_t offset) {
     (void)file;
     (void)offset;
 
@@ -161,9 +161,9 @@ static ssize_t kmsg_pwrite(struct file* file, const void* user_buffer,
 }
 
 static const struct file_ops kmsg_fops = {
-    .close = kmsg_close,
-    .pread = kmsg_pread,
-    .pwrite = kmsg_pwrite,
+    .close = kmsg_device_close,
+    .read = kmsg_device_read,
+    .write = kmsg_device_write,
 };
 static struct char_dev kmsg = {
     .name = "kmsg",

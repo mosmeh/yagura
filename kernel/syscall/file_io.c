@@ -16,7 +16,7 @@ NODISCARD static ssize_t pread(struct file* file, void* user_buf, size_t count,
         return 0;
     if (!is_user_range(user_buf, count))
         return -EFAULT;
-    ssize_t nread = file_pread(file, user_buf, count, offset);
+    ssize_t nread = file_read(file, user_buf, count, offset);
     if (nread == -EINTR)
         return -ERESTARTSYS;
     return nread;
@@ -67,7 +67,7 @@ NODISCARD static ssize_t readv(struct file* file, const struct iovec* user_iov,
         unsigned char* user_dest = iov.iov_base;
         size_t count = iov.iov_len;
         while (count) {
-            ssize_t n = file_pread(file, user_dest, count, offset);
+            ssize_t n = file_read(file, user_dest, count, offset);
             if (n == -EINTR) {
                 if (nread == 0)
                     return -ERESTARTSYS;
@@ -134,7 +134,7 @@ NODISCARD static ssize_t pwrite(struct file* file, const void* user_buf,
         return 0;
     if (!is_user_range(user_buf, count))
         return -EFAULT;
-    ssize_t nwritten = file_pwrite(file, user_buf, count, offset);
+    ssize_t nwritten = file_write(file, user_buf, count, offset);
     if (nwritten == -EINTR)
         return -ERESTARTSYS;
     return nwritten;
@@ -185,7 +185,7 @@ NODISCARD static ssize_t writev(struct file* file, const struct iovec* user_iov,
         const unsigned char* user_src = iov.iov_base;
         size_t count = iov.iov_len;
         while (count) {
-            ssize_t n = file_pwrite(file, user_src, count, offset);
+            ssize_t n = file_write(file, user_src, count, offset);
             if (n == -EINTR) {
                 if (nwritten == 0)
                     return -ERESTARTSYS;
