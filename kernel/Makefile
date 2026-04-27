@@ -29,6 +29,8 @@ SRCS := \
 	kernel/console/vt.c \
 	kernel/containers/vec.c \
 	kernel/cpu.c \
+	kernel/device/block.c \
+	kernel/device/char.c \
 	kernel/device/device.c \
 	kernel/device/pseudo.c \
 	kernel/drivers/ac97.c \

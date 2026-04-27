@@ -1,7 +1,7 @@
 #include "private.h"
 #include <common/string.h>
 #include <kernel/containers/vec.h>
-#include <kernel/device/device.h>
+#include <kernel/fs/inode.h>
 #include <kernel/fs/vfs.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>

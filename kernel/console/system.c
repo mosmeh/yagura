@@ -2,7 +2,6 @@
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/console/console.h>
-#include <kernel/device/device.h>
 #include <kernel/drivers/serial.h>
 #include <kernel/fs/file.h>
 #include <kernel/kmsg.h>

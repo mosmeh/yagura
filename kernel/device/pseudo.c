@@ -1,9 +1,11 @@
+#include "private.h"
 #include <common/string.h>
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/sysmacros.h>
-#include <kernel/device/device.h>
+#include <kernel/device/char.h>
 #include <kernel/fs/file.h>
 #include <kernel/kmsg.h>
+#include <kernel/memory/memory.h>
 #include <kernel/memory/safe_string.h>
 #include <kernel/panic.h>
 #include <kernel/system.h>

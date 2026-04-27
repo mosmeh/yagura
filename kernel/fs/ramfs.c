@@ -3,8 +3,8 @@
 #include <common/tree.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/containers/vec.h>
-#include <kernel/device/device.h>
 #include <kernel/fs/file.h>
+#include <kernel/fs/inode.h>
 #include <kernel/fs/vfs.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/phys.h>

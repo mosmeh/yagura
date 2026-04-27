@@ -1,7 +1,8 @@
 #include "private.h"
 #include <common/integer.h>
 #include <kernel/api/fcntl.h>
-#include <kernel/device/device.h>
+#include <kernel/device/block.h>
+#include <kernel/device/char.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/inode.h>
 #include <kernel/fs/vfs.h>

@@ -3,7 +3,7 @@
 #include <kernel/api/termios.h>
 #include <kernel/console/screen/screen.h>
 #include <kernel/containers/ring_buf.h>
-#include <kernel/device/device.h>
+#include <kernel/device/char.h>
 #include <kernel/task/sched.h>
 
 struct screen;

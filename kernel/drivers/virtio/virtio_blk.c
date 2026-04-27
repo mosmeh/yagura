@@ -1,7 +1,7 @@
 #include <common/stdio.h>
 #include <common/string.h>
 #include <kernel/api/sys/sysmacros.h>
-#include <kernel/device/device.h>
+#include <kernel/device/block.h>
 #include <kernel/drivers/pci.h>
 #include <kernel/drivers/virtio/virtio.h>
 #include <kernel/drivers/virtio/virtio_blk.h>

@@ -4,8 +4,8 @@
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/containers/ring_buf.h>
-#include <kernel/device/device.h>
 #include <kernel/fs/file.h>
+#include <kernel/fs/inode.h>
 #include <kernel/fs/vfs.h>
 #include <kernel/panic.h>
 #include <kernel/task/signal.h>

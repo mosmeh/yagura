@@ -8,7 +8,7 @@
 #include <kernel/api/sys/poll.h>
 #include <kernel/api/sys/sysmacros.h>
 #include <kernel/arch/io.h>
-#include <kernel/device/device.h>
+#include <kernel/device/char.h>
 #include <kernel/drivers/pci.h>
 #include <kernel/fs/file.h>
 #include <kernel/interrupts.h>

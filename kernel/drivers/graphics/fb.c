@@ -3,13 +3,14 @@
 #include <kernel/api/linux/fb.h>
 #include <kernel/api/linux/major.h>
 #include <kernel/api/sys/sysmacros.h>
-#include <kernel/device/device.h>
+#include <kernel/device/char.h>
 #include <kernel/drivers/graphics/graphics.h>
 #include <kernel/fs/file.h>
 #include <kernel/kmsg.h>
 #include <kernel/lock/mutex.h>
 #include <kernel/memory/memory.h>
 #include <kernel/memory/safe_string.h>
+#include <kernel/memory/vm.h>
 #include <kernel/panic.h>
 
 static struct {
