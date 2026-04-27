@@ -121,9 +121,20 @@ struct vm* vm_clone(struct vm* vm) {
     return TAKE_PTR(new_vm);
 }
 
-static bool vm_contains(const struct vm* vm, void* virt_addr) {
+static bool vm_contains(const struct vm* vm, const void* virt_addr) {
     size_t index = (uintptr_t)virt_addr >> PAGE_SHIFT;
     return vm->start <= index && index < vm->end;
+}
+
+static bool vm_contains_range(const struct vm* vm, const void* virt_addr,
+                              size_t n) {
+    uintptr_t start = (uintptr_t)virt_addr;
+    uintptr_t end = start + n;
+    if (end < start) // Overflow
+        return false;
+    if (!vm_contains(vm, (const void*)start))
+        return false;
+    return start == end || vm_contains(vm, (const void*)(end - 1));
 }
 
 static struct vm* virt_addr_to_vm(void* virt_addr) {
@@ -275,7 +286,7 @@ int vm_populate(struct vm* vm, void* virt_start_addr, void* virt_end_addr,
     uintptr_t end = ROUND_UP((uintptr_t)virt_end_addr, PAGE_SIZE);
     if (start >= end)
         return -EINVAL;
-    if (!vm_contains(vm, (void*)start) || !vm_contains(vm, (void*)(end - 1)))
+    if (!vm_contains_range(vm, (void*)start, end - start))
         return -EFAULT;
 
     SCOPED_LOCK(vm, vm);
@@ -308,6 +319,8 @@ struct page* vm_get_page(struct vm* vm, void* virt_addr, unsigned request) {
 
 int copy_from_vm(struct vm* vm, void* dest, const void* src, size_t n) {
     ASSERT(vm_is_locked_by_current(vm));
+    if (!vm_contains_range(vm, src, n))
+        return -EFAULT;
     size_t ncopied = 0;
     size_t page_offset = (uintptr_t)src % PAGE_SIZE;
     while (ncopied < n) {
@@ -328,6 +341,8 @@ int copy_from_vm(struct vm* vm, void* dest, const void* src, size_t n) {
 
 int copy_to_vm(struct vm* vm, void* dest, const void* src, size_t n) {
     ASSERT(vm_is_locked_by_current(vm));
+    if (!vm_contains_range(vm, dest, n))
+        return -EFAULT;
     size_t ncopied = 0;
     size_t page_offset = (uintptr_t)dest % PAGE_SIZE;
     while (ncopied < n) {
@@ -348,6 +363,8 @@ int copy_to_vm(struct vm* vm, void* dest, const void* src, size_t n) {
 
 int vm_clear(struct vm* vm, void* to, size_t n) {
     ASSERT(vm_is_locked_by_current(vm));
+    if (!vm_contains_range(vm, to, n))
+        return -EFAULT;
     size_t ncleared = 0;
     size_t page_offset = (uintptr_t)to % PAGE_SIZE;
     while (ncleared < n) {
@@ -367,6 +384,8 @@ int vm_clear(struct vm* vm, void* to, size_t n) {
 
 ssize_t vm_strnlen(struct vm* vm, const char* str, size_t n) {
     ASSERT(vm_is_locked_by_current(vm));
+    if (!vm_contains(vm, str))
+        return -EFAULT;
     size_t offset = 0;
     size_t page_offset = (uintptr_t)str % PAGE_SIZE;
     while (offset < n) {
@@ -389,6 +408,7 @@ ssize_t vm_strnlen(struct vm* vm, const char* str, size_t n) {
 }
 
 struct vm_region* vm_first_region(const struct vm* vm) {
+    ASSERT(vm_is_locked_by_current(vm));
     struct tree_node* node = tree_first(&vm->regions);
     if (!node)
         return NULL;
@@ -396,6 +416,7 @@ struct vm_region* vm_first_region(const struct vm* vm) {
 }
 
 struct vm_region* vm_next_region(const struct vm_region* region) {
+    ASSERT(vm_is_locked_by_current(region->vm));
     struct tree_node* node = tree_next(&region->tree_node);
     if (!node)
         return NULL;
@@ -403,6 +424,7 @@ struct vm_region* vm_next_region(const struct vm_region* region) {
 }
 
 struct vm_region* vm_prev_region(const struct vm_region* region) {
+    ASSERT(vm_is_locked_by_current(region->vm));
     struct tree_node* node = tree_prev(&region->tree_node);
     if (!node)
         return NULL;
@@ -545,6 +567,7 @@ ssize_t vm_find_gap(struct vm* vm, size_t npages) {
 
 void vm_insert_region(struct vm* vm, struct vm_region* new_region) {
     ASSERT(vm == new_region->vm);
+    ASSERT(vm_is_locked_by_current(vm));
     struct tree_node** new_node = &vm->regions.root;
     struct tree_node* parent = NULL;
     while (*new_node) {
