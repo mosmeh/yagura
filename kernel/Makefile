@@ -49,6 +49,7 @@ SRCS := \
 	kernel/exec/elf.c \
 	kernel/exec/exec.c \
 	kernel/exec/shebang.c \
+	kernel/fs/blkio.c \
 	kernel/fs/file.c \
 	kernel/fs/filemap.c \
 	kernel/fs/fs.c \
