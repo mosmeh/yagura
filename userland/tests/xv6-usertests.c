@@ -152,7 +152,7 @@ static void writetest1(void) {
 
     fd = ASSERT_OK(open("big", O_CREAT | O_RDWR, 0644));
     for (i = 0; i < MAXFILE; i++) {
-        ((int*)buf)[0] = i;
+        memcpy(buf, &i, sizeof(int));
         ASSERT_OK(write_all(fd, buf, 512));
     }
     close(fd);
@@ -166,7 +166,7 @@ static void writetest1(void) {
             break;
         }
         ASSERT(i == 512);
-        ASSERT(((int*)buf)[0] == n);
+        ASSERT(memcmp(buf, &n, sizeof(int)) == 0);
         n++;
     }
     close(fd);

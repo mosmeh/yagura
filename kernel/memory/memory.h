@@ -8,6 +8,7 @@
 #ifndef __ASSEMBLER__
 
 #include <common/macros.h>
+#include <common/string.h>
 #include <kernel/lock/mutex.h>
 #include <kernel/resource.h>
 
@@ -55,7 +56,8 @@ void* krealloc(void*, size_t new_size);
 void kfree(void*);
 
 static inline void __free_kfree(void* ptr) {
-    void* p = *(void**)ptr;
+    void* p;
+    memcpy(&p, ptr, sizeof(void*));
     if (p && IS_OK(p))
         kfree(p);
 }

@@ -70,7 +70,8 @@ void* phys_map(phys_addr_t phys_addr, size_t size, unsigned vm_flags);
 void phys_unmap(void*);
 
 static inline void __free_phys(void* ptr) {
-    void* p = *(void**)ptr;
+    void* p;
+    memcpy(&p, ptr, sizeof(void*));
     if (p && IS_OK(p))
         phys_unmap(p);
 }
