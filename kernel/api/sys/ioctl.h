@@ -6,6 +6,7 @@
 #define TCSETS 0x5402
 #define TCSETSW 0x5403
 #define TCSETSF 0x5404
+#define FIONBIO 0x5421
 #define TIOCGPGRP 0x540f
 #define TIOCSPGRP 0x5410
 #define TIOCGWINSZ 0x5413
@@ -14,6 +15,8 @@
 #define TCSETS2 _IOW('T', 0x2B, struct linux_termios2)
 #define TCSETSW2 _IOW('T', 0x2C, struct linux_termios2)
 #define TCSETSF2 _IOW('T', 0x2D, struct linux_termios2)
+#define FIONCLEX 0x5450
+#define FIOCLEX 0x5451
 
 struct winsize {
     unsigned short ws_row;

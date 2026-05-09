@@ -2,6 +2,7 @@
 #include <common/string.h>
 #include <kernel/api/fcntl.h>
 #include <kernel/api/stdio.h>
+#include <kernel/api/sys/ioctl.h>
 #include <kernel/api/sys/limits.h>
 #include <kernel/api/sys/poll.h>
 #include <kernel/fs/file.h>
@@ -280,6 +281,18 @@ int file_symlink(struct file* file, const char* target, size_t target_len) {
 }
 
 int file_ioctl(struct file* file, unsigned cmd, unsigned long arg) {
+    switch (cmd) {
+    case FIONBIO: {
+        int on;
+        if (copy_from_user(&on, (const void*)arg, sizeof(int)))
+            return -EFAULT;
+        if (on)
+            file->flags |= O_NONBLOCK;
+        else
+            file->flags &= ~O_NONBLOCK;
+        return 0;
+    }
+    }
     if (!file->fops->ioctl)
         return -ENOTTY;
     return file->fops->ioctl(file, cmd, arg);

@@ -1,4 +1,5 @@
 #include <kernel/api/fcntl.h>
+#include <kernel/api/sys/ioctl.h>
 #include <kernel/fs/file.h>
 #include <kernel/fs/inode.h>
 #include <kernel/fs/vfs.h>
@@ -108,8 +109,22 @@ SYSCALL3(dup3, int, oldfd, int, newfd, int, flags) {
 }
 
 SYSCALL3(ioctl, int, fd, unsigned, cmd, unsigned long, arg) {
-    struct file* file FREE(file) =
-        ASSERT(fd_table_ref_file(current->fd_table, fd));
+    struct fd_table* fd_table = current->fd_table;
+    switch (cmd) {
+    case FIOCLEX:
+    case FIONCLEX: {
+        SCOPED_LOCK(fd_table, fd_table);
+        int flags = fd_table_get_flags(fd_table, fd);
+        if (IS_ERR(flags))
+            return flags;
+        if (cmd == FIOCLEX)
+            flags |= FD_CLOEXEC;
+        else
+            flags &= ~FD_CLOEXEC;
+        return fd_table_set_flags(fd_table, fd, flags);
+    }
+    }
+    struct file* file FREE(file) = ASSERT(fd_table_ref_file(fd_table, fd));
     if (IS_ERR(file))
         return PTR_ERR(file);
     int rc = file_ioctl(file, cmd, arg);

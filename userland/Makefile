@@ -59,6 +59,7 @@ BIN_TARGET_NAMES := \
 	tests/execve \
 	tests/framebuffer \
 	tests/futex \
+	tests/ioctl \
 	tests/klog \
 	tests/libgen \
 	tests/link \
